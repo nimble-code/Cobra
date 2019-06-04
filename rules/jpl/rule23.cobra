@@ -1,0 +1,31 @@
+cpp off
+%{
+	nr_if  = 0;
+	nr_endif = 0;
+	last = .;
+
+	if (@cpp)
+	{	if (~"if")
+		{	nr_if++;	# if, ifdef, ifndef
+		}
+		if (~"endif")
+		{	nr_endif++;
+	}	}
+
+	if (last.fnm != .fnm
+	||  . == End)
+	{	if (nr_if > nr_endif)
+		{	.mark = 1;
+		#	print last.fnm ": missing #endif\n";
+		}
+		if (nr_if < nr_endif)
+		{	.mark = 2;
+		#	print last.fnm ": misplaced #endif\n";
+		}
+		nr_if    = 0;
+		nr_endif = 0;
+		last = .;
+	}
+%}
+= "=== R23: Place \#else, \#elif, and \#endif in the same file as the matching \#if\n"
+d

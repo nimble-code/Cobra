@@ -1,0 +1,14 @@
+# print preprocessed source, with numbered lines
+
+%{
+	if (q.lnr != .lnr)
+	{	q = .;
+		print .lnr "\t";
+		while (.lnr == q.lnr)
+		{	print .txt " ";
+			. = .nxt;
+		}
+		print "\n";
+		. = .prv;
+	}
+%}

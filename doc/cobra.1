@@ -1,0 +1,457 @@
+.ds C Cobra
+.\" nroff -man cobra.1
+.\" place in (depending on your system):
+.\"    /usr/local/man/man1
+.\" or /usr/man/man1
+.\" or /usr/share/man/man1
+.TH COBRA 1
+.SH NAME
+cobra \- interactive code browser and analyzer
+.SH SYNOPSIS
+.br
+.B cobra
+.BI [ options ]
+.BI [ files ]
+.SH DESCRIPTION
+\*C supports the examination and exploration of sets
+of source files that have been preprocessed into lexical tokens.
+The tool supports queries expressed interactively in direct
+query commands, and it can handle more detailed queries with
+inline programs written in a special scripting language.
+.br
+By default the tool recognizes C keywords and typenames.
+With command-line
+options it can also recognize C++, Java, Ada or Python code.
+The tool can be retargeted for additional languages, or
+other types of input not related to programming, by defining
+maps of the types of tokens that must be recognized.
+The query command and scripting language
+are documented in online reference manuals.
+.SH OPTIONS
+.TP
+.B \-Ada
+Recognize Ada keywords.
+.TP
+.B \-allheaderfiles
+Process all headerfiles, including system header files
+starting with prefix \f3/usr/\f1. Assumes that \f3\-cpp\f1 is used.
+See also \f3\-noheaderfiles\f1.
+.TP
+.B \-C++
+Recognize C++ keywords.
+.TP
+.BI "\-commands \f2'commands'\f1"
+Execute query \f2commands\f1, and then stop.
+Individual query commands are separated by semi-colons.
+See also \f3\-e\f1. Can be abbreviated to \f3\-c\f1
+.br
+Implies also option \f3\-quiet\f1.
+.TP
+.B \-cpp
+Run the C preprocessor over the input files before scanning them.
+This can later be undone with the inline command \f2cpp off\f1.
+If preprocessing was not enabled at startup (the default), it can
+also be enabled interactively with command \f2cpp on\f1, which then
+triggers a rescan of all source files.
+.TP
+.B \-d
+Reserved for debugging support.
+Different behavior when preceded with \f3\-v\f1.
+Implies \f3\-preserve\f1.
+.TP
+.B \-Dstr
+Pass directive to the C preprocessor.
+See also \f3\-cpp\f1, \f3\-U\f1 and \f3\-I\f1.
+.TP
+.BI "\-expr \f2'token_expression'\f1
+(Alternatively: \f3-e\f1, see also \f3-pattern\f1) Report (sequences of) lines matching a token expression.
+Meta-symbols that can be used in token expressions, with the usual meaning, are:
+(, |, ), ., *, +, ?.
+.br
+Sets of tokens can also be written as ranges enclosed in square brackets, e.g.:
+\f2[ appel pear ]\f1, to indicate a required match of any token in the range
+at the corresponding place in the expression.
+A token-name and a range of token-names (but not sub-expressions) can be negated
+with a ^ symbol, e.g.:
+\f2^appel\f1 (to indicate a required match any token except the one negated) or
+\f2^[appel pear]\f1 (to match any token not named in the range).
+.br
+See also \f3-pattern\f1, for a simplified version of this option.
+.br
+Tokens can be bound to a variable name with a name-binding operation \f2name:pattern\f1,
+e.g. \f2name:@ident\f1,
+and later referenced with a name-reference \f2:name\f1.
+.br
+When preceded by option \f3\-view\f1, a graph of the non-deterministic
+finite state automaton that is generated from the token expression is displayed with
+\f2dot\f1 (which is assumed to be installed).
+.br
+Implies also option \f3\-quiet\f1.
+.TP
+.BI "-f \f2file\f1"
+Execute the commands stored in the named \f2file\f1, and then stop.
+.br
+Implies also option \f3\-quiet\f1.
+.\" .TP
+.\" .B \-g
+.\" Reserved for future gui support.
+.TP
+.B \-help
+(or any other unrecognized option like \f3\-?\f1 or \f3\-\-\f1)
+print a summary of command line arguments.
+.TP
+.B \-Idir
+Pass directive to the C preprocessor.
+See also \f3\-cpp\f1, \f3\-D\f1 and \f3\-U\f1.
+.TP
+.B \-Java
+Recognize Java keywords.
+.TP
+.B \-lib
+List all prefefined \*C query sets that can be invoked by name
+with the \f3\-f\f1 option, without or without the filename suffix \f2.cobra\f1.
+This option can be abbreviated to \f3\-l\f1.
+.TP
+.B \-macros
+Parse the text of preprocessing macros,
+instead than classifying each complete macro definition
+as a single lexical token of type \f2cpp\f1.
+The use of this option implies that no C preprocessing is used
+(which is the default), cf. \f3\-cpp\f1, \f3\-nocpp\f1.
+This option can be abbreviated to \f3\-m\f1.
+.br
+Can be abbreviated to \f3\-m\f1.
+.TP
+.B \-nocpp
+Do not invoke the C preprocessor (the default),
+and prevent preprocessing from being enabled interactively,
+with <tt>cpp on</tt> commands (e.g., in scripts).
+See also \f3\-cpp\f1.
+.br
+Can be abbreviated to \f3\-n\f1.
+.TP
+.B \-noqualifiers
+Do not tag C qualifiers separately (e.g., const, volatile).
+.TP
+.B \-noheaderfiles
+Do not process any files with names ending in \f3.h\f1.
+See also \f3\-allheaderfiles\f1.
+.TP
+.B \-notypedefs
+Do not process C typedef definitions. By default the typedefs are
+parsed and the resulting user-defined types are categorized as \f2@type\f1.
+.TP
+.B \-notypes
+Do not tag any predefined C type names (e.g., int, short, char)
+.TP
+.B \-Nn
+Use \f2n\f1 parallel threads to process queries.
+.\" On Linux systems with at least four cores, the default setting
+.\" that is used will be \f3\-N4\f1, unless an explicit \f2Nn\f1 argument is used.
+.TP
+.BI "\-pattern \f2'token_expression'\f1
+(Alternatively \f3-pat\f1) Behaves like \f3-expr\f1 but with a
+spimlified token expression format that requires fewer escape symbols.
+In a pattern expression the characters '(', '|', ')', '+', and '?' are always
+interpreted as regular characters and never as meta-symbols.
+.br
+The characters '*' and ']' are interpreted as
+regular characters only if they are \f3preceded\f1 by a space,
+and the character '[' is only interpreted as a regular
+character if it is \f3followed\f1 by a space.
+.br
+The complete set of escape rules for pattern expressions is as follows:
+.br
+	':' is ':' iff preceded and followed by space, else it provides name binding
+.br
+	'[' is '[' iff followed by a space, else it begins a range expression
+.br
+	']' is ']' iff preceded by a space, else it closes a range expression
+.br
+	'*' is '*' iff preceded by a space, else it is the Kleene star
+.br
+	'.' is '.' iff preceded by '\\', else it matches any character
+.br
+	'^' is '^' iff preceded by '\\', else it indicates negation.
+.TP
+.B \-preserve
+Preserve the temporary files created in \f2/tmp/cobra_*\f1.
+.TP
+.B \-Python
+Recognize Python keywords.
+.TP
+.B \-quiet
+Quiet mode.
+Produces no intermediate output on matches and run-times.
+.TP
+.B \-runtimes
+Report the runtime of all commands executed, if it exceeds one second.
+.TP
+.B \-scrub
+Produce output in the format expected by the \f2scrub\f1 tool.
+.TP
+.B \-stdin
+Read source files from stdin. Requires one of:
+\f3\-commands\f1, \f3\-expr\f1, \f3-pattern\f1, or \f3\-f\f1.
+.TP
+.B \-terse
+Suppress the display of detailed matches, showin only number of matches.
+(Most useful in combination with \f3\-f\f1, \f3\-expr\f1, or \f3\-commands\f1.
+.TP
+.B \-tok
+Produce a tokenized version of the source files and then stop.
+.TP
+.B \-Ustr
+Pass directive to the C preprocessor.
+See also \f3\-cpp\f1, \f3\-D\f1 and \f3\-I\f1.
+.TP
+.B \-v
+Verbose mode.
+.TP
+.B \-view
+Must be followed by one of \f3\-expr\f1, \f3\-pattern\f1, or \f3\-f\f1.
+.br
+When combined with \f3\-expr\f1 or \f3\-pattern\f1, displays a dot-graph
+of the NDFA of the token expression.
+.br
+When combined with \f3\-f file\f1 and the file contains a single inline
+program, displays a dot-graph of the DFA of that program.
+.br
+The \f3\-view\f1 option implies \f3\-preserve\f1.
+.TP
+.BI "\-var name=value"
+Set \f2name\f1 to \f2value\f1 in user-defined parameterized scripts.
+.TP
+.B \-version
+Print current \*C version number and stop.
+Can be abbreviated as \f3\-V\f1.
+
+.SH EXAMPLES
+In all example below the initial \f2$\f1 character is the shell
+command prompt.
+.PP
+Print lines containing a match of lexical tokens
+named \f2x\f1 (e.g., identifiers) in a set of C source files:
+.RS
+  $ cobra \-expr x *.[ch]
+.RE
+or just
+.RS
+  $ cobra \-e x *.[ch]
+.RE
+.PP
+To print only the tokens matched:
+.RS
+  $ cobra \-commands "mark x; list" *.[ch]
+.RE
+or more compactly using shorthands:
+.RS
+  $ cobra \-c 'm x; l' *.[ch]
+.RE
+.PP
+Display the complete source lines:
+.RS
+  $ cobra \-c 'm x; d' *.[ch]
+.RE
+.PP
+Display the precise tokens matched:
+.RS
+  $ cobra \-c 'm x; p' *.[ch]
+.RE
+.PP
+Print identifier names:
+.RS
+  $ cobra \-c 'm @ident; l' *.[ch]
+.RE
+.PP
+Print tokens matching a regular expression:
+.RS
+  $ cobra \-c 'm /x; l' *.[ch]
+.RE
+.PP
+Find switch statements without a default clause:
+.RS
+  $ cobra \-c 'm switch; n {; c top no default; d' *.c
+.RE
+.PP
+Print every token preceded by its sequence number, with an
+inline Cobra program fragment:
+.RS
+  $ cobra \-c '%{ print .seq " " .txt "\\n"; %}' *.c
+.RE
+Note that we use single quotes around the command, so that
+we can use double-quotes inside, in the print statement.
+.PP
+Find functions that open, but do not close, a file descriptor, using a
+token expression:
+.RS
+  $ cobra \-e '{ FILE \\* x:@ident .* :x = fopen ^fclose* }' *.c
+.RE
+By default, the nesting
+level of closing curly, round, and square braces are matched to the
+last preceding opening brace of the same type and level.
+.LP
+This can be written more compactly with the \f3\-pattern\f1 option:
+.RS
+  $ cobra \-pattern '{ FILE * x:@ident .* :x = fopen ^fclose* }' *.c
+.RE
+or also
+.RS
+  $ cobra \-pat '{ FILE * x:@ident .* :x = fopen ^fclose* }' *.c
+.RE
+Pattern commands are usable for most simple pattern queries,
+and easier to type as well,
+so we'll use them for most of the examples.
+.PP
+Find memory that is allocated but not freed within the same block:
+.RS
+  $ cobra \-pat '{ .* malloc ^free* }' *.c
+.RE
+.PP
+Find switch statements that do not contain a default clause
+with a token expression, though possibly matching defaults in nested statements
+(see above for a more precise command sequence using -c):
+.RS
+  $ cobra \-pat 'switch ( .* ) { ^default* }' *.c
+.RE
+.PP
+Find cases where a loop-control variable is used inside the body of a for-loop
+(easy to adapt to suffix with an assignment operator or pre- or post-increment
+or decrement operators, to check if the variable is modified as well):
+.RS
+  $ cobra \-pat 'for ( x:@ident .* ) { .* :x .* }' *.c
+.RE
+.PP
+Find if statements not followed by compound statement:
+.RS
+  $ cobra \-pat 'if ( .* ) ^{' *.c
+.RE
+.PP
+Be careful with the dot meta-symbol when it is used in combination
+with negations in the same expression. In the above expression,
+for instance, it is sometimes better to write:
+.RS
+  $ cobra \-pat 'if ( ^)* ) ^{' *.c
+.RE
+.PP
+Find else keywords that are not followed by compound statement or another if:
+.RS
+  $ cobra \-pat 'else ^[{ if]' *.c
+.RE
+.PP
+Find empty if statements:
+.RS
+  $ cobra \-pat 'if ( .* ) ;' *.c
+.RE
+.PP
+Note that in this pattern expression the semi-colon symbol
+at the end matches a lexical token. It is not a command separator, as
+it would be if the \f3\-c\f1 syntax was used.
+.PP
+Find empty else clauses:
+.RS
+  $ cobra \-pat 'else ;' *.c
+.RE
+.PP
+Find expressions with missing braces around (selected) binary operators:
+.RS
+  $ cobra \-pat '( ^(* [| &] ^(* & .* )' *.c
+.RE
+.PP
+Find the definition of the C function \f2main\f1:
+.RS
+  $ cobra \-pat 'main ( .* ) { .* }' *.c
+.RE
+.PP
+Find blocks that contain no semi-colons or commas, after standard
+preprocessing with macro-substitution, file inclusion, etc:
+.RS
+  $ cobra \-cpp \-pat '{ ^[, ;]* }' *.c
+.RE
+.PP
+Find calls to sprintf that potentially use the destination argument as a source:
+.RS
+  $ cobra \-pat 'sprintf ( x:@ident .* :x .* )' *.c
+.RE
+.PP
+Also highlight the matching bound variable references:
+.RS
+  $ cobra \-v \-pat 'sprintf ( x:@ident .* :x .* )' *.c
+.RE
+.SH FILES
+A directory with predefined query libraries is created in
+\f2$COBRA/rules\f1, where \f2$COBRA\f1 is the installation directory.
+(If you forgot, on a Unix/Linux system type: \f2'which cobra'\f1 to find it,
+and replace the trailing \f2bin/cobra\f1 with \f2rules\f1.)
+.PP
+Files with extension \f2.cobra\f1 that are located
+in subdirectory \f2$COBRA/rules/main\f1 can be invoked directly by
+name from the command-line (without the need to specify a complete
+pathname). For instance:
+.RS
+  $ cobra \-terse \-f basic.cobra *.[ch]
+.RE
+Or interactively as:
+.RS
+  : . basic
+.RE
+This command applies a set of checks defined in \f2$COBRA/rules/main/basic.cobra\f1.
+With the \f2terse\f1 option only numbers of matches are reported, but not
+detailed line-by-line reports.
+Without the \f3\-terse\f1 option the full details are displayed.
+See also option \f3\-lib\f1.
+.PP
+The file \f2$HOME/.cobra\f1 is created during tool installation and is read
+when the tool is started. It contains the location of the rules directory
+and can optionally define a default number of cores to use on each run.
+Sample contents of this file are:
+.RS
+Rules: /tools/cobra/rules
+.br
+ncore: 1
+.RE
+There should be no space before the first \f2Rules:\f1 or \f2ncore:\f1 field,
+and there should no no other information on a line after the second field.
+There may be spaces or tabs between the first and second field.
+.PP
+Be careful with using a higher value for the default number of cores to be
+used: not all predefined library checks are multi-core safe (yet).
+.PP
+Tool documentation can be found online at \f2http://spinroot.com/cobra\f1..
+.br
+Temporary files are created in \f2/tmp\f1 with all filenames prefixed
+with the string \f2/tmp/cobra_\f1. With option \f2-d\f1 the temporary
+files are not automatically removed when \*C exits.
+.sp
+.SH AUTHOR
+Gerard Holzmann, gholzmann@acm.org
+.sp
+.SH SEE ALSO
+\fBcwe\f1
+.sp
+Online manual pages and tutorials with more detail,
+reference materials, and examples:
+.sp
+.in +2
+http://spinroot.com/cobra
+.sp
+http://spinroot.com/cobra/manual.html
+.sp
+http://spinroot.com/cobra/tutorial.html
+.sp
+.in -2
+Background information on an early version of \*C can be found in:
+.br
+.in +2
+.sp
+G.J. Holzmann, \f2Cobra - a light-weight tool for static and dynamic program analysis\f1.
+.sp
+Innovations in Systems and Software Engineering (ISSE), Springer,
+DOI 10.1007/s11334-016-0282-x, pp. 1-15, May 2016,
+(describes the older \*C version 1.)
+.sp
+G.J. Holzmann, \f2Cobra - a fast structural code analysis\f1.
+Spin 2017 Symposium, Santa Barbara, CA, USA, ACM Publ.
+(describes the current \*C version 2.)
+.in -2
+.br 

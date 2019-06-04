@@ -1,0 +1,17 @@
+## longest identifier
+
+def step1
+%{
+	if (@ident && .len > q.len)
+	{	q = .;
+	}
+%}
+end
+def step2
+%{
+	print "longest identifier: " q.txt " = " q.len " chars\n";
+	Stop;
+%}
+end
+step1
+step2

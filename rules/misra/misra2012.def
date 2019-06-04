@@ -1,0 +1,583 @@
+. basic.def
+
+def m12rule1.2
+	cpp off
+	r; m @cpp; m & /pragma
+	= "=== R1.2: (Advisory) Language extensions should not be used:"
+	d
+end
+
+def m12rule2.6
+	cpp on
+	r; m ?; s :	# find p ? r : s
+	n :; b		# move mark to the ident before the :
+	>1		# save
+	r
+	m @ident :	# find name :
+	n; n		# to token following :
+	unmark /^[0-9]$	# exclude bitfield declarations name : nr
+	b; b; b		# to token before name
+	unmark case	# exclude case stmnts
+	n		# back to name
+	<^1		# exclude conditional expressions
+	>1		# all proper labelnames, at point of definition
+	s goto $$	# forward to goto followed by labelname
+	>2		# all backward jumps
+	r
+	<1		# restore marks from set 1
+	<^2		# take the difference between 1 and 2
+	>3		# forward jumps and unused labels
+	b goto $$	# see if we can move backward to goto, if there
+	n; n $$ :	# go back to the label
+	<^2		# the others are unused labels
+	= "=== R2.6: (Advisory) A fct should not contain unused label declarations:"
+	d
+end
+
+def m12rule2.7
+	cpp on
+	r; m @ident \(
+	n; j; e {; j	# remains: fct declarations, at the (
+	m ir @ident	# mark all parameter names (and typedef names
+	e /^[,)]$	# most of the parameter names
+	>1
+	s $$		# search forward for the name
+	>2
+	<1
+	<^2		# what remains are unused parameters
+	= "=== R2.7: (Advisory) There should be no unused parameters in fcts:"
+	d
+end
+
+def m12rule3.1
+	cpp off
+	r; m @cmnt; m & //\*.*/\*
+	>1
+	r; m @cmnt; m & //\*.*//
+	<|1
+	>1
+	r; m @cmnt; m & ///.*/\*
+	<|1
+	>1
+	r; m @cmnt; m & ///.*//
+	<|1
+	= "=== R3.1: (Required) The character sequences /* and // shall not be used within a comment:"
+	d
+end
+
+def m12rule3.2
+	cpp off
+	r
+	m @cmnt; m & ///.*\\$
+	= "=== R3.2: (Required) Line-splicing shall not be used in // comments:"
+	d
+end
+
+def m12rule4.1
+	cpp on
+	r; m \\\ /^['\"?abfnrtvxX0-9]		# undefined escape
+	>1
+	r; m \\\ /^[0-9][0-9][0-9]$		# octal escape
+	<|1
+	>1
+	r; m /^['"]\x[0-9][0-9][^'"]		# not properly terminated escape
+	<|1
+	= "=== R4.1: (Required) Octal and hexadecimal escape sequences shall be terminated:"
+	d
+end
+
+def m12rule4.2
+	cpp on
+	r; m ? ?; n; e /^[=\(\)/'<>!\-]		# use of trigraphs
+	= "=== R4.2: (Advisory) Trigraphs should not be used:"
+	d
+end
+
+def m12rule4.3
+	cpp on
+	r; m asm; b {; s asm; c \;
+	>1
+	r; m asm; n \;; s }; c \;
+	<|1
+	= "=== Dir4.3: (Required) Assembly language shall be encapsulated and isolated:"
+	d
+end
+
+def m12rule4.4
+	cpp off
+	r
+	m //\*.*\;.*\*/			# ; in C comment
+	m //\*[^\*]*\;			# avoid /* ... */ ...;
+	m //\*[^/]*\;			# ditto
+	m ///.*\;			# ; in C++ comment
+	= "=== Dir4.4: (Advisory) Sections of code should not be commented out:"
+	d
+end
+
+def m12rule4.6
+	cpp on
+	r; m char; m int; m short; m long; m float; m double
+	= "=== Dir4.6: (Advisory) typedefs that indicate size and signedness should be used in place of the basic numerical types:"
+	d
+end
+
+def m12rule4.12
+	cpp on
+	r; m /alloc; m free
+	= "=== Dir4.12: (Required) Dynamic memory allocation shall not be used:"
+	d
+end
+
+def m12rule6.2
+	cpp on
+	r; m ?; s :	# find p ? r : s
+	n :; b		# move mark to the ident before the :
+	>1		# save
+	r
+	m : 1		# find potential single bit-field declarations
+	b		# back to the identifier name
+	<^1		# exclude conditional expressions
+	b		# to the type name (eg int or char)
+	unmark unsigned	# unsigned is okay
+	b		# should be unsigned
+	unmark unsigned	# unsigned is okay
+	n :; n
+	= "=== R6.2: (Required) Single-bit named bit fields shall not be of a signed type:"
+	d
+end
+
+def m12rule7.1
+	cpp on
+	r; m \\\ /^[0-9][0-9][0-9]$		# octal escape
+	= "=== R7.1: (Required) Octal constants shall not be used:"
+	d
+end
+
+def m12rule7.3
+	cpp on
+	r; m /^[0-9]+l$
+	= "=== R7.3: (Required) The lowercase character l shall not be used in a literal suffix:"
+	d
+end
+
+def m12rule8.9
+	r
+	!scope_check -c R8.9 $FLAGS $ARGS
+	# "Rule 8.9 (Advisory) An object should be defined at block scope if its identifier only appears in a single function"
+end
+
+def m12rule8.11
+	cpp on
+	r; m extern; s \; c [; n [; e ]
+	= "=== R8.11: (Required) When an array with external linkage is declared, its size should be explicitly specified:"
+	d
+end
+
+def m12rule8.14
+	cpp on
+	r; m restrict
+	= "=== R8.14: (Required) The restrict type qualifier shall not be used:"
+	d
+end
+
+def m12rule12.3
+	cpp on
+	r; m @type; s \;; c ,; m ,	# commas in declarations
+	>1
+	r; m ,
+	w (.curly>0 && .round == 0)
+	<^1
+	= "=== R12.3: (Advisory) The comma operator should not be used:"
+	d
+end
+
+def m12rule13.4
+	cpp on
+	r; m if;    n; c /[-+][-+]		# pre or post increments
+	>1
+	r; m if;    n; c /[^=<>!]=			# assignments
+	<|1
+	>1
+	r; m while; n; c /[-+][-+]
+	<|1
+	>1
+	r; m while; n; c /[^=<>!]=
+	<|1
+	>1
+	r; m for;   n \;; s \;; c /[-+][-+]
+	<|1
+	>1
+	r; m for;   n \;; s \;; c /[^=<>!]=
+	<|1
+	= "=== R13.4: (Advisory) The result of an assignment operator should not be used:"
+	d
+end
+
+def m12rule13.5
+	cpp on
+	r; m \&&; s top ); c no \;; c /[-+][-+]	# not in for-loop; pre or post increments
+	>1
+	r; m \||; s top ); c no \;; c /[-+][-+]
+	<|1
+	>1
+	r; m \&&; s top ); c no \;; c /[^=<>!]=			# assignments
+	<|1
+	>1
+	r; m \||; s top ); c no \;; c /[^=<>!]=
+	<|1
+	>1
+	r; m \&&; s top ); c no \;; c /[a-zA-Z0-9_]+\(		# fct calls
+	<|1
+	>1
+	r; m \||; s top ); c no \;; c /[a-zA-Z0-9_]+\(		# fct calls
+	<|1
+	= "=== R13.5: (Required) The right hand operand of && or || shall not contain persistent side effects:"
+	d
+end
+
+def m12rule13.6
+	cpp on
+	r; m sizeof; n
+#	c /[-=\+\(]		# xxx false match on: sizeof( (array) )
+	%{
+		if (.mark == 0 || .txt != "(") { Next; }
+		r = .prv;
+		q = .jmp;
+		.mark = 0;
+		while (. != q)
+		{	if (.txt == "++:"
+			||  .txt == "--:"
+			||  .txt == "=:"
+			||  .txt == "+=:"
+			||  .txt == "-=:"
+			||  .txt == "*=:"
+			||  .txt == "/=")
+			{	r.mark = 1;
+			} else
+			{	if (.txt == "(")
+				{	. = .prv;
+					if (@ident)
+					{	r.mark = 1;
+					}
+					. = .nxt;
+			}	}
+			. = .nxt;
+		}
+	%}
+	= "=== R13.6: (Mandatory) The operand of sizeof shall not have side effects:"
+	d
+end
+
+def m12rule15.1
+	cpp on
+	r; m goto
+	= "=== R15.1: (Advisory) The goto stmnt should not be used:"
+	d
+end
+
+def m12rule15.2
+	cpp on
+	r; m goto; n	# names of labels used in gotos
+	>1		# all labelnames
+	s $$ :		# forward to labelname followed by colon
+	>2		# only forward jumps
+	r
+	<1		# restore marks from set 1
+	<^2		# take the difference between 1 and 2
+	= "=== R15.2: (Info) Number of backward goto jumps::"
+	= "=== R15.2: (Required) The goto stmnt shall jump to a label declared later in the same fct:"
+	d		# which leaves all backward gotos
+end
+
+def m12rule15.4
+	cpp on
+	r; m switch \(
+	n; j; e {; n	## ; n; s top }
+	m ir break	# marks break stmnts inside switch
+	>1		# save these
+	r; m for \(; n; j; e {; n
+	m ir break
+	<^1		# exclude break stmnts inside switch
+	%{		# count nr of break stmnts in each for-loop
+		if (.txt != "for") { Next; }
+		r = .;
+		. = .nxt;
+		if (.txt != "(") { Next; }
+		. = .jmp;
+		if (.txt != ")") { Next; }
+		. = .nxt;
+		if (.txt != "{") { Next; }
+		q = .jmp;
+		while (. != q) {
+			r.mark = r.mark + .mark;
+			.mark = 0;
+			. = .nxt;
+		}
+		if (r.mark == 1)
+		{	r.mark = 0;
+		}
+	%}
+	= "=== R15.4: (Advisory) There should be no more than one break or goto stmnt used to terminate any iteration stmnt:"
+	d
+end
+
+def m12rule15.5
+	cpp on
+	r; m @ident \(
+	m & (!.curly(
+	n; j; e {; n
+	c return
+	n return
+	n \;
+	n
+	w (.txt != } || .curly > 1)
+	b return
+	= "=== R15.5: (Advisory) A fct should have a single point of exit at the end:"
+	d
+end
+
+def m12rule15.6
+	cpp on
+	r; m switch \(; n; j; n; unmark {
+	>1
+	r; m while; b; unmark }
+	n; n; j; n; unmark {; unmark \;
+	b; b; b
+	<|1
+	>1
+	r; m do;    n;       unmark {; b
+	<|1
+	>1
+	r; m for;   n; j; n; unmark {; b
+	<|1
+	= "=== R15.6: (Required) The body of an iteration-stmnt or a selection-stmnt shall be a compound-stmnt:"
+	d
+end
+
+def m12rule15.7
+	cpp on
+	check_ifelseif
+	= "=== R15.7: (Required) All if ... else if constructs shall be terminated with an else stmnt:"
+end
+
+def m12rule16.3
+	cpp on
+	r; m case; s top case; c \;; c no switch; c no break
+	>1
+	r; m case; s top default; c \;; c no switch; c no break
+	<|1
+	>1
+	r; m case; s up };
+	c \;; c no case; c no default; c no switch; c no break
+	<|1
+	= "=== R16.3: (Required) An unconditional break stmnt shall terminate every switch-clause:"
+	d
+end
+
+def m12rule16.4
+	cpp on
+	r; m switch
+	n {
+	c top no default
+	b ); j; b
+	= "=== R16.4: (Required) Every switch stmnt shall have a default label:"
+	d
+end
+
+def m12rule16.6
+	cpp on
+	r; m switch; n {; c no case
+	= "=== R16.6: (Required) Every switch stmnt shall have at least two switch-clauses:"
+	d
+end
+
+def m12rule17.1
+	cpp off
+	r; m @cpp; m & /stdarg.h
+	= "=== R17.1: (Required) The features of <stdarg.h> shall not be used:"
+	d
+end
+
+def m12rule17.2
+	cpp on
+	r; m @ident \(; n; j; ex {; j; b	# all fct declarations
+	s top }			# set range to fct body (stretch command)
+	m ir $$			# match of fct name inside the range
+	e \(			# recursive fct call
+	= "=== R17.2: (Required) Functions shall not call themselves, either directly or indirectly:"
+	d
+end
+
+def m12rule17.4
+	cpp on
+	r; m @ident \(; n; j; extend {; j; b; b; mark no void; n {
+	c no return	# should match zero ranges
+	u		# undo
+	m ir return	# match all return stmnts inside range
+	n		# move to the token that follows, which should not be a semicolon
+	m & \;		# return stmnt without expression
+	= "=== R17.4: (Mandatory) All exit paths from a fct with non-void return type shall have an explicit return stmnt with an expression:"
+	d
+end
+
+def m12rule17.6
+	cpp on
+	r; m @ident \(; n; j; e {; j
+	c [
+	n [
+	c static
+	= "=== R17.6: (Mandatory) The declaration of an array parameter shall not contain the static keyword between the [ ]:"
+	d
+end
+
+def m12rule17.8
+	cpp on
+	r; m @ident \(; n; j; e {; j
+	m ir @ident
+	s $$
+	n $$
+	e ++
+	>1
+	u
+	e --
+	<|1
+	>1
+	u
+	e =
+	<|1
+	= "=== R17.8: (Advisory) A fct parameter should not be modified:"
+	d
+end
+
+def m12rule18.5
+	cpp on
+	r; m * *; n; n; m & *
+	>1
+	r; m * *; n; n; m & @ident; n; m & [
+	<|1
+	= "=== R18.5: (Advisory) Declarations should contain no more than two levels of pointer nesting:"
+	d
+end
+
+def m12rule18.7
+	cpp on
+	r; m @ident [
+	n; e ]		# name []
+	n; e /^\;,$	# ]
+	b		# [
+	b		# name
+	b		# type
+	b		# qualifier
+	unmark extern
+	= "=== R18.7: (Required) Flexible array members shall not be declared:"
+	d
+end
+
+def m12rule19.2
+	cpp on
+	r; m union
+	= "=== R19.2: (Advisory) The union keyword should not be used:"
+	d
+end
+
+def m12rule20.1
+	. jpl/rule31.cobra
+	= "=== R20.1: include directives should only be preceded by preprocessor directives or comments:"
+	d
+end
+
+def m12rule20.2
+	cpp off
+	r; m @cpp; m & /include.*['"\\\*]
+	= "=== R20.2: (Required) Single or double quote or \ characters and the /* or // character sequences shall not occur in a header file name:"
+	d
+end
+
+def m12rule20.3
+	cpp off
+	r; m @cpp; m & /include; m no /\<; m no /:"
+	= "=== R20.3: (Advisory): (Required) The \#include directive shall be followed by either a <filename> or 'filename' sequence:"
+	d
+end
+
+def m12rule20.5
+	cpp off
+	r; m @cpp; m & /undef
+	= "=== R20.5: (Advisory) \#undef should not be used:"
+	d
+end
+
+def m12rule20.10
+	cpp off
+	r; m @cpp; m & /define.*\#
+	= "=== R20.10: (Advisory) The \# and \#\# preprocessor operators should not be used:"
+	d
+end
+
+def m12rule21.3
+	cpp on
+	r; m /alloc; m free
+	= "=== R21.3: (Required) The memory allocation and deallocation fcts of <stdlib.h> shall not be used:"
+	d
+end
+
+def m12rule21.4
+	cpp off
+	r; m @cpp; m & /setjmp.h
+	= "=== R21.4: (Required) The standard header file <setjmp.h> shall not be used:"
+	d
+end
+
+def m12rule21.5
+	cpp off
+	r; m @cpp; m & /signal.h
+	= "=== R21.5: (Required) The standard header file <signal.h> shall not be used:"
+	d
+end
+
+def m12rule21.6
+	cpp off
+	r; m @cpp; m & /stdio.h
+	= "=== R21.6: (Required) The Standard Library input/output fcts shall not be used:"
+	d
+end
+
+def m12rule21.7
+	cpp on
+	r; m atof; m atoi; m atol
+	= "=== R21.7: (Required) The atof, atoi, atol and atoll fcts of <stdlib.h> shall not be used:"
+	d
+end
+
+def m12rule21.8
+	cpp on
+	r; m abort; m exit; m getenv; m system
+	= "=== R21.8: (Required) The library fcts abort, exit, getenv and system of <stdlib.h> shall not be used:"
+	d
+end
+
+def m12rule21.9
+	cpp on
+	r; m bsearch; m qsort
+	= "=== R21.9: (Required) The library fcts bsearch and qsort of <stdlib.h> shall not be used:"
+	d
+end
+
+def m12rule21.10
+	cpp off
+	r; m @cpp; m & /time.h
+	= "=== R21.10: (Required) The standard library time and date fcts shall not be used:"
+	d
+end
+def m12rule21.11
+	cpp off
+	r; m @cpp; m & /tgmath.h
+	= "=== R21.11: (Required) The standard header file <tgmath.h> shall not be used:"
+	d
+end
+def m12rule21.12
+	cpp off
+	r; m @cpp; m & /fenv.h
+	= "=== R21.12: (Advisory) The exception handling features of <fenv.h> should not be used:"
+	d
+end

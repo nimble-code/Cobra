@@ -1,0 +1,27 @@
+# find modifiers without an explicit type (defaulting to int)
+#   modifiers are:  long, short, signed, unsigned
+#   qualifiers are: const, volatile
+
+def pedantic_type
+	r
+	m @modifier		# mod [qual]* [type] name
+	n; unmark @type		# eg unsigned int
+	unmark @modifier	# eg unsigned long two modifiers in a row
+	b
+	>1			# mod [qual]* name
+	
+	n
+	m & @qualifier; n; m & @type
+	>2			# mod qual type
+	u
+	m & @qualifier; n; m & @type
+	>3			# mod qual qual type
+	d
+	
+	<1			# matches from set 1
+	<^2			# not in set 2
+	<^3			# not in set 3
+	= "=== Modifier without explicit type:"
+	d
+end
+pedantic_type

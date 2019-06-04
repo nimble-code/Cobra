@@ -1,0 +1,34 @@
+def nr_cases
+track start _cobra_tmp_
+%{
+	if (.curly > 0 && #switch)
+	{	q = .;
+		. = .nxt;
+		if (.txt != "(" )
+		{       . = q;
+			Next;
+		}
+		. = .jmp;
+		. = .nxt;
+		if (.txt != "{")
+		{       . = q;
+			Next;
+		}
+
+		q.mark = 0;
+		while (.curly >= q.curly)
+		{	if (.curly == q.curly + 1
+			&&  (#case || #default))
+			{	q.mark = q.mark + 1;
+			}
+			. = .nxt;
+		}
+		print q.mark " " .fnm ":" q.lnr "\n";
+		. = q;
+	}
+%}
+track stop
+!sort -n _cobra_tmp_
+!rm -f _cobra_tmp_
+end
+nr_cases

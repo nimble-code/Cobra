@@ -1,0 +1,32 @@
+def switch_default
+%{
+	if (#switch)
+	{	. = .nxt;
+		if (.txt != "(")
+		{	Next;
+		}
+		. = .jmp;	# closing )
+		. = .nxt;
+		if (.txt != "{")
+		{	Next;
+		}
+		. = .jmp;	# closing }
+		q = .;
+		. = .jmp;	# opening {
+
+		while (. != q)
+		{	if (#default && (.curly == q.curly+1))
+			{	break;
+			}
+			. = .nxt;
+		}
+		if (. == q)	# no default seen
+		{	. = .jmp;	# back to opening {
+			print .fnm ":" .lnr ": " "switch without default\n";
+		}
+		. = q;
+		. = .jmp;	# back to opening {
+	}	
+%}
+end
+switch_default

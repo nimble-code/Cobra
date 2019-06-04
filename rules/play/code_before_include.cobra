@@ -1,0 +1,31 @@
+r
+m /^\#include
+%{
+	if (.mark == 0)
+	{	Next;
+	}
+	.mark = 0;
+	here = .;
+	# search backwards
+	# print .fnm ":" .lnr ": " .txt "\n";
+	while (.fnm == here.fnm && . != last && .mark != 3)
+	{	if (.txt == ";")
+		{	.mark = 2;	# to distinguish from 1
+			. = here.nxt;
+			while (.fnm == here.fnm && . != last)
+			{	last = .;
+				. = .nxt;
+			}
+			Next;
+		}
+		.mark = 3;	# avoid rechecking later
+		last = .;
+		. = .prv;
+	}
+	. = here;
+%}
+%{
+	if (.mark == 3 || .mark == 1) { .mark = 0; }
+%}
+= "code preceding include directives:"
+d

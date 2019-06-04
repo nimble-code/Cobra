@@ -1,0 +1,23 @@
+# comments
+
+%{
+	if (cpu != 0) { Stop; }
+	# use just one core
+
+	. = first_t;
+	while (. != last_t)
+	{	if (@cmnt)
+		{	nr_comments++;
+			cum_len = cum_len + .len;
+			if (maxlen < .len)
+			{	maxlen = .len;
+		}	}
+		. = .nxt;
+	}
+	print "nr comments:\t" nr_comments "\n";
+	print "longest cmnt:\t" maxlen " char\n";
+	if (nr_comments > 0)
+	{	print "avg length:\t" cum_len / nr_comments " char\n";
+	}
+	Stop;
+%}

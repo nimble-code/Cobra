@@ -1,0 +1,21 @@
+
+def getstats
+	cpp on
+	r; fcts
+	>1
+#	w .len<8
+#	= "fct names shorter than 8 chars:"
+#	w .len<4
+#	= "fct names shorter than 4 chars:"
+	w .len<2
+	= "fct names shorter than 2 chars:"
+	<1
+#	w .len>15
+#	= "fct names longer than 15 chars:"
+	w .len>31
+	= "fct names longer than 31 chars:"
+	w .len>63
+	= "fct names longer than 63 chars:"
+	= "longest names" .len
+end
+getstats

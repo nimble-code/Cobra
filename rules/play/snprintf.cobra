@@ -1,0 +1,76 @@
+## cf. https://blog.semmle.com/introduction-to-variant-analysis-part-2/
+## cf. https://lgtm.com/blog/rsyslog_snprintf_CVE-2018-1000140?__hstc=70225743.6b8abfe34430a5e631b7f5545e732755.1558200949282.1558200949282.1558200949282.1&__hssc=70225743.1.1558200949282&__hsfp=937410765
+
+r
+m snprintf
+b
+m & /=
+n (
+c /%s
+# now check if an ident that appears in arg1 appears in a
+# controlling condition earlier in the same function
+%{
+	function has_break(f)	# f = token after )
+	{
+		if (f.txt == "break"
+		||  f.txt == "return")
+		{	.mark = 0;
+			unset Ident;
+			Next;		# move on
+		}
+		if (f.txt != "{")
+		{	return;
+		}
+
+		g = f.jmp;
+		while (f.seq < g.seq)
+		{	if (f.txt == "break"
+			||  f.txt == "return")
+			{	.mark = 0;
+				unset Ident;
+				Next;
+			}
+			f = f.nxt;
+		}
+	}
+	Stop;
+%}
+%{
+	if (.mark == 0)
+	{	Next;
+	}
+	b = .;
+	e = .jmp;	# end of params
+
+	while (b.seq < e.seq)	# collect the identifiers in arg1
+	{	if (b.txt == "," && b.round == .round)
+		{	break;	# end of arg1
+		}
+		if (b.type == "ident")
+		{	Ident[b.txt] = 1;
+		}
+		b = b.nxt;
+	}
+	b = .prv;	# snprintf
+	while (b.curly > 0)		# fct body before snprintf call
+	{
+		if (b.txt != "if")	# check conditions
+		{	b = b.prv;
+			continue;
+		}
+
+		c = b.nxt;		# (
+		e = b.jmp;		# )
+		while (c.seq < e.seq)	# check
+		{	if (c.typ == "ident" && Ident[c.txt] != 1)
+			{	has_break(e.nxt); # check if guard
+			}
+			c = c.nxt;	# no break or return
+			continue;
+		}
+		b = b.prv;	# outer while loop
+	}
+	unset Ident;
+%}
+= "potentially dangerous calls to snprintf:"
+d

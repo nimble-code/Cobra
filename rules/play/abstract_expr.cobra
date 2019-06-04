@@ -1,0 +1,59 @@
+# print an abstract version of each expression
+#
+# for instance, to check the use of bitwise operators | and ^ in expressions:
+#
+# cobra -f play/abstract_expr *.[ch] | awk ' { $1=""; print $0; }' | sort | uniq -c | sort -n | grep -e " | " -e " ^ "
+#
+
+%{
+	if (.curly == 0 || .txt == "for" )
+	{	. = .nxt;
+		Next;
+	}
+	if (.txt == "(")
+	{	q = .;
+		while (. != q.jmp)
+		{
+			if (@type)
+			{	. = q.jmp;
+				Next;	# part of data structure or cast
+			}
+			. = .nxt;
+		}
+		. = q;
+		print .fnm ":" .lnr " ";
+		while (. != q.jmp)
+		{	if (@ident || @chr)
+			{	print "v ";
+				goto L;
+			}
+			if (@const_int)
+			{	print .txt " ";
+				goto L;
+			}
+			if (@str) { print "s "; goto L; }
+			if (.txt == "->") { . = .nxt; goto L; }
+			if (.txt == ",")  { print ")\t("; goto L; }
+
+			print .txt " ";
+L:			. = .nxt;
+		}
+		print .txt "\n";
+	}
+	Next;
+
+	# to add a check of rhs of assignments:
+	if (.txt == "=")
+	{	. = .nxt;
+		print .fnm ":" .lnr " ";
+			while (.txt != ";" && .txt != "," && .txt != ")")
+		{	if (@ident)
+			{	print "v ";
+			} else
+			{	print .txt " ";
+			}
+			. = .nxt;
+		}
+		print "\n";
+	}
+%}

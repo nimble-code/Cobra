@@ -1,0 +1,186 @@
+.ds C cwe
+.\" nroff -man cwe.1
+.TH CWE 1
+.SH NAME
+cwe \- cobra-based tool for checking cwe vulnerabilities
+.SH SYNOPSIS
+.br
+.B cwe
+.BI [ options ]
+.BI [ files ]
+.SH DESCRIPTION
+\*C is a Cobra-based optimized checker for the following ten
+CWE vulnerabilities:
+cwe_119, cwe_120, cwe_131, cwe_134, cwe_170, cwe_197,
+cwe_416, cwe_457, cwe_468, and cwe_805.
+
+.SH OPTIONS
+The tool accepts all basic Cobra command-line options.
+The most relevant of these are the options used for
+for scanning and preprocessing files, and the option for specifying
+summary output (\f3-terse\f1).
+Specifically query-related Cobra options such as \f3-c\f1, \f3-pat\f1,
+or \f3-expr\f1, also work, but they make the tool work like
+Cobra itself, rather than as the intended CWE checker.
+When used without CWE specific options (or Cobra related
+queries) the tool checks all ten variants of the predefined
+CWE vulnerabilities for the source files specified as arguments.
+.sp
+The command-line options recognized by \*C (and not
+by cobra) are as follows.
+Note that the \*C options require no leading hyphen.
+Multiple CWE options can be used in combination.
+.br
+Running \*C without any of the options listed below,
+causes \*C to perform all supported checks.
+.TP
+.B cwe_119
+The vulnerability checked is:
+"improper restriction of operations within
+the bounds of a memory buffer."
+.br
+Checks three specific cases. By default all three of these cases are
+checked. If a specific case is wanted instead, the query can
+be specialized by adding the suffix \f3_1\f1, \f3_2\f1, or \f3_3\f1,
+as in: \f3cwe_119_2\f1.
+The options check the use of array indices,
+where the value of the variable may be suspect, or is unchecked.
+.br
+\f3cwe_119_1\f1 the variable is modified multiple times in a loop
+.br
+\f3cwe_119_2\f1 the variable is assigned a value but that value
+is not checked for both a maximum or minimum value (e.g., that it
+is not negative) before it appears in an array index.
+.br
+\f3cwe_119_3\f1 the variable is passed in as a parameter and its
+value is not checked before use in an array index.
+
+.TP
+.B cwe_120
+The vulnerability checked is:
+"buffer copy without checking size of input (classic buffer overflow)."
+.br
+Three cases are predefined that by default will all
+be checked. A specific case can be selected by using a
+suffix \f3_1\f1, \f3_2\f1, or \f3_3\f1, as in: \f3cwe_120_1\f1.
+.br
+\f3cwe_120_1\f1 use of function that perform no bounds checking,
+when a safer alternative is availble.
+Specifically: use of \f3gets()\f1 instead of \f3fgets()\f1, 
+use of \f3strcpy\f1 instead of \f3strncpy\f1,
+use of \f3strcat\f1 instead of \f3strncat\f1, and
+use of \f3sprint\f1 instead of \f3snprintf\f1.
+.br
+\f3cwe_120_2\f1 use of snprintf or scanf without a width-limit
+on the format specifier \f3%s\f1.
+.br
+\f3cwe_120_3\f1 potential cases of buffer overrun in strncpy.
+.TP
+.B cwe_131
+The vulnerability checked is: "incorrect calculation of buffer size."
+.br
+Cases checked include memory allocation calls that do not use a call
+to \f3sizeof\f1 or \f3strlen\f1 to compute the argument.
+A second case checked is if a heap-allocated array is indexed
+beyond its allocated size. For instance if space for N elements
+is allocated, and an array index is found at index N, where the
+maximum index should be (N-1).
+.TP
+.B cwe_134
+The vulnerability checked is: "use of externally-controlled format string."
+.br
+Checks for use of parameters in calls to memcpy or printf without an
+earlier check on the validity of those parameters.
+.TP
+.B cwe_170
+The vulnerability checked is: "improper null termination."
+.br
+Checks for calls to strncpy where the destination of the copy may exceed
+the bound that is provided, thus causing the result to miss its null-termination.
+.TP
+.B cwe_197
+The vulnerability checked is: "numeric truncation error."
+.br
+Checks for casts or assignments to variables where the range of the source
+exceeds that of the destination, leading to potential loss of precision.
+For instance, the assignment from a variable declared as a long integer to
+one declared as a short.
+.TP
+.B cwe_416
+The vulnerability checked is the classic: "use after free."
+.br
+Checks for the potential use of heap-allocated memory after that
+memory was released with a call to free().
+.TP
+.B cwe_457
+The vulnerability checked is: "use of uninitialized variable."
+.br
+A common, and dangerous type of vulnerability. A function-local
+variable that is not explicitly initialized before it is first
+evaluated will contain arbitrary data, causing undefined behavior.
+.TP
+.B cwe_468
+The vulnerability checked is: "incorrect pointer scaling."
+.br
+Checks for the use of arithmetic on pointer values used in casts.
+.TP
+.B cwe_805
+The vulnerability checked is: "buffer access with incorrect length."
+.br
+Checks for the use of values, e.g., returned from functions,
+that may be negative or zero and that are subsequently used,
+without check, to index an array, or in calls to \f3strncpy\f1,
+\f3strncat\f1, or \f3memcpy\f1.
+
+.SH EXAMPLES
+
+.RS
+ $ cwe \-terse *.c
+ $ cwe cwe_119_3 cwe_805 *.c
+ $ cwe \-cpp \-terse cwe_457 cwe_120_3 cwe_119 *.[ch]
+.RE
+The equivalent (but slower) calls to the scripted versions of
+each of the first two of these commands would be:
+.RS
+ $ cobra \-terse \-f cwe/cwe_all *.c
+ $ cobra \-f cwe/cwe_119_3 *.c
+ $ cobra \-f cwe/cwe_805 *.c
+.RE
+Note that the command-line calls to cobra can only handle on
+of the checkers at a time, unlike the \*C tool.
+.sp
+An example of running the scripted version interactively, for
+the third command is:
+.RS
+ $ cobra \-cpp \-terse *.[ch]
+ ...
+ : . cwe/cwe_457
+ ...
+ : . cwe/cwe_120_3
+ ...
+ : . cwe/cwe_119
+ ...
+ : q
+.RE
+
+.SH FILES
+Temporary files are created in \f2/tmp\f1 with all filenames prefixed
+with the string \f2/tmp/cobra_\f1. With option \f2-d\f1 the temporary
+files are not automatically removed when \*C exits.
+.br
+The \*C checks themselves are defined in Cobra source subdirectory
+\f3cobra/src_app\f1.
+.br
+For most checks an alternative encoding is also available as a scripted
+check, which can be executed by Cobra directly (but executes more
+slowly since the scripted checkers are interpreted, not compiled, code).
+These checkers can be found in the cobra/rules/cwe directory.
+
+.SH AUTHOR
+Gerard Holzmann, gholzmann@acm.org
+.sp
+.SH SEE ALSO
+\f3cobra\f1
+.br 
+https://cwe.mitre.org
+.br

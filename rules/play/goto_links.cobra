@@ -1,0 +1,71 @@
+%{
+	ofnm = .fnm;
+	Stop;
+%}
+%{
+	if (seen_goto_links > 0)
+	{	Stop;
+	}
+
+	if (.curly == 0)		# no jumps across fct boundaries
+	{	for (i in Goto)
+		{	r = Goto[i.txt];
+			for (j in Label)
+			{	q = Label[j.txt];
+				if (r.txt == q.txt)
+				{	s = r.prv;	# location of goto
+					s.bound = q;
+		}	}	}
+		unset Label;	# keeps arrays small, much faster lookup
+		unset Goto;
+		ofnm = .fnm;
+		cnt1 = 0;
+		cnt2 = 0;
+	}
+
+	if (.txt == "goto")
+	{	Goto[cnt1] = .nxt;	# remember location of gotos
+		cnt1++;
+	}
+	if (.txt == ":")		# remember location of labels
+	{	q = .prv;
+		if (q.typ != "ident")
+		{	Next;
+		}
+		# could still be a conditional expression
+		qq = q;
+		q = q.prv;
+		while (q.typ == "cmnt")
+		{	q = q.prv;
+		}
+		if (q.txt != ";"
+		&&  q.txt != ":"
+		&&  q.txt != "}"
+		&&  q.txt != "{"
+		&&  q.txt != ")"
+		&&  q.txt != "EOL")	# end of preprocessor directive
+		{	Next;
+		}
+		Label[qq.txt] = qq;
+		cnt2++;
+	}
+	if (. == End)			# connect gotos to labels
+	{	# print "jumps: " cnt1 " labels: " cnt2 "\n";
+		for (i in Goto)
+		{	r = Goto[i.txt];
+			for (j in Label)
+			{	q = Label[j.txt];
+				if (r.txt == q.txt)
+				{	s = r.prv;	# location of goto
+					s.bound = q;
+		}	}	}
+	}
+%}
+%{
+	if (!seen_goto_links)
+	{	seen_goto_links = 1;
+		unset Label;
+		unset Goto;
+	}
+	Stop;
+%}

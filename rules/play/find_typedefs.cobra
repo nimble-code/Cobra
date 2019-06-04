@@ -1,0 +1,16 @@
+def td
+%{
+	if ( #typedef )
+	{	.mark = 1;
+		print .fnm ":" .lnr ": ";
+
+		z = .;
+		while (z.txt != ";")
+		{	print z.txt " ";
+			z = z.nxt;
+		}
+		print "\n";
+	}
+%}
+end
+td

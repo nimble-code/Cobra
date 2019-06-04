@@ -1,0 +1,77 @@
+# check 13 of the misra 2004 rules with a cobra inline program
+
+cpp off
+%{
+	if (.fnm != incode.fnm)
+	{	incode = none;
+	}
+	if (@cmnt)
+	{	if (~"//")
+		{	print .fnm ":" .lnr ": R2.2: C++ style comment\n";
+		}
+		if (~"/*" > 1)
+		{	print .fnm ":" .lnr ": R2.3: nested /* comment\n";
+		}
+		Next;
+	}
+	if (@chr)
+	{	if (.txt == "\\")
+		{	. = .nxt;
+			if (@const_int)
+			{	print .fnm ":" .lnr ": R7.1: octal escape\n";
+			} else
+			{	if (.txt != "n" && .txt != "t" && .txt != "f"
+				&&  .txt != "a" && .txt != "b" && .txt != "r"
+				&&  .txt != "v" && .txt != "'" && .txt != "\\"
+				&&  .txt != "?" && .txt != "x" && .txt != "X"
+				&&  .txt != "\"")
+				{	print .fnm ":" .lnr ": R4.1: undefined escape sequence\n";
+			}	}
+			. = .prv;
+		}
+		Next;
+	}
+	if (@const_int)
+	{	if (^"0" && .txt != "0" && .txt != "0u" && .txt != "0U")
+		{	print .fnm ":" .lnr ": R7.1: octal constant\n";
+		}
+		Next;
+	}
+	if (@ident)
+	{	incode = .;
+		if (.len > 31)
+		{	print .fnm ":" .lnr ": R5.1: long identifier-name: " .len " chars " .txt "\n";
+		}
+		Next;
+	}
+	if (@cpp && ~"include")
+	{	if (incode.lnr > 0)
+		{	print .fnm ":" .lnr ": R19.1: #include preceded by code\n";
+		}
+		if (~"'" || ~"\\")
+		{	print .fnm ":" .lnr ": R19.2: non-standard character in header name\n";
+		}
+		Next;
+	}
+	if (.txt == "goto")
+	{	print .fnm ":" .lnr ": R14.4: uses goto\n";
+		Next;
+	}
+	if (#union)
+	{	print .fnm ":" .lnr ": R18.4: uses union\n";
+		Next;
+	}
+	if (.txt == "continue")
+	{	print .fnm ":" .lnr ": R14.5: uses continue\n";
+		# rule was deleted from misra2012
+		Next;
+	}
+	if (.txt == "...")
+	{	print .fnm ":" .lnr ": R16.1: uses elipsis\n";
+		Next;
+	}
+	if (!@str && ~"??")
+	{	print .fnm ":" .lnr ": R4.2: using trigraph\n";
+	}
+%}
+cpp on

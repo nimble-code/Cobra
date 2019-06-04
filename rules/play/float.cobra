@@ -1,0 +1,41 @@
+%{
+	if (#float || #double)
+	{	while (1)
+		{	. = .nxt;
+			while (.txt == "*")
+			{	. = .nxt;
+			}
+			while (.txt == "[")
+			{	. = .jmp;
+				. = .nxt;
+			}
+			if (@ident)
+			{	Get[.txt] = 1;
+			#	print "Get " .txt "\n";
+				. = .nxt;
+			}
+			if (.txt == "=")
+			{	while (.txt != "," && .txt != ";")
+				{	. = .nxt;
+			}	}
+			if (.txt != ",")
+			{	break;
+		}	}
+		Next;
+	}
+	if (.txt == "/"
+	||  .txt == "/=")
+	{	pm = .;
+		while (.txt != ";" && .round >= pm.round)
+		{	. = .nxt;
+			if (@ident && Get[.txt])
+			{	print pm.fnm ":" pm.lnr ": division by float in: '";
+				while (pm.seq <= .seq)
+				{	print .txt " ";
+					pm = pm.nxt;
+				}
+				print " -'-\n";
+#				break;
+			}
+	}	}
+%}

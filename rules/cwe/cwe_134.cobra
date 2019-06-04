@@ -1,0 +1,117 @@
+# CWE-134: Use of Externally-Controlled Format String
+
+# memcpy with 2nd arg unchecked param
+%{
+	w_cnt = 0;
+	unset Files;
+	Stop;
+%}
+r
+fcts	# mark function definitions
+%{
+	if (.mark == 0) { Next; }	# fct name
+
+	. = .nxt;	# (
+	if (.txt != "(") { Next; }	# param list
+
+	eop = .jmp;
+	unset Params;
+
+	while (.seq < eop.seq)
+	{
+		if (@ident)
+		{	. = .prv;
+			if (.txt == "*")	# pointer
+			{	. = .nxt;
+				Params[.txt] = .;
+			} else
+			{	. = .nxt;
+		}	}
+		. = .nxt;
+	}
+	. = .nxt;	# {
+	while (.txt != "{")
+	{	 . = .nxt;
+	}
+	if (.txt != "{") { Next; }	# fct body
+	eob = .jmp;
+
+	while (.seq < eob.seq)
+	{
+		if (match(.txt, "/printf") && !@cmnt)
+		{	if (.txt == "fprintf"
+			||  .txt == "sprintf")
+			{	while (.txt != ",")
+				{	. = .nxt;
+				}
+				. = .nxt;	# 2nd arg
+			} else
+			{	if (.txt == "snprintf")
+				{	while (.txt != ",")
+					{	. = .nxt;
+					}
+					. = .nxt;	# 2nd arg
+					while (.txt != ",")
+					{	. = .nxt;
+					}
+					. = .nxt;	# 3rd arg
+				} else		# assume printf
+				{	. = .nxt; # (
+					. = .nxt;	# 1st arg
+			}	}
+			if (@ident)
+			{	zx = Params[.txt];
+				if (zx != 0 && zx.mark != 1340)
+				{	zx.mark = 1340;
+					if (terse)
+					{	w_cnt++;
+						if (verbose || w_cnt < 10)
+						{	Files[.fnm]++;
+						}
+					} else
+					{	lock();
+						print .fnm ":" .lnr ": cwe_134: " ;
+						print "untrusted format string '" .txt "'\n";
+						unlock();
+		}	}	}	}
+
+		if (.txt == "memcpy")
+		{	. = .nxt;	# (
+			while (.txt != ",")
+			{	. = .nxt;
+			}
+			. = .nxt;	# 2nd arg
+			if (@ident
+			&& Params[.txt] != 0)
+			{	if (terse)
+				{	w_cnt++;
+					Files[.fnm]++;
+				} else
+				{	lock();
+					print "cwe_134: " .fnm ":" .lnr ": ";
+					print "source of memcpy is untrusted parameter\n";
+					# the ultimate source could be a user-input
+					unlock();
+		}	}	}
+		. = .nxt;
+	}
+%}
+%{
+	if (.mark == 1340) { .mark = 0; }
+%}
+%{
+	if (terse && w_cnt > 0)
+	{	lock();
+		print "cwe_134: " w_cnt " warnings: untrusted pointer argument\n";
+		if (verbose || w_cnt < 10)
+		{	for (aa in Files)
+			{	print "\t" aa.txt ": " Files[aa.txt] " warnings\n";
+		}	}
+		unlock();
+	}
+	w_cnt = 0;
+	unset Files;
+	Stop;
+%}
+
+

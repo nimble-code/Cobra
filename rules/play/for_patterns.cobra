@@ -1,0 +1,132 @@
+# extracts the pattern of every for-statement
+# print 4 fields, separated by tabs
+# init	cond	incr	body
+
+def for_pattern
+%{
+	if (.txt != "for")
+	{	Next;
+	}
+	. = .nxt;
+	if (.txt != "(")
+	{	Next;
+	}
+	print .fnm ":" .lnr ": ";
+	print "for ";
+	b.txt = "xxxxx";
+	q = .jmp;		# matching )
+	. = .nxt;		# one after (
+	z.mark = 0;		# field 0;1;2
+
+	j = .round;	# handle unbalanced {} pairs initially
+	while (.round >= j)
+	{	if (@ident)
+		{	x = Get[.txt];
+			if (x.lnr > 0)
+			{	print "n" x.mark " ";
+			} else
+			{	cnt.mark++;
+				.mark = cnt.mark;
+				Get[.txt] = .;
+				print "n" .mark " ";
+			}
+		} else
+		{	if (.txt == ";")
+			{	z.mark++;
+			}
+			if (@oper)	# condition
+			{	if (z.mark == 1 && y.lnr == 0)
+				{	y = .;
+				}
+				if (z.mark == 2)
+				{	if (y != b)
+					{	a.txt = y.txt + " " + .txt;
+						Correlation[a.txt]++;
+						y = b;
+			}	}	}
+			if (.txt == ";")
+			{	print "\t";
+			} else
+			{	if (@oper || .typ == "")
+				{	print .txt " ";
+				} else
+				{	print .typ " ";
+		}	}	}
+		. = .nxt;
+	}
+#	print .txt;
+	print "\t";
+
+# scan the body
+	. = .nxt;	# one after )
+	if (.txt != "{")	# one stmnt
+	{	# one stmnt up to ";"
+		while (.txt != ";")
+		{	if (@ident)
+			{	x = Get[.txt];
+				if (x.lnr > 0)
+				{	print "n" x.mark " ";
+				}
+			} else
+			{	if (@oper || .typ == "")
+				{	print .txt " ";
+				} else
+				{	print .typ " ";
+			}	}
+			. = .nxt;
+		}
+	} else
+	{	print "{ ";
+		q = .jmp;	# matching }
+		. = .nxt;
+		j = .curly;	# handle unbalanced {} pairs initially
+		while (.curly >= j)
+		{	if (@ident)
+			{	x = Get[.txt];
+				if (x.lnr > 0)
+				{	. = .prv;
+					if (@oper)
+					{	print .txt " ";
+					}
+					. = .nxt;
+					print "n" x.mark " ";
+					. = .nxt;
+					if (@oper)
+					{	print .txt " ";
+					}
+					. = .prv;
+					Get[.txt] = z; # remove
+			}	}
+			. = .nxt;
+		}
+		print "} ";
+		. = .prv;
+	}
+	print "\n";
+	cnt.mark = 0;		# reset cnt
+	# reset contents of Get[]:
+
+	r.mark = size(Get) - 1;
+	while (r.mark >= 0)
+	{	t[0] = retrieve(Get, r.mark);
+		Get[ t[0] ] = z;
+		r.mark--;
+	}
+%}
+end
+for_pattern
+
+def correlations
+%{
+	r.mark = size(Correlation);
+	print "\nCorrelations: " r.mark "\n";
+	r.mark--;
+	while (r.mark >= 0)
+	{	t[0] = retrieve(Correlation, r.mark);
+		print r.mark "\t" Correlation[ t[0] ] "	" t[0] "\n";
+		r.mark--;
+	}
+	Stop;
+%}
+end
+correlations

@@ -1,0 +1,111 @@
+# link break statements to their destination
+# in for, while, switch, do..while statements
+#  (continue statement in for-loops need a little more work)
+
+%{
+	n = 0;	# nesting level of break destinations
+	breakdest = .;		# first token
+	remember[0] = .;	# to set the type
+	Stop;
+%}
+%{
+	if (seen_break_links)
+	{	Stop;
+	}
+
+	if (.txt == "}")
+	{	if (.seq == breakdest.seq)
+		{	if (n > 0)
+			{	n--;
+				breakdest = remember[n];
+			} else
+			{	breakdest = first_t;
+		}	}
+		if (.curly == 0)
+		{	unset remember;
+			n = 0;
+			breakdest = first_t;
+			remember[0] = breakdest;
+		}
+		Next;
+	}
+
+	if (!@key) { Next; }
+
+	if (.txt == "while")
+	{	b = .nxt;
+		while (b.txt != "(")
+		{	b = b.nxt;
+		}
+		b = b.jmp;
+		b = b.nxt;
+		if (b.txt == ";")	# it's a do-while
+		{	Next;	# handled before at do
+	}	}
+
+	if (.txt == "for"
+	||  .txt == "while"
+	||  .txt == "switch")
+	{	. = .nxt;
+		while (.txt != "(")
+		{	. = .nxt;
+		}
+		. = .jmp;
+		. = .nxt;
+		while (@cmnt)
+		{	. = .nxt;
+		}
+		if (.txt == "{")
+		{	remember[n] = breakdest;
+			breakdest = .jmp;
+			n++;
+		} else # could be do, while, for, switch
+		{	if (.txt == "for"
+			||  .txt == "while"
+			||  .txt == "switch"
+			||  .txt == "if"
+			||  .txt == "do")
+			{	. = .prv; # not precise, but close
+			}	# get it on the next pass
+		}
+		Next;
+	}
+	if (.txt == "do")
+	{	. = .nxt;
+		while (@cmnt)
+		{	. = .nxt;
+		}
+		if (.txt == "{")
+		{	remember[n] = breakdest;
+			breakdest = .jmp;
+			n++;
+		} else
+		{	if (.txt == "for"
+			||  .txt == "while"
+			||  .txt == "switch"
+			||  .txt == "if"
+			||  .txt == "do")
+			{	. = .prv; # not precise, but close
+		}	}	# get it on the next pass
+		Next;
+	}
+	if (.txt == "break")
+	{	if (breakdest.seq != first_t.seq)
+		{	.bound = breakdest;
+		} else
+		{	if (verbose)
+			{	print .fnm ":" .lnr ": invalid break statement? (n=" n ")\n";
+		}	}
+		Next;
+	}
+%}
+%{
+	if (!seen_break_links)
+	{	seen_break_links = 1;
+		if (n != 0)
+		{	print "n = " n " (should be 0)\n";
+		}
+		unset remember;
+	}
+	Stop;
+%}

@@ -1,0 +1,379 @@
+# CWE-457: Use of uninitialized variable
+# check to find some types of uninitialized variables
+
+r	# r resets marks
+fcts	# if not done before, marks function defs
+
+. skip.def
+. play/goto_links
+. play/else_links
+. play/switch_links
+
+# add: play/break_links
+
+%{
+	canstop = 0;	# initial values
+	sawgoto = 0;
+	depth = 0;
+	w_cnt = 0;
+	Stop;
+%}
+
+%{
+	function clear_marks(from, upto)
+	{	canstop  = 0;
+		tt = from;
+		while (tt.seq < upto.seq)
+		{	if (tt.mark == 57)
+			{	tt.mark = 0;
+			}
+			tt = tt.nxt;
+	}	}
+
+	function dfs_var(nm, from, upto)
+	{	depth++;
+N:
+		if (from.mark == 57	# visited before
+		||  upto.seq == 0
+		||  canstop)
+		{
+			depth--;
+			return;
+		}
+		from.mark = 57;
+# print from.lnr "-" upto.lnr " dfs for " nm " @ " from.txt "\n";
+		if (from.typ == "cpp")
+		{	while (from.txt != "EOL")
+			{	from = from.nxt;
+				from.mark = 57;
+			}
+			from = from.nxt;
+			goto N;
+		}
+		if (from.txt == nm)	# target var
+		{	b4 = from.prv;
+			af = from.nxt;
+			if (b4.txt == "&"	# address taken
+			||  b4.txt == ")"	# cast?
+			||  b4.typ == "type"	# new decl
+			||  (b4.txt == "," && from.round == 0)	# likely part of new decl
+			||  af.txt == "*"
+			||  af.txt == "."	# part of struct
+			||  af.txt == "=")	# assigned
+			{	canstop = 1;
+				depth--;
+# print b4.txt " : " af.txt " hold it hold it \n";
+				return;		# assume ok
+			}
+
+			if (from.round >= 1)
+			{	b5 = b4;
+				while (b5.round > 0)	#  b5.txt != "("
+				{	b5 = b5.prv;
+					if (match(b5.txt, "/get_user"))
+					{	canstop = 1;
+						depth--;
+						return;
+				}	}
+				b5 = b5.prv;
+				if (match(b5.txt, "/get_user")
+				||  match(b5.txt, "/spin_lock")
+				||  b5.txt == "volatile"
+				||  match(b5.txt, "/for_each")
+				||  match(b5.txt, "/FOR_EACH"))		# linux-isms
+				{	canstop = 1;
+					depth--;
+					return;
+			}	}
+			b44 = b4.prv;
+			if ( b4.txt != "."
+			&&   b4.txt != "->"	# field in struct
+			&&  b44.txt != "sizeof"	# not an eval
+			&&  b44.txt != "get_user")
+			{	# ignore if we're in the increment field of a for stmnt
+				if (from.round == 1)
+				{	b4 = from.nxt;
+					while (b4.txt != ")")
+					{	b4 = b4.nxt;
+					}
+					b4 = b4.jmp;	# start of for stmnt, if thats what it is
+					b4 = b4.prv;
+				}
+				if (b4.txt != "for"
+				&&  b4.typ != "type")
+				{	if (terse)
+					{	w_cnt++;
+					} else
+					{	lock();
+						print from.fnm ":" from.lnr ": cwe_457, uninitialized var " nm "?\n";
+						unlock();
+					}
+					canstop = 2;
+					depth--;
+					return;
+		}	}	}
+
+		if (from.txt == "return"
+		||  from.txt == "continue"
+		||  from.txt == "exit")
+		{	canstop = 1;
+			depth--;
+			return;		# no problem on this path
+		}
+		# end target check
+
+		t[depth] = from.bound;
+		tt = from.bound;	# check if it was set
+		if (tt.seq == 0)	# not a goto or if/else/switch statement, && from.txt != "if"
+		{	from = from.nxt;	# next stmnt in sequence
+			if (from.seq < upto.seq)
+			{
+				goto N;
+			}
+			depth--;
+			return;
+		}
+		if (from.txt == "goto")		# follow goto
+		{	from = from.bound;
+			upto = limit;
+			sawgoto = 1;
+			goto N;
+		}
+		if (from.txt == "if")
+		{	# check the condition first
+			vv = from.nxt;
+			if (vv.txt != "(")
+			{	from = vv;
+				goto N;
+			}
+			v[depth] = from.nxt;	# the opening brace
+			vv = vv.jmp;
+# print ".IC";
+			dfs_var(nm, v[depth], vv);
+# print ",IC";
+			if (canstop)
+			{
+				depth--;
+				return;
+			}
+			# if there's an else, first stmnt in else
+			# if not, first stmnt after then
+			t[depth] = from.bound;
+			tt = from.bound;
+
+			r[depth] = tt.prv;
+			rr = tt.prv;
+			if (rr.txt == "else")
+			{
+# print ".IE";
+				dfs_var(nm, from.bound, upto);	# else path, to end
+# print ",IE";
+				if (canstop == 0)		# no asgn and no err
+				{
+# print ".IT";
+					dfs_var(nm, from, from.bound);	# then path
+# print ",IT";
+					# up to from.bound because after else didnt have the var
+				} else
+				{	if (canstop == 1)	# saw asgn on else branch, but no error yet
+					{	canstop = 0;	# explore new, this time the then branch
+						vv = v[depth];
+						yy = vv.jmp;	# end of condition
+						yy = yy.nxt;
+						while (yy.typ == "cmnt")
+						{	yy = yy.nxt;
+						}
+
+						if (yy.txt == "{")	# then body
+						{	zz = yy.jmp;	# end of then part
+						} else
+						{	zz = yy.nxt;	# then stmnt
+						}
+# print ":IT";
+						dfs_var(nm, yy, zz);	# then path
+# print ";IT";
+						if (canstop == 0)	# no asgn and no error
+						{
+							rr = r[depth];
+							rr = rr.bound;
+							rr = r[depth];
+							dfs_var(nm, rr.bound, upto);	# after else
+				}	}	}
+			} else
+			{
+# print "|IT";
+				dfs_var(nm, from.bound, upto);		# then part, no else, to end
+# print "/IT";
+			}
+			depth--;
+			return;		# checked all paths up to end
+		}
+
+		if (from.txt == "switch")
+		{	# check the condition first
+			v[depth] = from.nxt;		# the opening brace
+			vv = from.nxt;
+# print ".SC";
+			dfs_var(nm, vv, vv.jmp);	# check switch expression
+# print ",SC";
+			if (canstop)
+			{
+				depth--;
+				return;
+			}
+			t[depth] = from.bound;		# set if there's no default
+			tt = from.bound;
+			if (tt.seq != 0)
+			{
+# print ":SS";
+				dfs_var(nm, tt, upto);	# skip switch
+# print ";SS";
+				if (canstop)
+				{
+					depth--;
+					return;
+			}	}
+			vv = v[depth];
+			from = vv.jmp;			# end of condition
+			from = from.nxt;		# continue scanning for cases
+			if (from.seq < upto.seq)
+			{
+				goto N;
+		}	}
+
+		if (from.txt == "case"
+		||  from.txt == "default")
+		{	t[depth] = from.bound;		# should always be set
+			tt = from.bound;
+			if (tt.seq != 0)			# explore this case
+			{	while (from.txt != ":")
+				{	from = from.nxt;
+				}
+				from = from.nxt;	# start of body of case clause
+# print ".CA(" tt.seq ")";
+				dfs_var(nm, from, tt);	# from here to the next case
+# print ",CA(" tt.seq ")";
+				# ignoring break and continue for now
+				if (canstop == 2)		# reported error on this path
+				{
+					depth--;
+					return;
+				}
+				if (canstop == 0)		# no assignment in the case clause
+				{	# find end of switch statement
+					ww = from;
+					while (ww.txt != "}"
+					||     ww.curly != from.curly - 1)
+					{	ww = ww.nxt;
+					}
+					ww = ww.nxt;
+# print ".AS";
+					if (sawgoto == 0)	# not if we followed a goto out of the switch
+					{	dfs_var(nm, ww, upto);	# from after switch up to end
+					} else
+					{	sawgoto = 0;
+					}
+# print ",AS";
+					if (canstop == 2)
+					{
+						depth--;
+						return;
+				}	}
+
+			# but wrong for the last case...
+				tt = t[depth];
+				if (tt.curly == from.curly)	# next case in same switch
+				{	from = tt.prv;
+					canstop = 0;		# to check the other cases
+					if (from.seq < upto.seq)
+					{
+						goto N;
+			}	}	}
+		}
+		from = from.nxt;
+		depth--;			
+	}
+	Stop;
+%}
+
+%{
+	if (.mark == 0)		# for each function
+	{	Next;
+	}
+
+	# print "cwe_457 function " .txt "\n";
+
+	skipto("{");
+	start = .;	# start of fct body
+	limit = .jmp;	# end of fct body
+
+	while (.seq < limit.seq)
+	{
+		if (@cpp)
+		{	while (.txt != "EOL")
+			{	. = .nxt;
+			}
+			. = .nxt;
+			continue;
+		}
+
+		if (!@type)
+		{	. = .nxt;
+			continue;
+		}
+		# start of a local declaration
+
+		q = .prv;
+		if (q.txt == "signed"
+		||  q.txt == "unsigned")
+		{	q = q.prv;
+		}
+		if (q.txt == "static"
+		||  q.txt == "extern")
+		{	. = .nxt;
+			continue;	# not fct local
+		}
+		. = .nxt;
+
+		# ignore decorations
+		while (.txt == "*")
+		{	. = .nxt;
+		}
+
+		# for each identifier
+		while (@ident && .round == 0 && .curly == 1)
+		{	q = .;
+			. = .nxt;
+			if (.txt != "=" && .txt != "[" && .txt != "(")
+			{	# print q.fnm ":" q.lnr " check for " q.txt "\n";
+				clear_marks(start, limit);
+				depth = 0;
+				canstop = 0;
+				sawgoto = 0;
+# print "DFS " q.txt "\n";
+				dfs_var(q.txt , ., limit);
+# print "--- " q.txt "\n";
+			}
+			. = q;	# back to the declaration
+			while (.txt != ","
+			    && .txt != ";")
+			{	. = .nxt;
+			}
+			if (.txt == ",")
+			{	. = .nxt; # move to next identifier
+				while (.txt == "*")
+				{	. = .nxt;
+		}	}	}
+		# print "done " .fnm ":" .lnr ": " .txt "\n";
+		. = .nxt;
+	}
+%}
+%{
+	if (terse && w_cnt > 0)
+	{	lock();
+		print "cwe-457: " w_cnt " warnings: potentially uninitialized variable\n";
+		unlock();
+	}
+	w_cnt = 0;
+	Stop;
+%}

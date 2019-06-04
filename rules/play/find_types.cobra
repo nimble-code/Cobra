@@ -1,0 +1,86 @@
+def part1
+%{
+	if (#typedef)
+	{	while (.txt != ";")
+		{	. = .nxt;
+		}
+		Next;		# skip typedefs in this phase
+	}
+	if (@type && !#void)
+	{	.mark = 1;
+		Next;
+	}
+	if (#struct
+	||  #union
+	||  #enum)		# handle separately: not marked @type
+	{	.mark = 2;
+		Next;
+	}
+	if (!@modifier)		# signed, unsigned, long, short
+	{	Next;
+	}
+
+	q = .;
+
+	while (@qualifier	# const, volatile
+	    || @modifier)
+	{	. = .nxt;
+	}
+
+	if (@type)
+	{	. = .prv;
+		Next;		# pick up in next iteration
+	}
+	q.mark = 3;		# marks modifier unless followed by a type
+%}
+end
+
+def part2
+%{
+	if (!.mark)		# only scan things marked in part1
+	{	Next;
+	}
+	.mark = 0;
+	q = .;
+	. = .nxt;
+	if (.txt == "{")	# struct?
+	{	Next;
+	}
+	while (.txt == "*"
+	    || .txt == "&"
+	    || @qualifier)
+	{	. = .nxt;
+	}
+
+	while (1) {		# scan comma-list of decls
+		if (@ident)
+		{	. = .nxt;
+			if (.txt != "(" )
+			{	. = .prv;	# not a fct
+				.mark = 1;
+		}	}
+	
+		. = .nxt;
+		if ( .txt == "("
+		  || .txt == "{" )
+		{	. = .jmp;
+			Next;
+		}
+	
+		while ( .txt != ","
+		     && .txt != ";"
+		     && .round >= q.round)
+		{	. = .nxt;
+		}
+	
+		if ( .txt != "," )
+		{	. = .nxt;
+			break;
+		}
+	}
+%}
+end
+part1
+part2
+d
+

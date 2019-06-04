@@ -1,0 +1,9 @@
+# print lines with global items
+
+def flatten
+	r
+	m /.		# match everything
+	w (.curly == 0)	# restrict to globals
+	d		# list
+end
+flatten

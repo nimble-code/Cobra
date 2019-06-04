@@ -1,0 +1,46 @@
+. skip.def
+
+%{ qqq = prim; Stop; %}
+
+%{	# set .bound for if statements
+	# to point to else block, if any, or
+	# the first stmnt after the then-block
+	if (seen_else_links > 0)
+	{	Stop;
+	}
+	if (.txt == "if")
+	{	q = .;
+		skip_cond();
+		while (.typ == "cmnt")
+		{	. = .nxt;
+		}
+		if (.txt == "{")
+		{	. = .jmp;
+			. = .nxt;
+		} else
+		{	skip_stmnt();
+		}
+		if (.txt == "else")
+		{	q.bound = .nxt;
+		} else
+		{	q.bound = .;
+		}
+		. = q;
+		Next;
+	}
+	# connect every else to the first stmnt after the else-block
+	if (.txt == "else")
+	{	q = .;
+		. = .nxt;
+		skip_stmnt();
+		q.bound = .;
+		. = q;
+		Next;
+	}
+%}
+%{
+	if (!seen_else_links)
+	{	seen_else_links = 1;
+	}
+	Stop;
+%}

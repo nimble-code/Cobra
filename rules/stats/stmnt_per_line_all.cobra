@@ -1,0 +1,19 @@
+track start _cobra_tmp_
+%{
+	if (q.lnr != .lnr)
+	{	q = .;
+		z.mark = 0;
+		while (. != End && .lnr == q.lnr)
+		{	if (.txt == ";")
+			{	z.mark++;
+			}
+			. = .nxt;
+		}
+		. = q;
+		if (z.mark > 0)
+		{	print z.mark " " q.fnm ":" q.lnr "\n";
+	}	}
+%}
+track stop
+!sort -n _cobra_tmp_
+!rm -f _cobra_tmp_

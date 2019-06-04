@@ -1,0 +1,34 @@
+. basic.def
+
+terse on
+
+!echo "=== preprocessor directives"
+. stats/cpp_types.cobra
+
+!echo "=== data types"
+. stats/data_types.cobra
+
+!echo "=== statement types"
+. stats/stmnt_types.cobra
+
+!echo "=== keywords"
+. stats/keywords.cobra
+
+!echo "=== operators"
+. stats/operators.cobra
+
+!echo "=== identifier lengths"
+. stats/ident_length.cobra
+
+!echo "=== function parameters"
+. stats/fct_param_count.cobra
+fct_params 1	# with detail
+
+!echo "=== functions per file"
+. stats/fct_per_file.cobra
+nr_functions 1	# with detail
+
+!echo "=== ten longest functions"
+. stats/fct_len_list.cobra
+
+terse off

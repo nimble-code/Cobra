@@ -1,0 +1,30 @@
+## multi-core safe
+
+cpp off
+r
+
+%{
+	if (.curly > r.curly)
+	{	q[cpu] = .;
+		r = .;
+	}
+%}
+
+# each cpu marked q with its largest nesting depth
+
+%{
+	if (cpu != 0)
+	{	Stop;
+	}
+
+	a_unify(0);	# no need to sum anything
+	for (i in q)
+	{	m = q[i.txt];
+		if (m.curly > r.curly)
+		{	r = m;
+	#		print i.txt "\t" r.curly " :: " r.fnm ":" r.lnr "\n";
+	}	}
+
+	print "deepest stmnt nesting level: " r.curly " (at " r.fnm ":" r.lnr ")\n";
+	Stop;
+%}

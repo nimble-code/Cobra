@@ -1,0 +1,69 @@
+## multi-core safe
+
+## print the number of parameters per function
+cpp on
+r
+fcts
+def fct_params(detail)
+%{
+	if (!.mark)
+	{	Next;
+	}
+
+	q = .;
+	. = .nxt;
+	if (.txt != "(")
+	{	Next;
+	}
+	. = .nxt;	# inside param list
+	pcnt = 0;
+	nonempty = 0;
+	while (.round > 0)		# in param list
+	{	if (.round == 1)	# top-level
+		{	if (.txt == ",")
+			{	pcnt++;
+			} else
+			{	if (.txt != "void")
+				{	nonempty = 1;	# list non-empty
+		}	}	}
+		. = .nxt;
+	}
+	if (pcnt > 0)
+	{	pcnt++;		# add first parameter
+	} else
+	{	if (nonempty)
+		{	pcnt = 1;
+	}	}
+	Counts[pcnt]++;
+	if (pcnt > maxpar)
+	{	maxpar = pcnt;
+		maxfct = q;
+	}
+%}
+
+%{
+	# all cpus have completed part-1
+
+	if (cpu != 0)
+	{	Stop;
+	}
+
+	a_unify(0);	# all indices available
+
+	if (!detail)
+	{	print "largest nr of fct params: " maxpar " (eg: " maxfct.txt "())\n";
+		Stop;
+	}
+	for (i in Counts)
+	{	nr = sum(Counts[i.txt]);
+		print nr "\tfunction";
+		if (nr != 0)
+		{	print "s have ";
+		} else
+		{	print "  has  ";
+		}
+		print i.txt " parameters\n";
+	}
+	Stop;
+%}
+end

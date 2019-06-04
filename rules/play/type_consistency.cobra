@@ -1,0 +1,33 @@
+r
+m @type @ident
+m & (.curly == 0 && .round == 0 && .bracket == 0)
+n; n
+m no (
+b; b; b
+m no static
+m no STATIC
+n
+%{
+	if (.mark == 0 || match(.fnm, "/symTbl"))
+	{	.mark = 0;
+		Next;
+	}
+	.mark = 0;
+	v = .nxt;
+	b = Type[v.txt];
+	if (b.seq == 0)
+	{	Type[v.txt] = .;
+	} else
+	{	if (b.txt != .txt)
+		{	print .fnm ":" .lnr ": " v.txt " type " .txt " <-> " b.fnm ":" b.lnr ": " b.txt "\n";
+			.mark = 1;
+		} else
+		{	checked++;
+	}	}
+%}
+= "warnings "
+%{
+	print "checked " checked " cases\n";
+	checked = 0;
+	Stop;
+%}

@@ -1,0 +1,28 @@
+def fct_len_list
+r
+fcts
+track start _cobra_tmp_
+	%{
+		if (.mark)
+		{	n = .;
+			. = .nxt;
+			if (.txt != "(")
+			{	Next;
+			}
+			. = .jmp;
+			. = .nxt;
+			if (.txt != "{")
+			{	Next;
+			}
+	
+			print .range "\t" n.txt "\n";
+		}
+	%}
+track stop
+
+!sort -n -r _cobra_tmp_ | sed 10q
+!rm -f _cobra_tmp_
+
+end
+
+fct_len_list

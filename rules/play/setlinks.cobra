@@ -1,0 +1,7 @@
+# scripted versions of the cobra builtin library function setlinks
+# setting the .bounds fields of tokens with ptrs to the right places
+
+. play/goto_links
+. play/else_links
+. play/switch_links
+. play/break_links

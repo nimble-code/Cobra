@@ -1,0 +1,12 @@
+# CWE-120: Buffer Copy without Checking Size of Input ('Classic Buffer Overflow')
+
+# !echo -n "cwe_120_1 "; date
+. cwe/cwe_120_1
+
+# !echo -n "cwe_120_2 "; date
+. cwe/cwe_120_2
+
+# !echo -n "cwe_120_3 "; date
+. cwe/cwe_120_3
+
+# !echo -n "done "; date

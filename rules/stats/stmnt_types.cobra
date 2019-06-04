@@ -1,0 +1,18 @@
+
+def stmnt_types
+	r; m break;	= "break	:"
+	r; m case;	= "case	:"
+	r; m continue;	= "continue:"
+	r; m default;	= "default :"
+	r; m do;	= "do	:"
+	r; m else;	= "else	:"
+	r; m for;	= "for	:"
+	r; m goto;	= "goto	:"
+	r; m if;	= "if	:"
+	r; m return;	= "return	:"
+	r; m sizeof;	= "sizeof	:"
+	r; m switch;	= "switch	:"
+	r; m while;	= "while	:"
+end
+cpp off
+stmnt_types

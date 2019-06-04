@@ -1,0 +1,32 @@
+. basic.def
+
+terse on
+
+!echo "=== functions ==="
+. stats/fct_lengths.cobra
+. stats/getstats.cobra
+
+. stats/fct_param_count.cobra
+fct_params 0	# no detail
+
+. stats/fct_per_file.cobra
+nr_functions 0	# no detail
+
+!echo "=== identifiers ==="
+. stats/single.cobra
+
+!echo "=== style ==="
+. stats/nesting_depth.cobra
+. stats/stmnt_per_line.cobra
+
+check_linelength 85	# from basic.def
+= "lines longer than 85 characters (not counting whitespace):"
+d
+
+!echo "";echo "=== switch statements ==="
+. stats/nr_cases.cobra
+
+!echo "=== dubious keywords, if any ==="
+. stats/keywords2.cobra
+
+terse off

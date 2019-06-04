@@ -1,0 +1,96 @@
+# a few useful helper functions
+
+%{
+	if (seen_skip_def > 0)
+	{	Stop;
+	}
+	seen_skip_def = 1;
+	function expect(axa)
+	{	if (.txt != axa)
+		{	Next;
+		}
+		. = .nxt;
+	}
+
+	function skipif(axa)
+	{	if (.txt != axa)
+		{	Next;
+		}
+		. = .jmp;
+		. = .nxt;
+	}
+
+	function skipto(axa)
+	{	xmx = 0;
+		while (.txt != axa && xmx < 100)
+		{	. = .nxt;
+			xmx++;
+		}
+		return;
+	}
+
+	function skip_cond()
+	{	while (.txt != "(")
+		{	. = .nxt;
+		}
+		. = .jmp;
+		. = .nxt;
+		while (.typ == "cmnt")
+		{	. = .nxt;
+	}	}
+
+	function skip_stmnt()
+	{
+		if (.txt == "{")
+		{	. = .jmp;
+			. = .nxt;
+			if (.txt != "else")
+			{	return;
+		}	}
+
+		if (.txt == "if"
+		||  .txt == "for"
+		||  .txt == "switch"
+		||  .txt == "while")
+		{	skip_cond();
+			skip_stmnt();
+		}
+
+		if (.txt == "else")
+		{	. = .nxt;
+			skip_stmnt();
+		}
+
+		if (.txt == "do")	# find matching while (...)
+		{	q = .;
+			q.mark = 1;
+			while (1)
+			{   t = .nxt;
+			    if (.seq == t.seq
+			    ||  t.seq == 0)
+			    {	Stop;
+			    }
+			    . = .nxt;
+			    if (.curly == q.curly
+			    &&  .round == q.round
+			    &&  .bracket == q.bracket)
+			    {	if (.txt == "do")
+				{	q.mark++;
+				}
+				if (.txt == "while")
+				{	q.mark--;
+					if (q.mark <= 0)
+					{	break;
+			}   }	}	}
+			skip_cond();
+			q.mark = 0;
+		}
+
+		while (.txt != ";")
+		{	 . = .nxt;
+		}
+		. = .nxt;
+		return;
+	}
+	Stop;
+%}

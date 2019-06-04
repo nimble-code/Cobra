@@ -1,0 +1,39 @@
+# average nesting depth of blocks
+
+%{
+	if (cpu != 0) { Stop; }
+	# use just one core
+
+	. = first_t;
+	while (. != last_t)
+	{	if (.txt == "{")
+		{	depth[.curly]++;
+		}
+		. = .nxt;
+	}
+	Stop;
+%}
+%{
+	if (cpu != 0) { Stop; }
+
+	for (i in depth)
+	{	nrlevels = nrlevels + 1;
+		total = total + depth[i.txt];
+		if (maxlevel < i.txt)
+		{	maxlevel = i.txt;
+	}	}
+
+	cnt = 0;
+	print "level\t#blocks\n";
+	while (cnt <= maxlevel && total > 0)
+	{	print cnt "\t" depth[cnt] "\t" (100 * depth[cnt]) / total "%\n";
+		cnt++;
+	}
+	for (i in depth) {
+		weighted = weighted + (i.txt * (10000 * depth[i.txt])) / total;
+	}
+	n1 = weighted / 10000;
+	n2 = (weighted - n1*10000)/ 1000;
+	print "average nesting depth:\t" n1 "." n2 "\n";
+	Stop;
+%}

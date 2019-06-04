@@ -1,0 +1,151 @@
+# find uninitialized variables, using dfs
+
+ncore 1
+. play/goto_links
+. play/else_links
+# later: add links for break and continue statements
+
+fcts
+%{
+	canstop  = 0;	# initial values
+
+	function clear_marks(from, upto)
+	{	canstop  = 0;
+		t = from;
+		while (t.seq < upto.seq)
+		{	if (t.mark == 57)
+			{	t.mark = 0;
+			}
+			t = t.nxt;
+	}	}
+
+	function dfs_var(nm, from, upto)
+	{
+	N:	if (from.mark == 57	# visited before
+		||  upto.seq == 0
+		||  canstop)
+		{	return;
+		}
+		from.mark = 57;
+## target check
+		if (from.txt == nm)	# target var
+		{	b4 = from.prv;
+			af = from.nxt;
+			if (b4.txt == "&"	# address taken
+			||  b4.txt == ")"	# cast?
+			||  af.txt == "."	# part of struct
+			||  af.txt == "=")	# assigned
+			{	canstop  = 1;
+				return;		# assume ok
+			}
+			b44 = b4.prv;
+			if ( b4.txt != "."
+			&&   b4.txt != "->"	# field in struct
+			&&  b44.txt != "sizeof"	# not an eval
+			&&  b44.txt != "get_user")
+			{	print from.fnm ":" from.lnr ": uninitialized var " nm "?\n";
+				canstop = 1;
+				return;
+		}	}
+## end check
+		t = from.bound;		# to check for nil
+		if (t.seq == 0)		# not a goto or if/else
+		{	from = from.nxt;
+			if (from.seq < upto.seq)
+			{	goto N;
+			}
+			return;
+		}
+
+		if (from.txt == "goto")
+		{	from = from.bound;
+			goto N;
+		}
+
+		if (from.txt == "if")
+		{	# check the condition first
+			v = from.nxt;	# the opening brace
+			dfs_var(nm, v, v.jmp);
+			if (canstop)
+			{	return;
+			}
+			# if there's an else, first stmnt in else
+			# if not, first stmnt after then
+			t = from.bound;
+			r = t.prv;
+			if (r.txt == "else")
+			{	dfs_var(nm, from.bound, upto);	# else part
+				if (!canstop)
+				{	dfs_var(nm, from, from.bound);	# then part
+					# dfs_var(nm, r.bound, upto);	# after else
+					# we already checked the part after else
+				}
+			} else
+			{	dfs_var(nm, from.bound, upto);	# skip then part
+				if (!canstop)
+				{	dfs_var(nm, from, upto);	# then part
+				}
+				# really up to the part after the then
+				# which we've already checked
+		}	}
+		from = from.nxt;			
+	}
+%}
+
+%{
+	if (.mark != 1)		# for each function
+	{	Next;
+	}
+
+	# print "function " .txt "\n";
+
+	skipto("{");
+	start = .;	# start of fct body
+	limit = .jmp;	# end of fct body
+
+	while (.seq < limit.seq)
+	{
+		if (!@type)
+		{	. = .nxt;
+			continue;
+		}
+
+		# start of a local declaration
+
+		q = .prv;
+		if (q.txt == "static"
+		||  q.txt == "extern")
+		{	. = .nxt;
+			continue;
+		}
+		. = .nxt;
+
+		# ignore decorations
+		while (.txt == "*")
+		{	. = .nxt;
+		}
+
+		# for each identifier
+		while (@ident && .round == 0 && .curly == 1)
+		{	q = .;
+			. = .nxt;
+			if (.txt != "=" && .txt != "[" && .txt != "(")
+			{	# print q.fnm ":" q.lnr " check for " q.txt "\n";
+				clear_marks(start, limit);
+				dfs_var(q.txt , ., limit);
+			}
+			. = q;
+			while (.txt != ","
+			    && .txt != ";")
+			{	. = .nxt;
+			}
+			if (.txt == ",")
+			{	. = .nxt; # move to next ident
+				while (.txt == "*")
+				{	. = .nxt;
+		}	}	}
+
+		. = .nxt;
+	}
+
+%}

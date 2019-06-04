@@ -1,0 +1,34 @@
+# find non-static global function definitions
+%{
+	if (!@ident)
+	{	Next;
+	}
+	q = .;
+	. = .nxt;
+	if (.txt != "(")
+	{	Next;
+	}
+	. = .jmp;
+	. = .nxt;
+	if (.txt != "{")
+	{	Next;
+	}
+	r = .;
+	. = q.prv;
+	while (.txt == "*")
+	{	. = .prv;
+	}
+#	if (!@type)
+#	{	# likely a typedef name
+#		print "";
+#		print q.fnm ":" q.lnr ": fct without type " q.txt " --> " .txt "\n";
+#	}
+	. = .prv;
+	if (.txt == "const")
+	{	. = .prv;
+	}
+	if (.txt != "static")
+	{	print q.fnm ":" q.lnr ": " q.txt "()\n";
+	}
+	. = r.jmp;
+%}

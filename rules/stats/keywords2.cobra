@@ -1,0 +1,13 @@
+def check_keywords	# keywords that should not appear anywhere
+	cpp off
+	r; m goto;    = "goto	:"
+	r; m pragma;  = "pragma	:"
+#	r; m /alloc;  = "/alloc	:"
+	r; m setjmp;  = "setjmp	:"
+	r; m longjmp; = "longjmp	:"
+	r; m union;   = "union	:"
+	r; m strcpy;  = "strcpy	:"
+	r; m sprintf; = "sprintf	:"
+	cpp on
+end
+check_keywords

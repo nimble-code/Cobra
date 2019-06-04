@@ -1,0 +1,193 @@
+# example of tracking potentially tainted data
+# coming from a scanf call
+
+# problem: for large numbers of files this can cause a stack overflow in
+# the interpreter.  this can be ameliorated to some extent by adding the
+# gcc compiler flag -fno-stack-limit -- but it can still happen
+# some remedies:
+# 1 scan fewer files at a time -- one simple way is to use multicore, eg: -N8
+# 2 restrict recursion depths in eval_prog in cobra_prog.y
+# 3 switch to a standalone c_checker version of this scripted version
+
+## any value obtained from specific fct calls, like env, getuser, getMethod,
+## getNamespace, getActionName, or processed with calls to ntohs or ntohl
+## ( https://lgtm.com/blog/apache_struts_CVE-2018-11776 )
+## 1. mark all places in the same fct where the tainted value is used
+## 2. find marked places in fct call param lists
+## 3. repeat until this reaches a fixpoint
+## 4. check if any tainted variable is used in memcpy, memcmp, strcpy, etc.
+
+## Step 1 -- located taint sources
+r
+m scanf (
+n ,
+n
+%{
+	if (.mark && !@ident)
+	{	.mark = 0;
+		. = .nxt;
+		.mark = 1;
+		while (.txt != "," && .txt != ")")
+		{	. = .nxt;
+		}
+		if (.txt == ",")
+		{	. = .nxt;
+			.mark = 1;
+			. = .prv;
+		}
+	}
+%}
+
+## Step 2 -- forward search and mark uses
+# all identifiers used as args to scanf are marked
+# for each of these, search forward in the same fct
+# and mark all places where they are used in a fct call
+# or on rhs of an assignment
+%{
+	if (.mark != 1) { Next; }
+	.mark = 0;
+
+	r = .nxt;
+	while (r.curly >= 1)	# rest of fct body
+	{	if (r.txt == .txt)	# same ident
+		{	s = r.nxt;
+			if (s.txt != "="
+			&&  s.txt != "+="
+			&&  s.txt != "-=")	# not a clear lvalue
+			{	r.mark = 2;
+		}	}
+		r = r.nxt;
+	}
+%}
+# = "potentially tainted values:"
+%{
+	function search_calls(rr)
+	{
+		cnt = 1;
+		while (rr.txt != "(")
+		{	if (rr.txt == ",") # count commas
+			{	cnt++;
+			}
+			rr = rr.prv;
+		}
+		rr = rr.prv;
+		if (rr.typ == "ident")	# fct name?
+		{	TaintParam[ rr.txt ] = cnt;
+		}
+	}
+
+	function search_params()
+	{
+		fp = TaintParam[ .txt ];
+		pf = Handled[ .txt ];
+		if (fp > 0 && pf == 0)
+		{	Handled[ .txt ] = fp;
+			cnt = 1;
+#			print .fnm ":" .lnr ": " .txt " fct with tainted param nr " fp "\n";
+		more:	while (.txt != ")" && .txt != ",")
+			{	. = .nxt;
+			}
+			if (cnt == fp)
+			{	. = .prv;
+#				print cnt " :: " fp "	param check: " .txt "\n";
+				if (@ident)
+				{	# check fct body
+					r = .nxt;
+					while (r.txt != "{")
+					{	r = r.nxt;
+					}
+	
+					r = r.nxt;
+					while (r.curly >= 1)	# rest of fct body
+					{	if (r.txt == .txt)	# same ident
+						{	s = r.nxt;
+							if (s.txt != "="
+							&&  s.txt != "+="
+							&&  s.txt != "-=")	# not a clear lvalue
+							{	r.mark = 2;	# new taint mark
+#								print r.fnm ":" r.lnr ": " r.txt " new mark 2\n";
+						}	}
+						r = r.nxt;
+					}
+				}
+				. = .nxt;	# undo: . = .prv
+				return;
+			}
+			if (.txt != ")")
+			{	. = .nxt;
+				cnt++;
+				goto more;
+		}	}
+	}
+	Stop;
+%}
+
+## Step 3 -- iterate on fct call checks
+# find which of the marked variables appear
+# as an actual parameter in a fct call
+# record the fct name and parameter nr
+
+%{
+step3:
+	if (marks(0) == 0)
+	{	restore(1, "");
+		unset TaintParam;
+		unset Handled;
+#		print "nothing left to do\n";
+		Stop;
+	}
+
+#	print "potentially tainted values: " marks(0) "\n";
+
+	. = Begin;
+	while (. != End)
+	{	if (.mark == 2 && .round > 0)	# potential use in fct call
+		{	search_calls(.prv);
+		}
+		# does not change any existing marks
+		# but populates the array TaintParam
+		. = .nxt;
+	}
+	# update set of potentially tainted variables
+	save(1, "|");	# add
+
+#	print "expanded set: " marks(1) "\n";
+
+	reset();		# clear marks
+	fcts();			# mark fcts
+
+	. = Begin;
+
+	while (. != End)
+	{
+		if (.mark == 1)
+		{	.mark = 0;
+			# check if fct has a tainted param
+			# and if so mark the uses of those params in the fct body
+			search_params();	# adds 2 marks
+		}
+		. = .nxt;
+	}
+
+	unset TaintParam;
+
+#	print "new marks: " marks(0) "\n";
+
+	n1 = marks(1);
+	save(1, "|");
+	n2 = marks(1);
+
+	if (n2 > n1)
+	{	goto step3;
+	}
+	unset Handled;
+
+#	print "x set 0 marks: " marks(0) "\n";
+#	print "x set 1 marks: " marks(1) "\n";
+	restore(1, "");
+#	print "y set 0 marks: " marks(0) "\n";
+#	print "y set 1 marks: " marks(1) "\n";
+	Stop;
+%}
+= "potentially tainted values (to check for vulnerability at this location): "
+d

@@ -1,0 +1,588 @@
+
+# 60 of 127 rules have at least a partial check
+
+. basic.def
+
+def m97_rule3
+	cpp on
+	r; m asm; b {; s asm; c \;
+	>1
+	r; m asm; n \;; s }; c \;
+	<|1
+	= "=== R3: (Advisory) Assembly language fcts that are called from C should be written as C fcts containing only in-line assembly language, and in-line assembly language should not be embedded in normal C code:"
+	d
+end
+
+def m97_rule5
+	cpp on
+	r;
+	m \\\ /^['\"?abfnrtvxX0-9]		# undefined escape
+	m \\\ /^[0-9][0-9][0-9]$		# octal escape
+	= "=== R5: (Required) Only those escape sequences which are defined in the ISO C standard shall be used:"
+	d
+end
+
+def m97_rule7
+	cpp on
+	r; m ? ?; n; e /^[=\(\)/'<>!\-]	# use of trigraphs
+	= "=== R7: (Required) Trigraphs shall not be used:"
+	d
+end
+
+def m97_rule8
+	cpp on
+	r; m @str; m & /^L		# L"Fred" is a wide string literal
+	= "=== R8: (Required) Multibyte characters and wide string literals shall not be used:"
+#	rule was deleted in misra2004
+	d
+end
+
+def m97_rule9
+	cpp off
+	r
+	m /^/\*.*/\*			# nested C comments
+	m /^//.*/\*
+	= "=== R9: (Required) Comments shall not be nested:"
+	d
+end
+
+def m97_rule10
+	cpp off
+	r; m //\*.*\;.*\*/		# stmnt separator in C comment
+	m //\*[^\*]*\;			# avoid /* ... */ ...;
+	m //\*[^/]*\;			# ditto
+	m ///.*\;			# stmnt separator in C++ comment
+	= "=== R10: (Advisory) Sections of code should not be commented out:"
+	d
+end
+
+def m97_rule11
+	cpp on
+	r; m @ident; m & (.len > 31)
+	= "=== R11: (Required) Identifiers (internal and external) shall not rely on significance of more than 31 characters. Furthermore the compiler/linker shall be checked to ensure that 31 character significance and case sensitivity are supported for external identifiers:"
+	d
+end
+
+def m97_rule13
+	cpp on
+	r; m char; m int; m short; m long; m float; m double
+	= "=== R13: (Advisory) The basic types char, int, short, long, float, and double should not be used:"
+	d
+end
+
+def m97_rule14
+	cpp on
+	r; m char; b; unmark signed; unmark unsigned; n
+	= "=== R14: (Required) The type char shall be declared as unsigned or signed char:"
+	d
+end
+
+def m97_rule19
+	cpp on
+	r
+	m /^0[0-9]			# octal constant
+	m \\\ /^[0-9][0-9][0-9]$	# octal escape
+	= "=== R19: (Required) Octal constants (other than zero) shall not be used:"
+	d
+end
+
+def m97_rule22
+	r
+	!scope_check -c R22 $FLAGS $ARGS
+	# "R22 (Advisory) Declarations of objects should be at function scope unless a wider scope is necessary."
+end
+
+def m97_rule23
+	r
+	# "Rule 23 (Advisory) All declarations at file scope should be static where possible."
+	# covered by !scope_check above
+end
+
+def m97_rule24
+	cpp on
+	r; m extern; m & (.curly > 0)	# partial check
+	= "=== R24: (Required) Identifiers shall not have both internal and external linkage:"
+	d
+end
+
+def m97_rule28
+	cpp on
+	r; m register
+	= "=== R28: (Advisory) The register storage class specifier should not be used:"
+#	rule was deleted in misra2004
+	d
+end
+
+def m97_rule32
+	cpp on
+	r; m enum; n; m & {; c =; s =; c ,			# nameless enum, no comma before the first =
+	>1
+	r; m enum; n; n; m & {; c =; s =; c ,		# named enum
+	<|1
+	= "=== R32: (Required) In an enumerator list, the '=' construct shall not be used to explicitly initialise members other than the first, unless all items are explicitly initialised:"
+	d
+end
+
+def m97_rule33
+	cpp on
+	r; m \&&; s top ); c no \;; c /[-+][-+]	# not in for-loop; pre or post increments
+	>1
+	r; m \||; s top ); c no \;; c /[-+][-+]
+	<|1
+	>1
+	r; m \&&; s top ); c no \;; c /[^=<>!]=			# assignments
+	<|1
+	>1
+	r; m \||; s top ); c no \;; c /[^=<>!]=
+	<|1
+	>1
+	r; m \&&; s top ); c no \;; c /[a-zA-Z0-9_]+\(		# fct calls
+	<|1
+	>1
+	r; m \||; s top ); c no \;; c /[a-zA-Z0-9_]+\(		# fct calls
+	<|1
+	= "=== R33: (Required) The right hand operand of a && or || operator shall not contain side effects:"
+	d
+end
+
+def m97_rule35
+	cpp on
+	r; m if;    n; c /[-+][-+]		# pre or post increments
+	>1
+	r; m if;    n; c /[^=<>!]=		# assignments
+	<|1
+	>1
+	r; m while; n; c /[-+][-+]
+	<|1
+	>1
+	r; m while; n; c /[^=<>!]=
+	<|1
+	>1
+	r; m for;   n \;; s \;; c /[-+][-+]
+	<|1
+	r; m for;   n \;; s \;; c /[^=<>!]=
+	= "=== R35: (Required) Assignment operators shall not be used in conditional expressions of control stmnts (as revised):"
+	d
+end
+
+def m97_rule36
+	cpp on
+	r; m if; n; c \&
+	>1
+	r; m if; n; c |
+	<|1
+	>1
+	r; m if; n; c ~
+	<|1
+	>1
+	r; m while; n; c \&
+	<|1
+	>1
+	r; m while; n; c |
+	<|1
+	>1
+	r; m while; n; c ~
+	<|1
+	>1
+	r; m for; n \; ; s \; ; c \&
+	<|1
+	>1
+	r; m for; n \; ; s \; ; c |
+	<|1
+	>1
+	r; m for; n \; ; s \; ; c ~
+	= "=== R36: (Advisory) Logical operators should not be confused with bitwise operators. (As revised:) There shall be no bitwise logical operators (&, |, or ~) in conditional expressions of control stmnts:"
+	d
+end
+
+def m97_rule40
+	cpp off
+	r; m sizeof; n; c /[-=\+\(]
+	= "=== R40: (Advisory) (As revised:) If the sizeof operator is used on an expression, then this expression may not contain any side-effects:"
+	d
+end
+
+def m97_rule50
+	cpp on
+	r; m [!=]=; b; m & .
+	>1
+	r; m [!=]=; n; m & .
+	<|1
+	= "=== R50: (Required) Floating point variables shall not be tested for exact equality or inequality:"
+	d
+end
+
+def m97_rule54
+	cpp on
+	r; m if;   n; j; n; m & \;	# semi-colon directly following if condition
+	>1
+	r; m for;  n; j; n; m & \;	# semi-colon directly following for control
+	<|1
+	>1
+	r; m do;   n;       m & \;	# semi-colon directly following do
+	<|1
+	>1
+	r; m else; n;       m & \;	# semi-colon directly following else
+	<|1
+	r; m @cmt; n;       m & \;	# semi-colon directly following comment (cobra -n)
+	= "=== R54: (Required) A null stmnt shall only occur on a line by itself, and shall not have any other text (e.g., a comment) on the same line:"
+	d
+end
+
+def m97_rule55
+	cpp on
+	r; 
+	m ?; s :	# find p ? r : s
+	n :; b		# move mark to the ident before the :
+	>1		# save
+	r; m @ident :	# find name :
+	n; n		# to token following :
+	unmark /^[0-9]$	# exclude bitfield decls name : nr
+	b; b; b		# to token before name
+	unmark case	# exclude case stmnts
+	unmark ::	# in case of a C++ case label
+	n		# back to name
+	<^1		# exclude conditional expressions
+	= "=== R55: (Advisory) Labels should not be used, except in switch stmnts:"
+#	rule was deleted from misra2004
+	d
+end
+
+def m97_rule56
+	cpp on
+	r; m goto
+	= "=== R56: (Required) The goto stmnt shall not be used:"
+	d
+end
+
+def m97_rule57
+	cpp on
+	r; m continue
+	= "=== R57: (Required) The continue stmnt shall not be used:"
+	d
+end
+
+def m97_rule58
+	cpp on
+	r; m break; n; n; unmark case; unmark default; unmark }
+	b; b
+	= "=== R58: (Required) The break stmnt shall not be used, except to terminate the cases of a switch stmnt:"
+#	rule was deleted from misra2004
+	d
+end
+
+def m97_rule59
+	cpp on
+	r; m if; n; j; n; unmark {; b
+	>1
+	r; m for; n; j; n; unmark {; b
+	<|1
+	>1
+	r; m else; n; unmark {; unmark if; b
+	<|1
+	>1
+	r; m do; n; unmark {; b
+	<|1
+	>1
+	r; m while; b; unmark }; n
+	n; j; n; unmark {
+	b; j; b
+	<|1
+	= "=== R59: (Required) The body of an if, else, while, do-while or for shall be enclosed in braces:"
+	d
+end
+	
+def m97_rule60
+	cpp on
+	check_ifelseif
+	= "=== R60: (Advisory) All if, else if constructs should contain a final else clause:"
+	d
+end
+
+def m97_rule61
+	cpp on
+	# technically, return stmnts are not allowed, but we permit it here
+	r; m case; s case; c \;; c no switch; c no break; c no return
+	>1
+	r; m case; s default; c \;; c no switch; c no break; c no return
+	<|1
+	>1
+	r; m case; s top }; c \;; c no switch; c no break; c no return
+= "Three"
+d
+	<|1
+	= "=== R61: (Required) Every non-empty case clause in a switch stmnt shall be terminated by a break stmnt:"
+	d
+end
+
+def m97_rule62
+	cpp on
+	r; m switch; n; j; n; c top no default
+	b; j; b
+	= "=== R62: (Required) All switch stmnts should contain a final default clause:"
+	d
+end
+
+def m97_rule63
+	cpp on
+	r; m switch; n {; c top no case
+	>1
+	r; m switch; n {; c case
+	n case; n; s top }; c no case	# partial check
+	<|1
+	= "=== R63: (Advisory) There must be more than two cases in a switch stmnt:"
+	d
+end
+
+def m97_rule64
+	cpp on
+	r; m switch \(; n; j; n; unmark no {; c top no case
+	= "=== R64: (Required) Every switch stmnt shall have at least one case:"
+	d
+end
+
+def m97_rule67
+	cpp on
+	check_for
+	= "=== R67: (Advisory) Iteration count var should not be modified in the body of a for-loop:"
+	d
+end
+
+def m97_rule69
+	cpp on
+	r; m ...
+	b;b
+	unmark catch	# C++ catch(...)
+	n;n
+	= "=== R69: (Required) Functions with variable numbers of arguments shall not be used:"
+	d
+end
+
+def m97_rule70
+	cpp on
+	r; m @ident \(; n; j; ex {; j; b	# all fct decls
+	s top }			# set range to fct body (stretch command)
+	m ir $$			# match of fct name inside the range
+	e \(			# recursive fct call
+	= "=== R70: (Required) Functions shall not call themselves, either directly or indirectly:"
+	d
+end
+
+def m97_rule75
+	cpp on
+	r; m @ident \(; m & (!.curly); n; j; n; m & {; b; j; b; b; m & /[\;}]
+	= "=== R75: (Required) Every fct shall have an explicit return type:"
+	d
+end
+
+def m97_rule76
+	cpp on
+	r; m @ident \(; m & (!.curly); n; n; m & )
+	= "=== R76: (Required) Functions with no parameters shall be declared with parameter type void:"
+	d
+end
+
+def m97_rule80
+	cpp on
+	r; m @ident \(			# fct call
+	m & (.curly>0)			# inside a fct
+	b;b; unmark extern; n;n		# not extern type name()
+	unmark printf			# no printf calls
+	n				# move to (...)
+	c void		# matches also extern/static fct decls
+	n void
+	n; unmark *	# not (void *)
+	b
+	= "=== R80: (Required) Void expressions shall not be passed as fct parameters:"
+	d
+#	rule was deleted from misra2004
+end
+
+def m97_rule82
+	cpp on
+	r; m @ident \(
+	m & (!.curly)
+	n; j; e {; n
+	c return
+	n return
+	n \;
+	n
+	w (.txt != } || .curly > 1)
+	b return
+	= "=== R82: (Advisory) A fct should have a single point of exit: the textual end of the fct:"
+	d
+end
+
+def m97_rule83
+	cpp on
+	r; m @ident \(; m & (!.curly); j; extend {; j; b; b; mark no void; n {
+	c no return	# should match zero ranges
+	>1
+	r; m @ident \(; m & (!.curly); j; extend {; j; b; b; mark no void; n {
+	m ir return	# match all return stmnts inside range
+	n		# move to the token that follows, which should not be a semicolon
+	m no \;		# return stmnt without expression
+	<|1
+	= "=== R83: (Required) For fcts with non-void return type: i) there shall be one return stmnt for every exit branch, including the end of the program ii) each return shall have an expression iii) the return expression shall match the declared return type:"
+	d
+end
+
+def m97_rule87
+	. jpl/rule31.cobra
+	= "=== R87: (Required) \#include directives in a file shall only be preceded by other preprocessor directives or comments:"
+	d
+end
+
+def m97_rule88
+	cpp off
+	r; m @cpp; m & /include.*[<"].*['\,\*].*[>"]
+	= "=== R88: (Required) Non-standard characters shall not occur in header file names in \#include directives:"
+	d
+end
+
+def m97_rule89
+	cpp off
+	r; m @cpp; m & /include; m no /\<; m no /:"
+	= "=== R89: (Required) The \#include directive shall be followed by either a <filename> or quoted filename sequence:"
+	d
+end
+
+def m97_rule91
+	cpp off
+	r; m @cpp; m & /undef;  m & (.curly > 0)
+	>1
+	r; m @cpp; m & /define; m & (.curly > 0)
+	<|1
+	= "=== R91: (Required) Macros shall not be \#define'd or \#undef'd within a block:"
+	d
+end
+
+def m97_rule92
+	cpp off
+	r; m @cpp; m & /undef
+	= "=== R92: (Advisory) \#undef should not be used:"
+	d
+end
+
+def m97_rule98
+	cpp off
+	r; m @cpp; m & /\#[^\#]+\#
+	= "=== R98: (Required) There shall be at most one occurrence of the \# or \#\# pre-processor operators in a single macro definition:"
+	d
+end
+
+def m97_rule99
+	cpp off
+	r; m @cpp; m & /pragma
+	= "=== R99: (Required) All uses of the \#pragma directive shall be documented and explained:"
+	d
+end
+
+def m97_rule100
+	cpp off
+	r; m @cpp; m & /defined.*[<>=]	# partial check
+	= "=== R100: (Required) The 'defined' pre-processor operator shall only be used in one of the two standard forms: 'defined (identifier)' or 'defined identifier':"
+	d
+end
+
+def m97_rule102
+	cpp on
+	r; m * *; n; n; m & *
+	>1
+	r; m * *; n; n; m & @ident; n; m & [
+	<|1
+	= "=== R102: (Advisory) No more than 2 levels of pointer indirection should be used:"
+	d
+end
+
+def m97_rule110
+	cpp on
+	r; m union
+	= "=== R110: (Required) Unions shall not be used to access the sub-parts of larger data types:"
+	d
+end
+
+def m97_rule112
+	cpp on
+	# flags also:  x ? y : 0
+	r; m :; n; m & /^[01]$
+	# b \; ; s : ; c no ?; n :
+	b	# :
+	b	# y
+	b	# ?, if there
+	unmark ?
+	n;n;n
+	= "=== R112: (Required) Bit fields of type signed int shall be at least 2 bits long:"
+	d
+end
+
+def m97_rule118
+	cpp on
+	r; m /alloc; m free; m no @cmnt; m no @str
+	= "=== R118: (Required) Dynamic heap memory allocation shall not be used:"
+	d
+end
+
+def m97_rule119
+	cpp on
+	r; m errno
+	= "=== R119: (Required) The error indicator errno shall not be used:"
+	d
+end
+
+def m97_rule120
+	cpp off
+	r; m offsetof
+	= "=== R120: (Required) The macro 'offsetof' in library <stddef.h> shall not be used:"
+	d
+end
+
+def m97_rule121
+	cpp off
+	r; m @cpp; m & /locale.h; m setlocale
+	= "=== R121: (Required) <locale.h> and the setlocale fct shall not be used:"
+	d
+#	rule was deleted in misra2004
+end
+
+def m97_rule122
+	cpp on
+	r; m setjmp; m longjmp
+	= "=== R122: (Required) The setjmp macro and the longjmp fct shall not be used:"
+	d
+end
+
+def m97_rule123
+	cpp off
+	r; m @cpp; m & /signal.h
+	= "=== R123: (Required) The signal handling facilities of <signal.h> shall not be used:"
+	d
+end
+
+def m97_rule124
+	cpp off
+	r; m @cpp; m & /stdio.h
+	= "=== R124: (Required) The input/output library <stdio.h> shall not be used in production code in embedded systems:"
+	d
+end
+
+def m97_rule125
+	cpp on
+	r; m atof; m atoi; m atol
+	= "=== R125: (Required) The fcts atof, atoi, and atol from <stdlib.h> shall not be used:"
+	d
+end
+
+def m97_rule126
+	cpp on
+	r; m abort; m exit; m getenv; m system
+	= "=== R126: (Required) The fcts abort, exit, getenv, and system from <stdlib.h> shall not be used:"
+	d
+end
+
+def m97_rule127
+	cpp off
+	r; m @cpp; m & /time.h
+	= "=== R127: (Required) The time handling fcts of library <time.h> shall not be used:"
+	d
+end

@@ -1,0 +1,28 @@
+# find address-off operations
+
+%{
+	if (.txt != "&")
+	{	Next;
+	}
+
+	q = .;
+	. = .prv;	# look for unary uses of &
+
+	if (@oper
+	||  .txt == "("
+	||  .txt == ")"
+	||  .txt == "["
+	||  .txt == "]"
+	||  .txt == "{"
+	||  .txt == "}"
+	||  .txt == ";"
+	||  .txt == ",")
+	{	. = .nxt;
+		. = .nxt;
+		if (@ident)
+		{	.mark = 1;
+	}	}
+	. = q;
+%}
+= "Taking the address of a variable:"
+d

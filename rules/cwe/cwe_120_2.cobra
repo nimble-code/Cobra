@@ -1,0 +1,54 @@
+# CWE-120: Buffer Copy without Checking Size of Input ('Classic Buffer Overflow')
+
+r
+%{
+	unset Snprintf;
+	unset Scanf;
+	Stop;
+%}
+%{
+	if (.txt == "snprintf")
+	{	. = .nxt;	# (
+		if (.txt != "(") { Next; }
+		. = .nxt;	# "..."
+		if (match(.txt, "/%s"))	# no width specifier or %m
+		{	Snprintf[.fnm, .lnr] = .;
+		}
+		Next;
+	}
+	if (match(.txt, "/scanf"))
+	{	. = .nxt;	# (
+		if (.txt != "(") { Next; }
+		. = .nxt;	# "..."
+		if (match(.txt, "/%s"))	# no width specifier or %m
+		{	Scanf[.fnm, .lnr] = .;
+		}
+		Next;
+	}
+%}
+%{
+	sz = size(Snprintf);
+	if (sz > 0)
+	{	lock();
+		print "cwe_120_2: " sz " warnings: snprintf  :: missing width limit on %s\n";
+		if (verbose || sz < 10)
+		{	for (i in Snprintf)
+			{	dot = Snprintf[i.txt];
+				print "\t" i.txt ": " dot.txt "\n";
+		}	}
+		unlock();
+	}
+
+	sz = size(Scanf);
+	if (sz > 0)
+	{	lock();
+		print "cwe_120_2: " sz " warnings: scanf  :: missing width limit on %s\n";
+		if (verbose || sz < 10)
+		{	for (i in Scanf)
+			{	dot = Scanf[i.txt];
+				print "\t" i.txt ": " dot.txt "\n";
+		}	}
+		unlock();
+	}
+	Stop;
+%}

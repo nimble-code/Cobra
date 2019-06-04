@@ -1,0 +1,336 @@
+## https://www.engr.mun.ca/~theo/Misc/exp_parsing.htm
+##
+##     "binary"	converts a token matched by B to an operator.
+##     "unary"	converts a token matched by U to an operator.
+## 
+## We require that functions "unary" and "binary" have disjoint ranges.
+## For example unary("-") and binary("-") are not equal.
+## 
+##     "mkLeaf"	converts a token matched by v to a tree.
+##     "mkNode"	takes an operator and one or two trees and returns a tree.
+##     "sentinel"	is a value that is not in the range of either unary or binary.
+## 
+##     "push", "pop", "top": the usual stack operations.
+##     "empty": an empty stack
+## 
+## In the algorithm that follows, I compare operators and the sentinel with a > sign.
+
+%{
+	function isbinary(tok)
+	{	return (tok.txt == "*" || tok.txt == "/"
+		     || tok.txt == "+"
+		     || (tok.txt == "-" && tok.mark != 2));
+	}
+	t_count = 1;
+
+	none     = newtok();
+	none.seq = t_count; t_count++;
+	none.txt = "sentinel";
+	none.jmp = none;
+	none.prv = none;
+
+	# must assume at least one input token
+	# for the script to run
+
+	sample = "a / b * c / d + e * f / g * (h + i)";
+	ln = strlen(sample);
+	otok = newtok();	# last
+	otok.seq = t_count; t_count++;
+	ftok = otok;		# first
+	ftok.fnm = "first";
+	ftok.lnr = 1;
+	ix = 0;
+	while (ix < ln)
+	{	char = substr(sample, ix, 1);
+		if (char == " ")
+		{	ix++;
+			continue;
+		}
+		ntok = newtok();
+		ntok.seq = t_count; t_count++;
+		ntok.fnm = "user-defined";
+		ntok.lnr = 1;
+		ntok.txt = char;
+		if (!isbinary(ntok)
+		&&  ntok.txt != "("
+		&&  ntok.txt != ")")
+		{	ntok.typ = "ident";
+		}
+		ntok.bound = none;
+		ntok.jmp = none;
+		otok.nxt = ntok;
+		ntok.prv = otok;
+		otok = ntok;
+		print ntok.seq ": " ntok.txt "\n";
+		ix++;
+	}
+	set_ranges(ftok.nxt, otok);
+%}
+# must exit and resume to get the new token range
+%{
+	# initialize stacks
+
+	operands = newtok();
+	operands.seq = t_count; t_count++;
+	opnd_id = operands.seq;
+
+	operators = newtok();
+	operators.seq = t_count; t_count++;
+	optr_id = operators.seq;
+
+	operands.bound  = none;
+	operands.jmp    = none;
+	operators.bound = none;
+	operators.jmp   = none;
+
+	function error()
+	{
+		print .txt ": error\n";
+		Stop;
+	}
+
+	function push(v, item) 
+	{	if (v == opnd_id)
+		{
+	#		print "push " item.txt " onto OperandStack  [" opnd_id "]\n";
+			item.bound = operands;
+			operands   = item;
+		} else
+		{
+	#		print "push " item.txt " onto OperatorStack [" optr_id "]\n";
+			item.bound = operators;
+			operators  = item;
+		}
+	}
+	
+	function top(v)
+	{	if (v == opnd_id)
+		{
+	#		print "top Operand [" opnd_id "]\n";
+			if (operands.seq == opnd_id)	# empty
+			{	return none;
+			}
+	#		print "	" operands.txt "\n";
+			t = operands.bound;
+			while (t.seq != opnd_id)
+			{
+	#			print "	" t.txt "\n";
+				t = t.bound;
+			}
+			return operands;
+		} else
+		{
+	#		print "top Operator [" optr_id "]\n";
+			if (operators.seq == optr_id)	# empty
+			{	return none;
+			}
+			t = operators.bound;
+	#		print "	" operators.txt " :: " operators.mark "\n";
+			while (t.seq != optr_id)
+			{
+	#			print "	" t.txt " :: " t.mark "\n";
+				t = t.bound;
+			}
+			return operators;
+		}
+	}
+	
+	function pop(v)
+	{	if (v == opnd_id)
+		{
+	#		print "pop Operand [" opnd_id "]\n";
+			if (operands.seq == opnd_id)
+			{
+	#			print "	-empty-\n";
+				return none;
+			}
+			t = operands;
+			operands = operands.bound;
+		} else
+		{
+	#		print "pop Operator [" optr_id "]\n";
+			if (operators.seq == optr_id)
+			{
+	#			print "	-empty-\n";
+				return none;
+			}
+			t = operators;
+			operators = operators.bound;
+		}
+	#	print "	" t.seq ":" t.txt "\n";
+		return t;
+	}
+
+	function isunary(tok)
+	{	return (tok.txt == "-");
+	}
+
+	function pop_operator()
+	{
+	#	print "pop operator\n";
+		x = top(optr_id);
+	#	print "top_operator, saw: " x.txt "\n";
+		if ( isbinary(x) )
+		{	t1 = pop(opnd_id);
+			t0 = pop(opnd_id);
+			t2 = pop(optr_id);
+			n0 = newtok();
+			n0.seq = t_count; t_count++;
+			n0.mark = -5;
+			n0.txt = t2.txt;	# operator
+			n0.typ = t0.txt;	# lhs arg
+			n0.fnm = t1.txt;	# rhs arg
+			n0.jmp = t0;	# cannot use bound to t1, because the stack uses that!
+			n0.prv = t1;
+
+			push(opnd_id, n0);
+		} else
+		{	t0 = pop(opnd_id);
+			t2 = pop(optr_id);
+			n0 = newtok();
+			n0.seq = t_count; t_count++;
+			n0.mark = -7;
+			n0.txt = t2.txt; # operator
+			n0.typ = t0.txt; # operand
+			n0.jmp = t0;
+			n0.prv = none;
+
+			push(opnd_id, n0);
+		}
+	}
+
+	function precedence(a, b)	# a > b
+	{
+		# ( and ) have precedence over all operators
+		if (a == "sentinel")
+		{	return 0;
+		}
+		if (b == "sentinel")
+		{	return 0;
+		}
+		if (a == "(" || a == ")")
+		{	return 1;
+		}
+		if (b == "(" || b == ")")
+		{	return 0;
+		}
+
+		# * and / have precedence over unary - and binary - and +
+		# all binary operators are left associative
+
+		if (a == "*" || a == "/")
+		{	return 1;
+		}
+		# a is either - or +
+		if (b == "-" || b == "+")
+		{	return 1;
+		}
+		return 0;
+	}
+
+	function push_operator(op)
+	{	# print "push_operator " op.txt "\n";
+		x = top(optr_id);
+		while ( precedence(x.txt, op.txt) )
+		{	pop_operator();
+			x = top(optr_id);
+		}
+		push(optr_id, op);
+	}
+
+	function P()
+	{	if (@ident)
+		{	a = newtok();
+			a.seq = t_count; t_count++;
+			a.txt = .txt;
+			a.jmp = none;
+			a.prv = none;
+			push(opnd_id, a);
+		#	print "P() " a.txt "\n";
+			. = .nxt;
+			return;
+		}
+		if (.txt == "(")
+		{	. = .nxt;
+			sentinel = newtok();
+			sentinel.seq = t_count; t_count++;
+			sentinel.txt = "sentinel";
+			sentinel.jmp = none;
+			sentinel.prv = none;
+			push(optr_id, sentinel);
+			E();			# still undefined?
+			if (.txt != ")")
+			{	error();
+			}
+			pop(optr_id);
+			return;
+		}
+		if (isunary(.))
+		{	a = newtok();
+			a.seq = t_count; t_count++;
+			a.txt = .txt;
+			a.mark = 2;	# mark as unary
+			a.jmp = none;
+			a.prv = none;
+			push_operator(a); 
+			. = .nxt;
+			P();
+			return;
+		}
+		error();
+	}
+
+	function E()
+	{	# print "E()\n";
+		P();
+		while (isbinary(.))
+		{	a = newtok();
+			a.seq = t_count; t_count++;
+			a.txt = .txt;
+			a.jmp = none;
+			a.prv = none;
+			push_operator(a);
+			. = .nxt;
+			P();
+		}
+		x = top(oprt_id);
+		while (x.txt != "sentinel")
+		{	pop_operator();
+			x = top(oprt_id);
+		}
+	}
+
+	function Eparser()
+	{	push(optr_id, none);	# sentinel
+		E();
+		if (. != End)
+		{	error();
+		}
+	}
+
+	Eparser();
+
+	top(optr_id);	# now empty
+	xx = top(opnd_id);
+
+	function ast(a, x)	# dont use global name for pars
+	{	print "\tS" a "[fontsize=20,label=\"" x.txt "\"];\n";
+		if (x.mark == -5)
+		{	z = x.jmp;
+			print "\tS" a " -> S" z.seq ";\n";
+			if (z.txt != "sentinel")
+			{	ast(z.seq, z);
+			}
+
+			z = x.prv;
+			print "\tS" a " -> S" z.seq ";\n";
+			if (z.txt != "sentinel")
+			{	ast(z.seq, z);
+		}	}
+	}
+
+	print "digraph AST {\n";
+	ast(0, xx);
+	print "}\n";
+	Stop;
+%}

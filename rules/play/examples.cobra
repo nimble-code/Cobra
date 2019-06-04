@@ -1,0 +1,19 @@
+# two scripts with one argument
+
+def find_global(fname)
+	r
+	m fname			# match the argument
+	w (.curly==0)		# restrict to globals
+	= "global name:"
+	d
+end
+find_global main		# example call
+
+def find_assignments_to(varname)
+	r
+	m varname =
+	m varname /[\-\+\*/][\-\+=]
+	= "assignments to varname:"
+	d
+end
+find_assignments_to j	# example call

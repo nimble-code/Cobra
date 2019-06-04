@@ -1,0 +1,11 @@
+%{
+	function fact(n)
+	{	print "call " n "\n";
+		if (n <= 1)
+		{ 	return 1;
+		}
+		return n*fact(n-1);
+	}
+	print "10! = " fact(10) "\n";
+	Stop;
+%}

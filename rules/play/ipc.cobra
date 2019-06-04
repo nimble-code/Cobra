@@ -1,0 +1,15 @@
+# print the 2nd argument of functions ipc_send and ipc_check_and_send
+
+def ipc
+%{
+	if (#ipc_check_and_send
+	||  #ipc_send)
+	{	while (.txt != ",")
+		{	. = .nxt;
+		}
+		. = .nxt;
+		print .txt "\n"
+	}
+%}
+end
+ipc

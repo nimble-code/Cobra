@@ -1,0 +1,169 @@
+
+def check_asm(rn)		# asm.cobra
+	cpp on
+	r;
+	m asm \(
+	%{
+		if (ncore > 1
+		&&  . == Begin)
+		{	if (cpu != 0)
+			{	Stop;
+			}
+			. = first_t;
+		}
+	
+	More:	if (.mark)
+		{	if (last.lnr > 0
+			&&  last.fnm != .fnm)
+			{	print "=== rn: place all asm calls in a single file\n";
+				Stop;
+			}
+			last = .;
+		}
+	
+		if (. != last_t)
+		{	. = .nxt;
+			goto More;
+		}
+	
+		Stop;
+	%}
+end
+
+def check_braces		# round.cobra
+	# find binary operators in conditions
+	# that may have insufficient parentheses
+	# specifically: a & x == y
+	cpp on
+	r
+	%{
+		if (.txt == "(")
+		{	r = .;
+			. = .nxt;
+			if (.txt == ")")
+			{	Next;
+			}
+			q = .;
+			z = .;
+			q.mark = 0;
+			while (.round >= q.round && q.mark != 3)
+			{	if (.round == q.round)
+				{	if (.txt == ">>"
+					||  .txt == "<<"
+					||  .txt == "&"
+					||  .txt == "|"
+					||  .txt == "^")
+					{	n = .prv;
+						if (n.txt != "("
+						&&  .bracket == z.bracket)
+						{	q.mark = q.mark | 1;
+					}	}
+					if (.txt == "="
+					||  .txt == "=="
+					||  .txt == "&&"
+					||  .txt == "||")
+					{	if (.bracket == z.bracket)
+						{	q.mark = q.mark | 2;
+				}	}	}
+				. = .nxt;
+			}
+	#		if (q.mark == 3)
+	#		{	. = q;
+	#			print q.fnm ":" q.lnr ": (";
+	#			while (.round >= q.round)
+	#			{	print .txt " ";
+	#				. = .nxt;
+	#			}
+	#
+	#			print ")\n";
+	#		}
+			if (q.mark != 3)
+			{	q.mark = 0;
+			} else
+			{	q.mark = 1;
+			}
+			. = q;
+		}
+	%}
+end
+
+def check_side_effect			# side_effect.cobra
+	cpp on
+	r
+	# report multiple side effects in parenthesized conditions
+	%{
+		if (.txt == "(")
+		{	r = .prv;
+			if (r.txt == "for")
+			{	Next;
+			}
+			. = .nxt;
+			if (.txt == ")")
+			{	Next;
+			}
+			q = .;
+			count = 0;
+			while (.round >= q.round && count < 2)
+			{	if (.round == q.round)
+				{	if (.txt == "="
+					||  .txt == "++"
+					||  .txt == "--"
+					||  .txt == "+="
+					||  .txt == "-="
+					||  .txt == "*="
+					||  .txt == "/="
+					||  .txt == "%="
+					||  .txt == ">>="
+					||  .txt == "<<="
+					||  .txt == "&="
+					||  .txt == "|="
+					||  .txt == "^=")
+					{	count++;
+				}	}
+				if (@cpp) { break; }
+				. = .nxt;
+			}
+			if (count > 1)	# more than one side-effect
+			{	q.mark = 1;
+			#	. = q;
+			#	print q.fnm ":" q.lnr ": " r.txt " (";
+			#	while (.round >= q.round)
+			#	{	print .txt " ";
+			#		. = .nxt;
+			#	}
+			#	print ")\n";
+			}
+			. = q;
+		}
+	%}
+end
+
+def check_ipc
+	r
+	m /ipc_r	# vxworks
+	m msgrcv	# linux
+end
+
+def check_fct_hdrs
+	r
+	fcts
+	w ( .fnm == /\.h$)
+end
+
+def check_linelength(lnl)	# linelength.cobra
+	cpp off
+	r
+	%{
+	# instead of the physical line length,
+	# find the logical length of tokens
+	if (.lnr != last.lnr)
+	{	if (cnt > lnl)
+		{	last.mark = 1;
+		}
+		cnt = 0;
+		last = .;
+	} else
+	{	cnt = cnt + .len;
+	}
+	%}
+end

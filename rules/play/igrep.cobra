@@ -1,0 +1,10 @@
+# for example: cobra -var x=show_line -f igrep *.c
+
+def xmustbeinascript
+%{
+	if (@ident && .txt == "x")
+	{	print .fnm ":" .lnr ": " .txt "\n";
+	}
+%}
+end
+xmustbeinascript

@@ -1,0 +1,52 @@
+## remove parts of the sequence between #if 0 and #endif
+
+r
+cpp off
+%{
+	if (@cpp && .txt == "#if")
+	{	q = .nxt;
+		if (q.txt != "0")
+		{	Next;
+		}
+		nest = 1;
+		. = q.nxt;
+		while (1)
+		{	.mark = 1;
+			if (@cpp)
+			{	if (.txt == "#endif")
+				{	nest--;
+					if (nest == 0)
+					{	.mark = 0;
+						break;
+				}	}
+				if (nest == 1
+				&& (.txt == "#else"
+				||  .txt == "#elif"))
+				{	.mark = 0;
+					break;
+				}
+				if (.txt == "#if"
+				||  .txt == "#ifdef"
+				||  .txt == "#ifndef")
+				{	nest++;
+			}	}
+			. = .nxt;
+			if (. == End)
+			{	Stop;
+		}	}
+	}
+%}
+%{
+	if (.mark)
+	{	q = .prv;	# start
+		s = .;
+		while (.mark)
+		{	. = .nxt;
+		}
+		r = .;		# end
+		q.nxt = r;	# apply the shortcut
+		r = r.prv;
+		print .fnm ":" s.lnr "-" r.lnr " stripped\n";
+	}
+%}
+cpp on

@@ -1,0 +1,49 @@
+## multi-core safe
+
+cpp on
+r
+
+%{
+	if (@ident)
+	{	if (.len == 1)
+		{	Cnt[.txt]++;
+			.mark = 1;
+		}
+		if (.len > maxlen.len)
+		{	maxlen = .;
+	}	}
+%}
+
+%{
+	# all cpus have completed part-1
+	if (cpu != 0)	# cpu 0 wraps up:
+	{	Stop;
+	}
+
+	a_unify(0);	# make sure Cnt on cpu 0 has all elements
+	for (i in Cnt)	# sum all cpu counts per ident
+	{	Cnt[i.txt] = sum(Cnt[i.txt]);
+	}
+
+	# find the max
+
+	mx = 0;
+	ix = "none";
+	for (i in Cnt)
+	{	if (Cnt[i.txt] > mx)
+		{	mx = Cnt[i.txt];
+			ix = i.txt;
+	}	}
+
+	Stop;
+%}
+
+= "number of uses of single-letter identifiers:"
+
+%{
+	if (cpu == 0)
+	{	print "single-letter identifier used most frequently: '" ix "' (" mx "x)\n";
+		print "longest identifier: " maxlen.txt " (eg: " maxlen.fnm ":" maxlen.lnr ")\n";
+	}
+	Stop;
+%}

@@ -1,0 +1,27 @@
+# ncsl / phys
+# not as precise at the ncsl app, but pretty close
+
+# assumes a single-core run
+
+%{
+	if (@cmnt)
+	{	comments++;
+		Next;
+	}
+	if (phys[.fnm] < .lnr)
+	{	phys[.fnm] = .lnr;
+	}
+	if (lastlnr != .lnr)
+	{	ncsl++;	# counts all lines with code
+		lastlnr = .lnr;
+	}
+%}
+%{
+	for (i in phys)
+	{	max = max + phys[i.txt];
+	#	print i.txt "\t" phys[i.txt] "\t" max "\n";
+	}
+	print "\tsloc\tncsl\tcomments\n";
+	print "\t" max "\t" ncsl "\t" comments "\n";
+	Stop;
+%}

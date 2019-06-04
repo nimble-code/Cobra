@@ -1,0 +1,90 @@
+# example of coordinating multi-core checks
+# multi-core safe
+
+def nr_cases
+cpp on
+r
+%{
+	if (.curly > 0 && #switch)	# all cpu in parallel
+	{	q = .;
+		. = .nxt;
+		if (.txt != "(" )
+		{       . = q;
+			Next;
+		}
+		. = .jmp;
+		. = .nxt;
+		if (.txt != "{")
+		{       . = q;
+			Next;
+		}
+
+		q.mark = 0;
+		while (.curly >= q.curly)
+		{	if (.curly == q.curly + 1
+			&&  (#case || #default))
+			{	q.mark++;
+			}
+			. = .nxt;
+		}
+		NrCases[ q.mark ]++;	# all variables and array cpu-private
+		Sample [ q.mark ] = q;
+	#	print q.mark " " .fnm ":" q.lnr "\n";
+		q.mark = 0;
+		. = q;
+	}
+%}
+%{
+	en = first_t;	# globally visible token to record cpu-done
+	e = en.nxt;	# globally visible token to record the max
+	f = e.nxt;	# globally visible token to record the min
+	g = f.nxt;	# globally visible token to record sample max
+	h = g.nxt;	# globally visible token to record sample min
+
+	f.mark = 10000;
+	mn     = 10000;
+	mx     = 0;
+
+	for (i in NrCases)	# all cpus in parallel
+	{	if (i.txt > mx)
+		{	mx = i.txt;
+		}
+		if (i.txt < mn)
+		{	mn = i.txt;
+		}
+	}
+	lock();
+# print "cpu " cpu " start (ncore = " ncore ")\n";
+	# ====================== one cpu at a time
+	  if (mx > e.mark)
+	  {	e.mark = mx;	# record my max
+		g.nxt = Sample[mx];
+	  }
+
+	  if (mn > 0 && mn < f.mark)
+	  {	f.mark = mn;
+		h.nxt = Sample[mn];
+	  }
+	  en.mark++;
+# print "cpu " cpu " done " en.mark "\n";
+	# ======================
+	unlock();
+
+	if (cpu != 0)
+	{	Stop;
+	}
+	while (en.mark < ncore)
+	{	print "";	# wait for all cpus to be done
+	}
+
+	g = g.nxt;
+	print "largest  nr of cases per switch: " e.mark "\teg: " g.fnm ":" g.lnr "\n";
+	if (f.mark == 10000)
+	{	Stop;
+	}
+	h = h.nxt;
+	print "smallest nr of cases per switch: " f.mark "\teg: " h.fnm ":" h.lnr "\n";
+	Stop;
+%}
+end
+nr_cases

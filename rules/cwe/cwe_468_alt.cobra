@@ -1,0 +1,15 @@
+# CWE-468: incorrect pointer scaling
+# https://cwe.mitre.org/data/definitions/468.html
+
+# alternative encoding for CWE-468, using the standard query language
+# pattern: adding a constant to an identifier,
+# in a parenthesized expression,
+# which is cast to a pointer of some type
+
+r
+m * )
+n; n
+m & (
+c +
+= "cwe-468, risky casts using pointer arithmetic"
+d

@@ -1,0 +1,283 @@
+# CWE-416: use after free
+# based on cwe_457.cobra for control flow guidance
+
+r
+. skip.def
+. play/goto_links
+. play/else_links
+. play/switch_links
+
+# pm: play/break_links
+
+%{
+	w_cnt = 0;
+	Stop;
+%}
+
+fcts
+%{
+	canstop  = 0;	# initial value
+
+	function clear_marks(from, upto)
+	{	canstop  = 0;
+		tt = from;
+		while (tt.seq <= upto.seq)
+		{	if (tt.mark == 57)
+			{	tt.mark = 0;
+			}
+			tt = tt.nxt;
+	}	}
+	depth = 0;
+	function dfs_var(nm, from, upto)
+	{	depth++;
+N:
+		if (from.mark == 57	# visited before
+		||  upto.seq == 0
+		||  canstop)
+		{	depth--;
+			return;
+		}
+		from.mark = 57;
+# print from.lnr ":" upto.lnr " check " nm " @ " from.txt "\n";
+		## the target check for this statement
+		if (from.txt == nm)	# target var
+		{	b4 = from.prv;
+			af = from.nxt;
+			if (af.txt == "."	# part of struct ref
+			||  af.txt == "=")	# assigned a new value
+			{	canstop = 1;
+				depth--;
+				return;		# assume ok
+			}
+			b44 = b4.prv;
+			if ( b4.txt != "."
+			&&   b4.txt != "->"	# field in struct
+			&&  b44.txt != "sizeof"	# not an eval
+			&&  b44.txt != "get_user")
+			{	# ignore if we're in the increment field of a for stmnt
+				if (from.round == 1)
+				{	b4 = from.nxt;
+					while (b4.txt != ")")
+					{	b4 = b4.nxt;
+					}
+					b4 = b4.jmp;	# start of for stmnt, if thats what it is
+					b4 = b4.prv;
+				}
+				if (b4.txt != "for")
+				{	if (terse)
+					{	w_cnt++;
+					} else
+					{	lock();
+						print from.fnm ":" from.lnr ": cwe_416, use after free of " nm "?\n";
+						unlock();
+					}
+					canstop = 2;
+					depth--;
+					return;
+		}	}	}
+# print "	A " from.txt "\n";
+		if (from.txt == "return"
+		||  from.txt == "continue"
+		||  from.txt == "exit")
+		{	canstop = 1;
+			depth--;
+			return;		# no problem on this path
+		}
+		## end check
+
+		t[depth] = from.bound;
+		tt = from.bound;			# check if it was set
+# print "	B " from.txt " -- " tt.seq "\n";
+		if (tt.seq == 0)			# not a goto or if/else statement
+		{	from = from.nxt;
+			if (from.seq < upto.seq)
+			{	goto N;
+			}
+			depth--;
+			return;
+		}
+# print "	C " from.txt "\n";
+		if (from.txt == "goto")		# follow goto
+		{
+# print from.lnr " goto-> " ;
+			from = from.bound;
+			upto = limit;
+# print from.lnr "\n";
+			goto N;
+		}
+		if (from.txt == "if")
+		{	# check the condition first
+			vv = from.nxt;
+			if (vv.txt != "(")
+			{	from = vv;
+				goto N;
+			}
+			v[depth] = from.nxt;	# the opening brace
+			vv = vv.jmp;
+			dfs_var(nm, v[depth], vv);
+			if (canstop)
+			{	depth--;
+				return;
+			}
+			# if there's an else, first stmnt in else
+			# if not, first stmnt after then
+			t[depth] = from.bound;
+			tt = from.bound;
+			r[depth] = tt.prv;
+			rr = tt.prv;
+			if (rr.txt == "else")
+			{	dfs_var(nm, from.bound, upto);	# else path, to end
+				if (canstop == 0)		# no asgn and no err
+				{	dfs_var(nm, from, from.bound);	# then path
+					# up to from.bound because after else didnt have the var
+				} else
+				{	if (canstop == 1)	# saw asgn on else branch, but no error yet
+					{	canstop = 0;	# explore new, this time the then branch
+						vv = v[depth];
+						yy = vv.jmp;	# end of condition
+						yy = yy.nxt;
+						while (yy.typ == "cmnt")
+						{	yy = yy.nxt;
+						}
+
+						if (yy.txt == "{")	# then body
+						{	zz = yy.jmp;	# end of then part
+						} else
+						{	zz = yy.nxt;	# then stmnt
+						}
+						dfs_var(nm, yy, zz);	# then path
+						if (canstop == 0)	# no asgn and no error
+						{	rr = r[depth];
+							rr = rr.bound;
+							rr = r[depth];
+							dfs_var(nm, rr.bound, upto);	# after else
+				}	}	}
+			} else
+			{	dfs_var(nm, from.bound, upto);		# then part, no else, to end
+			}
+			depth--;
+			return;		# checked all paths up to end
+		}
+
+		if (from.txt == "switch")
+		{	# check the condition first
+			v[depth] = from.nxt;		# the opening brace
+			vv = from.nxt;
+			dfs_var(nm, vv, vv.jmp);	# check switch expression
+			if (canstop)
+			{	depth--;
+				return;
+			}
+			t[depth] = from.bound;			# set if there's no default
+			tt = from.bound;
+			if (tt.seq != 0)
+			{	dfs_var(nm, tt, upto);	# skip switch
+				if (canstop)
+				{
+					depth--;
+					return;
+			}	}
+			vv = v[depth];
+			from = vv.jmp;			# end of condition
+			from = from.nxt;		# continue scanning for cases
+			if (from.seq < upto.seq)
+			{	goto N;
+		}	}
+
+		if (from.txt == "case"
+		||  from.txt == "default")
+		{	t[depth] = from.bound;		# should always be set
+			tt = from.bound;
+			if (tt.seq != 0)			# explore this case
+			{	while (from.txt != ":")
+				{	from = from.nxt;
+				}
+				from = from.nxt;	# start of body of case clause
+				dfs_var(nm, from, tt);	# from here to the next case
+				# ignoring break and continue for now
+				if (canstop == 2)		# reported error on this path
+				{	depth--;
+					return;
+				}
+				if (canstop == 0)		# no assignment in the case clause
+				{	# find end of switch statement
+					ww = from;
+					while (ww.txt != "}" || ww.curly != from.curly - 1)
+					{	ww = ww.nxt;
+					}
+					ww = ww.nxt;
+					dfs_var(nm, ww, upto);		# from after switch up to end
+					if (canstop == 2)
+					{
+						depth--;
+						return;
+				}	}
+
+				# but wrong for the last case...
+				tt = t[depth];
+				if (tt.curly == from.curly)	# next case in same switch
+				{	from = tt.prv;
+					canstop = 0;		# to check the other cases
+					if (from.seq < upto.seq)
+					{
+						goto N;
+			}	}	}
+		}
+		from = from.nxt;
+		depth--;			
+	}
+	Stop;
+%}
+%{
+	if (.mark == 0)		# for each function
+	{	Next;
+	}
+	# print "function " .txt "\n";
+
+	skipto("{");
+	start = .;	# start of fct body
+	limit = .jmp;	# end of fct body
+
+	while (.seq < limit.seq)
+	{
+		if (.txt != "free")
+		{	. = .nxt;
+			continue;
+		}
+		. = .nxt;
+		if (.txt != "(")
+		{	. = .nxt;
+			continue;
+		}
+
+		# use of free(...)
+
+		. = .nxt;
+		if (!@ident)
+		{	. = .nxt;
+			continue;
+		}
+
+		q = .;	# our target freed pointer variable
+		. = .nxt;	# look for another free
+		if (.txt != ")")	# freeing a field in a struct?
+		{	continue;
+		}
+
+		clear_marks(start, limit);
+		dfs_var(q.txt , ., limit);	# check if name is reused
+		# not perfect cause the free could be inside if-then-else
+	}
+%}
+%{
+	if (terse && w_cnt > 0)
+	{	lock();
+		print "cwe_416: " w_cnt " warnings: potential heap memory use after free\n";
+		unlock();
+	}
+	w_cnt = 0;
+	Stop;
+%}
+%{
+	if (.mark == 57) { .mark = 0; }
+%}

@@ -1,0 +1,48 @@
+# find declaration_types -- incomplete, see notes below
+#   modifiers are:  long, short, signed, unsigned
+#   qualifiers are: const, volatile
+
+def declarations
+	r
+	m struct	# collect all named structs etc
+	m union		# these are keywords
+	m enum
+	n
+	m & @ident	# remove unnamed structs etc
+
+	m @type		# add all basic types
+	unmark void	# but not void
+	>1		# save in set 1
+
+	r
+	m @modifier	# all modifiers
+	n; m & @qualifier  # followed by qualifier
+	>2		# save qualifiers in set 2
+
+	n; m & @qualifier  # followed by another qualifier
+	<|2		# add all marks from set 2
+	n		# next token
+	unmark @type	# not an explicit typename
+	unmark )	# filter out likely cast
+	b		# back to the modifier, qualifier, or typename
+	<|1		# add set 1, for the complete list
+	>1		# save in set 1
+
+	n @ident \(	# function def
+	w (.curly == 0)
+
+	# move back to the type
+	# or else the <^ below will not work
+	# an attempt to do this:
+	b; b		# assuming it was 2 tokens
+	>2		# save in set 2
+
+	<1		# restore set 1
+	<^2		# exclude function definitions
+	l		# report results
+end
+declarations
+
+# the names between the marks and the next 
+# ';', '(' or ')' include all declared objects
+# give or take...

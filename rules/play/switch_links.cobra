@@ -1,0 +1,68 @@
+. skip.def
+
+%{	# set .bound for switch statements at each case clause
+	# to point to the next case or the stmnt after the switch
+	# the switch keyword itself is bound to the stmnt after the
+	# switch body only of there is no default clause (meaning
+	# that its execution may be skipped if no case matches)
+	if (seen_switch_links > 0)
+	{	Stop;
+	}
+
+	if (.txt == "switch")
+	{	q = .;
+		lastcase = q;
+		skip_cond();
+		if (.txt == "{")
+		{	e = .jmp;
+
+			sawdefault = 0;
+			while (.seq < e.seq)
+			{	if (.curly == e.curly + 1)
+				{	if (.txt == "case"
+					||  .txt == "default")
+					{	if (.txt == "default")
+						{	sawdefault = 1;
+						}
+						# check for empty case stmnts
+						f = .nxt; 
+						while (f.txt != ":")
+						{	f = f.nxt;
+						}
+						f = f.nxt;
+						while (f.typ == "cmnt")
+						{	f = f.nxt;
+						}
+						if (f.txt == "case"
+						||  f.txt == "default"
+						||  f.txt == "}")
+						{	. = .nxt;
+							continue;
+						}
+
+						if (lastcase.seq != q.seq)
+						{	lastcase.bound = .;
+						}
+						lastcase = .;
+				}	}
+				. = .nxt;
+			}
+			. = .nxt;
+			while (.typ == "cmnt")
+			{	. = .nxt;
+			}
+			if (lastcase.seq != q.seq)
+			{	lastcase.bound = .;
+			}
+			if (!sawdefault)
+			{	q.bound = .;
+			}
+			. = q;
+		}
+		Next;
+	}
+%}
+%{
+	seen_switch_links = 1;
+	Stop;
+%}

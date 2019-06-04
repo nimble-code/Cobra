@@ -1,0 +1,34 @@
+def datatypes
+	r; m auto; 	= "auto	 :"
+	r; m char; 	= "char	 :"
+	r; m const; 	= "const	 :"
+	r; m @const_flt; = "flt_num	 :"
+	r; m @const_hex; = "hex_num	 :"
+	r; m @const_int; = "int_num	 :"
+	r; m @const_oct; = "oct_num	 :"
+	r; m double; 	= "double	 :"
+	r; m enum; 	= "enum	 :"
+	r; m extern; 	= "extern	 :"
+	r; m FILE; 	= "FILE	 :"
+	r; m float; 	= "float	 :"
+	r; m int; 	= "int	 :"
+	r; m long; 	= "long	 :"
+	r; m register; 	= "register	 :"
+	r; m short; 	= "short	 :"
+	r; m signed; 	= "signed	 :"
+	r; m static; 	= "static	 :"
+	r; m @str; 	= "string	 :"
+	r; m struct; 	= "struct	 :"
+	r; m typedef; 	= "typedef	 :"
+	r; m ulong; 	= "ulong	 :"
+	r; m union; 	= "union	 :"
+	r; m unsigned; 	= "unsigned :"
+	r; m void; 	= "void	 :"
+	r; m volatile; 	= "volatile	 :"
+end
+cpp off
+track start _cobra_tmp_
+datatypes
+track stop
+!sort -k3 -n -r _cobra_tmp_
+!rm -f _cobra_tmp_

@@ -1,0 +1,400 @@
+# see main/*.cobra
+
+def fct_names			# helper function
+	cpp on
+	m @ident \(; n
+	w (!.curly)		# not inside a fct
+	j			# jump to end of param list
+	e {			# make sure its followed by {
+	j			# jump back to start of param list
+	b			# fct name
+end
+
+def p10_rule1a(rn)		# setjmp can be a macro
+	cpp off
+	r
+	m goto
+	m setjmp
+	m longjmp
+	= "=== rn: do not use goto, setjmp, longjmp:"
+	d
+end
+
+def p10_rule1b(rn)
+	cpp on
+	r
+ 	fct_names
+	s {			# tag name to {
+	n {			# move to {
+	m ir $$			# match of fct name inside the range
+	e \(			# recursive fct call
+	= "=== rn: do not use recursion:"
+	d
+end
+
+def p10_rule1(rn)
+	p10_rule1a(rn)
+	p10_rule1b(rn)
+end
+
+def p10_rule2a(rn)
+	cpp on
+	#  partial check: the loop condition must contain a comparison
+	r
+	m for \(; n
+	n \;
+	s \;	# isolate the condition
+	c <
+	>1
+	u
+	c <=
+	<|1
+	>1	# for p10_rule2b
+	u
+	c >
+	>2
+	u
+	c >=
+	<|2
+	>2	# for p10_rule2c
+	u
+	c no <
+	c no <=
+	c no >
+	c no >=
+	%{
+		if (.mark)
+		{	q = .;
+			cnt = 0;
+			while (.mark != 0)
+			{	cnt++;
+				. = .nxt;
+			}
+			if (cnt == 1)
+			{	q.mark = 0;	## for (x=ptr;x;x=x->nxt)
+		}	}
+	%}
+	= "=== rn: loop condition must contain a comparison:"
+	d
+end
+
+def p10_rule2b(rn)
+	cpp on
+	r	# assumes p10_rule2a ran first
+	<1	# upperbound from p10_rule2a
+	n; n \;	# move to increment
+	s )
+	c no /\+
+	c no ->
+	= "=== rn: give all loops a fixed upper-bound (missing increment):"
+	d
+end
+
+def p10_rule2c(rn)
+	cpp on
+	r	# assumes p10_rule2a ran first
+	<2	# lowerbound from p10_rule2a
+	n; n \;	# move to increment
+	s )
+	c no /\-
+	c no ->
+	= "=== rn: give all loops a fixed upper-bound (missing decrement):"
+	d
+end
+
+def p10_rule2(rn)
+	p10_rule2a(rn)
+	p10_rule2b(rn)
+	p10_rule2c(rn)
+end
+
+def p10_rule3(rn)
+	cpp on
+	r
+	fct_names
+	m & /init		# name contains "init"
+	n {			# start of fct body
+	m ir /alloc
+	>1			# these are okay
+	u
+	m ir free
+	<|1
+	>1
+
+	r
+	m /alloc; m free	# all calls
+	<^1			# but not those in set 1
+	= "=== rn: do not use dynamic memory allocation after initialization:"
+	d
+end
+
+def p10_rule4(rn, nr)
+	cpp on
+	r
+	fct_names
+	n {
+	w (.range > nr)
+	b
+	= "=== rn: functions exceeding 75 physical source lines:"
+	d
+end
+
+def p10_rule4_log(rn, nr)
+	cpp on
+	r
+	fct_names
+	%{
+		if (.mark == 0)
+		{	Next;
+		}
+		f = .;
+		while (.txt != "{")
+		{	. = .nxt;
+		}
+		e = .jmp;
+		cnt = 0;
+		lst = .nxt;
+		while (.lnr < e.lnr)
+		{	if (.lnr != lst.lnr)
+			{	cnt++;
+			}
+			lst = .;
+			. = .nxt;
+		}
+		if (cnt <= nr)
+		{	f.mark = 0;
+		}
+	%}
+	= "=== rn: functions exceeding 75 logical lines:"
+	d
+end
+
+def p10_rule5(rn, nr)	# assert is often a macro
+	cpp off
+	%{	size1 = 0; size2 = 0; Stop;	%}
+	%{
+		if (.txt == ";")
+		{	size1++;
+		} else
+		{	if (match(.txt, "/[Aa][Ss][Ss][Ee][Rr][Tt]"))
+			{	size2++;
+		}	}
+	%}
+	%{
+		if (cpu != 0)
+		{	Stop;
+		}
+		s1 = sum(size1);
+		s2 = sum(size2);
+		if (s2 < (nr*s1)/100)
+		{	print "=== rn: the recommended number of assertions is nr% = ";
+			print ( (nr*s1)/(100) ) "\n";
+			print "	found " s2 " assertions in " s1 " statements\n";
+		}
+		Stop;
+	%}
+	r
+end
+
+def p10_rule6a(rn)
+	cpp on
+	r
+	m @ident; m & (!.curly && !.round); m & /^.$
+	= "=== rn: do not use single-letter global identifiers:"
+	d
+end
+
+def p10_rule6b(rn)
+	cpp on
+	r
+	!scope_check -N1 -c rn $FLAGS $ARGS
+	# rn: declare data objects at the smallest possible level of scope:"
+	d
+end
+
+def p10_rule6(rn)
+	p10_rule6a(rn)
+	p10_rule6b(rn)
+end
+
+def p10_rule7a(rn)
+	cpp on
+	r
+	fcts
+	n {
+	c return /[^\;]		# non-void returns
+	b ); j; b		# back to fct name
+	track start set1
+	l
+	track stop
+
+	r
+	m @ident \(		# find all fct calls
+	w (.curly > 0)
+	n; j; n; m & \;		# fct();
+	b; j; b			# back at name
+	w (.round == 0)		# not in call or condition
+	w (.bracket == 0)	# not array index
+	unmark /^[Yy][Yy]	# not yacc related
+	b; m no /=		# return value not asigned
+	m no return		# or returned
+	m no @oper		# not part of an expression
+	m no )			# likely cast
+	n			# back to name
+	track start set2
+	l
+	track stop
+
+	# report names in set2 that are also in set1
+	!cat set1 | awk 'NF>1 { print $NF }' | sed "s/'//g" | sort -u >set1b
+	!cat set2 | awk 'NF>1 { print $NF }' | sed "s/'//g" | sort -u >set2b
+	!cat set1b set2b | sort | uniq -c | grep -e "^  *2" | awk 'NF==2 { printf("^%s$\n", $NF) }' > set12
+	!if [ -s set12 ]; then echo "=== rn: check the return value of non-void functions:"; grep -f set12 set2b | sed 's;^;	;'; fi
+	!rm set1 set2 set1b set2b set12
+end
+
+def p10_rule7b(rn)
+	cpp on
+	r
+	fcts
+	n \(
+	m ir @ident
+	b; m & *	# pointer parameter
+	n
+	s $$
+	n $$	# first use of fct pointer parameter should be a condition
+	w (.round == 0)
+	>1
+	b; m & *		# dereference
+	>2
+	r
+	<1
+	w (.bracket > 0)	# array index
+	<|2
+	>2
+	r
+	<1
+	n; m & ->		# used as ptr
+	<|2
+	= "=== rn: failing to check validity of pointer or array index parameters:"
+	d
+end
+
+def p10_rule7(rn)
+	p10_rule7a(rn)
+	p10_rule7b(rn)
+end
+
+def p10_rule8a(rn)
+	cpp off
+	r
+	%{	p1 = 0;
+		p2 = 0;
+		last = .;
+		Stop;
+	%}
+	m @cpp
+	m & /if
+	m no /endif
+	%{
+		if (.mark) { p1++; }
+		if (.fnm != last.fnm
+		&&  match(.fnm, "/\.h$"))
+		{	p2++;
+			last = .;
+		}
+	%}
+	%{
+		if (cpu != 0)
+		{	Stop;
+		}
+		p1s = sum(p1);
+		p2s = sum(p2);
+		if (p1s > p2s)
+		{	print "=== rn: use no more if/ifdef/ifndef directives than .h files\n";
+			print "	found " p2s " .h files, and " p1s " \#if, \#ifdef, and \#ifndef directives\n";
+		}
+		Stop;
+	%}
+	r
+	m @cpp
+	m & /undef
+	= "=== rn: avoid \#undef directives, saw:"
+	d
+end
+
+def p10_rule8b(rn)
+	cpp off
+	r
+	m @cpp
+	m & /define
+	w (.fnm != /.h$ )
+	n
+	m no /^[Yy][Yy]
+	b
+	= "=== rn: place macro definitions only in header files:"
+	d
+end
+
+def p10_rule8(rn)
+	p10_rule8a(rn)
+	p10_rule8b(rn)
+end
+
+def p10_rule9a(rn)
+	cpp on
+	r
+	%{
+		if (.txt != "typedef")
+		{	Next;
+		}
+		q = .;
+		. = .nxt;
+		cnt = 0;
+		while (.txt != ";")
+		{	if (.txt == "{")
+			{	. = .jmp;
+				. = .nxt;
+				continue;
+			}
+			if (.txt == "*")
+			{	q = .;
+				. = .nxt;
+				cnt++;
+				continue;
+			}
+			if (match(.txt, "/ptr$"))
+			{	q = .;
+				break;
+			}
+			. = .nxt;
+		}
+		if (q.txt == "*" || cnt > 1)
+		{	q.mark = 1;
+		}
+	%}
+	= "=== rn: typedef hides a pointer dereference"
+	d
+end
+
+def p10_rule9b(rn)
+	cpp on
+	r
+	m * *; n; n; m & *
+	>1
+	r
+	m * *; n; n; m & @ident
+	n; m & ->
+	<|1
+	= "=== rn: limit the use of pointers\; use no more than 2 levels of dereferencing:"
+	d
+end
+
+def p10_rule9(rn)
+	p10_rule9a(rn)
+	p10_rule9b(rn)
+end
+
+def p10_rule10(rn)
+	r; = "=== rn: compile with all warnings enabled and use a static analyzer:"
+end

@@ -1,0 +1,42 @@
+# find loops the contain a goto jump that exits from the loop
+
+m for
+m do
+m while
+n {
+c goto
+%{
+	if (.mark == 0)
+	{	Next;
+	}
+	.mark = 0;
+	# scan loop body for gotos
+	eol = .jmp;
+	sol = .;
+
+	while (.seq < eol.seq)
+	{	if (.txt == "goto")
+		{	. = .nxt;
+			# scan loop body for this label-name
+			target = .;
+			scan = sol;
+			found = 0;
+			while (scan.seq < eol.seq)
+			{	if (scan.txt == ":")
+				{	scan = scan.prv;
+					if (scan.txt == target.txt)
+					{	# label inside loop body
+						found = 1;
+						break;
+					}
+					scan = scan.nxt;
+				}
+				scan = scan.nxt;
+			}
+			if (found == 0)
+			{	.mark = 1; # mark the goto
+		}	}
+		. = .nxt;
+	}
+%}
+= "number of gotos that exit from a loop:"

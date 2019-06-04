@@ -1,0 +1,169 @@
+# CWE-197: numeric truncation error
+# occurs when a primitive is cast to a primitive of a smaller size and data is lost in the conversion.
+
+# example checker for trapping the assignment  or casting of int or long to short or char
+# can be extended with similar checks for other combinations of basic types
+
+# step 1, find things in each fct declared as scalar int
+
+%{
+	w_cnt = 0;
+	Stop;
+%}
+
+r
+fcts
+
+%{
+	if (!.mark) { Next; }
+
+	f = .;
+	while (.txt != "{")
+	{	. = .nxt;
+	}
+	start = .;
+	limit = .jmp;
+# print .fnm ":" .lnr " " .txt "\n";
+	if (limit.seq == 0) { Next; }	# range not found
+# print .fnm ":" .lnr " XXX " start.txt " >> " limit.fnm ":" limit.lnr ":" limit.seq "\n";
+
+	. = f.nxt;	# scan also parameter declarations
+
+	while (.seq < limit.seq)
+	{	if (.txt == "int"
+		||  .txt == "long"
+		||  .txt == "size_t"
+		||  .txt == "char"
+		||  .txt == "short")
+		{	if (.curly > 0		# not a param decl
+			&&  .round > 0)		# likely a cast
+			{	. = .nxt;
+				continue;
+			}
+			btype = .;
+			. = .nxt;
+			while (.txt != ";" && .typ != "oper"
+			&&    (.txt != ")" || .curly > 0))
+			{	if (@ident)
+				{	Target[.txt] = btype;
+					. = .nxt;
+					while (.txt != ","
+					&&     .txt != ";"
+					&&    (.txt != ")" || .curly > 0))
+					{	. = .nxt;
+					}
+				} else
+				{	if (.txt == "*" || .txt == "=")
+					{	while (.txt != ","
+						&&     .txt != ";"
+						&&    (.txt != ")" || .curly > 0))
+						{	if (.txt == "(")
+							{	. = .jmp;
+							}
+							. = .nxt;
+						}
+						. = .nxt;
+						break;
+					} else
+					{	if (.txt == "[" || .txt == "(")
+						{	. = .jmp;
+						} else
+						{
+							. = .nxt;
+			}	}	}	}
+		}
+		. = .nxt;
+	}
+	if (0)
+	{	for (a in Target)
+		{	b = Target[a.txt];
+			lock();
+			print f.txt " :: " b.txt " :: " a.txt "\n";
+			unlock();
+	}	}
+
+	# now recheck function for casts and assignments
+	. = start;
+	while (.seq < limit.seq)	# first check for explicit casts
+	{
+		if (.txt == "(")
+		{	. = .nxt;
+			if (.txt == "short"
+			||  .txt == "char")	# cast to short or char
+			{	. = .nxt;	# )
+				if (.txt != ",")	# not a cast
+				{	. = .nxt;
+					if (@ident)
+					{	x = Target[.txt];
+						if (x.seq > 0
+						&& (x.txt == "int"
+						 || x.txt == "long"
+						 || x.txt == "size_t"))	# from int or long
+						{
+							if (terse)
+							{	w_cnt++;
+							} else
+							{	lock();
+								print .fnm ":" .lnr ": cwe_197, in " f.txt ;
+								print "(), potential loss of information in cast of " .txt "\n";
+								unlock();
+			}	}	}	}	}
+		}
+		. = .nxt;
+	}
+
+	. = start;
+	# print "check-2 (assignments) from " .lnr " to " limit.lnr "\n";
+	while (.seq < limit.seq)	# check for assignments without cast
+	{	if (.txt == "=")
+		{	. = .prv;	# dst var
+			dst = .;
+			x = Target[.txt];	# do we know the type?
+			. = .nxt;	# undo prv	# now we point at '=' again
+
+			if (x.seq > 0			# yes, we know the type
+			&& (x.txt == "short"
+			||  x.txt == "char"))		# assignment to short or char
+			{	. = .nxt;		# now we point at the rhs
+
+				if (@ident)				# no cast
+				{	a2 = .nxt;			# look ahead
+					if (a2.txt == "?")		# ternary expr
+					{	. = a2.nxt;		# look only at the true part
+						if (!@ident)
+						{	continue;
+					}	}
+
+					y = Target[.txt];
+# print .fnm ":" .lnr " here " .txt "\n";
+					if (y.seq > 0
+					&& x.lnr <= dst.lnr
+					&& (y.txt == "int" || y.txt == "long" || y.txt == "size_t"))	# from int or long
+					{
+						if (terse)
+						{	w_cnt++;
+						} else
+						{	lock();
+							print .fnm ":" .lnr ": cwe_197, in " f.txt ;
+							print "(), potential loss of information in assignment from '" .txt ;
+							print "' to '" dst.txt "' type: " x.txt " set at " x.fnm ":" x.lnr "\n";
+							unlock();
+		}	}	}	}	}
+		. = .nxt;
+	}
+
+	unset Target;
+	. = limit;
+%}
+
+%{
+	if (terse && w_cnt > 0)
+	{	lock();
+		print "cwe_197: " w_cnt " warnings: potential loss of information in assignment or cast\n";
+		unlock();
+	}
+	w_cnt = 0;
+	Stop;
+%}
+
+

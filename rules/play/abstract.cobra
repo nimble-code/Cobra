@@ -1,0 +1,23 @@
+# abstract a program text by replacing
+# each unique identifier with a short-hand
+
+%{
+	if (@ident)
+	{	x = Get[.txt];
+		if (x.lnr > 0)
+		{	print "n_" x.mark " ";
+		} else
+		{	cnt.mark++;
+			.mark = cnt.mark;
+			Get[.txt] = .;
+			print "n_" .mark " ";
+		}
+	} else
+	{	print .txt " ";
+	}
+	if (.txt == ";"
+	||  .txt == "}"
+	||  @cpp)
+	{	print "\n";
+	}
+%}

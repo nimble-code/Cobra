@@ -1,0 +1,24 @@
+# find the 10 most frequent trigrams of types
+# multi-core safe
+
+%{
+	q = .nxt;
+	r = q.nxt;
+	if (.typ != "" && q.typ != "" && r.typ != "")
+	{	Trigram[.typ, q.typ, r.typ]++;
+	}
+%}
+track start _cobra_tmp_
+%{
+	if (cpu != 0)
+	{	Stop;
+	}
+	a_unify(0);
+	for (i in Trigram)
+	{	print i.txt "\t" Trigram[i.txt] "\n";
+	}
+	Stop;
+%}
+track stop
+!sort -k2 -n < _cobra_tmp_ | tail -10
+!rm -f _cobra_tmp_

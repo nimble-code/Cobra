@@ -1,0 +1,59 @@
+## multi-core safe
+
+## print the number of functions per file
+
+cpp off
+r
+fcts
+
+def nr_functions(detail)
+%{
+	if (.mark)
+	{	count[.fnm]++;
+	}
+%}
+# we have the totals per cpu range
+%{
+	if (cpu != 0)
+	{	Stop;
+	}
+
+	# the files can straddle cpu-ranges
+	# so we must add the individual counts
+	# per filename
+
+	a_unify(0);
+	for (i in count)	# sum all counts
+	{	count[i.txt] = sum(count[i.txt]);
+	}
+
+	mincnt = 1000;
+	for (i in count)	# true counts per filename
+	{	# file i.txt has count[i.txt] fcts
+		total[ count[i.txt] ]++;
+		if (count[i.txt] > maxcnt)
+		{	maxcnt = count[i.txt];
+			maxfle = i.txt;
+		}
+		if (count[i.txt] < mincnt)
+		{	mincnt = count[i.txt];
+			minfle = i.txt;
+	}	}
+
+	if (!detail)
+	{	print "file with largest  nr of fcts: " maxfle " (" maxcnt " fcts)\n";
+		print "file with smallest nr of fcts: " minfle " (" mincnt " fcts)\n";
+	} else
+	{	for (i in total)
+		{	print total[i.txt] "\t";
+			if (total[i.txt] == 1)
+			{ print "file  has  ";
+			} else
+			{ print "files have ";
+			}
+			print i.txt " functions\n";
+	}	}
+
+	Stop;
+%}
+end

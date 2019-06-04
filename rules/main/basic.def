@@ -1,0 +1,457 @@
+
+. check.def
+. skip.def
+
+def check_shadow	# var name shadows fct name
+r
+fcts
+%{
+	if (cpu != 0)
+	{	Stop;
+	}
+	if (. == Begin)
+	{	. = first_t;
+	}
+
+	while (. != last_t)
+	{	if (.mark)
+		{	Fct[.txt] = 1;
+			.mark = 0;
+		}
+		. = .nxt;
+	}
+
+	. = first_t;		# back to beginning
+
+	while (. != last_t)
+	{	if (.curly > 0
+		&&  @ident
+		&&  Fct[.txt] > 0)
+		{	q = .nxt;
+			if (q.txt != "("
+			&&  Reported[.txt] == 0)
+			{	Reported[.txt]++;
+				.mark = 1;
+		}	}
+		. = .nxt;
+	}
+	Stop;
+%}
+end
+
+def check_rval	# stats on checking return values ## not multi-core safe yet
+r
+fcts
+%{
+	if (cpu != 0)
+	{	Stop;
+	}
+	if (. == Begin)
+	{	. = first_t;
+	}
+
+	while (. != last_t)
+	{	if (.mark)
+		{	Fct[.txt] = 1;
+			.mark = 0;
+		}
+		. = .nxt;
+	}
+
+	. = first_t;		# back to beginning
+
+	while (. != last_t)
+	{	if (.curly > 0
+		&&  @ident
+		&&  Fct[.txt] > 0)
+		{	q = .nxt;
+			if (q.txt != "(")
+			{	. = .nxt;
+				continue;
+			}
+			q = .prv;
+			if (q.txt == "."
+			||  q.txt == "::"
+			||  q.txt == "->")	# C++
+			{	. = .nxt;	# dont try
+				continue;
+			}
+			if (q.txt == ")")	# cast
+			{	Checked[.txt]++;
+				. = .nxt;
+				continue;
+			}
+			if ((q.typ == "oper" && q.txt != ":" && q.txt != ".")
+			||  q.txt == "return"
+			||  q.txt == ","	# in arg list
+			||  q.txt == "<<"	# C++ output
+			||  q.txt == "(")	# in fct call
+			{	Checked[.txt]++;
+			} else
+			{	if (q.typ != "type"
+				&&  q.typ != "ident")	# C++
+				{	NotChecked[.txt]++;
+		}	}	}
+		. = .nxt;
+	}
+
+	cnt = 0;
+	for (i in Checked)	# doesnt handle C++ code very well
+	{	if (NotChecked[i.txt] > 0 && !Reported[i.txt])
+		{	cnt++;
+			if (terse)
+			{	continue;
+			}
+			if (!before)
+			{	print "=== Inconsistent checks of function return values:\n";
+				before=1;
+			}
+			print " " cnt ": " i.txt " checked " Checked[i.txt] " times out of ";
+			print Checked[i.txt] + NotChecked[i.txt] "\n";
+	
+	}	}
+	if (terse && cnt > 0)
+	{	print "=== Inconsistent checks of function return values: " cnt "\n";
+	}
+	cnt = 0;
+	Stop;
+%}
+end
+
+def check_fct_ptrs
+	r	# (f...)(...);
+	m @type
+	b; unmark const; n
+	n	# move to following typename
+	m & \(	# likely function pointer
+	j
+	n
+	m & \(
+end
+
+def check_condition	# condition.cobra
+	# check for assignments in conditions
+	# that are not enclosed in round braces
+	cpp on
+	r
+	m if \(
+	m while \(
+	n		# move to (
+	c =		# assignment in condition
+	w (.round == 1)	# not in nested braces
+	>1
+	r
+	m for \(
+	n		# move to (
+	n \;		# move to condition
+	s \;		# stretch to include condition
+	m ir =		# assignment in condition
+	w (.round == 1)	# not in nested braces
+	<|1		# include the other matches
+end
+
+def check_empty		# empty.cobra
+	cpp on
+	r; m for; n \(; j
+	e \;
+	= "=== Empty for statements:"
+	d
+
+	r; m \; while; n \(; j
+	e \;
+	j; b
+	= "=== Empty while statements:"
+	d
+
+	r; m if; n \(; j
+	e \;
+	= "=== Empty if statements:"
+	d
+
+	r; m else; e \;
+	= "=== Empty else statements:"
+	d
+end
+
+def check_for1		# for.cobra
+	# for ( ... ; ... ; ... ) { ... }
+	cpp on
+	r
+	m for \(	# find for statements
+	n		# should be (
+	j		# move to matching )
+	e {		# keep match only the next token is {
+	
+	b for		# back to start of for (..)
+	n \;		# move the mark forward to the start of the condition
+	n		# move to the first symbol in the condition
+	m & @ident	# keep match only if this is an identifier
+	
+	s {		# bind the matching token to the {, which we know is there
+	n {		# move to the start of the loop body {
+	c $$ /[^!><=]*=	# match for the bound symbol followed
+			# by an assignment operator +=, -=, =, etc
+	>1
+end
+
+def check_for2		# jpl_rule13a
+	cpp on
+	r
+	m for \(	# mark for
+	n;j;e {; j	# move to (
+	n \;		# move to condition
+	s \;		# range = condition
+	m ir @ident	# loop bound variable
+	s {		# tag symbol to {
+	n {		# to loop body
+	m ir $$		# should not match
+	n
+	m & /^[-+][-+]$	# increment or decrement
+	<|1		# add earlier matches
+end
+
+def check_for
+	check_for1
+	check_for2
+end
+
+# find if-else-if chains that lack a final else
+
+def check_ifelseif	# ifelseif.cobra
+	cpp on
+	r
+	%{
+		expect("else");
+		r = .;			# remember
+		if (.txt == "{")	#    else { if
+		{	. = .nxt;	# or else if
+		}
+		expect("if");
+		skipif("(");
+		if (.txt == "{")
+		{	skipif("{");
+		} else
+		{	skip_stmnt();
+		}
+		if (.txt != "else")
+		{	r.mark++;
+		#	print .fnm ":" r.lnr ":" " missing else";
+		#	print " saw '" .txt "' at line " .lnr "\n";
+		}
+	%}
+end
+
+def check_macro_args		# macro_args-m.cobra
+	cpp off
+	r
+	# check if all macro arguments are enclosed in parentheses
+	# cf. jpl_rule20b -- which checks if the macro body is a syntactic unit
+	%{
+		if (!@cpp || !~define || ~defined)
+		{	Next;
+		}
+		# define name ( x [ , y ]* )  macrotext... EOL
+		. = .nxt;
+		if (!@ident)		# macro name
+		{	Next;
+		}
+		. = .nxt;
+		if (.txt != "(") { Next; }	# no args
+		. = .nxt;
+	
+	L2:	if (!@ident) { Next; }		# empty arg list
+	
+		q = .;
+		while (q.txt != ")" && q.txt != "EOL")
+		{	q = q.nxt;
+		}
+		while (q.txt != "EOL")
+		{	if (q.txt == .txt)	# match
+			{	r = q.prv;
+				s = q.nxt;
+				if (r.txt != "(" || s.txt != ")")
+				{	# print .fnm ":" q.lnr ": macro argument '";
+					# print .txt "' not enclosed in parentheses\n";
+					q.mark++;
+			}	}
+			q = q.nxt;
+		}
+		. = .nxt;
+		if (.txt == ",") { . = .nxt; goto L2; }
+		# else: .txt == ")"
+	%}
+end
+
+def check_param_count		# param_count_check.cobra
+	cpp off
+	r
+	## nr of parameters of function calls matches prototype
+	
+	# fcts
+	%{	# fct defs # parallelize, so faster than the builtin fcts
+		# but when called from main/stats, fcts is only called once
+		# and this would execute each time
+		if (@cpp)
+		{	while (.txt != "EOL" && .nxt != 0)
+			{	. = .nxt;
+			}
+			Next;
+		}
+		if (@ident)
+		{	m = .;
+
+			n = .prv;
+			if (n.txt == "~")	# C++ destructor
+			{	n = n.prv;
+				if (n.txt == "::")
+				{	Next;
+			}	}
+
+			. = .nxt;
+			if (.txt != "(")
+			{	Next;
+			}
+			r = .;
+			. = .jmp;
+			. = .nxt;
+			while (@cmnt)
+			{	. = .nxt;
+			}
+			if (.txt == "{")
+			{	m.mark = 1;	# fct name
+	
+				r.mark = 0;	# start of param list in prototype
+				n = .jmp;
+				. = r;
+				cnt = 0;
+				while (. != r.jmp)
+				{	if (.txt == "," && .round == r.round+1)
+					{	r.mark++;	# count formal params
+					}
+					if (!@type)
+					{	cnt++;
+					}
+					if (.txt == "...")	# var nr of args
+					{	. = n;
+						Next;
+					}
+					. = .nxt;
+				}
+	
+				if (r.mark > 0)
+				{	r.mark++;	# first param
+				}
+				if (r.mark == 0 && cnt > 0)
+				{	r.mark = 1;
+				}
+				
+				q = F[m.txt];
+				if (q.lnr > 0 && q.mark != r.mark && q.bound != first_t)
+				{	cnt2++;
+					if (!terse)
+					{	if (!warned)
+						{	print "=== Functions defined more than once:\n";
+							warned = 1;
+						}
+						print " " cnt2 ": " m.txt "():\tat " m.fnm ":" m.lnr ", and at " q.fnm ":" q.lnr "\n";
+					}
+					q.bound = first_t;	# mark it as dubious
+				} else
+				{	F[m.txt] = r;	# the count
+				}
+				. = n;
+		}	}
+	%}
+	%{
+		## if the same fct is defined in two different files (eg as static)
+		## and those two files are handled by different cpus
+		## then both have the index, and we do not see the duplication (bound isn't set)
+
+		lock();
+		a_unify(cpu);	# one at a time, get all entries for F
+		unlock();	# no need to wait for all to complete this
+		if (cpu == 0 && terse)
+		{	print "=== Functions defined more than once: " cnt2 "\n";
+		}
+		Stop;
+	%}
+	%{
+		if (@ident && .curly > 0)	# fct calls
+		{	q = .;
+
+			n = .prv;
+			if (n.txt == "~")
+			{	n = n.prv;
+				if (n.txt == "::")
+				{	Next;
+			}	}
+
+			. = .nxt;
+			if (.txt != "(")
+			{	Next;
+			}
+			x = F[q.txt];
+			if (x.lnr == 0 || x.bound == first_t)
+			{	Next;	# no formal def seen, or multiple defs seen
+			}
+	
+			r = .;
+			q.mark = 0;
+			cnt = 0;
+			while (. != r.jmp)
+			{	if (.txt == "," && .round == r.round+1)
+				{	q.mark++;
+				}
+				if (!@type)
+				{	cnt++;
+				}
+				. = .nxt;
+			}
+			if (q.mark > 0)
+			{	q.mark++;
+			}
+			if (q.mark == 0 && cnt > 0)
+			{	q.mark = 1;
+			}
+			r = F[q.txt];
+	
+			if (r.lnr)
+			{	if (r.mark != q.mark)
+				{	Formal[q.txt] = r;
+					Actual[q.txt] = q;
+			#		print cpu " : " q.txt "::" q.fnm ":" q.lnr " <-> " r.fnm ":" r.lnr "\n";
+				}
+		}	}
+	%}
+	%{
+		if (cpu == 0)
+		{	a_unify(0);
+			cnt = 0;
+			for (i in Formal)
+			{	cnt++;
+				if (terse)
+				{	continue;
+				}
+				if (!warn2)
+				{	print "=== Mismatch of formal and actual parameter counts:\n";
+					warn2 = 1;
+				}
+				f = Formal[i.txt];
+				a = Actual[i.txt];
+				print " " cnt ": fct " i.txt "() expects: " f.mark " [" f.fnm ":" f.lnr "] parameters, saw: " a.mark " [" a.fnm ":" a.lnr "]\n";
+			}
+			if (terse && cnt > 0)
+			{	print "=== Mismatch of formal and actual parameter counts: " cnt "\n";
+		}	}
+		Stop;
+	%}
+end
+
+def check_switch		# switch.cobra
+	cpp on
+	r
+	m switch
+	n {
+	c no top default
+	b switch
+end

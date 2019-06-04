@@ -1,0 +1,19 @@
+# Power of 10 rules
+
+quiet on
+
+. p10.def
+
+p10_rule1(R1)		# goto, recursion
+p10_rule2(R2)		# loop bounds
+p10_rule3(R3)		# dynamic memory allocation
+p10_rule4(R4, 75)	# max nr of lines per fct
+p10_rule4_log(R4, 75)	# max nr of lines per fct
+p10_rule5(R5, 2)	# 2 percent assertion density overall
+p10_rule6(R6)		# limit scope
+p10_rule7(R7)		# return values of fcts
+p10_rule8(R8)		# no ifdef, if, undef
+p10_rule9(R9)		# limit pointers and dereferencing
+p10_rule10(R10)		# use a static analyzer
+
+quiet off

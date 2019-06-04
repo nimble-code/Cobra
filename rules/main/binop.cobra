@@ -1,0 +1,161 @@
+##  multi-core safe
+
+def binop(rn)
+%{
+	#	bin;	# binary operator count
+	#	bop;	# boolean
+	#	aop;	# arithmetic
+	#	pm;	# position marker
+	#	none;	# place-holder
+	#	L1-13;	# precedence levels
+	#
+	# report precedence levels for expressions with
+	# at least one binary and at least one arithmetic
+	# or boolean operator
+
+	# 1. Initiate check:
+
+   	if (pm.lnr == 0
+	&& (.txt == "="	 # L14
+	||  .txt == "("))
+	{	L1 =  none; L2 =  none; L3 =  none; L4 = none;
+		L5 =  none; L6 =  none; L7 =  none; L8 = none;
+		L9 =  none; L10 = none; L11 = none;
+		L12 = none; L13 = none;
+		bin = 0;
+		aop = 0;
+		bop = 0;
+		pm = .;
+		if (.txt == "(")
+		{	. = .jmp;
+			. = .prv; # move inside ( ... )
+			pm = .;
+			. = .nxt;
+			. = .jmp;
+		}
+		Next;
+	}
+
+	if (pm.lnr == 0 || .bracket != 0)
+	{	Next;
+	}
+
+	# 2. Count:
+
+	if (.round != pm.round)
+	{	if (.round < pm.round)
+		{	pm = none;
+		}
+		Next;
+	}
+
+	if (.txt == "~")  { bin++;  L2 = .; Next; }
+   	if (.txt == "*")  { aop++;  L3 = .; Next; }
+   	if (.txt == "/")  { aop++;  L3 = .; Next; }
+   	if (.txt == "%")  { aop++;  L3 = .; Next; }
+   	if (.txt == "+")  { aop++;  L4 = .; Next; }
+   	if (.txt == "<<") { bin++;  L5 = .; Next; }
+   	if (.txt == ">>") { bin++;  L5 = .; Next; }
+	if (.txt == ">")  { bop++;  L6 = .; Next; }
+	if (.txt == ">=") { bop++;  L6 = .; Next; }
+	if (.txt == "<")  { bop++;  L6 = .; Next; }
+	if (.txt == "<=") { bop++;  L6 = .; Next; }
+   	if (.txt == "==") { bop++;  L7 = .; Next; }
+   	if (.txt == "!=") { bop++;  L7 = .; Next; }
+   	if (.txt == "^")  { bin++;  L9 = .; Next; }
+   	if (.txt == "|")  { bin++; L10 = .; Next; }
+   	if (.txt == "&&") { bop++; L11 = .; Next; }
+   	if (.txt == "||") { bop++; L12 = .; Next; }
+   	if (.txt == "?")  { bop++; L13 = .; Next; }
+
+	if (.txt == "++" || .txt == "--")
+	{	aop++;
+		. = .prv;
+		if (@ident)
+		{	. = .nxt;
+			L1 = .;
+		} else
+		{	. = .nxt;
+			L2 = .;
+		}
+		Next;
+	}
+   	if (.txt == "-")  {
+		. = .prv;
+		if (@ident || .txt == ")")
+		{	. = .nxt;
+			L4 = .;	# binary minus
+			aop++;
+		} else
+		{	. = .nxt;
+		#	L2 = .;	# unary minus
+		}
+		Next;
+	}
+	if (.txt == "&")  {
+		. = .prv;
+		if (@ident)
+		{	. = .nxt;
+			L8 = .;	# bitwise &
+			bin++;
+		} else
+		{	if (.txt == ")")
+			{	. = .prv;
+				if (.txt == "*")	# cast
+				{	. = .nxt;
+					. = .nxt;
+					L2 = .;
+				} else
+				{	. = .nxt;
+					. = .nxt;
+					L8 = .;		# bitwise &
+					bin++;
+				}
+			} else
+			{	. = .nxt;
+				L2 = .;	# address-of
+		}	}
+		Next;
+	}
+
+	# 3. Report:
+
+   	if (.txt == ";"		# sequence point
+	||  .txt == ","	 	# L15
+	||  . == pm		# ")"
+	||  .round < pm.round
+	||  .curly < pm.curly)
+	{	if ((aop + bop) && bin)
+		{	lock();
+			print "=== rn: " pm.fnm ":" pm.lnr "\tprecedence high to low: ";
+			if (L1.txt != "") { print L1.txt ", "; }
+			if (L2.txt != "") { print L2.txt ", "; }
+			if (L3.txt != "") { print L3.txt ", "; }
+			if (L4.txt != "") { print L4.txt ", "; }
+			if (L5.txt != "") { print L5.txt ", "; }
+			if (L6.txt != "") { print L6.txt ", "; }
+			if (L7.txt != "") { print L7.txt ", "; }
+			if (L8.txt != "") { print L8.txt ", "; }
+			if (L9.txt != "") { print L9.txt ", "; }
+			if (L10.txt != "") { print L10.txt ", "; }
+			if (L11.txt != "") { print L11.txt ", "; }
+			if (L12.txt != "") { print L12.txt ", "; }
+			if (L13.txt != "") { print L13.txt ", "; }
+			print "\n";
+			unlock();
+		}
+
+		# clear
+
+		L1  = none; L2  = none; L3  = none; L4 = none;
+		L5  = none; L6  = none; L7  = none; L8 = none;
+		L9  = none; L10 = none; L11 = none;
+		L12 = none; L13 = none;
+		bin = 0;
+		aop = 0;
+		bop = 0;
+		pm = none;
+		Next;
+	}
+%}
+end

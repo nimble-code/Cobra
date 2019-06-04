@@ -1,0 +1,32 @@
+def ifelseif
+%{
+	if (.txt != "else")
+	{	Next;
+	}
+	. = .nxt;
+
+	if (.txt != "if")
+	{	Next;
+	}
+	. = .nxt;
+
+	if (.txt != "(")
+	{	Next;
+	}
+	. = .jmp;
+
+	. = .nxt;
+	if (.txt != "{")
+	{	Next;
+	}
+	q = .;
+	. = .jmp;
+	. = .nxt;	
+	if (.txt != "else")
+	{	print .fnm ":" .lnr ":" " missing else";
+		print " saw '" .txt "' at line " .lnr "\n";
+	}
+	. = q;
+%}
+end
+ifelseif

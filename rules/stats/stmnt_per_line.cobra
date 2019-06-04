@@ -1,0 +1,48 @@
+## multi-core safe
+
+cpp off
+r
+
+%{
+	if (q.lnr != .lnr)
+	{	q = .;
+		z.mark = 0;
+		while (. != End && .lnr == q.lnr)
+		{	if (.txt == ";")
+			{	z.mark++;
+			}
+			. = .nxt;
+		}
+		. = q;
+		Count[ z.mark ]++;
+		Sample[ z.mark ] = q;
+	#	print z.mark " " q.fnm ":" q.lnr "\n";
+	}
+%}
+
+%{
+	# all cpus have completed part-1
+
+	if (cpu != 0)
+	{	Stop;
+	}
+
+	# add counts from all cores:
+	a_unify(0);	# make sure the arrays on cpu 0 have all elements
+	for (i in Count)
+	{	Count[i.txt] = sum(Count[i.txt]);
+	}
+
+	# find the max
+
+	nr = 0;
+	for (i in Count)
+	{	if (i.txt > nr)
+		{	nr = i.txt;
+			q = Sample[i.txt];
+	}	}
+
+	print "largest nr of stmnts per line: " nr " (eg: " q.fnm ":" q.lnr ")\n";
+
+	Stop;
+%}

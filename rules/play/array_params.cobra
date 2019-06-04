@@ -1,0 +1,123 @@
+## find calls to functions with array parameters
+## where we can tell that the actual parameter
+## has a smaller size than the formal parameter
+
+r
+fcts
+n (
+c [
+c no [ ]
+b	# back to fct name
+%{	if (.mark == 0) { Next; }
+	f = .;		# fct name
+	while (.txt != "(")
+	{	. = .nxt;
+	}
+	. = .nxt;
+	level = .round;
+	comma_cnt = 0;
+	while (.txt != "[")
+	{	if (.txt == ","
+		&&  .round == level)
+		{	comma_cnt++;
+		}
+		. = .nxt;
+	}
+	. = .nxt;
+	if (!@const_int) { Next; }
+	# remember the param size with f
+	# and the comma count to see which param it is
+	NA[f.txt] = comma_cnt;
+	FA[f.txt] = .;
+%}
+= "fcts with array parameters: "
+# now we want to find calls to fcts with an FA entry
+r
+m @ident (
+m & (.curly > 0)
+%{
+	checked = 0;
+	cand = 0;
+	nobound = 0;
+	Stop;
+%}
+%{
+	if (.mark == 0) { Next; }
+
+	apos = FA[.txt];
+	if (apos.seq == 0)
+	{	.mark = 0;
+		Next;
+	}
+	asize     = apos.txt;
+	comma_cnt = NA[.txt];
+
+	# found a call to a fct that takes params
+	# check the one that was marked
+
+	. = .nxt;	# (
+	. = .nxt;	# start of actual params
+
+	while (comma_cnt > 0)
+	{	if (.txt == ",")
+		{	comma_cnt--;
+		}
+		. = .nxt;
+	}
+	if (!@ident)
+	{	# print .fnm ":" .lnr " arg is not an ident: " .txt "\n";
+		Next;
+	}
+	aname = .;
+	b = .nxt;
+	if (b.txt == "[")	# not a simple array base
+	{	Next;
+	}
+
+	# print .fnm ":" .lnr " arg " .txt " should have size " asize "\n";
+
+	# look for the declaration of .txt
+
+	cand++;
+
+	b = .;
+	while (b.curly > 0) { b = b.prv; }	# start of fct body
+	while (b.txt != ")") { b = b.prv; }	# end of params
+	b = b.jmp;	# start of params
+	while (b.seq < .seq)			# forward to pt of use
+	{	if (b.txt == aname.txt)
+		{	b = b.prv;
+			if (b.txt == "&")	# first ref, but not decl
+			{	cand--;
+				Next;		# give up on this one
+			}
+			b = b.nxt;
+			b = b.nxt;
+			if (b.txt == "[")
+			{	b = b.nxt;
+				if (b.type == "const_int")
+				{	if (b.txt >= asize)
+					{	checked++;
+					} else
+					{	print .fnm ":" .lnr " arg " .txt " is size " b.txt " should have size " asize "\n";
+						print apos.fnm ":" apos.lnr " -- as it was declared here\n";
+					}
+				}
+				# else
+				# {	print .fnm ":" .lnr " cannot handle this size: " b.txt "\n";
+				# }
+			} else
+			{	nobound++;
+				break;
+			}
+			Next;
+		}
+		b = b.nxt;
+	}
+#	print .fnm ":" .lnr " didnt find a declaration for " .txt "\n";
+%}
+= "calls of fcts with array params: "
+%{
+	print "checked " checked " cases out of " cand " candidates, nobound: " nobound "\n";
+	Stop;
+%}

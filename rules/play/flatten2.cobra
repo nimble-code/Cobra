@@ -1,0 +1,12 @@
+def flatten
+%{
+	if (.curly + .round + .bracket == 0)
+	{	if (.lnr != q.lnr)
+		{	print "\n" .lnr " ";
+			q = .;
+		}
+		print .txt " ";
+	}
+%}
+end
+flatten

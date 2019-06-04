@@ -1,0 +1,48 @@
+# because we cannot negate a sequence of tokens, as in:
+# cobra -e '\) { .* x:@ident = fopen ^(fclose \( :x \) )* }' *.c
+
+r
+fcts
+=
+%{
+	if (!.mark)
+	{	Next;
+	}
+	.mark = 0;
+	f = .;	# function name
+	while (.txt != "{")
+	{	. = .nxt;
+	}
+	cnt++;
+#	print f.fnm ":" f.lnr ": " f.txt "\t" cnt "  " cnt2 "\n";
+	unset Open;
+	unset Close;
+	s = .; t = s.jmp;	# function body
+	while (.lnr <= t.lnr && . != t)
+	{	if (.txt == "fopen")
+		{	. = .prv;
+			if (.txt == "=")
+			{	. = .prv;
+				if (@ident)
+				{	Open[.txt] = .;
+				}
+				. = .nxt;
+			}
+			. = .nxt;
+		}
+		if (.txt == "fclose")
+		{	. = .nxt;
+			if (.txt == "(")
+			{	. = .nxt;
+				Close[.txt] = 1;
+		}	}
+		. = .nxt;
+	}
+	for (i in Open)
+	{	if (!Close[i.txt])
+		{	g = Open[i.txt];
+			g.mark = 1;
+			print g.fnm ":" g.lnr ": file descriptor ";
+			print i.txt " opened but not closed\n";
+	}	}
+%}

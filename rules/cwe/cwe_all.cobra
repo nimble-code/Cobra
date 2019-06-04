@@ -1,0 +1,15 @@
+# ncore 1
+
+r
+. cwe/cwe_119.cobra
+. cwe/cwe_120.cobra
+. cwe/cwe_131.cobra
+. cwe/cwe_134.cobra
+. cwe/cwe_170.cobra
+. cwe/cwe_197.cobra
+. cwe/cwe_468.cobra
+. cwe/cwe_416.cobra
+. cwe/cwe_457.cobra
+
+# 805 should be last because it unmarks fcts
+. cwe/cwe_805.cobra

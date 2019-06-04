@@ -1,0 +1,50 @@
+# find gotos that jump into a loop
+
+m for
+m do
+m while
+n {
+c :
+# these are loops that contain at least one label
+%{
+	# find the names of those labels
+	if (.mark != 1)
+	{	Next;
+	}
+	.mark = 0;
+
+	eol = .jmp;
+	sol = .;
+	while (.seq < eol.seq)
+	{	if (.txt == ":")
+		{	. = .prv;
+			Names[.txt] = .;
+			. = .nxt;
+		}
+		. = .nxt;
+	}
+	# now look for gotos to these labels
+	# that appear in the same fct, but outside
+	# the loop
+	. = sol;
+	while (.curly > 0)
+	{	. = .prv;	# find start of fct
+	}
+	. = .nxt;
+	while (.curly > 0)	# up to the end
+	{	if (.seq < sol.seq || .seq > eol.seq)
+		{		# outside loop body
+			if (.txt == "goto")
+			{	. = .nxt;
+				q = Names[.txt];
+				if (q.seq != 0)
+				{	.mark = 3;
+					print .fnm ":" .lnr ": goto " .txt "\n";
+		}	}	}
+		. = .nxt;
+	}
+	unset Names;
+	. = sol;
+%}
+= "loop entries:"
+d

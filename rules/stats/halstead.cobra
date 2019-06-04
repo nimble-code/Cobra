@@ -1,0 +1,89 @@
+%{
+	# http://www.verisoft.com/en_halstead_metrics.html
+	# counts type names as operands - wikipedia page does not
+
+	if (@ident
+	||  @type
+	||  @str
+	||  @const_int
+	||  @const_hex
+	||  @const_oct
+	||  @const_flt)
+	{	Operands[.txt]++;
+		Next;
+	}
+	if (@oper
+	||  @storage
+	||  @qualifier
+	||  .txt == "(" 	# presumed paired, counts as one "operator"
+	||  .txt == "[" 	# presumed paired, counts as one
+	||  .txt == "{" 	# presumed paired, counts as one
+	||  .txt == ":"
+	||  .txt == ";"
+	||  .txt == ","
+	||  .txt == "::")
+	{	Operators[.txt]++;
+		Next;
+	}
+	if (@key)
+	{	Operators[.txt]++;
+		if (.txt == "if"
+		||  .txt == "for"
+		||  .txt == "switch"
+		||  .txt == "catch"
+		||  .txt == "while"
+		||  .txt == "case")
+		{	correction++;	# includes colon and ()
+		}
+		Next;
+	}
+%}
+%{
+	function log2(x)
+	{	y = x;
+		cnt = 1;
+		while (y > 2)
+		{	y = y/2;
+			cnt++;
+		}
+		return cnt;
+	}
+	n1 = size(Operators) - correction;	# nr of unique "operators"
+	n2 = size(Operands);			# nr of unique "operands"
+	N1 = 0;
+	for (i in Operators)
+	{	N1 = N1 + Operators[i.txt];	# total nr of "operators"
+	}
+	N2 = 0;
+	for (i in Operands)
+	{	N2 = N2 + Operands[i.txt];	# total nr of "operands"
+	}
+	N = N1 + N2;				# program "length"
+	n = n1 + n2;				# program "vocabulary"
+	V = N * log2(n);			# program "volume"
+	if (n2 > 0)
+	{	D = (n1/2)*(N2/n2);		# "difficulty" level
+	}
+	if (D > 0)
+	{	L = 1/D;			# program "level"
+	}
+	E = V * D;				# "effort" to implement
+	T = E / 18;				# "time to implement"
+	# http://en.wikipedia.org/wiki/Halstead_complexity_measures
+	B = V/3;				# 1000x "nr delivered bugs"
+
+	print n1 "	(n1) unique operators\n";
+	print n2 "	(n2) unique operands\n";
+	print N1 "	(N1) total nr operators\n";
+	print N2 "	(N2) total nr operands\n";
+	print N  "	(N) program length\n";
+	print n  "	(n) program vocabulary\n";
+	print V  "	(V) program volume\n";
+	print D  "	(D) difficulty level\n";
+	print E  "	(E) effort to implement\n";
+	print T  "	(T) time to implement\n";
+	print B  "/1000	(B) number of delivered bugs\n";
+
+	Stop;
+%}
+

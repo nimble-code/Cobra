@@ -1,0 +1,2388 @@
+## can only run in single-core mode
+## because of the many print statements
+## that each would require separate locking
+
+%{
+	if (ncore > 1)
+	{	print "warning: check not compatible with multi-core\n";
+		Stop;
+	}
+
+	if (.len <= 3) { Next; }
+#	CreateProcessWithLogon	High	arg 3	inp	
+	if (.txt == "CreateProcessWithLogon") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": CreateProcessWithLogon :: ";
+		print "Check that input comes from a trusted source.";
+		print "Many program execution commands under Windows will search the path for a program if you do not explicitly specify a full path to the file. This can allow trojans to be executed instead. Also, be sure to specify a file extension, since otherwise multiple extensions will be tried by the operating system, providing another opportunity for trojans.\n";
+		Next;
+	}
+#	_wexecvpe	High	arg 1	inp	
+	if (.txt == "_wexecvpe") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": _wexecvpe :: ";
+		print "Check that input comes from a trusted source.";
+		print "Many program execution commands under Windows will search the path for a program if you do not explicitly specify a full path to the file. This can allow trojans to be executed instead. Also, be sure to specify a file extension, since otherwise multiple extensions will be tried by the operating system, providing another opportunity for trojans.\n";
+		Next;
+	}
+#	_wspawnlpe	High	arg 2	inp	
+	if (.txt == "_wspawnlpe") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": _wspawnlpe :: ";
+		print "Check that input comes from a trusted source.";
+		print "Many program execution commands under Windows will search the path for a program if you do not explicitly specify a full path to the file. This can allow trojans to be executed instead. Also, be sure to specify a file extension, since otherwise multiple extensions will be tried by the operating system, providing another opportunity for trojans.\n";
+		Next;
+	}
+#	 wprintf	High	arg 1	FS	
+	if (.txt == "wprintf") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": wprintf :: ";
+		print "Check that the format string comes from a trusted source.";
+		print "\n";
+		Next;
+	}
+#	LoadLibraryA	High	
+	if (.txt == "LoadLibraryA") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": LoadLibraryA :: ";
+		print "LoadLibrary will search several places for a library if no path is specified, allowing trojan DLL's to be inserted elsewhere even if the intended DLL is correctly protected from overwriting. Make sure to specify the full path.\n";
+		Next;
+	}
+#	wsprintfA	High	farg 2	arg 2	FS	
+	if (.txt == "wsprintfA") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": wsprintfA :: ";
+		print "Make sure that format string comes from a trusted source.";
+		print "Check that the format string comes from a trusted source.";
+		print "\n";
+		Next;
+	}
+#	 WinExec	High	arg 3	inp	
+	if (.txt == "WinExec") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": WinExec :: ";
+		print "Check that input comes from a trusted source.";
+		print "Many program execution commands under Windows will search the path for a program if you do not explicitly specify a full path to the file. This can allow trojans to be executed instead. Also, be sure to specify a file extension, since otherwise multiple extensions will be tried by the operating system, providing another opportunity for trojans.\n";
+		Next;
+	}
+#	 fprintf	High	arg 2	FS	
+	if (.txt == "fprintf") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": fprintf :: ";
+		print "Check that the format string comes from a trusted source.";
+		print "\n";
+		Next;
+	}
+#	GetTempPath	High	
+	if (.txt == "GetTempPath") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": GetTempPath :: ";
+		print "GetTempPath() may return the current directory or the windows directory. Be careful what you place in these locations. Important files may be overwritten, and trojan DLL's may be dropped in these locations. Never use a user-input filename when writing to a location given by GetTempPath().\n";
+		Next;
+	}
+#	_wspawnvpe	High	arg 2	inp	
+	if (.txt == "_wspawnvpe") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": _wspawnvpe :: ";
+		print "Check that input comes from a trusted source.";
+		print "Many program execution commands under Windows will search the path for a program if you do not explicitly specify a full path to the file. This can allow trojans to be executed instead. Also, be sure to specify a file extension, since otherwise multiple extensions will be tried by the operating system, providing another opportunity for trojans.\n";
+		Next;
+	}
+#	OemToAnsiW	High	srcbuf 2	
+	if (.txt == "OemToAnsiW") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": OemToAnsiW :: ";
+		print "Make sure that argument 2 cannot cause a buffer overvlow.";
+		print "\n";
+		Next;
+	}
+#	   getwd	High	srcbuf 1	
+	if (.txt == "getwd") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": getwd :: ";
+		print "Make sure that argument 1 cannot cause a buffer overvlow.";
+		print "\n";
+		Next;
+	}
+#	swprintf	High	farg 2	arg 2	FS	
+	if (.txt == "swprintf") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": swprintf :: ";
+		print "Make sure that format string comes from a trusted source.";
+		print "Check that the format string comes from a trusted source.";
+		print "\n";
+		Next;
+	}
+#	_texecle	High	arg 1	inp	
+	if (.txt == "_texecle") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": _texecle :: ";
+		print "Check that input comes from a trusted source.";
+		print "While this _exec variant does not search the path for a program (good!), it will run .com files before .exe files and the like. Make sure to specify a file extension.\n";
+		Next;
+	}
+#	 _execle	High	arg 1	inp	
+	if (.txt == "_execle") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": _execle :: ";
+		print "Check that input comes from a trusted source.";
+		print "While this _exec variant does not search the path for a program (good!), it will run .com files before .exe files and the like. Make sure to specify a file extension.\n";
+		Next;
+	}
+#	   popen	High	arg 1	inp	
+	if (.txt == "popen") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": popen :: ";
+		print "Check that input comes from a trusted source.";
+		print "\n";
+		Next;
+	}
+#	 streadd	High	srcbuf 2	
+	if (.txt == "streadd") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": streadd :: ";
+		print "Make sure that argument 2 cannot cause a buffer overvlow.";
+		print "\n";
+		Next;
+	}
+#	_spawnle	High	arg 2	inp	
+	if (.txt == "_spawnle") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": _spawnle :: ";
+		print "Check that input comes from a trusted source.";
+		print "While this _exec variant does not search the path for a program (good!), it will run .com files before .exe files and the like. Make sure to specify a file extension.\n";
+		Next;
+	}
+#	_texeclp	High	arg 1	inp	
+	if (.txt == "_texeclp") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": _texeclp :: ";
+		print "Check that input comes from a trusted source.";
+		print "Many program execution commands under Windows will search the path for a program if you do not explicitly specify a full path to the file. This can allow trojans to be executed instead. Also, be sure to specify a file extension, since otherwise multiple extensions will be tried by the operating system, providing another opportunity for trojans.\n";
+		Next;
+	}
+#	LoadLibraryW	High	
+	if (.txt == "LoadLibraryW") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": LoadLibraryW :: ";
+		print "LoadLibrary will search several places for a library if no path is specified, allowing trojan DLL's to be inserted elsewhere even if the intended DLL is correctly protected from overwriting. Make sure to specify the full path.\n";
+		Next;
+	}
+#	wsprintfW	High	farg 2	arg 2	FS	
+	if (.txt == "wsprintfW") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": wsprintfW :: ";
+		print "Make sure that format string comes from a trusted source.";
+		print "Check that the format string comes from a trusted source.";
+		print "\n";
+		Next;
+	}
+#	lstrcpyA	High	srcbuf 2	
+	if (.txt == "lstrcpyA") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": lstrcpyA :: ";
+		print "Make sure that argument 2 cannot cause a buffer overvlow.";
+		print "\n";
+		Next;
+	}
+#	 _execlp	High	arg 1	inp	
+	if (.txt == "_execlp") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": _execlp :: ";
+		print "Check that input comes from a trusted source.";
+		print "Many program execution commands under Windows will search the path for a program if you do not explicitly specify a full path to the file. This can allow trojans to be executed instead. Also, be sure to specify a file extension, since otherwise multiple extensions will be tried by the operating system, providing another opportunity for trojans.\n";
+		Next;
+	}
+#	  strcat	High	srcbuf 2	
+	if (.txt == "strcat") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": strcat :: ";
+		print "Make sure that argument 2 cannot cause a buffer overvlow.";
+		print "\n";
+		Next;
+	}
+#	wsprintf	High	farg 2	arg 2	FS	
+	if (.txt == "wsprintf") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": wsprintf :: ";
+		print "Make sure that format string comes from a trusted source.";
+		print "Check that the format string comes from a trusted source.";
+		print "\n";
+		Next;
+	}
+#	_spawnlp	High	arg 2	inp	
+	if (.txt == "_spawnlp") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": _spawnlp :: ";
+		print "Check that input comes from a trusted source.";
+		print "Many program execution commands under Windows will search the path for a program if you do not explicitly specify a full path to the file. This can allow trojans to be executed instead. Also, be sure to specify a file extension, since otherwise multiple extensions will be tried by the operating system, providing another opportunity for trojans.\n";
+		Next;
+	}
+#	fwprintf	High	arg 2	FS	
+	if (.txt == "fwprintf") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": fwprintf :: ";
+		print "Check that the format string comes from a trusted source.";
+		print "\n";
+		Next;
+	}
+#	 _tscanf	High	farg 2	arg 2	Inp	FS	
+	if (.txt == "_tscanf") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": _tscanf :: ";
+		print "Make sure that format string comes from a trusted source.";
+		print "Check that input comes from a trusted source.";
+		print "Check that the format string comes from a trusted source.";
+		print "\n";
+		Next;
+	}
+#	    gets	High	Inp	
+	if (.txt == "gets") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": gets :: ";
+		print "Check that input comes from a trusted source.";
+		print "Gets is unsafe!! No bounds checking is performed, buffer is easily overflowable by user. Use fgets(buf, size, stdin) instead. \n";
+		Next;
+	}
+#	  wcscpy	High	srcbuf 2	
+	if (.txt == "wcscpy") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": wcscpy :: ";
+		print "Make sure that argument 2 cannot cause a buffer overvlow.";
+		print "\n";
+		Next;
+	}
+#	 StrCpyA	High	srcbuf 2	
+	if (.txt == "StrCpyA") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": StrCpyA :: ";
+		print "Make sure that argument 2 cannot cause a buffer overvlow.";
+		print "\n";
+		Next;
+	}
+#	 lstrcpy	High	srcbuf 2	
+	if (.txt == "lstrcpy") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": lstrcpy :: ";
+		print "Make sure that argument 2 cannot cause a buffer overvlow.";
+		print "\n";
+		Next;
+	}
+#	CreateProcessAsUser	High	arg 3	inp	
+	if (.txt == "CreateProcessAsUser") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": CreateProcessAsUser :: ";
+		print "Check that input comes from a trusted source.";
+		print "Many program execution commands under Windows will search the path for a program if you do not explicitly specify a full path to the file. This can allow trojans to be executed instead. Also, be sure to specify a file extension, since otherwise multiple extensions will be tried by the operating system, providing another opportunity for trojans.\n";
+		Next;
+	}
+#	ShellExecute	High	arg 3	inp	
+	if (.txt == "ShellExecute") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": ShellExecute :: ";
+		print "Check that input comes from a trusted source.";
+		print "Many program execution commands under Windows will search the path for a program if you do not explicitly specify a full path to the file. This can allow trojans to be executed instead. Also, be sure to specify a file extension, since otherwise multiple extensions will be tried by the operating system, providing another opportunity for trojans.\n";
+		Next;
+	}
+#	  StrCat	High	srcbuf 2	
+	if (.txt == "StrCat") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": StrCat :: ";
+		print "Make sure that argument 2 cannot cause a buffer overvlow.";
+		print "\n";
+		Next;
+	}
+#	_ftprintf	High	arg 2	FS	
+	if (.txt == "_ftprintf") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": _ftprintf :: ";
+		print "Check that the format string comes from a trusted source.";
+		print "\n";
+		Next;
+	}
+#	lstrcpyW	High	srcbuf 2	
+	if (.txt == "lstrcpyW") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": lstrcpyW :: ";
+		print "Make sure that argument 2 cannot cause a buffer overvlow.";
+		print "\n";
+		Next;
+	}
+#	_execlpe	High	arg 1	inp	
+	if (.txt == "_execlpe") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": _execlpe :: ";
+		print "Check that input comes from a trusted source.";
+		print "Many program execution commands under Windows will search the path for a program if you do not explicitly specify a full path to the file. This can allow trojans to be executed instead. Also, be sure to specify a file extension, since otherwise multiple extensions will be tried by the operating system, providing another opportunity for trojans.\n";
+		Next;
+	}
+#	_wspawnle	High	arg 2	inp	
+	if (.txt == "_wspawnle") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": _wspawnle :: ";
+		print "Check that input comes from a trusted source.";
+		print "While this _exec variant does not search the path for a program (good!), it will run .com files before .exe files and the like. Make sure to specify a file extension.\n";
+		Next;
+	}
+#	_tspawnve	High	arg 2	inp	
+	if (.txt == "_tspawnve") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": _tspawnve :: ";
+		print "Check that input comes from a trusted source.";
+		print "While this _exec variant does not search the path for a program (good!), it will run .com files before .exe files and the like. Make sure to specify a file extension.\n";
+		Next;
+	}
+#	   umask	High	
+	if (.txt == "umask") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": umask :: ";
+		print "umask() can easily be used to create files with unsafe priviledges. It should be set to restrictive values.\n";
+		Next;
+	}
+#	_wexecle	High	arg 1	inp	
+	if (.txt == "_wexecle") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": _wexecle :: ";
+		print "Check that input comes from a trusted source.";
+		print "While this _exec variant does not search the path for a program (good!), it will run .com files before .exe files and the like. Make sure to specify a file extension.\n";
+		Next;
+	}
+#	 gettext	High	
+	if (.txt == "gettext") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": gettext :: ";
+		print "Environment variables are highly untrustable input. They may be of any length, and contain any data. Do not make any assumptions regarding content or length. If at all possible avoid using them, and if it is necessary, sanitize them and truncate them to a reasonable length. gettext() can utilize the LC_ALL or LC_MESSAGES environment variables.\n";
+		Next;
+	}
+#	_execvpe	High	arg 1	inp	
+	if (.txt == "_execvpe") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": _execvpe :: ";
+		print "Check that input comes from a trusted source.";
+		print "Many program execution commands under Windows will search the path for a program if you do not explicitly specify a full path to the file. This can allow trojans to be executed instead. Also, be sure to specify a file extension, since otherwise multiple extensions will be tried by the operating system, providing another opportunity for trojans.\n";
+		Next;
+	}
+#	 StrCpyW	High	srcbuf 2	
+	if (.txt == "StrCpyW") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": StrCpyW :: ";
+		print "Make sure that argument 2 cannot cause a buffer overvlow.";
+		print "\n";
+		Next;
+	}
+#	 _texecl	High	arg 1	inp	
+	if (.txt == "_texecl") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": _texecl :: ";
+		print "Check that input comes from a trusted source.";
+		print "While this _exec variant does not search the path for a program (good!), it will run .com files before .exe files and the like. Make sure to specify a file extension.\n";
+		Next;
+	}
+#	_wspawnlp	High	arg 2	inp	
+	if (.txt == "_wspawnlp") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": _wspawnlp :: ";
+		print "Check that input comes from a trusted source.";
+		print "Many program execution commands under Windows will search the path for a program if you do not explicitly specify a full path to the file. This can allow trojans to be executed instead. Also, be sure to specify a file extension, since otherwise multiple extensions will be tried by the operating system, providing another opportunity for trojans.\n";
+		Next;
+	}
+#	_tspawnvp	High	arg 2	inp	
+	if (.txt == "_tspawnvp") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": _tspawnvp :: ";
+		print "Check that input comes from a trusted source.";
+		print "Many program execution commands under Windows will search the path for a program if you do not explicitly specify a full path to the file. This can allow trojans to be executed instead. Also, be sure to specify a file extension, since otherwise multiple extensions will be tried by the operating system, providing another opportunity for trojans.\n";
+		Next;
+	}
+#	OemToCharA	High	srcbuf 2	
+	if (.txt == "OemToCharA") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": OemToCharA :: ";
+		print "Make sure that argument 2 cannot cause a buffer overvlow.";
+		print "\n";
+		Next;
+	}
+#	 vsscanf	High	farg 2	srcbuf 2	arg 2	Inp	FS	
+	if (.txt == "vsscanf") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": vsscanf :: ";
+		print "Make sure that argument 2 cannot cause a buffer overvlow.";
+		print "Make sure that format string comes from a trusted source.";
+		print "Check that input comes from a trusted source.";
+		print "Check that the format string comes from a trusted source.";
+		print "\n";
+		Next;
+	}
+#	 StrCatA	High	srcbuf 2	
+	if (.txt == "StrCatA") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": StrCatA :: ";
+		print "Make sure that argument 2 cannot cause a buffer overvlow.";
+		print "\n";
+		Next;
+	}
+#	 _cscanf	High	farg 2	arg 1	Inp	FS	
+	if (.txt == "_cscanf") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": _cscanf :: ";
+		print "Make sure that format string comes from a trusted source.";
+		print "Check that input comes from a trusted source.";
+		print "Check that the format string comes from a trusted source.";
+		print "\n";
+		Next;
+	}
+#	_wexeclp	High	arg 1	inp	
+	if (.txt == "_wexeclp") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": _wexeclp :: ";
+		print "Check that input comes from a trusted source.";
+		print "Many program execution commands under Windows will search the path for a program if you do not explicitly specify a full path to the file. This can allow trojans to be executed instead. Also, be sure to specify a file extension, since otherwise multiple extensions will be tried by the operating system, providing another opportunity for trojans.\n";
+		Next;
+	}
+#	getopt_long	High	
+	if (.txt == "getopt_long") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": getopt_long :: ";
+		print "Truncate all input strings to a reasonable length before passing them to this function\n";
+		Next;
+	}
+#	LoadLibraryEx	High	
+	if (.txt == "LoadLibraryEx") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": LoadLibraryEx :: ";
+		print "LoadLibrary will search several places for a library if no path is specified, allowing trojan DLL's to be inserted elsewhere even if the intended DLL is correctly protected from overwriting. Make sure to specify the full path.\n";
+		Next;
+	}
+#	 _texecv	High	arg 1	inp	
+	if (.txt == "_texecv") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": _texecv :: ";
+		print "Check that input comes from a trusted source.";
+		print "While this _exec variant does not search the path for a program (good!), it will run .com files before .exe files and the like. Make sure to specify a file extension.\n";
+		Next;
+	}
+#	  system	High	arg 1	inp	
+	if (.txt == "system") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": system :: ";
+		print "Check that input comes from a trusted source.";
+		print "\n";
+		Next;
+	}
+#	_tspawnl	High	arg 2	inp	
+	if (.txt == "_tspawnl") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": _tspawnl :: ";
+		print "Check that input comes from a trusted source.";
+		print "While this _exec variant does not search the path for a program (good!), it will run .com files before .exe files and the like. Make sure to specify a file extension.\n";
+		Next;
+	}
+#	OemToCharW	High	srcbuf 2	
+	if (.txt == "OemToCharW") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": OemToCharW :: ";
+		print "Make sure that argument 2 cannot cause a buffer overvlow.";
+		print "\n";
+		Next;
+	}
+#	 _spawnl	High	arg 2	inp	
+	if (.txt == "_spawnl") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": _spawnl :: ";
+		print "Check that input comes from a trusted source.";
+		print "While this _exec variant does not search the path for a program (good!), it will run .com files before .exe files and the like. Make sure to specify a file extension.\n";
+		Next;
+	}
+#	 _tcscat	High	srcbuf 2	
+	if (.txt == "_tcscat") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": _tcscat :: ";
+		print "Make sure that argument 2 cannot cause a buffer overvlow.";
+		print "\n";
+		Next;
+	}
+#	GetTempPathA	High	
+	if (.txt == "GetTempPathA") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": GetTempPathA :: ";
+		print "GetTempPath() may return the current directory or the windows directory. Be careful what you place in these locations. Important files may be overwritten, and trojan DLL's may be dropped in these locations. Never use a user-input filename when writing to a location given by GetTempPath().\n";
+		Next;
+	}
+#	 StrCatW	High	srcbuf 2	
+	if (.txt == "StrCatW") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": StrCatW :: ";
+		print "Make sure that argument 2 cannot cause a buffer overvlow.";
+		print "\n";
+		Next;
+	}
+#	CreateProcess	High	arg 3	inp	
+	if (.txt == "CreateProcess") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": CreateProcess :: ";
+		print "Check that input comes from a trusted source.";
+		print "Many program execution commands under Windows will search the path for a program if you do not explicitly specify a full path to the file. This can allow trojans to be executed instead. Also, be sure to specify a file extension, since otherwise multiple extensions will be tried by the operating system, providing another opportunity for trojans.\n";
+		Next;
+	}
+#	_tspawnlpe	High	arg 2	inp	
+	if (.txt == "_tspawnlpe") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": _tspawnlpe :: ";
+		print "Check that input comes from a trusted source.";
+		print "Many program execution commands under Windows will search the path for a program if you do not explicitly specify a full path to the file. This can allow trojans to be executed instead. Also, be sure to specify a file extension, since otherwise multiple extensions will be tried by the operating system, providing another opportunity for trojans.\n";
+		Next;
+	}
+#	vsprintf	High	farg 2	arg 2	FS	
+	if (.txt == "vsprintf") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": vsprintf :: ";
+		print "Make sure that format string comes from a trusted source.";
+		print "Check that the format string comes from a trusted source.";
+		print "\n";
+		Next;
+	}
+#	 getpass	High	
+	if (.txt == "getpass") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": getpass :: ";
+		print "Truncate all input strings to a reasonable length before passing them to this function\n";
+		Next;
+	}
+#	  syslog	High	
+	if (.txt == "syslog") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": syslog :: ";
+		print "Truncate all input strings to a reasonable length before passing them to this function\n";
+		Next;
+	}
+#	_wsystem	High	arg 1	inp	
+	if (.txt == "_wsystem") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": _wsystem :: ";
+		print "Check that input comes from a trusted source.";
+		print "Many program execution commands under Windows will search the path for a program if you do not explicitly specify a full path to the file. This can allow trojans to be executed instead. Also, be sure to specify a file extension, since otherwise multiple extensions will be tried by the operating system, providing another opportunity for trojans.\n";
+		Next;
+	}
+#	GetExtensionVersion	High	
+	if (.txt == "GetExtensionVersion") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": GetExtensionVersion :: ";
+		print "GetExtensionVersion() is called by IIS in the system's security context. Be very careful what you do here, as you are basically suid root for the machine. If you are calling the function rather than implementing it, howabout *not* calling it in the system's security context if possible?\n";
+		Next;
+	}
+#	_tspawnv	High	arg 2	inp	
+	if (.txt == "_tspawnv") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": _tspawnv :: ";
+		print "Check that input comes from a trusted source.";
+		print "While this _exec variant does not search the path for a program (good!), it will run .com files before .exe files and the like. Make sure to specify a file extension.\n";
+		Next;
+	}
+#	 _spawnv	High	arg 2	inp	
+	if (.txt == "_spawnv") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": _spawnv :: ";
+		print "Check that input comes from a trusted source.";
+		print "While this _exec variant does not search the path for a program (good!), it will run .com files before .exe files and the like. Make sure to specify a file extension.\n";
+		Next;
+	}
+#	  strcpy	High	srcbuf 2	
+	if (.txt == "strcpy") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": strcpy :: ";
+		print "Make sure that argument 2 cannot cause a buffer overvlow.";
+		print "\n";
+		Next;
+	}
+#	ShellExecuteA	High	arg 3	inp	
+	if (.txt == "ShellExecuteA") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": ShellExecuteA :: ";
+		print "Check that input comes from a trusted source.";
+		print "Many program execution commands under Windows will search the path for a program if you do not explicitly specify a full path to the file. This can allow trojans to be executed instead. Also, be sure to specify a file extension, since otherwise multiple extensions will be tried by the operating system, providing another opportunity for trojans.\n";
+		Next;
+	}
+#	_tspawnvpe	High	arg 2	inp	
+	if (.txt == "_tspawnvpe") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": _tspawnvpe :: ";
+		print "Check that input comes from a trusted source.";
+		print "Many program execution commands under Windows will search the path for a program if you do not explicitly specify a full path to the file. This can allow trojans to be executed instead. Also, be sure to specify a file extension, since otherwise multiple extensions will be tried by the operating system, providing another opportunity for trojans.\n";
+		Next;
+	}
+#	gethostbyaddr	High	
+	if (.txt == "gethostbyaddr") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": gethostbyaddr :: ";
+		print "DNS results can easily be forged by an attacker (or arbitrarily set to large values, etc), and should not be trusted.\n";
+		Next;
+	}
+#	vfwprintf	High	arg 2	FS	
+	if (.txt == "vfwprintf") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": vfwprintf :: ";
+		print "Check that the format string comes from a trusted source.";
+		print "\n";
+		Next;
+	}
+#	 vfscanf	High	farg 2	arg 2	Inp	FS	
+	if (.txt == "vfscanf") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": vfscanf :: ";
+		print "Make sure that format string comes from a trusted source.";
+		print "Check that input comes from a trusted source.";
+		print "Check that the format string comes from a trusted source.";
+		print "\n";
+		Next;
+	}
+#	OemToAnsi	High	srcbuf 2	
+	if (.txt == "OemToAnsi") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": OemToAnsi :: ";
+		print "Make sure that argument 2 cannot cause a buffer overvlow.";
+		print "\n";
+		Next;
+	}
+#	  sscanf	High	farg 2	arg 2	Inp	FS	
+	if (.txt == "sscanf") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": sscanf :: ";
+		print "Make sure that format string comes from a trusted source.";
+		print "Check that input comes from a trusted source.";
+		print "Check that the format string comes from a trusted source.";
+		print "\n";
+		Next;
+	}
+#	  getenv	High	
+	if (.txt == "getenv") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": getenv :: ";
+		print "Environment variables are highly untrustable input. They may be of any length, and contain any data. Do not make any assumptions regarding content or length. If at all possible avoid using them, and if it is necessary, sanitize them and truncate them to a reasonable length.\n";
+		Next;
+	}
+#	 _mbscat	High	srcbuf 2	
+	if (.txt == "_mbscat") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": _mbscat :: ";
+		print "Make sure that argument 2 cannot cause a buffer overvlow.";
+		print "\n";
+		Next;
+	}
+#	GetTempPathW	High	
+	if (.txt == "GetTempPathW") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": GetTempPathW :: ";
+		print "GetTempPath() may return the current directory or the windows directory. Be careful what you place in these locations. Important files may be overwritten, and trojan DLL's may be dropped in these locations. Never use a user-input filename when writing to a location given by GetTempPath().\n";
+		Next;
+	}
+#	  wscanf	High	farg 2	arg 2	Inp	FS	
+	if (.txt == "wscanf") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": wscanf :: ";
+		print "Make sure that format string comes from a trusted source.";
+		print "Check that input comes from a trusted source.";
+		print "Check that the format string comes from a trusted source.";
+		print "\n";
+		Next;
+	}
+#	 _wexecl	High	arg 1	inp	
+	if (.txt == "_wexecl") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": _wexecl :: ";
+		print "Check that input comes from a trusted source.";
+		print "While this _exec variant does not search the path for a program (good!), it will run .com files before .exe files and the like. Make sure to specify a file extension.\n";
+		Next;
+	}
+#	  StrCpy	High	srcbuf 2	
+	if (.txt == "StrCpy") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": StrCpy :: ";
+		print "Make sure that argument 2 cannot cause a buffer overvlow.";
+		print "\n";
+		Next;
+	}
+#	  _execl	High	arg 1	inp	
+	if (.txt == "_execl") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": _execl :: ";
+		print "Check that input comes from a trusted source.";
+		print "While this _exec variant does not search the path for a program (good!), it will run .com files before .exe files and the like. Make sure to specify a file extension.\n";
+		Next;
+	}
+#	 vprintf	High	arg 1	FS	
+	if (.txt == "vprintf") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": vprintf :: ";
+		print "Check that the format string comes from a trusted source.";
+		print "\n";
+		Next;
+	}
+#	ShellExecuteEx	High	arg 1	inp	
+	if (.txt == "ShellExecuteEx") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": ShellExecuteEx :: ";
+		print "Check that input comes from a trusted source.";
+		print "Many program execution commands under Windows will search the path for a program if you do not explicitly specify a full path to the file. This can allow trojans to be executed instead. Also, be sure to specify a file extension, since otherwise multiple extensions will be tried by the operating system, providing another opportunity for trojans.\n";
+		Next;
+	}
+#	_stprintf	High	farg 2	arg 2	FS	
+	if (.txt == "_stprintf") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": _stprintf :: ";
+		print "Make sure that format string comes from a trusted source.";
+		print "Check that the format string comes from a trusted source.";
+		print "\n";
+		Next;
+	}
+#	vwprintf	High	arg 1	FS	
+	if (.txt == "vwprintf") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": vwprintf :: ";
+		print "Check that the format string comes from a trusted source.";
+		print "\n";
+		Next;
+	}
+#	ShellExecuteW	High	arg 3	inp	
+	if (.txt == "ShellExecuteW") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": ShellExecuteW :: ";
+		print "Check that input comes from a trusted source.";
+		print "Many program execution commands under Windows will search the path for a program if you do not explicitly specify a full path to the file. This can allow trojans to be executed instead. Also, be sure to specify a file extension, since otherwise multiple extensions will be tried by the operating system, providing another opportunity for trojans.\n";
+		Next;
+	}
+#	 catgets	High	
+	if (.txt == "catgets") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": catgets :: ";
+		print "Environment variables are highly untrustable input. They may be of any length, and contain any data. Do not make any assumptions regarding content or length. If at all possible avoid using them, and if it is necessary, sanitize them and truncate them to a reasonable length. catgets() can utilize the NLSPATH environment variable.\n";
+		Next;
+	}
+#	 swscanf	High	farg 2	arg 2	Inp	FS	
+	if (.txt == "swscanf") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": swscanf :: ";
+		print "Make sure that format string comes from a trusted source.";
+		print "Check that input comes from a trusted source.";
+		print "Check that the format string comes from a trusted source.";
+		print "\n";
+		Next;
+	}
+#	_texecve	High	arg 1	inp	
+	if (.txt == "_texecve") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": _texecve :: ";
+		print "Check that input comes from a trusted source.";
+		print "While this _exec variant does not search the path for a program (good!), it will run .com files before .exe files and the like. Make sure to specify a file extension.\n";
+		Next;
+	}
+#	 _wexecv	High	arg 1	inp	
+	if (.txt == "_wexecv") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": _wexecv :: ";
+		print "Check that input comes from a trusted source.";
+		print "While this _exec variant does not search the path for a program (good!), it will run .com files before .exe files and the like. Make sure to specify a file extension.\n";
+		Next;
+	}
+#	  _execv	High	arg 1	inp	
+	if (.txt == "_execv") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": _execv :: ";
+		print "Check that input comes from a trusted source.";
+		print "While this _exec variant does not search the path for a program (good!), it will run .com files before .exe files and the like. Make sure to specify a file extension.\n";
+		Next;
+	}
+#	 _execve	High	arg 1	inp	
+	if (.txt == "_execve") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": _execve :: ";
+		print "Check that input comes from a trusted source.";
+		print "While this _exec variant does not search the path for a program (good!), it will run .com files before .exe files and the like. Make sure to specify a file extension.\n";
+		Next;
+	}
+#	vfprintf	High	arg 2	FS	
+	if (.txt == "vfprintf") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": vfprintf :: ";
+		print "Check that the format string comes from a trusted source.";
+		print "\n";
+		Next;
+	}
+#	_wspawnl	High	arg 2	inp	
+	if (.txt == "_wspawnl") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": _wspawnl :: ";
+		print "Check that input comes from a trusted source.";
+		print "While this _exec variant does not search the path for a program (good!), it will run .com files before .exe files and the like. Make sure to specify a file extension.\n";
+		Next;
+	}
+#	_spawnve	High	arg 2	inp	
+	if (.txt == "_spawnve") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": _spawnve :: ";
+		print "Check that input comes from a trusted source.";
+		print "While this _exec variant does not search the path for a program (good!), it will run .com files before .exe files and the like. Make sure to specify a file extension.\n";
+		Next;
+	}
+#	_tprintf	High	arg 1	FS	
+	if (.txt == "_tprintf") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": _tprintf :: ";
+		print "Check that the format string comes from a trusted source.";
+		print "\n";
+		Next;
+	}
+#	_texecvp	High	arg 1	inp	
+	if (.txt == "_texecvp") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": _texecvp :: ";
+		print "Check that input comes from a trusted source.";
+		print "Many program execution commands under Windows will search the path for a program if you do not explicitly specify a full path to the file. This can allow trojans to be executed instead. Also, be sure to specify a file extension, since otherwise multiple extensions will be tried by the operating system, providing another opportunity for trojans.\n";
+		Next;
+	}
+#	 _execvp	High	arg 1	inp	
+	if (.txt == "_execvp") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": _execvp :: ";
+		print "Check that input comes from a trusted source.";
+		print "Many program execution commands under Windows will search the path for a program if you do not explicitly specify a full path to the file. This can allow trojans to be executed instead. Also, be sure to specify a file extension, since otherwise multiple extensions will be tried by the operating system, providing another opportunity for trojans.\n";
+		Next;
+	}
+#	_wspawnv	High	arg 2	inp	
+	if (.txt == "_wspawnv") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": _wspawnv :: ";
+		print "Check that input comes from a trusted source.";
+		print "While this _exec variant does not search the path for a program (good!), it will run .com files before .exe files and the like. Make sure to specify a file extension.\n";
+		Next;
+	}
+#	_cprintf	High	arg 1	FS	
+	if (.txt == "_cprintf") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": _cprintf :: ";
+		print "Check that the format string comes from a trusted source.";
+		print "\n";
+		Next;
+	}
+#	_spawnlpe	High	arg 2	inp	
+	if (.txt == "_spawnlpe") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": _spawnlpe :: ";
+		print "Check that input comes from a trusted source.";
+		print "Many program execution commands under Windows will search the path for a program if you do not explicitly specify a full path to the file. This can allow trojans to be executed instead. Also, be sure to specify a file extension, since otherwise multiple extensions will be tried by the operating system, providing another opportunity for trojans.\n";
+		Next;
+	}
+#	_spawnvp	High	arg 2	inp	
+	if (.txt == "_spawnvp") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": _spawnvp :: ";
+		print "Check that input comes from a trusted source.";
+		print "Many program execution commands under Windows will search the path for a program if you do not explicitly specify a full path to the file. This can allow trojans to be executed instead. Also, be sure to specify a file extension, since otherwise multiple extensions will be tried by the operating system, providing another opportunity for trojans.\n";
+		Next;
+	}
+#	_tspawnle	High	arg 2	inp	
+	if (.txt == "_tspawnle") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": _tspawnle :: ";
+		print "Check that input comes from a trusted source.";
+		print "While this _exec variant does not search the path for a program (good!), it will run .com files before .exe files and the like. Make sure to specify a file extension.\n";
+		Next;
+	}
+#	   scanf	High	farg 2	arg 1	Inp	FS	
+	if (.txt == "scanf") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": scanf :: ";
+		print "Make sure that format string comes from a trusted source.";
+		print "Check that input comes from a trusted source.";
+		print "Check that the format string comes from a trusted source.";
+		print "\n";
+		Next;
+	}
+#	  fscanf	High	farg 2	arg 2	Inp	FS	
+	if (.txt == "fscanf") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": fscanf :: ";
+		print "Make sure that format string comes from a trusted source.";
+		print "Check that input comes from a trusted source.";
+		print "Check that the format string comes from a trusted source.";
+		print "\n";
+		Next;
+	}
+#	 strtrns	High	srcbuf 1	
+	if (.txt == "strtrns") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": strtrns :: ";
+		print "Make sure that argument 1 cannot cause a buffer overvlow.";
+		print "Be sure the destination buffer is at least MAXPATHLEN big. This function may still internally overflow a static buffer, try to avoid using it. If you must, check the size the path your pass in is no longer than MAXPATHLEN \n";
+		Next;
+	}
+#	_spawnvpe	High	arg 2	inp	
+	if (.txt == "_spawnvpe") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": _spawnvpe :: ";
+		print "Check that input comes from a trusted source.";
+		print "Many program execution commands under Windows will search the path for a program if you do not explicitly specify a full path to the file. This can allow trojans to be executed instead. Also, be sure to specify a file extension, since otherwise multiple extensions will be tried by the operating system, providing another opportunity for trojans.\n";
+		Next;
+	}
+#	_stscanf	High	farg 2	arg 2	Inp	FS	
+	if (.txt == "_stscanf") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": _stscanf :: ";
+		print "Make sure that format string comes from a trusted source.";
+		print "Check that input comes from a trusted source.";
+		print "Check that the format string comes from a trusted source.";
+		print "\n";
+		Next;
+	}
+#	ShellExecuteExA	High	arg 1	inp	
+	if (.txt == "ShellExecuteExA") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": ShellExecuteExA :: ";
+		print "Check that input comes from a trusted source.";
+		print "Many program execution commands under Windows will search the path for a program if you do not explicitly specify a full path to the file. This can allow trojans to be executed instead. Also, be sure to specify a file extension, since otherwise multiple extensions will be tried by the operating system, providing another opportunity for trojans.\n";
+		Next;
+	}
+#	_tspawnlp	High	arg 2	inp	
+	if (.txt == "_tspawnlp") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": _tspawnlp :: ";
+		print "Check that input comes from a trusted source.";
+		print "Many program execution commands under Windows will search the path for a program if you do not explicitly specify a full path to the file. This can allow trojans to be executed instead. Also, be sure to specify a file extension, since otherwise multiple extensions will be tried by the operating system, providing another opportunity for trojans.\n";
+		Next;
+	}
+#	EnterCriticalSection	High	
+	if (.txt == "EnterCriticalSection") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": EnterCriticalSection :: ";
+		print "This function can throw exceptions in low memory conditions. Use InitialCriticalSectionAndSpinCount instead.\n";
+		Next;
+	}
+#	 _tcscpy	High	srcbuf 2	
+	if (.txt == "_tcscpy") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": _tcscpy :: ";
+		print "Make sure that argument 2 cannot cause a buffer overvlow.";
+		print "\n";
+		Next;
+	}
+#	AddAccessAllowedAce	High	
+	if (.txt == "AddAccessAllowedAce") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": AddAccessAllowedAce :: ";
+		print "This function does not set the inheritance bits in the Access Controle Entry, making it vulnerable.\n";
+		Next;
+	}
+#	 fwscanf	High	farg 2	arg 2	Inp	FS	
+	if (.txt == "fwscanf") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": fwscanf :: ";
+		print "Make sure that format string comes from a trusted source.";
+		print "Check that input comes from a trusted source.";
+		print "Check that the format string comes from a trusted source.";
+		print "\n";
+		Next;
+	}
+#	  printf	High	arg 1	FS	
+	if (.txt == "printf") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": printf :: ";
+		print "Check that the format string comes from a trusted source.";
+		print "\n";
+		Next;
+	}
+#	_wspawnve	High	arg 2	inp	
+	if (.txt == "_wspawnve") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": _wspawnve :: ";
+		print "Check that input comes from a trusted source.";
+		print "While this _exec variant does not search the path for a program (good!), it will run .com files before .exe files and the like. Make sure to specify a file extension.\n";
+		Next;
+	}
+#	  vscanf	High	farg 1	arg 1	Inp	FS	
+	if (.txt == "vscanf") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": vscanf :: ";
+		print "Make sure that format string comes from a trusted source.";
+		print "Check that input comes from a trusted source.";
+		print "Check that the format string comes from a trusted source.";
+		print "\n";
+		Next;
+	}
+#	  wcscat	High	srcbuf 2	
+	if (.txt == "wcscat") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": wcscat :: ";
+		print "Make sure that argument 2 cannot cause a buffer overvlow.";
+		print "\n";
+		Next;
+	}
+#	gethostbyname	High	
+	if (.txt == "gethostbyname") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": gethostbyname :: ";
+		print "DNS results can easily be forged by an attacker (or arbitrarily set to large values, etc), and should not be trusted.\n";
+		Next;
+	}
+#	_wexecve	High	arg 1	inp	
+	if (.txt == "_wexecve") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": _wexecve :: ";
+		print "Check that input comes from a trusted source.";
+		print "While this _exec variant does not search the path for a program (good!), it will run .com files before .exe files and the like. Make sure to specify a file extension.\n";
+		Next;
+	}
+#	 lstrcat	High	srcbuf 2	
+	if (.txt == "lstrcat") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": lstrcat :: ";
+		print "Make sure that argument 2 cannot cause a buffer overvlow.";
+		print "\n";
+		Next;
+	}
+#	AfxLoadLibrary	High	
+	if (.txt == "AfxLoadLibrary") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": AfxLoadLibrary :: ";
+		print "LoadLibrary will search several places for a library if no path is specified, allowing trojan DLL's to be inserted elsewhere even if the intended DLL is correctly protected from overwriting. Make sure to specify the full path.\n";
+		Next;
+	}
+#	_texeclpe	High	arg 1	inp	
+	if (.txt == "_texeclpe") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": _texeclpe :: ";
+		print "Check that input comes from a trusted source.";
+		print "Many program execution commands under Windows will search the path for a program if you do not explicitly specify a full path to the file. This can allow trojans to be executed instead. Also, be sure to specify a file extension, since otherwise multiple extensions will be tried by the operating system, providing another opportunity for trojans.\n";
+		Next;
+	}
+#	 sprintf	High	farg 2	arg 2	FS	
+	if (.txt == "sprintf") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": sprintf :: ";
+		print "Make sure that format string comes from a trusted source.";
+		print "Check that the format string comes from a trusted source.";
+		print "\n";
+		Next;
+	}
+#	_wspawnvp	High	arg 2	inp	
+	if (.txt == "_wspawnvp") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": _wspawnvp :: ";
+		print "Check that input comes from a trusted source.";
+		print "Many program execution commands under Windows will search the path for a program if you do not explicitly specify a full path to the file. This can allow trojans to be executed instead. Also, be sure to specify a file extension, since otherwise multiple extensions will be tried by the operating system, providing another opportunity for trojans.\n";
+		Next;
+	}
+#	LoadLibrary	High	
+	if (.txt == "LoadLibrary") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": LoadLibrary :: ";
+		print "LoadLibrary will search several places for a library if no path is specified, allowing trojan DLL's to be inserted elsewhere even if the intended DLL is correctly protected from overwriting. Make sure to specify the full path.\n";
+		Next;
+	}
+#	ShellExecuteExW	High	arg 1	inp	
+	if (.txt == "ShellExecuteExW") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": ShellExecuteExW :: ";
+		print "Check that input comes from a trusted source.";
+		print "Many program execution commands under Windows will search the path for a program if you do not explicitly specify a full path to the file. This can allow trojans to be executed instead. Also, be sure to specify a file extension, since otherwise multiple extensions will be tried by the operating system, providing another opportunity for trojans.\n";
+		Next;
+	}
+#	OemToChar	High	srcbuf 2	
+	if (.txt == "OemToChar") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": OemToChar :: ";
+		print "Make sure that argument 2 cannot cause a buffer overvlow.";
+		print "\n";
+		Next;
+	}
+#	vswprintf	High	farg 2	arg 2	FS	
+	if (.txt == "vswprintf") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": vswprintf :: ";
+		print "Make sure that format string comes from a trusted source.";
+		print "Check that the format string comes from a trusted source.";
+		print "\n";
+		Next;
+	}
+#	   fgets	High	Inp	
+	if (.txt == "fgets") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": fgets :: ";
+		print "Check that input comes from a trusted source.";
+		print " cin is unsafe. No bounds checking is performed. Buffer is easily overflowable by user. \n";
+		Next;
+	}
+#	_wexecvp	High	arg 1	inp	
+	if (.txt == "_wexecvp") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": _wexecvp :: ";
+		print "Check that input comes from a trusted source.";
+		print "Many program execution commands under Windows will search the path for a program if you do not explicitly specify a full path to the file. This can allow trojans to be executed instead. Also, be sure to specify a file extension, since otherwise multiple extensions will be tried by the operating system, providing another opportunity for trojans.\n";
+		Next;
+	}
+#	  getopt	High	
+	if (.txt == "getopt") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": getopt :: ";
+		print "Truncate all input strings to a reasonable length before passing them to this function\n";
+		Next;
+	}
+#	_texecvpe	High	arg 1	inp	
+	if (.txt == "_texecvpe") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": _texecvpe :: ";
+		print "Check that input comes from a trusted source.";
+		print "Many program execution commands under Windows will search the path for a program if you do not explicitly specify a full path to the file. This can allow trojans to be executed instead. Also, be sure to specify a file extension, since otherwise multiple extensions will be tried by the operating system, providing another opportunity for trojans.\n";
+		Next;
+	}
+#	 _mbscpy	High	srcbuf 2	
+	if (.txt == "_mbscpy") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": _mbscpy :: ";
+		print "Make sure that argument 2 cannot cause a buffer overvlow.";
+		print "\n";
+		Next;
+	}
+#	_wexeclpe	High	arg 1	inp	
+	if (.txt == "_wexeclpe") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": _wexeclpe :: ";
+		print "Check that input comes from a trusted source.";
+		print "Many program execution commands under Windows will search the path for a program if you do not explicitly specify a full path to the file. This can allow trojans to be executed instead. Also, be sure to specify a file extension, since otherwise multiple extensions will be tried by the operating system, providing another opportunity for trojans.\n";
+		Next;
+	}
+#	 strncat	High	srcbuf 1	
+	if (.txt == "strncat") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": strncat :: ";
+		print "Make sure that argument 1 cannot cause a buffer overvlow.";
+		print "Consider using strlcat() instead.\n";
+		Next;
+	}
+#	_ftscanf	High	farg 2	arg 2	Inp	FS	
+	if (.txt == "_ftscanf") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": _ftscanf :: ";
+		print "Make sure that format string comes from a trusted source.";
+		print "Check that input comes from a trusted source.";
+		print "Check that the format string comes from a trusted source.";
+		print "\n";
+		Next;
+	}
+#	OemToAnsiA	High	srcbuf 2	
+	if (.txt == "OemToAnsiA") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": OemToAnsiA :: ";
+		print "Make sure that argument 2 cannot cause a buffer overvlow.";
+		print "\n";
+		Next;
+	}
+#	 jrand48	Medium	
+	if (.txt == "jrand48") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <Medium> :" .fnm ":" .lnr ": jrand48 :: ";
+		print "Standard random number generators should not be used to generate randomness used for security reasons. For security sensitive randomness a crytographic randomness generator that provides sufficient entropy should be used.\n";
+		Next;
+	}
+#	PathAddBackslashA	Medium	
+	if (.txt == "PathAddBackslashA") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <Medium> :" .fnm ":" .lnr ": PathAddBackslashA :: ";
+		print "Buffer size must be _MAX_PATH+1 or larger for this function to be safe.\n";
+		Next;
+	}
+#	  random	Medium	
+	if (.txt == "random") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <Medium> :" .fnm ":" .lnr ": random :: ";
+		print "Standard random number generators should not be used to generate randomness used for security reasons. For security sensitive randomness a crytographic randomness generator that provides sufficient entropy should be used.\n";
+		Next;
+	}
+#	 drand48	Medium	
+	if (.txt == "drand48") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <Medium> :" .fnm ":" .lnr ": drand48 :: ";
+		print "Standard random number generators should not be used to generate randomness used for security reasons. For security sensitive randomness a crytographic randomness generator that provides sufficient entropy should be used.\n";
+		Next;
+	}
+#	   srand	Medium	
+	if (.txt == "srand") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <Medium> :" .fnm ":" .lnr ": srand :: ";
+		print "Standard random number generators should not be used to generate randomness used for security reasons. For security sensitive randomness a crytographic randomness generator that provides sufficient entropy should be used.\n";
+		Next;
+	}
+#	PathCombine	Medium	
+	if (.txt == "PathCombine") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <Medium> :" .fnm ":" .lnr ": PathCombine :: ";
+		print "Buffer size must be _MAX_PATH+1 or larger for this function to be safe.\n";
+		Next;
+	}
+#	   crypt	Medium	
+	if (.txt == "crypt") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <Medium> :" .fnm ":" .lnr ": crypt :: ";
+		print "Standard random number generators should not be used to generate randomness used for security reasons. For security sensitive randomness a crytographic randomness generator that provides sufficient entropy should be used.\n";
+		Next;
+	}
+#	 srandom	Medium	
+	if (.txt == "srandom") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <Medium> :" .fnm ":" .lnr ": srandom :: ";
+		print "Standard random number generators should not be used to generate randomness used for security reasons. For security sensitive randomness a crytographic randomness generator that provides sufficient entropy should be used.\n";
+		Next;
+	}
+#	SetThreadToken	Medium	
+	if (.txt == "SetThreadToken") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <Medium> :" .fnm ":" .lnr ": SetThreadToken :: ";
+		print "Impersonation functions return error codes when they fail. These error codes must be checked otherwise code could be run with extra privileges when an impersonation has failed.\n";
+		Next;
+	}
+#	    getc	Medium	
+	if (.txt == "getc") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <Medium> :" .fnm ":" .lnr ": getc :: ";
+		print "Check buffer boundaries if calling this function in a loop and make sure you are not in danger of writing past the allocated space.\n";
+		Next;
+	}
+#	PathAddBackslashW	Medium	
+	if (.txt == "PathAddBackslashW") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <Medium> :" .fnm ":" .lnr ": PathAddBackslashW :: ";
+		print "Buffer size must be _MAX_PATH+1 or larger for this function to be safe.\n";
+		Next;
+	}
+#	PathCombineA	Medium	
+	if (.txt == "PathCombineA") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <Medium> :" .fnm ":" .lnr ": PathCombineA :: ";
+		print "Buffer size must be _MAX_PATH+1 or larger for this function to be safe.\n";
+		Next;
+	}
+#	 nrand48	Medium	
+	if (.txt == "nrand48") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <Medium> :" .fnm ":" .lnr ": nrand48 :: ";
+		print "Standard random number generators should not be used to generate randomness used for security reasons. For security sensitive randomness a crytographic randomness generator that provides sufficient entropy should be used.\n";
+		Next;
+	}
+#	 memfrob	Medium	
+	if (.txt == "memfrob") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <Medium> :" .fnm ":" .lnr ": memfrob :: ";
+		print "Standard random number generators should not be used to generate randomness used for security reasons. For security sensitive randomness a crytographic randomness generator that provides sufficient entropy should be used.\n";
+		Next;
+	}
+#	ImpersonateSecurityContext	Medium	
+	if (.txt == "ImpersonateSecurityContext") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <Medium> :" .fnm ":" .lnr ": ImpersonateSecurityContext :: ";
+		print "Impersonation functions return error codes when they fail. These error codes must be checked otherwise code could be run with extra privileges when an impersonation has failed.\n";
+		Next;
+	}
+#	GetTempFileNameA	Medium	
+	if (.txt == "GetTempFileNameA") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <Medium> :" .fnm ":" .lnr ": GetTempFileNameA :: ";
+		print "Many calls for generating temporary file names are insecure (susceptible to race conditions). Use a securely generated file name, for example, by pulling 64 bits of randomness from /dev/random, base 64 encoding it and using that as a file suffix.\n";
+		Next;
+	}
+#	  seed48	Medium	
+	if (.txt == "seed48") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <Medium> :" .fnm ":" .lnr ": seed48 :: ";
+		print "Standard random number generators should not be used to generate randomness used for security reasons. For security sensitive randomness a crytographic randomness generator that provides sufficient entropy should be used.\n";
+		Next;
+	}
+#	QuerySecurityContextToken	Medium	
+	if (.txt == "QuerySecurityContextToken") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <Medium> :" .fnm ":" .lnr ": QuerySecurityContextToken :: ";
+		print "Impersonation functions return error codes when they fail. These error codes must be checked otherwise code could be run with extra privileges when an impersonation has failed.\n";
+		Next;
+	}
+#	  strfry	Medium	
+	if (.txt == "strfry") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <Medium> :" .fnm ":" .lnr ": strfry :: ";
+		print "Standard random number generators should not be used to generate randomness used for security reasons. For security sensitive randomness a crytographic randomness generator that provides sufficient entropy should be used.\n";
+		Next;
+	}
+#	PathCombineW	Medium	
+	if (.txt == "PathCombineW") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <Medium> :" .fnm ":" .lnr ": PathCombineW :: ";
+		print "Buffer size must be _MAX_PATH+1 or larger for this function to be safe.\n";
+		Next;
+	}
+#	CoImpersonateClient	Medium	
+	if (.txt == "CoImpersonateClient") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <Medium> :" .fnm ":" .lnr ": CoImpersonateClient :: ";
+		print "Impersonation functions return error codes when they fail. These error codes must be checked otherwise code could be run with extra privileges when an impersonation has failed.\n";
+		Next;
+	}
+#	PathCanonicalizeA	Medium	
+	if (.txt == "PathCanonicalizeA") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <Medium> :" .fnm ":" .lnr ": PathCanonicalizeA :: ";
+		print "Buffer size must be _MAX_PATH+1 or larger for this function to be safe.\n";
+		Next;
+	}
+#	ImpersonateLoggedOnUser	Medium	
+	if (.txt == "ImpersonateLoggedOnUser") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <Medium> :" .fnm ":" .lnr ": ImpersonateLoggedOnUser :: ";
+		print "Impersonation functions return error codes when they fail. These error codes must be checked otherwise code could be run with extra privileges when an impersonation has failed.\n";
+		Next;
+	}
+#	GetTempFileNameW	Medium	
+	if (.txt == "GetTempFileNameW") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <Medium> :" .fnm ":" .lnr ": GetTempFileNameW :: ";
+		print "Many calls for generating temporary file names are insecure (susceptible to race conditions). Use a securely generated file name, for example, by pulling 64 bits of randomness from /dev/random, base 64 encoding it and using that as a file suffix.\n";
+		Next;
+	}
+#	ImpersonateDdeClientWindow	Medium	
+	if (.txt == "ImpersonateDdeClientWindow") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <Medium> :" .fnm ":" .lnr ": ImpersonateDdeClientWindow :: ";
+		print "Impersonation functions return error codes when they fail. These error codes must be checked otherwise code could be run with extra privileges when an impersonation has failed.\n";
+		Next;
+	}
+#	PathCanonicalize	Medium	
+	if (.txt == "PathCanonicalize") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <Medium> :" .fnm ":" .lnr ": PathCanonicalize :: ";
+		print "Buffer size must be _MAX_PATH+1 or larger for this function to be safe.\n";
+		Next;
+	}
+#	 lrand48	Medium	
+	if (.txt == "lrand48") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <Medium> :" .fnm ":" .lnr ": lrand48 :: ";
+		print "Standard random number generators should not be used to generate randomness used for security reasons. For security sensitive randomness a crytographic randomness generator that provides sufficient entropy should be used.\n";
+		Next;
+	}
+#	   vfork	Medium	
+	if (.txt == "vfork") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <Medium> :" .fnm ":" .lnr ": vfork :: ";
+		print " Some implementations may be broken. Additionally, Remember that sensitive data get copied on fork. For example, a random number generator's internal state will get duplicated, and the child may start outputting identical number streams. Use fork() instead. \n";
+		Next;
+	}
+#	GetTempFileName	Medium	
+	if (.txt == "GetTempFileName") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <Medium> :" .fnm ":" .lnr ": GetTempFileName :: ";
+		print "Many calls for generating temporary file names are insecure (susceptible to race conditions). Use a securely generated file name, for example, by pulling 64 bits of randomness from /dev/random, base 64 encoding it and using that as a file suffix.\n";
+		Next;
+	}
+#	 realloc	Medium	
+	if (.txt == "realloc") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <Medium> :" .fnm ":" .lnr ": realloc :: ";
+		print "Don't use on memory intended to be secure, because the old structure will not be zeroed out.\n";
+		Next;
+	}
+#	setstate	Medium	
+	if (.txt == "setstate") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <Medium> :" .fnm ":" .lnr ": setstate :: ";
+		print "Standard random number generators should not be used to generate randomness used for security reasons. For security sensitive randomness a crytographic randomness generator that provides sufficient entropy should be used.\n";
+		Next;
+	}
+#	PathCanonicalizeW	Medium	
+	if (.txt == "PathCanonicalizeW") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <Medium> :" .fnm ":" .lnr ": PathCanonicalizeW :: ";
+		print "Buffer size must be _MAX_PATH+1 or larger for this function to be safe.\n";
+		Next;
+	}
+#	PathAddExtensionA	Medium	
+	if (.txt == "PathAddExtensionA") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <Medium> :" .fnm ":" .lnr ": PathAddExtensionA :: ";
+		print "Buffer size must be _MAX_PATH+1 or larger for this function to be safe.\n";
+		Next;
+	}
+#	 erand48	Medium	
+	if (.txt == "erand48") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <Medium> :" .fnm ":" .lnr ": erand48 :: ";
+		print "Standard random number generators should not be used to generate randomness used for security reasons. For security sensitive randomness a crytographic randomness generator that provides sufficient entropy should be used.\n";
+		Next;
+	}
+#	PathAppendA	Medium	
+	if (.txt == "PathAppendA") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <Medium> :" .fnm ":" .lnr ": PathAppendA :: ";
+		print "Buffer size must be _MAX_PATH+1 or larger for this function to be safe.\n";
+		Next;
+	}
+#	PathAddExtensionW	Medium	
+	if (.txt == "PathAddExtensionW") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <Medium> :" .fnm ":" .lnr ": PathAddExtensionW :: ";
+		print "Buffer size must be _MAX_PATH+1 or larger for this function to be safe.\n";
+		Next;
+	}
+#	PathAppendW	Medium	
+	if (.txt == "PathAppendW") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <Medium> :" .fnm ":" .lnr ": PathAppendW :: ";
+		print "Buffer size must be _MAX_PATH+1 or larger for this function to be safe.\n";
+		Next;
+	}
+#	  tmpnam	Medium	
+	if (.txt == "tmpnam") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <Medium> :" .fnm ":" .lnr ": tmpnam :: ";
+		print "Many calls for generating temporary file names are insecure (susceptible to race conditions). Use a securely generated file name, for example, by pulling 64 bits of randomness from /dev/random, base 64 encoding it and using that as a file suffix.\n";
+		Next;
+	}
+#	initstate	Medium	
+	if (.txt == "initstate") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <Medium> :" .fnm ":" .lnr ": initstate :: ";
+		print "Standard random number generators should not be used to generate randomness used for security reasons. For security sensitive randomness a crytographic randomness generator that provides sufficient entropy should be used.\n";
+		Next;
+	}
+#	PathAddBackslash	Medium	
+	if (.txt == "PathAddBackslash") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <Medium> :" .fnm ":" .lnr ": PathAddBackslash :: ";
+		print "Buffer size must be _MAX_PATH+1 or larger for this function to be safe.\n";
+		Next;
+	}
+#	SetSecurityDescriptorDacl	Medium	
+	if (.txt == "SetSecurityDescriptorDacl") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <Medium> :" .fnm ":" .lnr ": SetSecurityDescriptorDacl :: ";
+		print "If the third argument, pDacl, is NULL there is no protection from attack. As an example, an attacker could set a Deny All to Everyone ACE on such an object.\n";
+		Next;
+	}
+#	 tmpfile	Medium	
+	if (.txt == "tmpfile") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <Medium> :" .fnm ":" .lnr ": tmpfile :: ";
+		print "Many calls for generating temporary file names are insecure (susceptible to race conditions). Use a securely generated file name, for example, by pulling 64 bits of randomness from /dev/random, base 64 encoding it and using that as a file suffix.\n";
+		Next;
+	}
+#	 srand48	Medium	
+	if (.txt == "srand48") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <Medium> :" .fnm ":" .lnr ": srand48 :: ";
+		print "Standard random number generators should not be used to generate randomness used for security reasons. For security sensitive randomness a crytographic randomness generator that provides sufficient entropy should be used.\n";
+		Next;
+	}
+#	    read	Medium	
+	if (.txt == "read") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <Medium> :" .fnm ":" .lnr ": read :: ";
+		print "Check buffer boundaries if calling this function in a loop and make sure you are not in danger of writing past the allocated space.\n";
+		Next;
+	}
+#	 tempnam	Medium	
+	if (.txt == "tempnam") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <Medium> :" .fnm ":" .lnr ": tempnam :: ";
+		print "Many calls for generating temporary file names are insecure (susceptible to race conditions). Use a securely generated file name, for example, by pulling 64 bits of randomness from /dev/random, base 64 encoding it and using that as a file suffix.\n";
+		Next;
+	}
+#	 mrand48	Medium	
+	if (.txt == "mrand48") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <Medium> :" .fnm ":" .lnr ": mrand48 :: ";
+		print "Standard random number generators should not be used to generate randomness used for security reasons. For security sensitive randomness a crytographic randomness generator that provides sufficient entropy should be used.\n";
+		Next;
+	}
+#	ImpersonateNamedPipeClient	Medium	
+	if (.txt == "ImpersonateNamedPipeClient") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <Medium> :" .fnm ":" .lnr ": ImpersonateNamedPipeClient :: ";
+		print "Impersonation functions return error codes when they fail. These error codes must be checked otherwise code could be run with extra privileges when an impersonation has failed.\n";
+		Next;
+	}
+#	PathAddExtension	Medium	
+	if (.txt == "PathAddExtension") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <Medium> :" .fnm ":" .lnr ": PathAddExtension :: ";
+		print "Buffer size must be _MAX_PATH+1 or larger for this function to be safe.\n";
+		Next;
+	}
+#	  signal	Medium	
+	if (.txt == "signal") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <Medium> :" .fnm ":" .lnr ": signal :: ";
+		print " When setting signal handlers, do not use the same function to handle multiple signals. There exists the possibility a race condition will result if 2 or more different signals are sent to the process at nearly the same time. Also, when writing signal handlers, it is best to do as little as possible in them. The best strategy is to use the signal handler to set a flag, that another part of the program tests and performs the appropriate action(s) when it is set. \n";
+		Next;
+	}
+#	getlogin	Medium	
+	if (.txt == "getlogin") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <Medium> :" .fnm ":" .lnr ": getlogin :: ";
+		print " The results of this call are easy to forge. \n";
+		Next;
+	}
+#	   fgetc	Medium	
+	if (.txt == "fgetc") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <Medium> :" .fnm ":" .lnr ": fgetc :: ";
+		print "Check buffer boundaries if calling this function in a loop and make sure you are not in danger of writing past the allocated space.\n";
+		Next;
+	}
+#	 lcong48	Medium	
+	if (.txt == "lcong48") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <Medium> :" .fnm ":" .lnr ": lcong48 :: ";
+		print "Standard random number generators should not be used to generate randomness used for security reasons. For security sensitive randomness a crytographic randomness generator that provides sufficient entropy should be used.\n";
+		Next;
+	}
+#	 cuserid	Medium	
+	if (.txt == "cuserid") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <Medium> :" .fnm ":" .lnr ": cuserid :: ";
+		print " This may be forgable. Whether it is or not, even the man page recommends against using this. \n";
+		Next;
+	}
+#	 getchar	Medium	
+	if (.txt == "getchar") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <Medium> :" .fnm ":" .lnr ": getchar :: ";
+		print "Check buffer boundaries if calling this function in a loop and make sure you are not in danger of writing past the allocated space.\n";
+		Next;
+	}
+#	RpcImpersonateClient	Medium	
+	if (.txt == "RpcImpersonateClient") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <Medium> :" .fnm ":" .lnr ": RpcImpersonateClient :: ";
+		print "Impersonation functions return error codes when they fail. These error codes must be checked otherwise code could be run with extra privileges when an impersonation has failed.\n";
+		Next;
+	}
+#	PathAppend	Medium	
+	if (.txt == "PathAppend") {
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <Medium> :" .fnm ":" .lnr ": PathAppend :: ";
+		print "Buffer size must be _MAX_PATH+1 or larger for this function to be safe.\n";
+		Next;
+	}
+%}
+%{
+	if (ncore > 1)
+	{	Stop;
+	}
+
+	if (.txt != "[" || (.curly == 0 && .round == 0)) { Next; }
+	q = .prv; if (q.typ != "ident") { Next; }
+	r = q.prv; if (r.typ != "type" && r.typ != "ident") { Next; }
+	if (seen[q.txt] == .fnm) { Next; }
+	. = .nxt; if (.typ != "const_int") { Next; }
+	z.mark++;
+	print "rats0";
+	if (z.mark <   10) { print "0"; }
+	if (z.mark <  100) { print "0"; }
+	if (z.mark < 1000) { print "0"; }
+	print z.mark " <High> :" .fnm ":" .lnr ": " q.txt " :: fixed size buffer may be vulnerable to buffer overflow attack\n";
+	seen[q.txt] = .fnm;
+%}

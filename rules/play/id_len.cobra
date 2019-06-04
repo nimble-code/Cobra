@@ -1,0 +1,8 @@
+def id_len
+%{
+	if (@ident)
+	{	print .len "\t" .txt "\t" .fnm "\t" .lnr "\n";
+	}
+%}
+end
+id_len

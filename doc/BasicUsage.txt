@@ -1,0 +1,57 @@
+Cobra Version 3.0 -- Basic Usage
+================================
+
+1. cd to the directory with the source files you want
+   to work on. Try a patterns search, for instance find all
+   for statements in C source code where the body of the
+   for-loop is not enclosed in curly braces:
+
+   $ cobra -pattern 'for ( .* ) ^{' *.c
+
+   Or try some predefined checks:
+
+   $ cobra -terse -f basic *.[ch]
+
+   or for more detail, and with preprocessing enabled:
+
+   $ cobra -cpp -f basic *.[ch]
+
+   add C preprocessor directives on the command-line as needed
+
+   for interactive use, type for instance:
+
+   $ cd cobra/src
+   $ cobra -cpp *.[ch]
+   4 cores, 14 files, 93623 tokens
+   :           # << : is the cobra command prompt
+   :           # << type your queries here
+   : q         # << quit
+   $
+
+2. some simple predefined checks:
+
+  $ cobra -terse -f stats     *.[ch]
+  $ cobra -terse -f metrics   *.[ch]
+  $ cobra -terse -f misra1997 *.[ch]
+  $ cobra -terse -f basic     *.[ch]
+
+  for a list:
+
+  $ cobra -lib
+
+  for all command-line options:
+
+  $ cobra --
+
+  for a manual page (after installation):
+
+  $ man cobra
+
+  or check the online manual pages, which
+  also give details on writing inline cobra
+  programs: http://spinroot.com/cobra
+
+Support
+=======
+   Problems, bug reports?
+   email gholzmann [atsign] acm [dot] org

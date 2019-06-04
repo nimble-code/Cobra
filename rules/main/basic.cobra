@@ -1,0 +1,58 @@
+# simple sanity checks
+
+quiet on
+
+. basic.def
+
+check_shadow
+	= "=== Fct names also used as variables:"
+	d
+			
+check_rval
+	# === consistency of checking return values of functions
+
+check_condition
+	= "=== Assignment in condition not enclosed in round braces:"
+	d
+
+check_empty
+	# === Empty if/else/while/for statements
+
+check_for
+	= "=== Modifying the control variable of a for loop inside the loop body:"
+	d
+
+check_ifelseif
+	= "=== Missing else at end of if-else-if chain:"
+	d
+
+. reverse_null.cobra
+	# === find likely reverse null patterns
+
+. extern.cobra
+	# === find inconsistent extern declarations
+
+check_macro_args
+	= "=== Macro argument not enclosed in parentheses:"
+	d
+
+check_switch
+	= "=== Missing default in switch statement:"
+	d
+
+check_param_count
+	# reports mismatch of formal and actual parameters
+
+check_braces
+	= "=== Use parentheses around binary operators:"
+	d
+
+check_side_effect
+	= "=== More than one side-effect in expression:"
+	d
+
+check_asm(asm)
+	= "=== Limit the use of assembly code"
+	d
+
+quiet off

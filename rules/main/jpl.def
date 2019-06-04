@@ -1,0 +1,499 @@
+#### see main/jpl.cobra
+
+def fct_names			# helper function
+	cpp on
+	r
+	m @ident \(; n
+	w (!.curly)		# not inside a fct
+	j			# jump to end of param list
+	e {			# make sure its followed by {
+	j			# jump back to start of param list
+	b			# fct name
+end
+
+def jpl_rule1
+	cpp off		# must come before 'r'
+	r; m @cpp; m & /pragma
+
+	#  do not turn cpp back on
+	#  until after a 'd' or '=' command
+	#  is used to report the matches
+end
+
+def jpl_rule3a
+	cpp on		# must come before the 'r'
+	r
+	m for \(	# mark for
+	n;j;e {; j	# move to (
+	n \;		# move to condition
+	s \;		# range = condition
+	m ir @ident	# loop bound variable
+	s {		# tag symbol to {
+	n {		# move to it
+	m ir $$		# should not match
+	n
+	m & /^[-+][-+]$	# post increment/decrement
+	>1
+	u
+	b
+	m & /^[-+][-+]$	# pre-increment/decrement
+	<|1
+end
+
+def jpl_rule3b
+	cpp on
+	#  partial check: the loop condition must contain a comparison
+	r
+	m for \(; n
+	n \;
+	s \;	# isolate the condition
+	c <
+	>1
+	u
+	c <=
+	<|1
+	>1	# for jpl_rule2b
+	u
+	c >
+	>2
+	u
+	c >=
+	<|2
+	>2	# for jpl_rule2c
+	u
+	c no <
+	c no <=
+	c no >
+	c no >=
+	%{
+		if (.mark)
+		{	q = .;
+			cnt = 0;
+			while (.mark != 0)
+			{	cnt++;
+				. = .nxt;
+			}
+			if (cnt == 1)
+			{	q.mark = 0;	## for (x=ptr;x;x=x->nxt)
+		}	}
+	%}
+end
+
+def jpl_rule3c
+	cpp on
+%{
+	# extract the pattern of every for-statement
+	# complain if:
+	# > or >= in condition combines with ++ in increment field
+	# < or <= in condition combines with -- in increment field
+
+	if (. == Begin)
+	{	nfor = 0;
+	}
+	if (.txt != "for")
+	{	Next;
+	}
+	nfor++;
+	while (.txt != "(")
+	{	. = .nxt;	# ignore comments
+	}
+
+	q = .jmp;		# matching )
+	. = .nxt;		# after (
+	fld_nr = 0;		# count fields: for (0;1;2)
+	while (. != q)
+	{	if (!@oper && .txt != ";")
+		{	. = .nxt;
+			continue;
+		}
+		if (.txt == ";")
+		{	fld_nr++;
+			. = .nxt;
+			continue;
+		}
+		# @oper
+		if (fld_nr == 1		# condition
+		&&  y.lnr == 0)		# first op
+		{	y = .;
+			. = .nxt;
+			continue;
+		}
+		if (fld_nr == 2)	# incr
+		{	if ((.txt == "++" && (y.txt == ">" || y.txt == ">="))
+			||  (.txt == "--" && (y.txt == "<" || y.txt == "<=")))
+			{	.mark = 1;
+			}
+			y = a;	# reset
+		}
+		. = .nxt;
+	}
+%}
+end
+
+def jpl_rule4
+	cpp on
+	fct_names
+	s {			# tag symbol to {
+	n {			# move to it
+	m ir $$			# match of fct name inside the range
+	e \(			# recursive fct call
+end
+
+def jpl_rule5
+	cpp on
+	r
+	m @ident \(
+	n; j; e {; j; b		# fct definitions
+	m & /_init$		# fct names ending in _init
+	n; j; n			# move to {
+	m ir /.			# mark all stmnts in these fcts
+	>1
+	r; m /alloc; m free(	# all memory alloction calls
+	m & (.curly>0)		# not prototype decls
+	unmark /allocated
+	m sbrk
+	<^1			# but not those in fcts ending in _init
+end
+
+def jpl_rule7
+	cpp on
+	r
+	m taskDelay; m sleep; m /nanosleep$
+end
+
+def jpl_rule9a
+	cpp on
+	r
+	m /^sem.*Create$; m /^sem.*Take; m /^sem.*Give
+end
+
+def jpl_rule9b
+	cpp on
+	r
+	m taskLock;   m intLock;   m taskRtpLock
+	m taskUnlock; m intUnlock; m taskRtpUnlock
+	b; b; unmark extern; n; n
+end
+
+def jpl_rule11
+	cpp off
+	r; m goto
+	n; unmark /^yy		# not for yacc generated code
+	b;
+	m /setjmp; m /longjmp	# sometimes defined as macros
+end
+
+def jpl_rule12a
+	cpp on
+	r
+	m enum; n; m & {	# nameless enum
+	c =; s =; c ,		# no comma before the first =
+end
+
+def jpl_rule12b
+	cpp on
+	r
+	m enum; n; n; m & {
+	c =; s =; c ,		# named enum
+end
+
+def jpl_rule13a
+	cpp on
+	# !echo "=== no global single character identifiers
+	r
+	m @ident; m & (!.curly && !.round); m & /^.$
+end
+
+def jpl_rule14a
+	cpp on
+	# !echo "=== R14: Check the return value of non-void functions, or explicitly cast to (void)."
+	r
+	m @ident \(; m & (!.curly); n; j; e {;
+	j; b; b; mark no void; n {
+	c no return	# should match zero ranges
+	b; j; b
+end
+
+def jpl_rule14b
+	cpp on
+	r
+	m @ident \(; m & (!.curly); n; j; e {
+	j; b; b; unmark void; n {
+	m ir return	# match all return statements inside range
+	n		# move to the token that follows, which should not be a semicolon
+	m & \;
+end
+
+def jpl_rule14c
+	cpp on
+	r
+	m @ident \(; m & (!.curly); n; j; n; m & {; b; j; b; b; m & /[\;}]
+end
+
+def jpl_rule14d
+	cpp on
+	r
+	m @ident \(; m & (!.curly); n; j; e {
+	j; b; b; mark no void; n	# all non-void fcts
+	>1
+	n $$ \(			# forward to a use (do multiple times?)
+	m & (.curly)		# inside a fct
+	b
+	mark no /^[-+*/%]*=$	# not following assignment
+	mark no return		# not in a return stmnt
+	mark no /^[-+*/%?:)!]$	# not following a cast
+	n; m & (!.round)	# not in a condition
+end
+
+def jpl_rule14e
+	cpp on
+	r
+	<1			# all non-void fcts
+	n $$ \(; n $$ \(
+	m & (.curly)		# inside a fct
+	b
+	mark no /^[-+*/%]*=$	# not following assignment
+	mark no return		# not in a return stmnt
+	mark no /^[-+*/%?:)!]$	# not following a cast
+	n; m & (!.round)	# not in a condition
+end
+
+def jpl_rule14f
+	cpp on
+	r
+	<1			# all non-void fcts
+	b $$ \(			# backward to a use (do multiple times?)
+	m & (.curly)		# inside a fct
+	b
+	mark no /^[-+*/%]*=$	# not following assignment
+	mark no return		# not in a return stmnt
+	mark no /^[-+*/%?:)!]$	# not following a cast
+	n; m & (!.round)	# not in a condition
+end
+
+def jpl_rule14g
+	cpp on
+	r
+	<1			# all non-void fcts
+	b $$ \(			# backward to a use (do multiple times?)
+	m & (.curly)		# inside a fct
+	b
+	mark no /^[-+*/%]*=$	# not following assignment
+	mark no return		# not in a return stmnt
+	mark no /^[-+*/%?:)!]$	# not following a cast
+	n; m & (!.round)	# not in a condition
+end
+
+def jpl_rule14h
+	cpp on
+	r
+	m @ident \(
+	m & (!.curly)
+	n; j; e {; n
+	c return
+	n return
+	n \;
+	n
+	w (.txt != } || .curly > 1)
+	b return
+end
+
+def jpl_rule15
+	cpp on
+	# check that each parameter appears in a condition
+	r
+	m @ident \(; n; j; e {; j
+	m ir @ident	# parameter names
+	s {		# only the last tag survives here
+	n {
+	n $$		# first use of the parameter
+	m & (!.round)	# use outside (...), i.e., not in a condition
+	# see also p10_rule7b which may be better
+end
+
+def jpl_rule16(nr)
+	cpp off
+	r
+	m \;		# all statements
+	>1		# save in set 1
+	r
+	m /ASSERT
+	m /Assert
+	m /assert
+	>2
+	w ((1000*size(2))/size(1) < 10 * nr)
+	= "=== R16: Nr of statements:" size(1)
+	= "=== R16: Nr of assertions:" size(2)
+	= "=== R16: the minimum number of assertions is nr% =" ( (nr*size(1))/(100) )
+	r
+end
+
+def jpl_rule17
+	cpp on
+	r
+	m char; m int; m short; m long; m float; m double
+end
+
+def jpl_rule19a
+	cpp off
+	r
+	m /ASSERT \(
+	m /Assert \(
+	m /assert \(
+	n
+	c /[-+][-+=]
+	>1
+	u
+	c =
+	<|1
+	>1
+	u
+	c /^[a-zA-Z0-9_]+\(
+	<|1
+end
+
+def jpl_rule19b
+	cpp on
+	r
+	m \(			# all conditions
+	b			# token before the (
+	unmark @ident		# function calls
+	unmark for
+	n
+	c /[-+][-+]		# pre or post incr/decr
+	>1
+	u
+	c =			# assignments
+	<|1
+	>1
+	u
+	c /^[a-zA-Z0-9_]+\(	# fct calls
+	<|1
+end
+
+def jpl_rule20a
+	cpp off
+	r; m @cpp; m & /if; m no /endif
+	n; unmark /^yy; unmark /^YY; unmark 0; unmark 1
+end
+
+def jpl_rule20b
+	cpp off
+	r
+	%{
+		if (!@cpp || .txt != "#define")
+		{	Next;
+		}
+		. = .nxt;		# macro name
+		r = .;
+		. = .nxt;		# body or arg list
+		if (.txt == "(")	# skip arg list
+		{	. = .jmp;
+			. = .nxt;
+		}
+		if (@cmnt)
+		{	. = .nxt;
+		}
+		if (.txt == "EOL")
+		{	Next;
+		}
+		. = .nxt;		# macro body
+		if (@cmnt)
+		{	. = .nxt;
+		}
+		if (.txt == "EOL")	# single token
+		{	Next;
+		}
+		. = .prv;
+		if (@ident)
+		{	. = .nxt;	# allow fct call
+		}
+		if (.txt == "(" || .txt == "{" || .txt == "[")
+		{	. = .jmp;
+			. = .nxt;
+			if (@cmnt)
+			{	. = .nxt;
+			}
+			if (.txt == "EOL")
+			{	Next;
+		}	}
+		. = r;
+		.mark = 1;	 # report
+		
+	%}
+end
+
+def jpl_rule20c
+	cpp off
+	r; m @cpp; m & /define[^/]*\#
+end
+
+def jpl_rule21
+	cpp off
+	r; m @cpp; m & /define
+	m & (.curly>0)
+end
+
+def jpl_rule22
+	cpp off
+	r; m @cpp; m & /undef
+end
+
+def jpl_rule24
+	cpp on
+	r
+	m \;
+	s \;
+	m & (.round == 0 && .range == 0)
+end
+
+def jpl_rule25a
+	cpp on
+	r
+	m @ident \(; n; j; e {; j
+	m & (!.curly)
+	m ir ,		# the number of parameters is > 1 
+	n ,		# move to the first
+	s )		# set new range
+	m ir ,		# there are more within this remainder, there are >2
+
+	n ,		# move to the next
+	s )		# set new range
+	m ir ,		# there are more within this remainder, there are >3
+
+	n ,		# move to the next
+	s )		# set new range
+	m ir ,		# there are more within this remainder, there are >4
+
+	n ,		# move to the next
+	s )		# set new range
+	m ir ,		# there are more within this remainder, there are >5
+
+	n ,		# move to the next
+	s )		# set new range
+	m ir ,		# there are more within this remainder, there are >6
+end
+
+def jpl_rule25b(nr)	# uses one argument
+	cpp on
+	r
+	# check fct length < nr lines
+	m @ident \(; n; j; e {; m & (!.curly); n
+	m & (.range > nr)
+end
+
+def jpl_rule26_27
+	cpp on
+	r; m * *; n; n; m & *
+	>1
+	u; m & @ident; n; m & [
+	<|1
+end
+
+def jpl_rule28
+	cpp off
+	r; m typedef
+	s \;
+	c *
+	c no /[Pp]tr
+end

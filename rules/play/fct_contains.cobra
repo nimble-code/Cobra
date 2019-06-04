@@ -1,0 +1,29 @@
+
+# find functions that contain a particular token, like 'new' or 'malloc'
+# and then check if any function reachable from a sample fuction is in that set
+
+def fif(ff, target)
+	r
+	fcts		# matches on fct name
+	n \(
+	j		# jump to )
+	n		# move to {
+	m & {		# remove false matches
+= "=== number of function declarations:"
+	c target	# does the first arg appear in the fct body?
+	b; j; b		# backup to function name
+	>1		# save the names of these fcts in set 1
+= "=== number that call target:"
+
+	r		# reset
+	# check if any function reachable from 'ff" is in set 1
+	fcg ff
+= "=== number of functions reachable from ff:"
+	<&1	# check overlap with set 1
+= "=== number that directly call target:"
+	d
+end
+
+# does any function reachable directly from epsilon call emalloc?
+
+fif epsilon emalloc

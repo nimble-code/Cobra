@@ -1,0 +1,5 @@
+%{
+	if (match(.fnm, "/usr"))
+	{	print .fnm ":" .lnr ": " .txt "\n";
+	}
+%}

@@ -1,0 +1,2 @@
+pat "goto x:@ident \; :x :"
+d

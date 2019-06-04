@@ -1,0 +1,17 @@
+def cpp_types
+	r; m @cmnt; = "cmnt	:"
+	r; m @cpp; m & /define; = "define	:"
+	r; m @cpp; m & /elif;   = "elif	:"
+	r; m @cpp; m & /else;   = "else	:"
+	r; m @cpp; m & /endif;  = "endif	:"
+	r; m @cpp; m & /if; m no /endif; m no /def; m no /elif; = "if	:"
+	r; m @cpp; m & /ifdef; = "ifdef	:"
+	r; m @cpp; m & /ifndef; = "ifndef	:"
+	r; m @cpp; m & /include; = "include	:"
+	r; m @cpp; m & /pragma; = "pragma	:"
+	r; m @cpp; m & /define.*[^\#]\#[^\#]; = "stringify	:"
+	        u; m & /define.*\#\#; = "tokenpaste	:"
+	r; m @cpp; m & /undef; = "undef	:"
+end
+cpp off
+cpp_types

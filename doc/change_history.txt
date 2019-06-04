@@ -1,0 +1,64 @@
+0.0 apr 2016
+- initial, limited version
+- open source license JPL
+
+1.0 dec 2016
+
+2.0 may 2017
+
+2.1 jul 2017
+
+2.2 july 2017
+- bug fix: used realloc after sbrk for multiple
+  preprocessing directives were used, causing crash
+
+2.3 aug 2017
+- no default setting of nr of cores
+- using a preprocessing directive enables cpp
+
+2.4 oct 2017
+- added -pat and -pattern for matching simpler regex patterns
+- added -expr and -regex as synonyms of -e
+- added inline pat command
+- added visual display of source on d commands
+- made -pat/-expr pipelines work
++ disabled call to fct_defs in 'list' commands
+  if the nr of tokens is greater than 500,000 (linux 10/26)
+
+2.5 aug 2018
+- bug fixes (e.g., tests for . == 0 or . != 0 came out wrong)
+- allowing use of globals inside functions
+- added a few cwe checkers
+
+2.6 oct 2018
+- rules/cwe library added for ten top cwe vulnerabilities
+  (not yet in the distributed version)
+- added window and nowindow command, new default is nowindow
+  (for popping up a tcl/tk window on display commands)
+- fixed: bug in command language interpreter (condition evals)
+
+2.7 nov 2018
+- fixed: bug that global arrays werent visible inside functions
+- fixed: strings or quoted character now terminated at unescaped newlines
+- fixed: {} imbalance on files that arent preprocessed with cpp
+- added: -eol option
+- added: some additional fct calls to c_api.h and c.ar (eg timing)
+
+2.8 feb 2019
+- added 'and' qualifier to contains command (and updated manpage)
+- reduced cache misses in multi-core mode significantly
+
+2.9 mar 2019
+- fixed missing lock in code for "match()" in cobra_prog.y which could
+  cause occassional segfaults when executing scripts in multicore mode
+
+3.0 jun 2019
+- extensions to the pattern language, allowing embedded regular
+  expressions in pattern expressions
+- new predefined functions that can be used in cobra scripts:
+  reset(), fcts(), save(), restore(), marks()
+- updated online manpages
+- new library query files
+- extension of command query save, to allow |,&, and ^ modifiers
+- bug fixes and speedups for multi-core processing
+- full source code and libraries released on github

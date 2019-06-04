@@ -1,0 +1,79 @@
+# find C++ function prototypes
+# cobra_re -n '@ident \:: @ident \( .* \)' `cat gh_files_cpp`
+# edited to change way the output is generated
+
+%{
+	q = .;
+S0:
+#	print "S0 " q.txt "\n";
+	if (q.typ == "ident") {
+		if (q == q.nxt) { Next; }
+		q = q.nxt; goto S1;
+	}
+	Next;
+S1:
+#	print "S1 " q.txt "\n";
+	if (q.txt == "::") {
+		if (q == q.nxt) { Next; }
+		q = q.nxt; goto S2;
+	}
+	Next;
+S2:
+#	print "S2 " q.txt "\n";
+	if (q.typ == "ident") {
+		if (q == q.nxt) { Next; }
+		y = q;	# function name
+		q = q.nxt; goto S3;
+	}
+	Next;
+S3:
+#	print "S3 " q.txt "\n";
+	if (q.txt == "(") {
+		if (q == q.nxt) { Next; }
+		p_lft = q;
+		q = q.nxt; goto S4;
+	}
+	Next;
+S4:
+#	print "S4 " q.txt "\n";
+	if (q.txt == ")") {
+		if (q == q.nxt) { Next; }
+		if (q.round != p_lft.round) { q = q.nxt; goto S4; }
+		q = q.nxt; goto S5;
+	}
+	if (q.txt == "(") {
+		if (q == q.nxt) { Next; }
+		p_lft = q;
+		q = q.nxt; goto S4;
+	}
+	if (q.txt == "::") {
+		if (q == q.nxt) { Next; }
+		q = q.nxt; goto S4;
+	}
+	if (q.typ == "ident") {
+		if (q == q.nxt) { Next; }
+		q = q.nxt; goto S4;
+	}
+	if (q == q.nxt) { Next; }
+	q = q.nxt; goto S4;
+S5:
+#	print "S5 " q.txt "\n";
+	r = .;
+	while (r != q)
+	{	r.mark = 1;
+	#	print r.txt " ";
+		r = r.nxt;
+	}
+	while (r.txt != "{")
+	{	r = r.nxt;
+	}
+	if (r.txt == "{")
+	{	z = r;
+		r = r.jmp;
+		z.mark = r.lnr - z.lnr;
+		print y.txt "\t" z.mark "\n";
+	}
+	Next;
+%}
+
+# cobra -n -C++ -f fcts_cplusplus `cat gh_files_cpp`

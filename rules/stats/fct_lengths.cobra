@@ -1,0 +1,87 @@
+## multi-core safe
+
+## longest and shortest fct name and body lengths
+cpp on
+r
+fcts
+= "number of functions:	"
+%{
+	s_len = 10000;
+	b_len = 10000;
+	Stop;
+%}
+
+%{
+	if (.mark)
+	{	if (.len > q.len)
+		{	q = .;
+			Longest[cpu]  = .;
+		}
+		if (.len < s_len)
+		{	s_len = .len;
+			Shortest[cpu] = .;
+		}
+
+		nm = .;
+		while (.txt != "{")
+		{	. = .nxt;
+		}
+		if (.range > b.range)
+		{	b = .;
+			Long[cpu]  = .;
+			LName[cpu] = nm;
+		}
+		if (.range < b_len)
+		{	b_len = .range;
+			c = .;
+			Short[cpu] = .;
+			SName[cpu] = nm;
+		}
+		. = .jmp;
+	}
+%}
+
+%{
+	# all cpus have completed the data collection
+
+	if (cpu == 0)
+	{	a_unify(0);
+		for (i in Shortest)
+		{	r = Shortest[i.txt];
+			if (r.len <= s_len)
+			{	s_len = r.len;
+				k = r;
+		}	}
+
+		for (i in Longest)
+		{	r = Longest[i.txt];
+			if (r.len > m.len)
+			{	m = r;
+		}	}
+
+		for (i in Short)
+		{	r = Short[i.txt];
+			if (r.range <= b_len)
+			{	b_len = r.range;
+				p = r;
+				s_cpu = i.txt;
+		}	}
+
+		for (i in Long)
+		{	r = Long[i.txt];
+			if (r.range > m.range)
+			{	q = r;
+				l_cpu = i.txt;
+		}	}
+
+		L = LName[l_cpu];
+		S = SName[s_cpu];
+
+		print "shortest function:\t" S.txt " (" p.range " lines)\n";
+		print "longest  function:\t" L.txt " (" q.range " lines)\n";
+
+		print "shortest fct name:\t" k.txt " (" k.len " chars)\n";
+		print "longest  fct name:\t" m.txt " (" m.len " chars)\n";
+	}
+	Stop;
+%}
