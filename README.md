@@ -35,11 +35,17 @@ released under the same license in June 2019.
   of the ./bin_... directories)
 
    $ cd src
-   depending on your platform, do:
+
+   and depending on your platform, do:
+
    	$ sudo make install_linux
+
      or
+
    	$ make install_cygwin
+
      or
+
    	$ make install_mac
 
 * add $COBRA/bin_... to your search PATH environment variable, matching
