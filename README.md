@@ -35,7 +35,7 @@ released under the same license in June 2019.
   of the ./bin_... directories)
 
    $ cd src
-   # depending on your platform, do:
+   depending on your platform, do:
    	$ sudo make install_linux
      or
    	$ make install_cygwin
