@@ -22,14 +22,14 @@ released under the same license in June 2019.
    which gives you a directory with a set of
    sub-directories like this:
 
-   drwxrwxr-x 2 gh gh 4096 May 16 12:59 bin_linux  # executables for linux
-   drwxrwxr-x 2 gh gh 4096 May 16 12:59 bin_cygwin # executables for cygwin
-   drwxrwxr-x 2 gh gh 4096 May 16 12:59 bin_mac    # executables for macs
-   drwxrwxr-x 2 gh gh 4096 May 16 10:03 doc     # change history, manpage, license
-   drwxrwxr-x 2 gh gh 4096 May 16 10:03 gui     # optional small tcl/tk script
-   drwxrwxr-x 8 gh gh 4096 May 16 15:55 rules   # cobra checker libraries
-   drwxrwxr-x 1 gh gh 4096 May 16 12:43 src     # cobra source files
-   drwxrwxr-x 1 gh gh 4096 May 16 12:43 src_app # standalone cobra checkers
+   ...drwxrwxr-x 2 gh gh 4096 May 16 12:59 bin_linux  # executables for linux..
+   ...drwxrwxr-x 2 gh gh 4096 May 16 12:59 bin_cygwin # executables for cygwin..
+   ...drwxrwxr-x 2 gh gh 4096 May 16 12:59 bin_mac    # executables for macs..
+   ...drwxrwxr-x 2 gh gh 4096 May 16 10:03 doc     # change history, manpage, license..
+   ...drwxrwxr-x 2 gh gh 4096 May 16 10:03 gui     # optional small tcl/tk script..
+   ...drwxrwxr-x 8 gh gh 4096 May 16 15:55 rules   # cobra checker libraries..
+   ...drwxrwxr-x 1 gh gh 4096 May 16 12:43 src     # cobra source files..
+   ...drwxrwxr-x 1 gh gh 4096 May 16 12:43 src_app # standalone cobra checkers..
 
 * to compile the tool (if you are not using precompiled executables in one
   of the ./bin_... directories)
