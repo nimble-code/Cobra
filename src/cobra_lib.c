@@ -2093,8 +2093,10 @@ one_line(char *buf)
 	{	if (*b_cmd != '!'
 		&& (r = strchr(b_cmd, '#')) != NULL
 		&& (r == b_cmd || *(r-1) != '\\'))
-		{	*r = '\0';	// strip comment
-		}
+		{	z = strstr(b_cmd, "%{");
+			if (!z || z > r)
+			{	*r = '\0';	// strip comment
+		}	}
 		if (strcmp(b_cmd, "%{") != 0)
 		{	add_history(b_cmd);
 	}	}

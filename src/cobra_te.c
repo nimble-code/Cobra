@@ -1574,12 +1574,14 @@ cobra_te(char *te, int and, int inv)
 				{
 					if (!t->pat)
 					{	if (!t->match)	// epsilon move
-						{	if (q_now->prv)
+						{
+							if (q_now->prv)
 							{	q_now = q_now->prv;
 							} else
-							{	printf("%s:%d: unrecoverable re error for .\n",
-									cur->fnm, cur->lnr);
-								return;
+							{	printf("%s:%d: re error for . (s%d->s%d) <%p>\n",
+									cur->fnm, cur->lnr, s->seq, t->dest, (void *) t->nxt);
+								break;
+							//	return;	// june 7, 2019
 						}	}
 						mk_active(s->bindings, 0, t->dest, 1-current);
 						anychange = 1;
