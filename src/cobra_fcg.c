@@ -12,6 +12,7 @@ extern int no_caller_info;
 
 static int path = 1;	// testing
 static FList *find_match(FList *);
+static FList *last_fct;
 
 static void
 add_def(const Prim *c, const Prim *r, const int ix)
@@ -68,6 +69,8 @@ add_def(const Prim *c, const Prim *r, const int ix)
 	{	n->nxt = prev_n->nxt;
 		prev_n->nxt = n;
 	}
+	last_fct = n;
+//	printf("Add fct def %s\n", n->nm);
 }
 
 static void
@@ -78,7 +81,7 @@ add_caller(Prim *r, Prim *x, const int ix)
 
 	assert(ix >= 0 && ix < Ncore);
 
-	if (!flist[ix])
+	if (!last_fct)
 	{	return;
 	}
 
@@ -89,24 +92,26 @@ add_caller(Prim *r, Prim *x, const int ix)
 	&&  strcmp(x->prv->prv->typ, "ident") == 0)
 	{	ns = x->prv->prv->txt;
 	} else
-	{	ns = flist[ix]->ns;
+	{	ns = last_fct->nm;
 	}
 
-	for (c = flist[ix]->calls; c; c = c->nxt)
+	for (c = last_fct->calls; c; c = c->nxt)
 	{	if (strcmp(c->nm, fct) == 0
 		&& (!cplusplus
 		 || !ns
-		 || !flist[ix]->ns
-		 || strcmp(ns, flist[ix]->ns) == 0))
-		{	return; // already there
+		 || !last_fct->ns
+		 || strcmp(ns, last_fct->ns) == 0))
+		{
+//			printf("..nope %s %s\n", fct, ns);
+			return; // already there
 	}	}
-
+// 	printf("Add caller %s -- %s\n", fct, ns);
 	c = (FList *) hmalloc(sizeof(FList), ix);
 	c->p   = r;
 	c->nm  = fct;
 	c->ns  = ns;
-	c->nxt = flist[ix]->calls;
-	flist[ix]->calls = c;
+	c->nxt = last_fct->calls;
+	last_fct->calls = c;
 }
 
 void *
@@ -145,7 +150,7 @@ fct_defs_range(void *arg)
 			{	continue;
 			}
 		} else if (r->curly > 0)
-		{	continue;
+		{	// continue;	// allow, to get caller info
 		}
 
 		ptr = r;		// points at fct name candidate
@@ -161,7 +166,7 @@ fct_defs_range(void *arg)
 		if (q->nxt
 		&& (strcmp(q->nxt->txt, ",") == 0
 		||  strcmp(q->nxt->txt, ";") == 0))
-		{	continue;	// not a fct def
+		{	// continue;	// not a fct def -- allow to get caller info
 		}
 
 		// if there are no typenames in the param list
@@ -622,6 +627,8 @@ context(char *s, char *unused)
 	fd = fopen(CobraDot, "a");
 	if (fd)
 	{	fprintf(fd, "digraph fcontext {\n");
+	} else
+	{	printf("could not create digraph output in %s\n", CobraDot);
 	}
 	printf("%s:%d-%d\n",
 		f->p->fnm, f->p->lnr,
@@ -667,13 +674,22 @@ context(char *s, char *unused)
 	}	}	}
 	if (fd)
 	{	fprintf(fd, "}\n");
+		fclose(fd);
 		if (system(ShowDot) < 0)
 		{	perror(ShowDot);
 		}
 		sleep(1);
 		unlink(CobraDot);
-		fclose(fd);
 	}
+	if (0)
+	{	printf("Dump:\n");
+		for (ix = 0; ix < Ncore; ix++)
+		for (f = flist[ix]; f; f = f->nxt)
+		for (g = f->calls; g; g = g->nxt)
+		{	if (strcmp(g->nm, "check_args") == 0
+			||  strcmp(f->nm, "check_args") == 0)
+			printf("ix %d, fct %s, calls %s\n", ix, f->nm, g->nm);
+	}	}
 }
 
 void
