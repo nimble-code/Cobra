@@ -674,14 +674,14 @@ process_line(char *buf, int cid)
 
 void
 rescan(void)
-{
+{	int n;
 #ifdef PC
 	// cygwin crashes on multi-core calls to gcc
 
 	Files *f;
-	int n;
 	extern void do_typedefs(int);
 
+	ini_pre(0);
 	for (n = 0; n < NHASH; n++)
 	for (f = files[n]; f; f = f->nxt)
 	{	if (!no_match)
@@ -691,6 +691,9 @@ rescan(void)
 	}
 	do_typedefs(0);
 #else
+	for (n = 0; n < Ncore; n++)
+	{	ini_pre(n);
+	}
 	memset(pre, 0, Ncore * sizeof(Pre));
 	reset_fp();
 	par_scan();
