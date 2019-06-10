@@ -44,7 +44,7 @@ ArgList		*cl_var;	// -var name=xxx, cobra_lib.c
 pthread_t	*t_id;
 
 char	*C_BASE  = ".";		// reassigned in main
-char	*TMP = "";		// reassigned in main
+char	*C_TMP = "";		// reassigned in main
 char	*cobra_target;		// -f xxx
 char	*cobra_texpr;		// -e xxx
 char	*cobra_commands;	// -c xxx
