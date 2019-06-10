@@ -1485,11 +1485,10 @@ popup_window(const char *fnm, const int lnr)
 {	char buf[1024];
 	static int warned = 0;
 
-	if ((strlen(C_BASE)
-	   + strlen("/../bin/window.tcl")
-	   + strlen(fnm) + 8 + 5) < sizeof(buf))
-	{	snprintf(buf, sizeof(buf), "%s/../bin/window.tcl %s %d &",
-			C_BASE, fnm, lnr);
+	if ((strlen("window.tcl")
+	   + strlen(fnm) + 8 + 6) < sizeof(buf))
+	{	snprintf(buf, sizeof(buf), "window.tcl %s %d &",
+			fnm, lnr);
 		if (system(buf) != 0 && !warned)
 		{	printf("command '%s' failed\n", buf);
 			warned++;
