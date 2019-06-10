@@ -72,5 +72,11 @@ released under the same license in June 2019.
    if both a ~/.cobra file exists and the $C_BASE variable is set, the
    latter will be used.
 
+* on older cygwin 32bit platforms you may also have to help cobra
+  find where temporary files are stored, e.g. for the -view option.
+  to do so, add the following environment variable as well, for instance:
+
+     export C_TMP=C:/cygwin
+
 * for basic usage, to get started using Cobra, see doc/BasicUsage.txt
    and online for more detailed tutorials: [http://spinroot.com/cobra]

@@ -26,6 +26,7 @@ int		top_only;
 int		top_up;
 int		no_caller_info;	// mode of fcts
 
+extern char	*C_TMP;
 extern int	runtimes;
 extern char	*pattern(char *);
 extern char	*unquoted(char *);
@@ -3348,8 +3349,8 @@ cobra_main(void)
 	set_tmpname(FsmDot,    "cobra_fsm", sizeof(FsmDot));
 	signal(SIGINT, cleanup);
 
-	snprintf(ShowDot, sizeof(ShowDot), "%s %s &", DOT, CobraDot);
-	snprintf(ShowFsm, sizeof(ShowFsm), "%s %s &", DOT, FsmDot);
+	snprintf(ShowDot, sizeof(ShowDot), "%s %s%s &", DOT, C_TMP, CobraDot);
+	snprintf(ShowFsm, sizeof(ShowFsm), "%s %s%s &", DOT, C_TMP, FsmDot);
 
 	yytext = (char *) emalloc(MAXYYTEXT*sizeof(char));
 	

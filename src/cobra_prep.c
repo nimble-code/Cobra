@@ -943,6 +943,7 @@ RegEx:			  no_match = 1;		// -expr or -regex
 				argc--; argv++;
 				if (view)
 				{	p_debug = 5;
+					set_base();
 				}
 				break;
 			  }
