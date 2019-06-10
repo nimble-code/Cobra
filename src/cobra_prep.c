@@ -44,6 +44,7 @@ ArgList		*cl_var;	// -var name=xxx, cobra_lib.c
 pthread_t	*t_id;
 
 char	*C_BASE  = ".";		// reassigned in main
+char	*TMP = "";		// reassigned in main
 char	*cobra_target;		// -f xxx
 char	*cobra_texpr;		// -e xxx
 char	*cobra_commands;	// -c xxx
@@ -706,6 +707,13 @@ set_base(void)
 	char *f;
 	char buf[1024];
 	int   n;
+
+	if ((h = getenv("C_TMP")) != NULL)	// eg on older cygwin: C_TMP=C:/cygwin
+	{	C_TMP = (char *) emalloc(strlen(h)+1);
+		strcpy(C_TMP, h);
+		if (verbose)
+		{	printf("cobra: using env variable $C_TMP=%s\n", C_TMP);
+	}	}
 
 	if ((h = getenv("C_BASE")) != NULL)	// env setting wins
 	{	C_BASE = (char *) emalloc(strlen(h)+1);
