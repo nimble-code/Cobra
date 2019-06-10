@@ -73,7 +73,8 @@ released under the same license in June 2019.
    latter will be used.
 
 * on older cygwin 32bit platforms you may also have to help cobra
-  find where temporary files are stored, e.g. for the -view option.
+  find where the /tmp directory for temporary files is located, e.g.
+  to make the cobra -view -pat '...' option work with dot or dotty.
   to do so, add the following environment variable as well, for instance:
 
      export C_TMP=C:/cygwin
