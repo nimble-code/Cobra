@@ -64,7 +64,7 @@ extern void lock_print(int);
 extern void unlock_print(int);
 
 #ifdef __APPLE__
-	#include <malloc.h>
+	#include <stdlib.h>
 	#define sbrk	malloc
 #else
 	extern void *sbrk(int);
