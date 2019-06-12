@@ -413,12 +413,13 @@ p_comment(const char *s, int cid)
 	if ((p = strchr(buf, '\r')) != NULL
 	||  (p = strchr(buf, '\n')) != NULL)
 	{	*p = '\0';
-		if (no_cpp)
-		{	Px.lex_lineno++;
-	}	}
+	}
 	strncat(Px.lex_yytext, buf, MAXYYTEXT - 3);
 	if (with_comments)
 	{	show2("cmnt", Px.lex_yytext, cid);
+	}
+	if (no_cpp)
+	{	Px.lex_lineno++;
 	}
 	line(cid);
 }
