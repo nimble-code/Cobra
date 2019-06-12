@@ -70,3 +70,6 @@
     can't find /tmp
   - corrected "malloc.h" -> "stdlib.h" for compilation on macs
   - made query commands 'context' and 'fcg' work correctly again
+  - fixed bug with using cpp on/off interactively
+  - created tagged commit for the final 3.0 version dated June 12 2019
+    tag: version-3.0
