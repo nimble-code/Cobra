@@ -62,3 +62,11 @@
 - extension of command query save, to allow |,&, and ^ modifiers
 - bug fixes and speedups for multi-core processing
 - full source code and libraries released on github
+- after initial release on github, made following updates:
+  - fixed a line number bug where // style comments had a linenr
+    attribute one too high
+  - added C_TMP environment variable, explained in the main README.md
+    relevant only to older cygwin/pc platforms where 'dot' otherwise
+    can't find /tmp
+  - corrected "malloc.h" -> "stdlib.h" for compilation on macs
+  - made query commands 'context' and 'fcg' work correctly again
