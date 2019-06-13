@@ -939,14 +939,15 @@ RegEx:			  no_match = 1;		// -expr or -regex
 			  if (strncmp(argv[1], "-pat", 4) == 0
 			  ||  strncmp(argv[1], "-pe", 3) == 0)	// pattern expression
 			  {	no_match = 1;
-				cobra_texpr = pattern(argv[2]);
-				argc--; argv++;
-				if (view)
-				{	p_debug = 5;
-					set_base();
-				}
-				break;
-			  }
+				if (argc > 2)
+				{	cobra_texpr = pattern(argv[2]);
+					argc--; argv++;
+					if (view)
+					{	p_debug = 5;
+						set_base();
+					}
+					break;
+			  }	}
 			  return usage(argv[1]);
 
 		case 'P': if (strcmp(argv[1], "-Python") == 0)
