@@ -859,10 +859,13 @@ fcts(char *unused1, char *unused2)
 	|| (o_caller_info == 1 && no_caller_info == 0))	// need more info
 	{	o_caller_info = no_caller_info;
 		fct_defs();
+		if (!flist)
+		{	return;
+		}
 		flst[no_cpp] = flist;
 	}
 #if 1
-	ix = 0;	// the lists were merged at this point
+	ix = 0;		// the lists were merged at this point
 #else
 	for (ix = 0; ix < Ncore; ix++)
 #endif

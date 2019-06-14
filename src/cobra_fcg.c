@@ -163,7 +163,8 @@ fct_defs_range(void *arg)
 		}
 		q = r->jmp;		// end of possible param list
 
-		if (q->nxt
+		if (q
+		&&  q->nxt
 		&& (strcmp(q->nxt->txt, ",") == 0
 		||  strcmp(q->nxt->txt, ";") == 0))
 		{	// continue;	// not a fct def -- allow to get caller info
@@ -188,10 +189,12 @@ fct_defs_range(void *arg)
 		}
 // printf("%2d -- %3d: %s -- preansi: %d\n", r->curly, ptr->lnr, ptr->txt, preansi);
 		if (cplusplus)
-		{	while (strcmp(q->nxt->typ, "qualifier") == 0)
+		{	while (q && q->nxt && strcmp(q->nxt->typ, "qualifier") == 0)
 			{	q = q->nxt;
 			}
-			if (strcmp(q->nxt->txt, "throw") == 0)
+			if (q
+			&&  q->nxt
+			&&  strcmp(q->nxt->txt, "throw") == 0)
 			{	int mx_cnt = 50;
 				q = q->nxt;
 				if (q->jmp)	// (
@@ -223,6 +226,7 @@ fct_defs_range(void *arg)
 
 		// skip over pre-ansi param decls
 		if (preansi
+		&&  z
 		&&  (strcmp(z->typ, "type") == 0
 		||   strcmp(z->txt, "struct") == 0
 		||   strcmp(z->txt, "register") == 0))

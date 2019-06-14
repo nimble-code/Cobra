@@ -390,6 +390,7 @@ p_comment(const char *s, int cid)
 
 	assert(cid >= 0 && cid < Ncore);
 	strncpy(Px.lex_yytext, s, MAXYYTEXT);
+	Px.lex_yytext[MAXYYTEXT-1] = '\0';
 #if 0
 	if (fgets(buf, sizeof(buf), Px.lex_yyin) == NULL)
 	{	pushback(EOF, cid);

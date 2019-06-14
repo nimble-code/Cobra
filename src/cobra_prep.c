@@ -117,6 +117,7 @@ int
 add_file(char *f, int cid)
 {	FILE *tfd = (FILE *) 0;
 	char fnm[32];
+	char tfn[32];
 	int imbalance;
 
 	assert(cid >= 0 && cid < Ncore);
@@ -125,8 +126,7 @@ add_file(char *f, int cid)
 	*fnm = '\0';
 	// fprintf(stderr, "%d Parse %s\n", cid, f);
 	if (strlen(f) == 0)		// no filename: read stdin
-	{	char buf[1024];
-		char tfn[32];
+	{	char buff[1024];
 
 		set_tmpname(tfn, "af1", sizeof(tfn));
 		f = tfn;
@@ -135,8 +135,8 @@ add_file(char *f, int cid)
 			return 0;
 		}
 		fprintf(tfd, "# 1 \"stdin\"\n");
-		while (fgets(buf, sizeof(buf), stdin))
-		{	fprintf(tfd, "%s", buf);
+		while (fgets(buff, sizeof(buff), stdin))
+		{	fprintf(tfd, "%s", buff);
 		}
 		fclose(tfd);
 	}
