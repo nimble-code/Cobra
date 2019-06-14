@@ -1266,6 +1266,7 @@ try_read(const char *s)
 		} else
 		{	if (!one_line(c))	// immediate command
 			{	fflush(stdout);
+				break;
 	}	}	}
 	fclose(fd);
 

@@ -73,3 +73,7 @@
   - fixed bug with using cpp on/off interactively
   - created tagged commit for the final 3.0 version dated June 12 2019
     tag: version-3.0
+
+3.1
+  - correctly interpret a 'q' command when a script is read from a file
+  - updated rules/play/taint.cobra
