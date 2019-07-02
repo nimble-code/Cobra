@@ -588,9 +588,13 @@ mk_lab(Lextok *t, Lextok *p)
 	for (n = lab_lst; n; n = n->nxt)
 	{	if (strcmp(n->nm, t->s) == 0)
 		{	if (!no_match)
-			{	printf("line %d: error: label '%s' redefined\n",
-					p->lnr, t->s);
-			}
+			{	Lextok *op = (Lextok *) n->pm;
+				if (p
+				&&  op
+				&&  op->lnr != p->lnr)
+				{	printf("line %d: warning: label '%s' redefined\n",
+						p->lnr, t->s);
+			}	}
 			if (n->pm != (Prim *) p)
 			{	n->pm = (Prim *) p;
 				n->cdepth = Cdepth[0];

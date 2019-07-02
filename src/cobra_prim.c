@@ -646,6 +646,8 @@ process_line(char *buf, int cid)
 	if (strncmp(buf, "line", strlen("line")) == 0)
 	{	if (sscanf(buf, "line	%d	%s", &y, z) == 2)
 		{	assert(Px.lex_lineno == y);
+			n = strrchr((const char *) buf, (int) '\t');
+			strcpy(z, n+1); // in case filename has spaces
 			assert(strcmp(Px.lex_fname, z) == 0);
 		}
 		return;
