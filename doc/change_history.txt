@@ -77,3 +77,6 @@
 3.1
   - correctly interpret a 'q' command when a script is read from a file
   - updated rules/play/taint.cobra
+  - added checks to prevent null-ptr derefs
+  - fixed reference to an out-of-scope variable, detected by coverity scan
+
