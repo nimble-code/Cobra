@@ -1,5 +1,5 @@
 #include <stdlib.h>
-#include <malloc.h>
+// #include <malloc.h>
 #include <string.h>
 #include <assert.h>
 #include "c_api.h"

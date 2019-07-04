@@ -1,0 +1,23 @@
+
+# check if any variables marked with 2 is used
+# in calls to memcpy, strcpy, strncpy sprintf, snprintf etc.
+%{
+	if (.mark != 2 || .round == 0) { .mark = 0; Next; }
+
+	b = .prv;
+	while (b.round != 0)
+	{	b = b.prv;
+	}
+	b = b.prv;	# fct name
+	if (b.txt == "memcpy"
+	||  b.txt == "strcpy"
+	||  b.txt == "strncpy"
+	||  b.txt == "sprintf"
+	||  b.txt == "snprintf")
+	{	b.mark = 1;
+	} else
+	{	.mark = 0;
+	}
+%}
+= "potentially tainted value used in dangerous fct call: "
+p

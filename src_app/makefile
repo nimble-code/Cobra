@@ -26,7 +26,6 @@ OTHER=abstract \
 	nomacros \
 	nr_cases \
 	rule23_rule31 \
-	stmnt_per_line \
 	switch_default
 
 .PHONY: all install clean
@@ -39,6 +38,9 @@ all:	c.ar cwe scope_check
 
 cwe:	cwe.h c.ar c_api.h $(CWE)
 	$(CC) $(CFLAGS) -o cwe $(CWE) $(LDFLAGS)
+
+scope_check: c.ar c_api.h scope_check.c
+	$(CC) $(CFLAGS) -o scope_check scope_check.c $(LDFLAGS)
 
 c.ar:
 	cd ../src; make c.ar

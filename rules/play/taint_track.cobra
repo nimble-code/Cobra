@@ -1,0 +1,246 @@
+# example of tracking potentially tainted data
+# starting from a set of identifiers previously selected
+# e.g., obtained from running:  taint_mark_sscanf.cobra
+#
+# after this, a check can be made if any of the sinks are
+# vulnerable to misuse, e.g. in calls to memcpy, strcpy,
+# strncpy sprintf, snprintf, and related fcts etc.
+# e.g., with the query:		taint_used.cobra
+#
+# this query tracks the potentially tainted data through
+# assignments and function calls to sinks that may be vulnerable
+
+# the check is done in steps:
+# 1. mark all places in the same fct where the tainted value is used
+# 2. find marked places in fct call param lists
+# 3. each of these fcts now becomes a new starting point for a check,
+#    with the formal parameter marked as potentially tainted
+# 4. iterate until a fixed point is reached:
+
+## when scanning large numbers of files, this can trip stack overflow
+## in the inline program interpreter.
+##
+## ways to address this:
+## - compile cobra with -fno-stack-limit
+## - scan fewer files at a time, or
+## - use multiple cores (which means less code to scan per core)
+##
+## or longer term, with changes in cobra itself (harder):
+## - restrict recursion depths in eval_prog in cobra_prog.y
+## - rewrite this check as a standalone c_checker version
+##   (following the examples in src_app)
+
+
+# Step 1 -- do a forward search from each marked identifier
+# in the fct body, and mark all places where it is used
+# a- on the rhs of an assignment
+# b- in a fct call 
+# c- in the value returned by a fct
+
+%{
+	if (.mark != 1 || !@ident || .curly == 0) { Next; }
+	.mark = 0;
+
+	r = .nxt;			# don't change .
+	while (r.curly >= 1)		# check rest of fct body
+	{	if (r.txt == .txt)	# same identifier
+		{	s = r.nxt;	# unless overwritten
+			if (!match(s.txt, "/="))	# no assignment
+			{	r.mark = 2; # mark it tainted
+				s = r.prv;	# before the ident
+				if (match(s.txt, "/="))	# assignment
+				{	s = s.prv;	# target of assignment
+					if (s.txt == "]")
+					{	s = s.jmp;
+						s = s.prv;
+					}
+					if (s.typ == "ident")
+					{	s.mark = 2; # tainted
+		}	}	}	}
+		r = r.nxt;
+	}
+%}
+# p
+= "step 1a, nr matches:"
+
+## Step 2 prep -- some useful functions
+%{
+	function search_calls(rr)
+	{
+		cnt = 1;	# parameter nr
+		while (rr.txt != "(")		# find start of parameter list
+		{	if (rr.txt == ",")	# counting commas
+			{	cnt++;
+			}
+			rr = rr.prv;
+		}
+		rr = rr.prv;			# fct name
+		if (rr.typ == "ident")
+		{	pc = TaintCount[ rr.txt ];
+			pc = pc+1;
+			TaintCount[rr.txt] = pc;
+			TaintParam[ rr.txt, pc ] = cnt;
+		}
+	}
+
+	function search_params()
+	{	pc = TaintCount[ .txt ];
+		while (pc > 0)
+		{	fp = TaintParam[ .txt, pc ];
+			pf = Handled[ .txt, pc ];
+			if (fp > 0 && pf == 0)
+			{	Handled[ .txt, pc ] = fp;
+				cnt = 1;
+	#			print .fnm ":" .lnr ": " .txt " fct with tainted param nr " fp "\n";
+			more:	while (.txt != ")" && .txt != ",")
+				{	. = .nxt;
+				}
+				if (cnt == fp)
+				{	. = .prv;
+	#				print cnt " :: " fp "	param check: " .txt "\n";
+					if (@ident)
+					{	# check fct body
+						r = .nxt;
+						while (r.txt != "{")
+						{	r = r.nxt;
+						}
+		
+						r = r.nxt;
+						while (r.curly >= 1)	# rest of fct body
+						{	if (r.txt == .txt)	# same ident
+							{	s = r.nxt;	# check if assigned to
+								if (!match(s.txt, "/="))
+								{	r.mark = 2;	# new taint mark
+	#								print r.fnm ":" r.lnr ": " r.txt " new\n";
+							}	}
+							r = r.nxt;
+					}	}
+					. = .nxt;	# undo: . = .prv
+					pc--;
+					continue;
+				}
+				if (.txt != ")")
+				{	. = .nxt;
+					cnt++;
+					goto more;	# check next param
+			}	}
+			pc--;
+		}
+	}
+
+	function search_returns(nm)
+	{	r = .nxt;
+		while (r.curly == 0)
+		{	r = r.nxt;	# find start of fct body
+		}
+		while (r.curly > 0)	# scan fct body
+		{	if (r.txt == "return")
+			{	s = r.nxt;
+				while (s.txt != ";")
+				{	if (s.mark == 2)
+					{	TaintReturn[ nm ]++;
+						break;
+					}
+					s = s.nxt;
+			}	}
+			r = r.nxt;
+		}
+	}
+	Stop;
+%}
+
+## Step 2 -- iterate on fct call checks
+# find which of the marked variables appear
+# as an actual parameter in a fct call
+# record the fct name and parameter nr
+
+%{
+step2:
+	if (marks(0) == 0)	# fixed point reached
+	{	restore(1, "");
+		unset TaintParam;
+		unset TaintCount;
+		unset TaintReturn;
+		unset Handled;
+		Stop;
+	}
+#	all idents marked 2 are potentially tainted
+#	print "potentially tainted values: " marks(0) "\n";
+
+	. = Begin;	# take over the default control loop
+	while (. != End)
+	{	if (.mark == 2 && .round > 0)	# potential use in fct call
+		{	search_calls(.prv);	# populates TaintParam
+		}
+		. = .nxt;
+	}
+	# update set of potentially tainted variables
+	save(1, "|");	# add
+#	print "expanded set: " marks(1) "\n";
+
+	reset();		# clear marks in 0
+	fcts();			# mark fcts, to find tainted ones
+
+	. = Begin;
+	while (. != End)
+	{	if (.mark == 1)	# fct def, not tainted vars
+		{	.mark = 0;
+				# check if fct has a tainted param
+				# and if so mark the uses of those params in the fct body
+			fcnm = .txt;
+			search_params();	# checks TaintParam, can add 2 marks
+				# . is at the end of the param list
+			search_returns(fcnm);	# sets TaintReturn
+		}
+		. = .nxt;
+	}
+
+	# step 1c tainted values returned in fct call
+
+	. = Begin;
+	while (. != End)
+	{	if (.curly > 0 && @ident)
+		{	r = .nxt;			# look aheard
+			if (r.txt == "(")		# possible fct call
+			{	k = TaintReturn[.txt];	# check if tainted
+				if (k == 0)
+				{	. = r;
+					continue;
+				}
+			} else
+			{	. = r;
+				continue;
+			}
+			r = .prv;			# is value used in assignment?
+			if (match(r.txt, "/="))		# yes
+			{	r = r.prv;
+				if (r.typ == "ident")	# target
+				{	r.mark = 2;	# mark as tainted
+		}	}	}
+		. = .nxt;
+	}
+
+	unset TaintParam;	# done with this round
+	unset TaintCount;
+	unset TaintReturn;
+
+#	print "new marks: " marks(0) "\n";
+
+	n1 = marks(1);	# count them
+	save(1, "|");
+	n2 = marks(1);	# check if we reached fixpoint
+
+	if (n2 > n1)
+	{	goto step2;
+	}
+	unset Handled;
+
+#	print "x set 0 marks: " marks(0) "\n";
+#	print "x set 1 marks: " marks(1) "\n";
+	restore(1, "");
+#	print "y set 0 marks: " marks(0) "\n";
+#	print "y set 1 marks: " marks(1) "\n";
+	Stop;
+%}
+= "step 2, nr matches:"
+# p

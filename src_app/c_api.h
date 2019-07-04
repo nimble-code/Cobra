@@ -18,7 +18,7 @@
 #include <string.h>
 #include <signal.h>
 #include <ctype.h>
-#include <malloc.h>
+// #include <malloc.h>
 #include <time.h>
 
 #ifdef PC
