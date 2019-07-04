@@ -79,4 +79,4 @@
   - updated rules/play/taint.cobra
   - added checks to prevent null-ptr derefs
   - fixed reference to an out-of-scope variable, detected by coverity scan
-
+  - fewer warnings about redefined labels when rerunning scripts
