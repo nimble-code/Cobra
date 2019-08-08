@@ -8,7 +8,7 @@ def ipc
 		{	. = .nxt;
 		}
 		. = .nxt;
-		print .txt "\n"
+		print .txt "\n";
 	}
 %}
 end
