@@ -4,8 +4,9 @@
 	if (q.lnr != .lnr)
 	{	q = .;
 		print .lnr "\t";
-		while (.lnr == q.lnr)
-		{	print .txt " ";
+		while (.lnr == q.lnr && .mark == 0)
+		{	print .lnr "::" .txt " ";
+			.mark = 1;
 			. = .nxt;
 		}
 		print "\n";
