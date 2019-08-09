@@ -85,8 +85,7 @@
 			skip_cond();
 			q.mark = 0;
 		}
-
-		while (.txt != ";")
+		while (.txt != ";" && .curly > 0)
 		{	 . = .nxt;
 		}
 		. = .nxt;
