@@ -5,8 +5,10 @@
 	{	q = .;
 		print .lnr "\t";
 		while (.lnr == q.lnr && .mark == 0)
-		{	print .lnr "::" .txt " ";
-			.mark = 1;
+		{	if (.txt != "EOL")
+			{	print .txt " ";
+				.mark = 1;
+			}
 			. = .nxt;
 		}
 		print "\n";
