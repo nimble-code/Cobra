@@ -13,12 +13,13 @@ APP=../src_app
 OS=cobra_prim.o cobra_prep.o cobra_heap.o \
    cobra_lib.o cobra_eval.o cobra_fcg.o cobra_lex.o \
    cobra_prog.o cobra_sym.o cobra_cfg.o cobra_te.o \
-   cobra_links.o
+   cobra_links.o cobra_array.o
 
 AR=cobra_lex.o cobra_prep.o cobra_prim.o cobra_heap.o cobra_links.o
 
-F?=-O2			# gprof: make F="-g -pg"
+			# gprof: make F="-g -pg"
 			# coverage: make F="-fprofile-arcs -ftest-coverage"
+F?=-O2
 LIB?=-pthread		# linux
 LIBW?=-lpthread		# cygwin
 LIBM?=			# mac
@@ -73,11 +74,13 @@ ${OS}:	cobra.h cobra_fe.h
 
 ${AR}:	cobra_pre.h cobra_fe.h
 
+cobra_array.o: cobra_array.c cobra_array.h
+
 cobra_eval.c:	cobra_eval.y cobra.h
 	yacc -o $@ cobra_eval.y
 
-cobra_prog.c:	cobra_prog.y cobra.h
-	yacc -p xx -o $@ cobra_prog.y
+cobra_prog.c:	cobra_prog.y cobra.h cobra_array.h
+	yacc -d -p xx -o $@ cobra_prog.y
 
 clean:
 	rm -f *.o *.exe cobra

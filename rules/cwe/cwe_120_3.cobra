@@ -24,6 +24,7 @@ fcts
 	if (!@const_int)	{ Next; }
 
 	Var_scope[nmm.txt, .fct] = .;	# remember context
+# print .fnm ":" .lnr ": " nmm.txt " " .fct " set\n";
 %}
 
 # use this scope information to check strcpy and strncpy calls
@@ -50,6 +51,7 @@ m strcpy (
 	# to see if we know something about their declared sizes
 
 	x = Var_scope[dst.txt, .fct];
+# print .fnm ":" .lnr ": Get " dst.txt "  " .fct " x == '" x.fnm "':" x.lnr ": '" x.txt "'\n";
 	if (x == 0)
 	{	x = Var_scope[dst.txt, "global"];
 		if (x == 0) { Next; }

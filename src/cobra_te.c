@@ -17,6 +17,8 @@
 #define CONCAT	512	// higher than operator values
 #define OPERAND	513	// higher than others
 
+#define te_regmatch(t, q)	regexec(t, q, 0,0,0)	// t always nonzero
+
 typedef struct List	List;
 typedef struct Nd_Stack	Nd_Stack;
 typedef struct Node	Node;
@@ -90,9 +92,14 @@ struct Store {
 	Store	*nxt;
 };
 
+#if defined(STREAM_LIM) && (STREAM_LIM > 0)
+ extern int add_stream(Prim *);
+#endif
+
 static List	*curstates[3]; // 2 is initial
 static List	*freelist;
 static Match	*free_match;
+static Match	*matches;
 static Match	*old_matches;
 static Match	*del_matches;
 static Bound	*free_bound;
@@ -118,6 +125,7 @@ static int	nrtok = 1;
 static int	Seq   = 1;
 static int	ncalls;
 static int	nerrors;
+static int	p_matched;
 
 static void	clr_matches(int);
 static void	free_list(int);
@@ -126,7 +134,7 @@ static void	mk_states(int);
 static void	mk_trans(int n, int match, char *pat, int dest);
 static void	show_state(FILE *, Nd_Stack *);
 
-static Match	*matches;
+extern int	stream;
 
 static void
 reinit_te(void)
@@ -165,15 +173,26 @@ list_states(char *tag, int n)
 {	List *c;
 	Trans *t;
 
-	printf("%s: ", tag);
+	printf("%s", tag);
 	for (c = curstates[n]; c; c = c->nxt)
-	{	printf("%d%s%s, ", c->s->seq, c->s->bindings?"*":"",
-			c->s->accept?"*":"");
-		if (c->s)
-		for (t = c->s->trans; t; t = t->nxt)
-		{	printf("[m=%d, d=%d, p=%s] ",
-				t->match, t->dest, t->pat);
-	}	}
+	{	if (c->s)
+		{	for (t = c->s->trans; t; t = t->nxt)
+			{	printf("%d->%d%s%s ", c->s->seq, t->dest, c->s->bindings?"*":" ",
+					c->s->accept?"+":" ");
+				printf("[m=%d, p=%s] ", t->match, t->pat);
+				if (t->nxt)
+				{	printf("\n%s", tag);
+			}	}
+			if (c->s->bindings)
+			{	Store *bnd = c->s->bindings;
+				while (bnd)
+				{	printf("<%s::%s> ", bnd->name, bnd->text);
+					bnd = bnd->nxt;
+			}	}
+			if (c->nxt)
+			{	printf("\n%s", tag);
+		}	}
+	}
 	printf("\n");
 }
 #endif
@@ -210,8 +229,6 @@ te_regstart(const char *s)
 
 	return r->trex;
 }
-
-#define te_regmatch(t, q)	regexec(t, q, 0,0,0)	// t always nonzero
 
 static void
 te_regstop(void)
@@ -864,7 +881,7 @@ range(char *s)
 	char *a, *b, c;
 
 	assert(*s == '[');
-//printf("Here '%s'\n", s);
+
 	for (b = s+1; ; b++)
 	{	while (*b == ' ' || *b == '\t')
 		{	b++;
@@ -879,13 +896,11 @@ range(char *s)
 		if (b > a)
 		{	c = *b;
 			*b = '\0';
-//printf("newrange '%s'\n", a);
 			r = new_range(a, r);
 			*b-- = c;
 		} else // did not advance
 		{	break;
 	}	}
-//printf("Done\n");
 
 	return r;
 }
@@ -1022,29 +1037,33 @@ mk_active(Store *bnd, Store *new, int src, int into)
 		{	if (!bnd && !new)
 			{	return;
 			}
-			// check if all bindings are already covered
-			for (b = bnd; b; b = b->nxt)
+			// first check, if a new binding is to be added, if
+			// that binding is already there
+			if (new)
+			{	for (n = c->s->bindings; n; n = n->nxt)
+				{	if (strcmp(new->name, n->name) == 0
+					&&  strcmp(new->text, n->text) == 0)
+					{	break;	// yes it is
+				}	}
+				if (!n)	// not there, add it now
+				{	Store *x = get_store(new);
+					x->nxt = c->s->bindings;
+					c->s->bindings = x;
+			}	}
+
+			// check if all existing bindings are matched
+			for (b = bnd; b; b = b->nxt)	// known bindings
 			{	for (n = c->s->bindings; n; n = n->nxt)
 				{	if (strcmp(b->name, n->name) == 0
 					&&  strcmp(b->text, n->text) == 0)
-					{	break;
+					{	break;	// found match
 				}	}
-				if (!n)	// b not matched
-				{	break;
+				if (!n)	// checked all bindings and found NO match for b
+				{	Store *x = get_store(b);
+					x->nxt = c->s->bindings;
+					c->s->bindings = x;	// add it
 			}	}
-
-			if (b)
-			{	continue;	// maybe another state matches
-			}
-
-			if (!new)
-			{	return;
-			}
-			for (n = c->s->bindings; n; n = n->nxt)
-			{	if (strcmp(new->name, n->name) == 0
-				&&  strcmp(new->text, n->text) == 0)
-				{	return;
-			}	}
+			return;
 	}	}
 
 	// add state
@@ -1082,6 +1101,8 @@ mk_active(Store *bnd, Store *new, int src, int into)
 
 	c->nxt = curstates[into];
 	curstates[into] = c;
+//	list_states("			", into);
+
 }
 
 static void
@@ -1148,6 +1169,29 @@ add_match(Prim *f, Prim *t, Store *bd)
 	}
 	m->nxt = matches;
 	matches = m;
+	p_matched++;
+
+	if (stream == 1)
+	{	Prim *c, *r;
+		printf("stdin:%d: ", f->lnr);
+		for (c = r = f; c; c = c->nxt)
+		{	printf("%s ", c->txt);
+			if (c->lnr != r->lnr)
+			{	printf("\nstdin:%d: ", c->lnr);
+				r = c;
+			}
+			if (c == t)
+			{	break;
+		}	}
+		printf("\n");
+		if (verbose && bd && bd->ref)
+		{	printf("bound variables matched: ");
+			while (bd && bd->ref)
+			{	printf("%s ", bd->ref->txt);
+				bd = bd->nxt;
+			}
+			printf("\n");
+	}	}
 }
 
 static int
@@ -1176,16 +1220,16 @@ saveas(State *s, char *name, char *text)
 {	Store *b;
 
 	for (b = s->bindings; b; b = b->nxt)
-	{	if (strcmp(b->name, name) == 0)
-		{	// override
-			b->text = text;
-			return (Store *) 0;
+	{	if (strcmp(b->name, name) == 0
+		&&  strcmp(b->text, text) == 0)
+		{	return (Store *) 0;	// already there
 	}	}
 
 	b = get_store(0);
 	b->name = name;
 	b->text = text;
 	b->nxt  = (Store *) 0;
+
 	return b;
 }
 
@@ -1196,28 +1240,19 @@ recall(State *s, Trans *t, char *text)
 
 	if (t->match)	// match any
 	{	for (b = s->bindings; b; b = b->nxt)
-		{	if (strcmp(b->name, name) == 0)
-			{	if (strcmp(b->text, text) == 0)
-				{	b->ref = q_now;
-//printf("+recall '%s' '%s' '%s'\n", name, text, q_now->txt);
-					return 1;
-				}
-				return 0;
+		{	if (strcmp(b->name, name) == 0
+			&&  strcmp(b->text, text) == 0)
+			{	b->ref = q_now;
+				return 1;
 		}	}
 		return 0;
-	} else	// match none
+	} else		// match none
 	{	for (b = s->bindings; b; b = b->nxt)
-		{
-//printf("-+recall '%s' '%s'\n", b->name, name);
-			if (strcmp(b->name, name) == 0)
-			{	if (strcmp(b->text, text) != 0)
-				{	b->ref = q_now;
-//printf("-recall '%s' '%s'\n", name, text);
-					return 1;
-				}
+		{	if (strcmp(b->name, name) == 0
+			&&  strcmp(b->text, text) == 0)
+			{	b->ref = q_now;
 				return 0;
 		}	}
-//printf("--recall '%s' '%s'\n", name, text);
 		return 1;
 	}
 }
@@ -1301,7 +1336,6 @@ and_match(void)
 
 	// keep only matches that are *also* in old_matches
 	// does not change old_matches, so that undo works
-
 startover:
 	prv = (Match *) 0;
 	for (m = matches; m; prv = m, m = m->nxt)
@@ -1331,7 +1365,6 @@ not_match(void)
 	m = old_matches;
 	old_matches = matches;
 	matches = m;
-
 	del_matches = (Match *) 0;
 			
 startover:
@@ -1408,12 +1441,7 @@ matches2marks(void)
 	int cnt=0;
 
 	for (m = matches; m; m = m->nxt)
-	{
-// printf("%s:%d -- %s:%d\n",
-//	m->from->fnm, m->from->lnr,
-//	m->upto->fnm, m->upto->lnr);
-
-		p = m->from;
+	{	p = m->from;
 		if (p)
 		{	p->mark++;	// start of pattern, one extra increment
 			for (p = m->from; ; p = p->nxt)
@@ -1551,16 +1579,47 @@ cobra_te(char *te, int and, int inv)
 
 	copy_list(current, 2);	// remember initial states, 2 was empty so far
 	matched.curly = matched.round = matched.bracket = -1;
+
+#if defined(STREAM_LIM) && (STREAM_LIM > 0)
+	// when reading from stdin (stream) this gives us an
+	// initial token stream fragment of STREAM_LIM bytes
+	// which allows for the required read-ahead to match the
+	// pattern in the nested for-loop on q_now
+
+	if (stream == 1)
+	{	while (add_stream(0)) // make sure we have enough tokens
+		{	if (plst && plst->seq > STREAM_LIM)
+			{	break;	// stream could start with many comments
+	}	}	}
+
+	// when the main for-loop below gets to the end of the initial range,
+	// we extend the sequence further with a call to add_stream(),
+	// until that returns null; the value of cur can change in that call
+
+	static int stream_cnt = 0;	// we must count bytes, not tokens
+#endif
 	for ( ; cur; cur = cur->nxt)
 	{	free_list(current);
 		free_list(1 - current);
 		copy_list(2, current);	// initial state
 		c_lft = b_lft = p_lft = (Prim *) 0;
-
+#if defined(STREAM_LIM) && (STREAM_LIM > 0)
+		if (stream == 1)
+		{	stream_cnt += strlen(cur->txt);
+			if (stream_cnt >= STREAM_LIM
+			||  cur->seq + 100 > plst->seq)
+			{	Prim *place = cur;
+				if (add_stream(cur))	// can free up to cur
+				{	cur = place;
+					stream_cnt = 0;
+				} else	// exhausted input stream
+				{	stream = 2;
+		}	}	}
+#endif
 		for (q_now = cur; q_now; q_now = q_now->nxt)
-		{	if (q_now->fnm != cur->fnm)	// no match across files
-			{
-				break;
+		{
+			if (q_now->fnm != cur->fnm)	// no match across files
+			{	break;
 			}
 			anychange = 0;
 			if (*(q_now->txt+1) == '\0')
@@ -1571,17 +1630,24 @@ cobra_te(char *te, int and, int inv)
 			for (c = curstates[current]; c; c = c->nxt)
 			{	s = c->s;
 				for (t = s->trans; t; t = t->nxt)
-				{
+				{	if (0)
+					{	printf("\tcheck %d->%d	%s %s  %s  %s\n",
+							s->seq, t->dest,
+							t->match?"match":" ",
+							t->pat?t->pat:" ",
+							t->recall?"recall":" ",
+							t->or?"or":" ");
+					}
 					if (!t->pat)
 					{	if (!t->match)	// epsilon move
-						{
-							if (q_now->prv)
-							{	q_now = q_now->prv;
+						{	if (q_now->prv)
+							{ q_now = q_now->prv;
 							} else
-							{	printf("%s:%d: re error for . (s%d->s%d) <%p>\n",
-									cur->fnm, cur->lnr, s->seq, t->dest, (void *) t->nxt);
+							{ printf("%s:%d: re error for . (s%d->s%d) <%p>\n",
+								cur->fnm, cur->lnr,
+								s->seq, t->dest,
+								(void *) t->nxt);
 								break;
-							//	return;	// june 7, 2019
 						}	}
 						mk_active(s->bindings, 0, t->dest, 1-current);
 						anychange = 1;
@@ -1690,8 +1756,8 @@ cobra_te(char *te, int and, int inv)
 							if (rx == 2)	// match, must advance
 							{	leave_state(c->s->seq, 1-current);
 						}	}
-
-		is_match:			if (t->saveas)
+		is_match:
+						if (t->saveas)
 						{	Store *b = saveas(s, t->saveas, q_now->txt);
 							mk_active(s->bindings, b, t->dest, 1-current);
 						} else
@@ -1711,8 +1777,8 @@ cobra_te(char *te, int and, int inv)
 			} else
 			{	break;			// no match, Next
 			}
-		}				// for-loop match attempt
-	}					// for-loop starting point of match attempt
+		}	// for-loop match attempt
+	}		// for-loop starting point of match attempt
 
 	te_regstop();
 
@@ -1729,8 +1795,10 @@ cobra_te(char *te, int and, int inv)
 		}
 		(void) convert_matches(0);
 		rx = 0;
-	} else
+	} else if (stream <= 0)
 	{	(void) convert_matches(0);
 		display("", "");
+	} else
+	{	printf("%d pattern%s matched\n", p_matched, p_matched==1?"":"s");
 	}
 }

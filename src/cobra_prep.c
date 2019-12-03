@@ -34,6 +34,8 @@ int parse_macros;
 int p_debug;
 int preserve;
 int python;
+int read_stdin;
+int stream;
 int runtimes;
 int scrub;
 int verbose;
@@ -51,11 +53,14 @@ char	*cobra_commands;	// -c xxx
 char	*cwe_args;		// standalone cwe checker
 char	*progname = "";		// e.g. cobra or cwe
 
+TokRange  **tokrange;
+
 static Pass	*pass_arg;
 static char	*CPP       = "gcc";
 static char	*lang      = "c";
 static char	*preproc   = "";
 static int	 handle_typedefs = 1;
+static int	 textmode;
 static int	 with_qual = 1;
 static int	 with_type = 1;
 
@@ -64,13 +69,17 @@ process(int cid)
 {
 	assert(cid >= 0 && cid < Ncore);
 	memset(Px.lex_cpp, 0, sizeof(Px.lex_cpp));
-	line(cid);	// new fnm
+	line(cid);	// sets fnm etc
 
-	while (c_lex(cid) > 0)	// cobra_lex.c
-	{	;
+	if (textmode)
+	{	t_lex(cid);	// returns on EOF
+	} else
+	{	while (c_lex(cid) > 0)
+		{	;
+		}
+		return sanitycheck(cid);
 	}
-
-	return sanitycheck(cid);
+	return 0;
 }
 
 static void
@@ -114,30 +123,51 @@ ini_pre(int cid)
 }
 
 int
-add_file(char *f, int cid)
+add_file(char *f, int cid, int slno)
 {	FILE *tfd = (FILE *) 0;
 	char fnm[32];
 	char tfn[32];
 	int imbalance;
+	int lncnt = 0;
 
 	assert(cid >= 0 && cid < Ncore);
-	Px.lex_lineno = 1;
+	Px.lex_lineno = slno;
 	Px.lex_fname  = f;
 	*fnm = '\0';
 	// fprintf(stderr, "%d Parse %s\n", cid, f);
 	if (strlen(f) == 0)		// no filename: read stdin
 	{	char buff[1024];
 
+		assert(read_stdin);
 		set_tmpname(tfn, "af1", sizeof(tfn));
 		f = tfn;
 		if ((tfd = fopen(f, "w")) == NULL)
 		{	fprintf(stderr, "cannot open tmp file %s\n", f);
 			return 0;
 		}
-		fprintf(tfd, "# 1 \"stdin\"\n");
+
 		while (fgets(buff, sizeof(buff), stdin))
 		{	fprintf(tfd, "%s", buff);
+#if defined(STREAM_LIM) && (STREAM_LIM > 0)
+			lncnt += strlen(buff);
+//			printf("::: <<%s>>\n", buff);
+			if (stream == 1
+			&&  lncnt > STREAM_LIM)
+			{	break;
+			}
+#else
+			lncnt++;
+#endif
 		}
+#if defined(STREAM_LIM) && (STREAM_LIM > 0)
+		if (verbose > 1)
+		{	static long total_read = 0;
+			total_read += lncnt;
+			printf("	Read %d %s of %d max\tcumulative: %ld\n",
+				lncnt, (STREAM_LIM>0)?"bytes":"lines",
+				STREAM_LIM, total_read);
+		}
+#endif
 		fclose(tfd);
 	}
 
@@ -193,17 +223,136 @@ add_file(char *f, int cid)
 	if (strlen(fnm) > 0)
 	{	unlink(fnm);
 	}
-
+//printf("Addstream %p\n", (void *) tfd);
 	if (tfd)
-	{	unlink(f);	// tmp filename
-	} else
-	{	remember(f, imbalance, cid);	// when the whole file is processed
+	{	unlink(f);	// read_stdin, tmp filename
+		return lncnt;
 	}
+
+	remember(f, imbalance, cid);	// when the whole file is processed
 	// covers only files specified on the command-line
 	// not include files, where the real redundancy is
 
 	return 1;
 }
+
+void
+set_ranges(Prim *a, Prim *b)
+{	static short tokmaxrange = 0;
+	int i, j, span = count/Ncore;
+	Prim *x;
+
+//	printf("count %d -- plst->seq %d\n", count, plst->seq);
+
+	if (verbose == 1 && count == 0)
+	{	fprintf(stderr, "cobra: no input?\n");
+	}
+
+	if (verbose > 1 && !cobra_texpr)
+	{	printf("span %d mult %d < %d\n",
+			span, span*Ncore, count);
+	}
+
+	ini_par();
+
+	if (!tokrange || Ncore > tokmaxrange)
+	{	tokrange = (TokRange **) emalloc(Ncore * sizeof(TokRange *));
+		if (Ncore > tokmaxrange)
+		{	tokmaxrange = Ncore;
+	}	}
+
+	for (i = 0, x = a; i < Ncore; i++)
+	{	if (!tokrange[i])
+		{	tokrange[i] = (TokRange *) emalloc(sizeof(TokRange));
+		}
+		tokrange[i]->seq = i;
+		tokrange[i]->from = x;
+		for (j = 0; x && j < span; j++)
+		{	x = x->nxt;
+		}
+		if (!x)
+		{	tokrange[i]->upto = b;
+	//		assert(i == Ncore-1);
+		} else
+		{	tokrange[i]->upto = x->prv;
+		}
+// printf("%d: from %p .. %p\n", i, (void *) tokrange[i]->from, (void *) tokrange[i]->upto);
+	}
+	tokrange[Ncore-1]->upto = b;
+
+	if (!a || !b || cobra_texpr)
+	{	return;
+	}
+
+	if (Ncore > 1)
+	{	for (i = 0; verbose == 1 && i < Ncore; i++)
+		{	printf("set %d: %d-%d <%d> (%s:%d - %s:%d)\n",
+				i, tokrange[i]->from->seq, tokrange[i]->upto->seq,
+				(int)(tokrange[i]->upto->seq - tokrange[i]->from->seq),
+				tokrange[i]->from->fnm, tokrange[i]->from->lnr,
+				tokrange[i]->upto->fnm, tokrange[i]->upto->lnr);
+	}	}
+}
+
+
+#if defined(STREAM_LIM) && (STREAM_LIM > 0)
+
+extern Prim *prim, *plst;
+extern void set_ranges(Prim *, Prim *);
+extern void recycle_token(Prim *, Prim *);
+
+int
+add_stream(Prim *pt)
+{	static short l_bracket;	// initially 0
+	static short l_curly;
+	static short l_roundb;
+	Prim *notnew = plst;
+	int correct = textmode?0:1;
+
+	if (0)
+	{	if (plst)
+		{	printf("Add Stream %d :: %s :: seq %d\n", plst->lnr, plst->txt, plst->seq);
+		} else
+		{	printf("Add Stream\n");
+	}	}
+
+	if (pt && plst && prim)	// can free tokens between prim and pt
+	{	recycle_token(prim, pt);
+		prim = pt;
+	}
+
+	ini_pre(0);
+
+	pre[0].lex_bracket = l_bracket;
+	pre[0].lex_curly   = l_curly;
+	pre[0].lex_roundb  = l_roundb;
+
+	if (!add_file("", 0, plst?(plst->lnr+correct):1))
+	{	if (0)
+		{	printf("	Nothing to add\n");
+		}
+		return 0;
+	}
+
+	l_bracket = pre[0].lex_bracket;
+	l_curly   = pre[0].lex_curly;
+	l_roundb  = pre[0].lex_roundb;
+
+	if (pre[0].lex_plst)
+	{	post_process(notnew?0:1);
+		set_ranges(prim, plst);
+	}
+
+	if (verbose > 1)
+	{	if (plst)
+		{	printf("Done Add Stream %d -- %d :: %s\n", prim->lnr, plst->lnr, plst->txt);
+		} else
+		{	printf("Done Add Stream\n");
+	}	}
+
+	return 1;
+}
+#endif
 
 static void
 Nthreads(char *s)
@@ -391,6 +540,7 @@ usage(char *s)
 	fprintf(stderr, "\t-n or -nocpp        -- do not do any C preprocessing%s\n", !no_cpp?"":" (default)");
 	fprintf(stderr, "\t-noqualifiers       -- do not tag qualifiers\n");
 	fprintf(stderr, "\t-noheaderfiles      -- do not process header files\n");
+	fprintf(stderr, "\t-nostream           -- do not enable default input streaming when reading from stdin\n");
 	fprintf(stderr, "\t-notypedefs         -- do not process typedefs\n");
 	fprintf(stderr, "\t-notypes            -- do not tag type names\n");
 	fprintf(stderr, "\t-Nn                 -- use n threads\n");
@@ -405,8 +555,8 @@ usage(char *s)
 	fprintf(stderr, "\t-regex \"expr\"       -- see -e\n");
 	fprintf(stderr, "\t-runtimes           -- report runtimes of commands executed, if >1s\n");
 	fprintf(stderr, "\t-scrub              -- produce output in scrub-format\n");
-	fprintf(stderr, "\t-stdin              -- read source from stdin (requires -e or -f)\n");
 	fprintf(stderr, "\t-terse              -- disable output from d, l, and p commands, implies -quiet\n");
+	fprintf(stderr, "\t-text               -- no token types, just text-strings and symbols\n");
 	fprintf(stderr, "\t-tok                -- only tokenize the input\n");
 	fprintf(stderr, "\t-version            -- print version number and exit\n");
 	fprintf(stderr, "\t-v                  -- more verbose\n");
@@ -424,7 +574,7 @@ list_checkers(void)	// also used in cobra_lib.c
 	printf("predefined checks include:\n");
 	memset(buf, 0, sizeof(buf));
 	snprintf(buf, sizeof(buf), "ls %s/main > ._cobra_tmp_", C_BASE);
-printf("buf: '%s'\n", C_BASE);
+//	printf("buf: '%s'\n", C_BASE);
 	if (system(buf) >= 0)		// list checkers
 	{	snprintf(buf, sizeof(buf), "sort ._cobra_tmp_ | grep -v -e .def$ | sed 's;^;  ;'");
 		if (system(buf) < 0)	// list checkers
@@ -452,7 +602,7 @@ one_core(void *arg)
 	cid = *i;
 
 	while ((s = get_work(cid)) != NULL)
-	{	add_file(s, cid);
+	{	add_file(s, cid, 1);
 	}
 
 	if (handle_typedefs)
@@ -563,7 +713,7 @@ seq_scan(int argc, char *argv[])
 	if (verbose>1) printf("parse\n");
 	start_timer(0);
 	for (i = 1; i < argc; i++)
-	{	add_file(argv[i], 0);
+	{	add_file(argv[i], 0, 1);
 	}
 	stop_timer(0, 0, "G");
 	start_timer(0);
@@ -797,8 +947,7 @@ F:		fprintf(stderr, "cobra: configuration failed\n");
 
 int
 main(int argc, char *argv[])
-{	int read_stdin = 0;
-	int view = 0;
+{	int view = 0;
 
 	progname = argv[0];
 //	autosetcores();	// default nr cores to use
@@ -899,8 +1048,11 @@ RegEx:			  no_match = 1;		// -expr or -regex
 			  return usage(argv[1]);
 
 		case 'l':	// lib or list
-			  set_base();
-			  list_checkers();
+			  if (set_base())
+			  {	list_checkers();
+			  } else
+			  {	printf("error: check tool installation\n");
+			  }
 			  return 0;
 
 		case 'm': parse_macros = no_cpp = 1;
@@ -916,6 +1068,10 @@ RegEx:			  no_match = 1;		// -expr or -regex
 			  }
 			  if (strcmp(argv[1], "-noheaderfiles") == 0)
 			  {	no_headers = 1;
+			  	break;
+			  }
+			  if (strcmp(argv[1], "-nostream") == 0)
+			  {	stream = -1;
 			  	break;
 			  }
 			  if (strcmp(argv[1], "-notypedefs") == 0)
@@ -944,7 +1100,7 @@ RegEx:			  no_match = 1;		// -expr or -regex
 					argc--; argv++;
 					if (view)
 					{	p_debug = 5;
-						set_base();
+						(void) set_base();
 					}
 					break;
 			  }	}
@@ -973,8 +1129,6 @@ RegEx:			  no_match = 1;		// -expr or -regex
 
 		case 's': if (strcmp(argv[1], "-scrub") == 0)
 			  {	scrub = 1;
-			  } else if (strcmp(argv[1], "-stdin") == 0)
-			  {	read_stdin = 1;
 			  } else
 			  {	return usage(argv[1]);
 			  }
@@ -987,6 +1141,11 @@ RegEx:			  no_match = 1;		// -expr or -regex
 			  if (strcmp(argv[1], "-terse") == 0)
 			  {	no_display = 1;
 				no_match = 1;
+				break;
+			  }
+			  if (strcmp(argv[1], "-text") == 0)
+			  {	textmode = 1;
+				handle_typedefs = 0;
 				break;
 			  }
 			  return usage(argv[1]);
@@ -1033,6 +1192,12 @@ RegEx:			  no_match = 1;		// -expr or -regex
 	if (strstr(progname, "cwe") != NULL)
 	{
 cwe_mode:	no_match = 1;	// for consistency with -f
+		if (cobra_target)
+		{	int n = strlen(cobra_target)+2;
+			cwe_args = (char *) emalloc(n*sizeof(char));
+			snprintf(cwe_args, n, "%s ", cobra_target); // add space
+		}
+
 		while (argc > 1
 		&&     strchr(argv[1], '.') == NULL)	// not a filename arg
 		{	int n = strlen(argv[1]) + 2; // plus space and null byte
@@ -1075,15 +1240,37 @@ cwe_mode:	no_match = 1;	// for consistency with -f
 	{	seq_scan(argc, argv);
 	}
 
-	if (read_stdin
-	||  argc == 1)
-	{	if (cobra_texpr || cobra_target || cobra_commands || Ctok)
+	if (argc == 1)
+	{	read_stdin = 1;
+		if (stream == 0) // no override with -nostream
+		{	stream = 1;
+	}	}
+
+	if (stream == 1
+	&& (!(cobra_texpr || cobra_target || cobra_commands || Ctok)
+	||  Ncore != 1
+	||  !no_cpp))
+	{	fprintf(stderr, "%s: error: streaming input\n", progname);
+		fprintf(stderr, "    requires -expr, -pat or -f, no -cpp, and ncore=1\n");
+		return 1;
+	}
+
+	if (read_stdin)
+	{	if (no_cpp)
 		{	fprintf(stderr, "%s: reading stdin\n", progname);
-			add_file("", 0);	// keep single-core
+			add_file("", 0, 1);	// keep single-core
+			if (stream == 1 && Ctok)
+			{	Prim *rp;
+				do {	rp = plst;
+//printf("+ %d\n", pre[0].lex_lineno);
+					if (!add_file("", 0, pre[0].lex_lineno))
+					{	break;
+					}
+				} while (!rp || plst->seq > rp->seq);
+			}
 		} else
-		{	fprintf(stderr, "%s: error: reading input files from stdin\n",
+		{	fprintf(stderr, "%s: error: cannot use -cpp when reading stdin\n",
 				progname);
-			fprintf(stderr, "    requires -expr, -pe, -pat or -f for commands to execute\n");
 			return 1;
 	}	}
 
@@ -1092,7 +1279,6 @@ cwe_mode:	no_match = 1;	// for consistency with -f
 	}
 
 	post_process(1);	// collect info from cores
-
 	cobra_main();		// cobra and cobra_checkers
 
 	return 0;

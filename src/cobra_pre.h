@@ -17,7 +17,7 @@
 #define NIN		8192
 
 #ifndef HEADER
-#define HEADER		"/usr/"	// ignore header files with this prefix
+ #define HEADER		"/usr/"	// ignore header files with this prefix
 #endif
 
 #define Px		pre[cid]

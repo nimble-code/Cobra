@@ -7,7 +7,7 @@
 #ifndef COBRA_FE
 #define COBRA_FE
 
-#define tool_version	"Version 3.0 - 12 June 2019"
+#define tool_version	"Version 3.1 - 30 October 2019"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -31,7 +31,7 @@
 #endif
 
 #ifndef MaxArg
-	#define MaxArg	8
+ #define MaxArg	8
 #endif
 
 #define NAHASH		512
@@ -40,8 +40,9 @@
 typedef struct ArgList	ArgList;
 typedef struct Files	Files;
 typedef struct Prim	Prim;
-typedef struct Typedef Typedef;
 typedef struct Stack	Stack;
+typedef struct TokRange	TokRange;
+typedef struct Typedef Typedef;
 typedef unsigned char	uchar;
 
 struct ArgList {
@@ -73,6 +74,13 @@ struct Prim {
 
 	Prim	*prv;
 	Prim	*nxt;
+};
+
+struct TokRange {
+	int	 seq;
+	int	 param;
+	Prim	*from;
+	Prim	*upto;
 };
 
 struct Files {
@@ -121,7 +129,7 @@ extern int	scrub;
 extern int	verbose;
 extern int	with_comments;
 
-extern int	add_file(char *, int);
+extern int	add_file(char *, int, int);
 extern int	c_lex(int);
 extern int	listfiles(int, const char *);
 extern int	mkstemp(char *);
@@ -129,13 +137,14 @@ extern int	sanitycheck(int);
 
 extern size_t	*hmalloc(size_t, const int);
 
+extern void	basic_prim(const char *s, int cid);
 extern void	cobra_main(void);
 extern void	do_lock(int);
 extern void	do_unlock(int);
 extern void	efree(void *);
 extern void	*emalloc(size_t);
 extern void	ini_heap(void);
-extern void	ini_lock();
+extern void	ini_lock(void);
 extern void	ini_par(void);
 extern void	ini_pre(int);
 extern void	ini_timers(void);
@@ -146,9 +155,15 @@ extern void	prep_pre(void);
 extern void	remember(const char *, int, int);
 extern void	start_timer(int);
 extern void	stop_timer(int, int, const char *);
+extern void	t_lex(int);	// text only mode
 extern void	unlock_print(int);
 
 #define free		efree
 #define is_blank(x)	((x) == ' ' || (x) == '\t')	// avoiding isblank()
+
+#ifndef STREAM_LIM
+ // -pat when reading from stdin:
+ #define STREAM_LIM	8192
+#endif
 
 #endif

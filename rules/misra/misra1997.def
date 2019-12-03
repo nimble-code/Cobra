@@ -308,8 +308,8 @@ def m97_rule61
 	<|1
 	>1
 	r; m case; s top }; c \;; c no switch; c no break; c no return
-= "Three"
-d
+# = "Three"
+# d
 	<|1
 	= "=== R61: (Required) Every non-empty case clause in a switch stmnt shall be terminated by a break stmnt:"
 	d

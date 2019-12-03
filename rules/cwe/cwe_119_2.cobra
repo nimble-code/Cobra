@@ -23,6 +23,7 @@ m & (.curly > 0)
 		}
 		for (i in Suspect)
 		{
+# print .lnr " .Suspect " i.txt " --- " Suspect[i.txt] " :: " IxVar[i.txt] "\n";
 			if (IxVar[i.txt] != 0)
 			{
 				if (terse)
@@ -34,17 +35,18 @@ m & (.curly > 0)
 				} else
 				{	x = Suspect[i.txt];	# wherethe var is *last* set
 					zz = IxVar[i.txt];	# where it is used as an index
-# print .lnr " HERE " x.lnr " :: " zz.lnr "\n";
+# print .lnr " HERE " i.txt " " x.lnr " :: " zz.lnr " --- " IxVar[i.txt] "\n";
 					if (x.seq != 0 && x.lnr <= zz.lnr)
 					{
 					lock();
 					print x.fnm ":" zz.lnr ": cwe_119_2: array-index variable '";
-					print  x.txt "' has unchecked value\n";
+					print  x.txt "' has unchecked value.\n";
 					unlock();
 		}	}	}	}
 
 		unset Suspect;
 		unset IxVar;
+# print "UNSET\n";
 		Next;
 	}
 	.mark = 0;
@@ -57,12 +59,14 @@ m & (.curly > 0)
 		{	. = .nxt;
 			if (.txt == "(" && pt.txt != "*")
 			{	Suspect[v.fnm, v.txt] = v;	# assigned from fct
+# print .fnm ":" .lnr ": set1 Suspect[ " v.fnm ", " v.txt " ] to v " v.seq "\n";
 				. = v;
 				Next;
 			}
 			. = .prv;
 		}
 		unset Suspect[v.fnm, v.txt];	# its assigned, but not from a fct
+# print "UNSET Suspect[ " v.fnm ", " v.txt "\n";
 		. = v;
 		Next;	# added gh 10/1/18
 	} else
@@ -74,6 +78,7 @@ m & (.curly > 0)
 		&&  nt.txt != "->"
 		&&  nt.txt != ".")
 		{	Suspect[v.fnm, v.txt] = v;		# address of var is taken
+# print .fnm ":" .lnr ": set2 Suspect[ " v.fnm ", " v.txt " ] to v\n";
 			. = v.nxt;	# undo .prv
 			Next;
 		}
@@ -85,10 +90,12 @@ m & (.curly > 0)
 	{	. = v.prv;
 		if (@oper)
 		{	unset Suspect[v.fnm, v.txt];
+# print "UNSET1 " v.fnm ", " v.txt "\n";
  		}
 		. = v.nxt;
 		if (@oper)
 		{	unset Suspect[v.fnm, v.txt];
+# print "UNSET2 " v.fnm ", " v.txt "\n";
 	}	}
 
 	. = v.nxt;		# right after identifier
@@ -107,8 +114,10 @@ m & (.curly > 0)
 				&&  pt.txt != "."
 				&&  pt.txt != "&")
 				{	xyx = Suspect[.fnm, .txt];
+# print "PROBE Suspect[ " .fnm ", " .txt "]  ::: " xyx.seq "\n";
 					if (xyx.seq > 0)
 					{	IxVar[.fnm, .txt] = .;
+# print .fnm ":" .lnr ": IxVar[ " .fnm ", " .txt " ] set to .\n";
 	}	}	}	}	}
 %}
 

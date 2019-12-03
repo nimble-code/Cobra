@@ -19,19 +19,27 @@
 			Px.lex_plst->jmp = Px.lex_range[a][b]; \
 	}	}
 
+typedef struct JumpTbl JumpTbl;
+
+struct JumpTbl {
+	Prim *b;
+	JumpTbl *nxt;
+};
+
 Pre	*pre;	// parsing, one per core
+Prim	*plst;	// post parsing
+Prim	*cur;
+Prim	*prim;
+int	 count;
 
-// post parsing data:
-
-	Prim	*plst;
-	Prim	*cur;
-	Prim	*prim;
-	int	 count;
-
+static	JumpTbl	*jmptbl;
 static	Files	*files[NHASH];
 static	Files	*frr = (Files *) 0;
 static	int	 nfh = -1;
-extern  int	 full_comments;
+
+extern	int	 full_comments;
+extern	int	 read_stdin;
+extern	int	 stream;
 
 // utility functions for use in standalone checkers:
 
@@ -56,6 +64,10 @@ cobra_txt(void)
 char *
 cobra_bfnm(void)		// base of filename
 {	char *z = "";
+
+	if (read_stdin)
+	{	return "stdin";
+	}
 
 	if (cur && cur->fnm)
 	{	z = strrchr(cur->fnm, '/');
@@ -109,29 +121,6 @@ cobra_tag(Prim *q)
 	cur = ocur;
 }
 
-#if 0
-extern void *sbrk(intptr_t increment);
-static void
-memtest(void)
-{	unsigned int bit=1024*1024*1024;
-	double sum=0.0;
-	char *x;
-
-	while (bit > 4096)
-	{	x = sbrk(bit);
-		if (x != (void *) -1)
-		{	sum += (double) bit;
-//			printf("sbrk +%lu	%lu	%.1f\n",
-				(ulong) bit, (ulong) x, sum/1024.0/1024.0);
-		} else
-		{	bit >>= 1;
-		}
-	}
-	printf("%.1f Mb\n", sum/1024.0/1024.0);
-	exit(0);
-}
-#endif
-
 // end of utility functions
 
 static int
@@ -174,7 +163,7 @@ char *
 check_args(char *s, const char *c_base)	// single-core
 {	Files *f;
 	char *c;
-	int n   = strlen(s);
+	int m, n = strlen(s);
 	char *p = strstr(s, "$COBRA");
 	char *a = strstr(s, "$ARGS");
 	char *q = strstr(s, "$FLAGS");
@@ -203,7 +192,7 @@ check_args(char *s, const char *c_base)	// single-core
 	c = (char *) emalloc((n+1)*sizeof(char));	// single core
 	if (p)
 	{	*p = '\0';
-		strcpy(c, s);		// upto $COBRA
+		strncpy(c, s, n);	// upto $COBRA
 		strcat(c, c_base);	// expansion of $COBRA (the rules dir)
 		strcat(c, "/../bin");	// to bin dir by default
 		p += strlen("$COBRA");
@@ -230,8 +219,8 @@ check_args(char *s, const char *c_base)	// single-core
 			if (no_display)
 			{	strcat(c, " -terse ");
 		}	}
-		for (n = 0; n < NHASH; n++)
-		for (f = files[n]; f; f = f->nxt)
+		for (m = 0; m < NHASH; m++)	// bug fix: was n
+		for (f = files[m]; f; f = f->nxt)
 		{	strcat(c, " ");
 			assert(strlen(c)+strlen(f->s) < n);
 			strcat(c, f->s);
@@ -277,13 +266,6 @@ listfiles(int verb, const char *s)
 
 	return len;
 }
-
-typedef struct JumpTbl JumpTbl;
-struct JumpTbl {
-	Prim *b;
-	JumpTbl *nxt;
-};
-static JumpTbl *jmptbl;
 
 static void
 rebind_curly(Prim *from, Prim *upto)
@@ -423,6 +405,22 @@ seen_one(int n, const char *s, int partial)
 	return (Files *) 0;
 }
 
+#if defined(STREAM_LIM) && (STREAM_LIM > 0)
+static Prim *free_tokens;
+
+void
+recycle_token(Prim *from, Prim *stopat)
+{	Prim *w, *v;
+
+	for (w = from; w && w != stopat; w = v)
+	{	v = w->nxt;
+		memset(w, 0, sizeof(Prim));
+		w->nxt = free_tokens;
+		free_tokens = w;
+	}
+}
+#endif
+
 static int
 new_prim(const char *s, const char *t, int cid)
 {	Prim *p;
@@ -433,7 +431,13 @@ new_prim(const char *s, const char *t, int cid)
 	&&  strstr(Px.lex_fname, HEADER) != NULL)
 	{	return 0;
 	}
-
+#if defined(STREAM_LIM) && (STREAM_LIM > 0)
+	if (stream == 1 && free_tokens)
+	{	p = free_tokens;
+		free_tokens = p->nxt;
+		p->nxt = (Prim *) 0;
+	} else
+#endif
 	p = (Prim *) hmalloc(sizeof(Prim), cid);
 	p->seq     = Px.lex_count;
 	p->lnr     = Px.lex_lineno;
@@ -469,6 +473,12 @@ new_prim(const char *s, const char *t, int cid)
 	Px.lex_plst = p;
 
 	return 1;
+}
+
+void
+basic_prim(const char *s, int cid)
+{
+	(void) new_prim(s, 0, cid);
 }
 
 static char *
@@ -689,7 +699,7 @@ rescan(void)
 	{	if (!no_match)
 		{	printf("rescan '%s'\n", f->s);
 		}
-		(void) add_file(f->s, 0);
+		(void) add_file(f->s, 0, 1);
 	}
 	do_typedefs(0);
 #else

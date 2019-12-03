@@ -70,8 +70,12 @@ m & {
 
 	. = sol.nxt;
 	while (.seq < eol.seq)
-	{	if (.round > 0 && @ident && Modified[.txt] > 1 && .bracket == 0)
-		{	Modified[.txt] = 0;
+	{
+# print .fnm ":" .lnr ": query " Modified[.txt] " for " .txt "\n";
+		if (.round > 0 && @ident && Modified[.txt] > 1 && .bracket == 0)
+		{
+# print .fnm ":" .lnr ": converstion " Modified[.txt] " set to 0\n";
+			Modified[.txt] = 0;
 # print .fnm ":" .lnr " zap modified for " .txt "\n";
 			# in round braces, tested in a conditional
 			# or in control part of for loop

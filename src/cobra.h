@@ -19,7 +19,6 @@ typedef struct Lextok	Lextok;
 typedef struct Match	Match;
 typedef struct Qual	Qual;
 typedef struct Script	Script;
-typedef struct TokRange	TokRange;
 
 typedef Lextok *Lexptr;
 
@@ -81,13 +80,6 @@ struct Commands {
 	void (*f)(char *, char *);
 	char *explanation;
 	int   n; // nr chars needed to disambiguate
-};
-
-struct TokRange {
-	int	 seq;
-	int	 param;
-	Prim	*from;
-	Prim	*upto;
 };
 
 struct Bound {
@@ -199,11 +191,11 @@ typedef unsigned int		uint;
 typedef long unsigned int	ulong;
 
 #ifndef DOT
-	#ifdef PC
-	 #define DOT "dotty"
-	#else
-	 #define DOT "dot -Tx11"
-	#endif
+ #ifdef PC
+  #define DOT "dotty"
+ #else
+  #define DOT "dot -Tx11"
+ #endif
 #endif
 
 #endif

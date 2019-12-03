@@ -1,7 +1,5 @@
 . skip.def
 
-%{ qqq = prim; Stop; %}
-
 %{	# set .bound for if statements
 	# to point to else block, if any, or
 	# the first stmnt after the then-block
@@ -38,6 +36,7 @@
 		Next;
 	}
 %}
+
 %{
 	if (!seen_else_links)
 	{	seen_else_links = 1;

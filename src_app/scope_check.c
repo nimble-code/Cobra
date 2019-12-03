@@ -45,6 +45,8 @@ struct MyRange {
 	int file_only;
 } **myrange;
 
+TokRange	**tokrange;	// for cobra_prep.c
+
 int
 hash_s(char *v)
 {	unsigned int h = 0x88888EEFL;

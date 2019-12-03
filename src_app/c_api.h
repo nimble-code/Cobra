@@ -9,7 +9,7 @@
 
 // should really be a copy of cobra_fe.h
 
-#define tool_version	"Version 2.6 - 11 October 2018"
+#define tool_version	"Version 3.1 - 30 October 2019"
 
 #include <stdio.h>
 #include <stdlib.h>

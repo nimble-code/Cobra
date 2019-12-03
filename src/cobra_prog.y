@@ -7,8 +7,7 @@
 %{
 #include "cobra.h"
 #include <regex.h>
-
-#define NCORE	(Ncore+1)	// debugging
+#include "cobra_array.h"
 
 // parser for inline programs
 
@@ -16,34 +15,11 @@
 #define YYDEBUG 1
 #define yyparse xxparse
 
-#ifndef MAX_STACK
-  #define MAX_STACK	512	// recursive fct calls
-#endif
-
-#define H_BITS		12	// 2^12 = 4096 - update hasher if this changes
-#define H_SIZE		(1<<H_BITS)
-#define H_MASK		((H_SIZE)-1)
-
-enum Renum { VAL = 1, STR, PTR, STP, PRCD };
-
-typedef enum	Renum	Renum;
-typedef struct	A_tbl	A_tbl;	// hashed lookup
-typedef struct	Arr_nm	Arr_nm;	// associate arrays
 typedef struct	Block	Block;
 typedef struct	Cstack	Cstack;	// function call stack
-typedef struct	Last	Last;
 typedef struct	Lexlst	Lexlst;
-typedef struct	Rtype	Rtype;
 typedef struct	Var_nm	Var_nm;	// variables: int, str, ptr
 typedef struct	REX	REX;
-typedef struct  Separate Separate;
-
-struct Rtype {
-	Renum	rtyp;
-	int	val;
-	char	*s;
-	Prim	*ptr;
-};
 
 struct Lexlst {
 	Lextok	*t;
@@ -58,6 +34,20 @@ struct Block {
 	Block  *nxt;
 };
 
+struct Cstack {
+	const char *nm;
+	Lextok	*formals;
+	Lextok	*actuals;
+	Lextok	*ra;	// return address
+	Cstack	*nxt;
+};
+
+struct REX {
+	regex_t *rexpr;
+	char	*s;
+	REX	*nxt;
+};
+
 struct Var_nm {
 	Renum	rtyp;
 	ulong	h2;		// name hash
@@ -69,65 +59,18 @@ struct Var_nm {
 	Var_nm	*nxt;
 };
 
-struct Arr_nm {
-	ulong	h2;		// index hash
-	const char *array;	// array basename
-	char	*nm;		// index
-	Renum	 styp;		// type of value stored
-	// value stored:
-		int	len;	// max len if STR
-		int	val;	// VAL
-		char	*s;	// STR
-		Prim	*p;	// PTR
-	int	cdepth;		// fct call depth where defined
-	Arr_nm	*nxt;
-};
-
-struct Cstack {
-	const char *nm;
-	Lextok	*formals;
-	Lextok	*actuals;
-	Lextok	*ra;	// return address
-	Cstack	*nxt;
-};
-
-struct A_tbl {
-	Arr_nm	*n[H_SIZE];	// hashed on array basename
-};
-
-struct Last {	// quickstart for for-loops
-	Arr_nm	*n;	// hashed on array basename
-	int	 h;	// hash of index
-	int	 cnt;
-};
-
-struct REX {
-	regex_t *rexpr;
-	char	*s;
-	REX	*nxt;
-};
-
-struct Separate {	// thread-local copies, to avoid cache misses
-	int Verbose;
-	int P_debug;
-	int Nest;
-	int T_stop;
-	char spacer[4096];
-};
+#ifndef MAX_STACK
+  #define MAX_STACK	512	// recursive fct calls
+#endif
 
 static REX	*re_lst;
 static REX	*re_free;
-
-static Last	*lastix;	// Ncore copies
-static A_tbl	*a_tbl;		// ditto
 
 static Block	**block;
 static Block	**b_free;	// freelist for block
 
 static Cstack	**cstack;
 static Cstack	**c_free;	// freelist for cstack
-
-static Arr_nm	**a_free;	// freelist for a_tbl
 
 static Var_nm	**v_names;
 static Var_nm	**v_free;	// freelist for v_names
@@ -136,9 +79,10 @@ static Function	 *functions;
 static Prim	  none;
 static Lextok	 *p_tree;
 static Var_nm	 *lab_lst;
-static Separate	 *sep;		// thread local copies of globals
+Separate	 *sep;		// thread local copies of globals
 
-static int	*Cdepth;
+int	*Cdepth;
+
 static int	 nest;
 static int	 p_lnr = 1;
 static int	 p_seq = 1;
@@ -147,7 +91,8 @@ static int	 a_cnt;		// conservative cnt of nr of arrays
 static int	 v_cnt;		// conservative cnt of nr of vars
 static int	*t_stop;
 
-static char	*derive_string(Prim **, Lextok *, const int);
+char	*derive_string(Prim **, Lextok *, const int);
+
 static Block	*pop_context(int, int);
 static Lextok	*mk_for(Lextok *, Lextok *, Lextok *, Lextok *);
 static Lextok	*new_lex(int, Lextok *, Lextok *);
@@ -158,25 +103,26 @@ static Var_nm	*check_var(const char *, const int);
 	#define DUP_TREES
 
 #ifdef DUP_TREES
-static void	 clear_dup(void);
-static Lextok	*dup_tree(Lextok *);
+ static void	 clear_dup(void);
+ static Lextok	*dup_tree(Lextok *);
 #endif
 
 static void	add_fct(Lextok *);
 static void	add_return(Lextok *);
-static void	eval_prog(Prim **, Lextok *, Rtype *, const int);
+void	eval_prog(Prim **, Lextok *, Rtype *, const int);
 static void	fixstr(Lextok *);
 static void	mk_fsm(Lextok *, const int);
 static void	mk_lab(Lextok *, Lextok *);
 static void	push_context(Lextok *, Lextok *, int, int);
-static void	rm_var(const char *, const int, const int);
 static void	tok2txt(Lextok *, FILE *);
-static void	what_type(Renum);
+void	what_type(Renum);
 static void	yyerror(const char *);
 
 extern void	show_error(int);
 extern int	xxparse(void);
 static int	yylex(void);
+
+extern int	stream;
 %}
 
 %token	NR STRING NAME IF IF2 ELSE WHILE FOR IN PRINT ARG SKIP GOTO
@@ -471,17 +417,67 @@ static struct Keywords ops[] = {	// for tok2txt only
 	{ 0, 0}
 };
 
-static int
+#if 1
+ #if defined(__GNUC__) && defined(__i386__)
+	#define get16bits(d) (*((const uint16_t *) (d)))
+ #else
+	#define get16bits(d) ((((uint32_t)(((const uint8_t *)(d))[1])) << 8) \
+                              +(uint32_t)(((const uint8_t *)(d))[0]) )
+ #endif
+uint
+hasher(const char *s)
+{	int len = strlen(s);
+	uint32_t h = len, tmp;
+	int rem;
+
+	rem = len & 3;
+	len >>= 2;
+
+	for ( ; len > 0; len--)
+	{	h  += get16bits(s);
+        	tmp = (get16bits(s+2) << 11) ^ h;
+        	h   = (h << 16) ^ tmp;
+        	s  += 2*sizeof(uint16_t);
+		h  += h >> 11;
+	}
+	switch (rem) {
+	case 3: h += get16bits(s);
+		h ^= h << 16;
+		h ^= s[sizeof(uint16_t)] << 18;
+		h += h >> 11;
+		break;
+	case 2: h += get16bits(s);
+		h ^= h << 11;
+		h += h >> 17;
+		break;
+	case 1: h += *s;
+		h ^= h << 10;
+		h += h >> 1;
+		break;
+	}
+	h ^= h << 3;
+	h += h >> 5;
+	h ^= h << 4;
+	h += h >> 17;
+	h ^= h << 25;
+	h += h >> 6;
+
+	return h;	// caller adds &H_MASK
+}
+#else
+uint
 hasher(const char *s)
 {	unsigned int h = 0x88888EEFL;
+	const char t = *s;
  
 	while (*s != '\0')
-	{	h ^= ((h << 4) ^ (h >> 28))+ *s++;
+	{	h ^= ((h << 4) ^ (h >> 28)) + *s++;
 	}
-	return (int) (h ^ (h>>12)) & H_MASK;
+	return (uint) (t ^ (h ^ (h>>(H_BITS))));
 }
+#endif
 
-static ulong
+ulong
 hash2(const char *s)
 {
 	if (sizeof(ulong) == 8)
@@ -621,490 +617,6 @@ find_label(char *s)
 	}	}
 	printf("error: label '%s' undefined\n", s);
 	return (Lextok *) 0;
-}
-
-static char *
-array_ix(const char *a, const int idx, const int ix)	// T[0] = index(H,3)
-{	Arr_nm *n;
-	int cnt = 0;
-	int h1 = hasher(a);
-
-	assert(h1 < H_SIZE);
-	assert(ix >= 0 && ix < Ncore);
-
-	if (h1  == lastix[ix].h
-	&&  idx == lastix[ix].cnt)
-	{	n   = lastix[ix].n->nxt;
-		cnt = lastix[ix].cnt;
-	} else
-	{	n = a_tbl[ix].n[h1];
-		cnt = 0;
-	}
-	for ( ; n; n = n->nxt)	// array_ix -- ix_aname
-	{	if (strcmp(n->array, a) == 0
-		&&  n->cdepth == Cdepth[ix]
-		&&  cnt++ == idx)
-		{	lastix[ix].h = h1;
-			lastix[ix].n = n;
-			lastix[ix].cnt = cnt;
-			return n->nm;
-	}	}
-
-	return "";
-}
-
-static int
-array_sz(const char *a, const int ix)
-{	Arr_nm *n;
-	int cnt = 0;
-	int h1 = hasher(a);
-	int bm = -1;
-
-	// find closest (highest) scope level where a is defined
-	assert(h1 < H_SIZE);
-	assert(ix >= 0 && ix < Ncore);
-	for (n = a_tbl[ix].n[h1]; n; n = n->nxt)	// array_sz -- sz_aname
-	{	if (strcmp(n->array, a) == 0)
-		{	if (n->cdepth > bm
-			&&  n->cdepth <= Cdepth[ix])
-			{	bm = n->cdepth;
-	}	}	}
-
-	if (bm == -1)	// not defined
-	{	return 0;
-	}
-
-	for (n = a_tbl[ix].n[h1]; n; n = n->nxt)	// array_sz -- sz_aname
-	{	if (strcmp(n->array, a) == 0
-		&&  n->cdepth == bm)
-		{	cnt++;
-	}	}
-
-	return cnt;
-}
-
-static int
-sum_array_el(const char *a, const char *e)
-{	Arr_nm *n;
-	int i, j, sum = 0;
-	int h1 = hasher(a);
-	ulong h2 = hash2(e);
-				
-	assert(h1 < H_SIZE);
-	for (i = 0; i < Ncore; i++)
-	for (n = a_tbl[i].n[h1]; n; n = n->nxt)	// sum_array
-	{	if (n->h2 > h2)
-		{	break;
-		}
-		if (n->h2 == h2
-		&&  strcmp(n->nm, e) == 0	// more likely to fail
-		&&  strcmp(n->array, a) == 0)
-		{	j = 0;
-			switch(n->styp) {
-			case VAL:
-				j = n->val;
-				break;
-			case STR:
-				if (isdigit((uchar) n->s[0]))
-				{	j = atoi(n->s);
-				} else if (strlen(n->s) > 0)
-				{	j = 1;
-				}
-				break;
-			case PTR:
-				if (n->p && n->p->lnr > 0)
-				{	j = 1;
-				}
-				break;
-			default:
-				break;
-			}
-			sum += j;
-	}	}
-
-	return sum;
-}
-
-static int
-is_aname(const char *a, const int ix)	// is a an associative array basename?
-{	Arr_nm *n;
-	int h1;
-
-	if (ix >= 0 && ix < Ncore)
-	{	h1 = hasher(a);
-		assert(h1 < H_SIZE);
-		for (n = a_tbl[ix].n[h1]; n; n = n->nxt)	// is_aname
-		{	if (strcmp(n->array, a) == 0
-			&&  n->cdepth <= Cdepth[ix])
-			{	return 1;
-	}	}	}
-
-	return 0;
-}
-
-static Arr_nm *
-check_aname(const char *a, Rtype *ts, const int ix)	// only called from eval_aname for '['
-{	static Arr_nm dummy;
-	Arr_nm *n;
-	int h1;
-	ulong h2;
-
-	//  a = array name
-	// ts = index type and value
-
-	assert(ts->rtyp == STR);
-	if (ix < 0 || ix >= Ncore)
-	{	printf("error: invalid core qualifier in %s[%s] ^ %d\n",
-			a, ts->s, ix);
-		dummy.styp = STP;
-		return &dummy;
-	}
-
-	h1 = hasher(a);
-	h2 = hash2(ts->s);
-	assert(h1 < H_SIZE);
-	for (n = a_tbl[ix].n[h1]; n; n = n->nxt)	// check_aname
-	{	if (n->h2 > h2)
-		{	break;
-		}
-		if (n->h2 == h2
-		&&  strcmp(n->nm, ts->s) == 0
-		&&  strcmp(n->array, a) == 0
-		&&  n->cdepth == Cdepth[ix])
-		{	return n;
-	}	}
-
-	dummy.styp = 0;
-	return &dummy;
-}
-
-static Arr_nm *
-get_aname(const char *a, Rtype *ts, const int ix)	// get or create
-{	Arr_nm *n, *g = NULL, *lastn = NULL;
-	int h1;
-	ulong h2;
-	//  a = array name
-	// ts = index type and value
-
-	assert(ts->rtyp == STR);
-	h1 = hasher(a);
-	h2 = hash2(ts->s);
-
-	assert(h1 < H_SIZE);
-	assert(ix >= 0 && ix < Ncore);
-
-	for (n = a_tbl[ix].n[h1]; n; lastn = n, n = n->nxt)	// get_aname
-	{	if (n->h2 > h2)
-		{	break;
-		}
-		if (n->h2 == h2
-		&&  strcmp(n->nm, ts->s) == 0
-		&&  strcmp(n->array, a) == 0)
-		{	if (n->cdepth == Cdepth[ix])
-			{	return n;
-			}
-			if (n->cdepth == 0)	// global
-			{	g = n;		// unless there's a local match later
-	}	}	}
-	if (g)
-	{	return g;	// best match
-	}
-
-	if (a_free[ix])
-	{	n = a_free[ix];
-		a_free[ix] = a_free[ix]->nxt;
-		n->p = (Prim *) 0;
-		if (!n->nm
-		||  strlen(ts->s) > n->len)
-		{	n->nm = (char *) hmalloc(strlen(ts->s)+1, ix); // XX get_aname
-			n->len = strlen(ts->s);
-		}
-	} else
-	{	n = (Arr_nm *) hmalloc(sizeof(Arr_nm), ix);	// get_aname
-		n->nm = (char *) hmalloc(strlen(ts->s)+1, ix);	// get_aname
-		n->len = strlen(ts->s);
-	}
-	n->h2   = h2;
-	n->styp = 0;
-	n->val  = 0;
-	n->array = a;			// basename
-	strcpy(n->nm, ts->s);		// index (always a string)
-	n->cdepth = Cdepth[ix];
-
-	if (lastn)	// insert after lastn
-	{	n->nxt = lastn->nxt;
-		lastn->nxt = n;
-	} else	// insert before first entry
-	{	n->nxt = a_tbl[ix].n[h1];	// get_aname (create)
-		a_tbl[ix].n[h1] = n;		// get_aname
-	}
-//	printf("%s Created\n", a);
-	return n;
-}
-
-static void
-array_unify(Lextok *qin, const int ix)	// make arrays in core q->val contain all indices
-{	static Prim zero;
-	Arr_nm *n, *m;
-	Lextok *q = qin->lft;
-	Lextok *a = qin->rgt;
-	Rtype ts;
-	int i, which;
-	int h1 = 0;
-
-	assert(q->typ == NR || q->typ == CPU);
-	assert(!a || a->typ == NAME);
-
-	if (Ncore == 1)
-	{	return;
-	}
-	if (q->typ == CPU)
-	{	which = ix;
-	} else
-	{	which = q->val;
-	}
-	ts.rtyp = STR;
-
-	if (a)
-	{	h1 = hasher(a->s);
-		for (i = 0; i < Ncore; i++)
-		{	if (i == which)
-			{	continue;
-			}
-			for (n = a_tbl[i].n[h1]; n; n = n->nxt)
-			{	if (n->cdepth != Cdepth[i]
-				||  strcmp(n->array, a->s) != 0)
-				{	continue;
-				}
-				ts.s = n->nm;
-				m = get_aname(n->array, &ts, which);	// aunify
-				if (!m->styp)	// was new
-				{	m->styp = n->styp;	
-					switch (n->styp) {
-					// VAL -- remains 0
-					case STR:
-						if (!isdigit((uchar) n->s[0]))
-						{	m->len = n->len;
-							m->s = n->s;
-						} else	// just the index
-						{	m->s = "";
-							m->len = 0;
-						}
-						break;
-					case PTR:
-						m->p = &zero; // just the index
-						break;
-					default:
-						break;
-		}	}	}	}
-	} else
-	{	for (i = 0; i < Ncore; i++)
-		{	if (i == which)
-			{	continue;
-			}
-			for (h1 = 0; h1 < H_SIZE; h1++)
-			for (n = a_tbl[i].n[h1]; n; n = n->nxt)
-			{	if (n->cdepth != Cdepth[i])
-				{	continue;
-				}
-				ts.s = n->nm;
-				m = get_aname(n->array, &ts, which);	// aunify
-				if (!m->styp)	// was new
-				{	m->styp = n->styp;
-					switch (n->styp) {
-					case STR:
-						if (!isdigit((uchar) n->s[0]))
-						{	m->len = n->len;
-							m->s = n->s;
-						} else	// just the index
-						{	m->s = "";
-							m->len = 0;
-						}
-						break;
-					case PTR:
-						m->p = &zero; // just the index
-						break;
-					case VAL:	// remains 0
-					default:
-						break;
-		}	}	}	}
-	}
-}
-
-static void
-rm_aname(const char *a, int one, const int ix)	// remove array, instead of just one element
-{	Arr_nm *n, *nxt, *lst = (Arr_nm *) 0;
-	int found = 0;
-	int h1 = hasher(a);
-
-	assert(h1 < H_SIZE);
-	assert(ix >= 0 && ix < Ncore);
-
-	for (n = a_tbl[ix].n[h1]; n; n = nxt)	// rm_aname
-	{	nxt = n->nxt;
-		if ((one && strcmp(n->array, a) == 0
-			 && n->cdepth == Cdepth[ix])
-		|| (!one && n->cdepth > Cdepth[ix]))
-		{	found++;
-//printf("pop '%s[%s]' -- depth %d\n", n->array, n->nm, n->cdepth);
-			if (lst)
-			{	lst->nxt = nxt;
-			} else
-			{	a_tbl[ix].n[h1] = nxt;
-			}
-			n->nxt = a_free[ix];
-			a_free[ix] = n;
-		} else
-		{	lst = n;
-//printf("%d: check pop: %s[%s] -- %d\n", Cdepth[ix], n->array, n->nm, n->cdepth);
-	}	}
-
-	if (!found)	// must have been a varname
-	{	rm_var(a, one, ix);
-	}
-}
-
-static void
-rm_aname_el(Prim **ref_p, Lextok *t, const int ix)	// remove array element
-{	Arr_nm *n, *pn = (Arr_nm *) 0;		// t->lft name t->rgt index
-	char *s = (char *) 0;
-	int h1;
-	ulong h2;
-
-	assert(t->lft->typ == NAME);		// basename
-	if (!t->rgt)				// delete entire array
-	{	rm_aname(t->lft->s, 1, ix);	// this specific array only
-		return;
-	}
-
-	s = derive_string(ref_p, t->rgt, ix);	// index -- rm_aname_el
-	h1 = hasher(t->lft->s);
-	h2 = hash2(s);
-
-	assert(h1 < H_SIZE);
-	assert(ix >= 0 && ix < Ncore);
-
-	for (n = a_tbl[ix].n[h1]; n; pn = n, n = n->nxt)	// rm_aname_el
-	{	if (n->h2 > h2)
-		{	break;
-		}
-		if (n->h2 == h2
-		&&  strcmp(n->nm, s) == 0
-		&&  strcmp(n->array, t->lft->s) == 0
-		&&  n->cdepth == Cdepth[ix])	// New
-		{	if (pn)
-			{	pn->nxt = n->nxt;
-			} else
-			{	a_tbl[ix].n[h1] = n->nxt;
-			}
-			n->nxt = a_free[ix];
-			a_free[ix] = n;
-			return;
-	}	}
-
-	if (sep[ix].Verbose>1)
-	{	printf("line %d: warning: '%s[\"%s\"]' not found (delete)\n",
-			t->lnr, t->lft->s, s);
-	}
-}
-
-static void
-set_aname(const Lextok *p, Rtype *ts, Rtype *rv, const int ix)
-{	Arr_nm *nm;
-	const char *a;
-	//  a = array name
-	// ts = index type and value
-	// rv = value to be stored
-	assert(p);
-
-	a = p->s;
-
-	nm = get_aname(a, ts, ix);	// set_aname -- get it or create it
-
-	if (!nm->styp)
-	{	nm->styp = rv->rtyp;
-	} else
-	{	if (nm->styp != rv->rtyp)
-		{
-			printf("line %d, cpu%d: '%s[%s]': type mismatch, ",
-				p->lnr,
-				ix, a, ts->s);
-			what_type(nm->styp);
-			printf(" (lhs) != ");
-			what_type(rv->rtyp);
-			printf(" (rhs)\n");
-#if 1
-			nm->styp = rv->rtyp;	// silent conversion
-#else
-			rv->rtyp = STP;
-			return;
-#endif
-	}	}
-
-	switch (nm->styp) {	// value, string, or ptr to store
-	case VAL:
-		nm->val = rv->val;
-		break;
-	case STR:
-		if (!nm->s
-		||  strlen(rv->s) > nm->len)
-		{	nm->s = (char *) hmalloc(strlen(rv->s)+1, ix);	// XX set_aname
-			nm->len = strlen(rv->s);
-		}
-		strcpy(nm->s, rv->s);
-		break;
-	case PTR:
-		nm->p = rv->ptr;
-		break;
-	default:
-		printf("error: unexpected array type for %s: '", a);
-		what_type(nm->styp);
-		printf("'\n");
-		rv->rtyp = STP;
-		break;
-	}
-}
-
-static void
-eval_aname(Prim **ref_p, Lextok *q, Rtype *ts, const int ix)	// array name, index
-{	char *a = q->lft->s;
-	Rtype tmp;
-	Arr_nm *n;
-
-	if (q->core)
-	{	eval_prog(ref_p, q->core, &tmp, ix);
-		assert(tmp.rtyp == VAL);
-	//	printf("qualified array name %s[%s] in %d\n", a, ts->s, tmp.val);
-		n = check_aname(a, ts, tmp.val); // eval_aname
-	} else
-	{	n = get_aname(a, ts, ix);	  // eval_aname
-	}
-
-	ts->rtyp = n->styp;	   // return type: value stored
-	switch (n->styp) {
-	case VAL:
-		ts->val = n->val;
-		break;
-	case STR:
-		ts->s = n->s;
-		break;
-	case PTR:
-		ts->ptr = n->p;
-		break;
-	case STP:
-	case PRCD:
-		break;
-	default:
-		if (0)
-		{	printf("line %d: warning: unexpected type for array %s: '",
-				q->lnr, a);
-			what_type(n->styp);
-			printf("'\n");
-		}
-		ts->rtyp = VAL;
-		ts->val = 0;
-		break;
-	}
 }
 
 static void
@@ -1404,7 +916,7 @@ dump_tree(Lextok *t, int i)
 {
 	if (!t || (t->visit&16))
 	{	indent(i, "");
-		printf("<<%p>>\n", (void *) t);
+		printf("<<%p::%d>>\n", (void *) t, t?t->typ:-1);
 		return;
 	}
 	t->visit |= 16;
@@ -1433,6 +945,32 @@ dump_tree(Lextok *t, int i)
 	if (t->c)
 	{	indent(i, "c:\n");
 		dump_tree(t->c, i+1);
+	}
+}
+
+static void
+clean_tree(Lextok *t)
+{
+	if (!t || (t->visit&64))
+	{	return;
+	}
+	t->visit &= ~16;
+	t->visit |= 64;
+
+	if (t->lft)
+	{	clean_tree(t->lft);
+	}
+	if (t->rgt)
+	{	clean_tree(t->rgt);
+	}
+	if (t->a)
+	{	clean_tree(t->a);
+	}
+	if (t->b)
+	{	clean_tree(t->b);
+	}
+	if (t->c)
+	{	clean_tree(t->c);
 	}
 }
 #endif
@@ -1525,9 +1063,9 @@ map_var(Prim **ref_p, const char *fnm, Lextok *name, Lextok *expr, const int ix)
 	assert(name->typ == NAME);		// name of formal param
 	assert(ix >= 0 && ix < Ncore);
 
-	Cdepth[ix]--;				// evaluate in callers context
+	Cdepth[ix]--;				// evaluate param in callers context
 	eval_prog(ref_p, expr, &tmp, ix);
-	Cdepth[ix]++;				// restore;
+	Cdepth[ix]++;				// restore context
 
 	if (expr->typ == NAME && is_aname(expr->s, ix))
 	{	printf("error: the basename of an associative array (%s) cannot be passed as a parameter\n",
@@ -1782,12 +1320,21 @@ yylex(void)
 static void
 eval_eq(int eq, Rtype *a, Rtype *rv)	// eq=1: EQ, eq=0: NE
 {
+//printf("eval_eq %d <-> %d\n", a->rtyp, rv->rtyp);
 	if (a->rtyp != rv->rtyp)
 	{	// can happen for a failed array lookup
 		// e.g. . == 0 or . != 0
-		rv->rtyp = VAL;
-		rv->val  = eq?0:1;
-		return;
+		if (rv->rtyp == STR
+		&&  rv->s
+		&&  isdigit((uchar) rv->s[0]))
+		{	rv->rtyp = VAL;
+			rv->val = atoi(rv->s);
+//printf("Here %d %d (%d)\n", a->val, rv->val, eq);
+		} else
+		{	rv->rtyp = VAL;
+			rv->val  = eq?0:1;
+			return;
+		}
 	}
 	rv->rtyp = VAL;
 	switch (a->rtyp) {
@@ -1804,8 +1351,10 @@ eval_eq(int eq, Rtype *a, Rtype *rv)	// eq=1: EQ, eq=0: NE
 	case VAL:
 		if (eq)
 		{	rv->val = (a->val == rv->val);
+//printf("that's odd.... returning %d\n", rv->val);
 		} else
 		{	rv->val = (a->val != rv->val);
+//printf("returning %d\n", rv->val);
 		}
 		break;
 	case PTR:
@@ -1821,7 +1370,7 @@ eval_eq(int eq, Rtype *a, Rtype *rv)	// eq=1: EQ, eq=0: NE
 	}
 }
 
-static void
+void
 what_type(Renum t)
 {
 	switch (t) {
@@ -1864,6 +1413,8 @@ set_var(Lextok *q, Rtype *rv, const int ix)
 	assert(ix >= 0 && ix < Ncore);
 	Assert("set_var", q->typ == NAME, q);
 	n = mk_var(q->s, rv->rtyp, ix);
+
+//printf("set_var, %s %d %d\n", q->s, rv->rtyp, n->rtyp);
 
 	if (!rv->rtyp)
 	{	rv->rtyp = n->rtyp;
@@ -2126,6 +1677,7 @@ pop_context(int ix, int n)
 static void
 str2val(Rtype *rv)
 {
+//printf("str2val %d -- %d %s %p\n", rv->rtyp, rv->val, rv->s, (void *) rv->ptr);
 	if (rv->rtyp == STR
 	&&  isdigit((uchar) rv->s[0]))
 	{	rv->rtyp = VAL;
@@ -2327,7 +1879,7 @@ do_or(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)
 static void
 do_incr_decr(Prim **ref_p, Lextok *q, Rtype *rv, const int ix, Prim *p)
 {	Rtype tmp;
-	Arr_nm *nm;
+//	Arr_nm *nm;
 	memset(&tmp, 0, sizeof(Rtype));
 
 	assert(ix >= 0 && ix < Ncore);
@@ -2345,30 +1897,12 @@ do_incr_decr(Prim **ref_p, Lextok *q, Rtype *rv, const int ix, Prim *p)
 			show_error(q->lnr);
 			return;
 		}
-
-		nm = get_aname(LHS->lft->s, &tmp, ix);	// do_incr LHS->lft->s: array name
-		if (!nm->styp)
-		{	nm->styp = VAL;			// ++ or --
-		} else
-		{	if (nm->styp != VAL)
-			{	printf("error: unexpected array type: expected value\n");
-				show_error(q->lnr);
-				rv->rtyp = STP;
-				return;
-		}	}
-
-		rv->rtyp = VAL;
-		if (q->typ == INCR)
-		{	rv->val = nm->val + 1;
-		} else if (q->typ == DECR)
-		{	rv->val = nm->val - 1;
+//printf("INCR %p\n", (void *) LHS->lft);
+		if (!incr_aname_el(ref_p, LHS->lft, &tmp, q->typ, rv, ix))	// do_incr LHS->lft->s: array name
+		{	printf("error: unexpected array type: expected value\n");
+			show_error(q->lnr);
+			rv->rtyp = STP;
 		}
-
-		// lft->s: basename
-		// tmp: index
-		// rv: value to store
-
-		set_aname(LHS->lft, &tmp, rv, ix);
 		return;
 	}
 
@@ -2502,12 +2036,16 @@ do_assignment(Prim **ref_p, Lextok *q, Rtype *rv, const int ix, Prim *p)
 		// lft->s: basename
 		// tmp: index
 		// rv: value, string, or ptr to store
-		set_aname(LHS->lft, &tmp, rv, ix);
+//printf("SET %s\n", tmp.s);
+		set_aname(ref_p, LHS->lft, &tmp, rv, ix);
 		return;
 	}
 
 	if (LHS->typ == NAME)		// q = ... lhs
 	{	eval_prog(ref_p, RHS, rv, ix);
+//printf("here %d (%s) (%d)\n", rv->rtyp, rv->s, rv->val);
+//clean_tree(RHS);
+//dump_tree(RHS, 1);
 		set_var(LHS, rv, ix);
 		return;
 	}
@@ -2832,7 +2370,7 @@ convert2string(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)
 	rv->rtyp = STR;
 }
 
-static char *
+char *
 derive_string(Prim **ref_p, Lextok *q, const int ix)	// q: comma separated list
 {	Rtype tmp;
 	char *s, *t, *r;
@@ -2847,6 +2385,7 @@ derive_string(Prim **ref_p, Lextok *q, const int ix)	// q: comma separated list
 	} else
 	{	s = derive_string(ref_p, q->rgt, ix);
 		t = derive_string(ref_p, q->lft, ix);
+if (strlen(t) == 0) { printf("%s:%d: OH NO!!\n", (*ref_p)->fnm, (*ref_p)->lnr); }
 		n = strlen(t)+strlen(s)+2;
 		r = (char *) hmalloc(n, ix);	// XX derive_string
 		snprintf(r, n, "%s,%s", t, s);
@@ -2888,7 +2427,7 @@ cpush(Prim **ref_p, const char *s, Lextok *formals, Lextok *actuals, Lextok *ra,
 	cframe->actuals = actuals;
 	cframe->nxt = cstack[ix];
 	cstack[ix] = cframe;
-	Cdepth[ix]++;
+	Cdepth[ix]++;	// fct call
 
 	set_actuals(ref_p, s, formals, actuals, ix);
 }
@@ -2904,8 +2443,8 @@ cpop(const char *s, const int ix)
 		cstack[ix] = cstack[ix]->nxt;
 		c->nxt = c_free[ix];
 		c_free[ix] = c;
-		Cdepth[ix]--;
-		rm_aname("", 0, ix); // all vars now out of scope
+		Cdepth[ix]--;		// fct return
+		rm_aname("", 0, ix);	// all non-array vars now out of scope
 		return c->ra;
 	}
 	printf("error(%d): cannot happen: POP %s fails\n", ix, s);
@@ -3113,7 +2652,7 @@ do_sum(Prim **ref_p, Lextok *q, Rtype *rv, int ix)
 
 	if (q->typ == '[')
 	{	s = derive_string(ref_p, q->rgt, ix);
-		return sum_array_el(q->lft->s, s);
+		return array_sum_el(q->lft->s, s);
 	}
 
 	printf("%d: bad arg for sum, saw: ", q->lnr);
@@ -3194,7 +2733,7 @@ reset_int(const int ix)
 
 int sdepth;
 
-static void
+void
 eval_prog(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)
 {	Prim  *p;
 	Rtype tmp;
@@ -3279,6 +2818,7 @@ next:
 		Assert("index2", rv->rtyp == VAL, q->lft);
 		rv->rtyp = STR;
 		rv->s = array_ix(q->rgt->s, rv->val, ix);
+//printf("retrieve2 <%s %s %d>\n", q->rgt->s, rv->s, rv->val);
 		break;
 
 	case SET_RANGES:
@@ -3351,11 +2891,14 @@ next:
 		if (q->rgt && q->rgt->typ == ',')
 		{	rv->rtyp = STR;
 			rv->s = derive_string(ref_p, q->rgt, ix); // '['
+//printf("--> ");
 		} else
 		{	Assert(q->lft?q->lft->s:"?", q->lft && (q->lft->typ == NAME), q->lft);
 			Assert("[", q->rgt, q);
+//printf("--- ");
 			convert2string(ref_p, q->rgt, rv, ix); // index
 		}
+//printf("BLAH! '%s'\n", rv->s);
 		eval_aname(ref_p, q, rv, ix); // '[' array name, index value
 		break;
 
@@ -3500,11 +3043,28 @@ next:
 		eval_prog(ref_p, q->lft, rv, ix);
 		Assert("assert", rv->rtyp == VAL, q->lft);
 		if (rv->val == 0)
-		{	printf("assertion violated\n");
+		{	printf("%s:%d: assertion violated at: ",
+				p->fnm, p->lnr);
+			Prim *z = p;
+			while (z->prv && z->lnr == z->prv->lnr) { z = z->prv; }
+			while (z)
+			{	printf("%s", z->txt);
+				z = z->nxt;
+				if (!z || z->lnr != p->lnr)
+				{	break;
+			}	}
+			printf("\n");
+#ifdef DEBUG
+			dump_tree(q->lft, 0);
+#endif
+			if (0) printf("%d: [seq %d ln %d] EVAL_PROG typ %3d ",
+				ix, p->seq, p->lnr, q->typ);
+
 			show_error(q->lnr);
 			unwind_stack(ix);
 			sep[ix].T_stop++; 
 			rv->rtyp = STP;
+			break;
 		}
 		break;
 
@@ -3604,6 +3164,7 @@ next:
 	{	switch (q->typ) {
 		case ';':
 		case '=':
+		case ASSERT:
 		case INCR:
 		case DECR:
 		case PRINT:
@@ -3719,7 +3280,7 @@ mk_var(const char *s, const int t, const int ix)
 	return n;
 }
 
-static void
+void
 rm_var(const char *s, int one, const int ix)
 {	Var_nm *n, *nxt, *lst = (Var_nm *) 0;
 	ulong h2 = hash2(s);
@@ -3752,7 +3313,6 @@ ini_vars(void)
 	if (Ncore > vmax)
 	{	vmax = Ncore;
 		v_names = (Var_nm **) 0;
-		a_tbl   = (A_tbl *)   0;
 		cstack  = (Cstack **) 0;
 		Cdepth  = (int *)     0;
 		t_stop  = (int *)     0;
@@ -3761,12 +3321,6 @@ ini_vars(void)
 	if (!v_names)
 	{	v_names = (Var_nm **) emalloc(NCORE * sizeof(Var_nm *));
 		v_free  = (Var_nm **) emalloc(NCORE * sizeof(Var_nm *));
-	}
-
-	if (!a_tbl)
-	{	a_tbl   = (A_tbl *)   emalloc(NCORE * sizeof(A_tbl));
-		a_free  = (Arr_nm **) emalloc(NCORE * sizeof(Arr_nm *));
-		lastix  = (Last *)    emalloc(NCORE * sizeof(Last));
 	}
 
 	if (!cstack)
@@ -3791,12 +3345,12 @@ ini_vars(void)
 			sep[i].Nest    = nest;
 			sep[i].T_stop  = t_stop[i];
 	}	}
+	ini_arrays();
 }
 
 static void
 mk_varpool(void)
 {	Var_nm *n;
-	Arr_nm *a;
 	int i, k;
 
 	// avoid having to call emalloc in mk_var
@@ -3813,15 +3367,8 @@ mk_varpool(void)
 			n->nxt = v_free[i];
 			v_free[i] = n;
 		}
-		k = a_cnt;
-		for (a = a_free[i]; a; a = a->nxt)
-		{	k--;
-		}
-		while (k-- >= 0)
-		{	a = (Arr_nm *) emalloc(sizeof(Arr_nm)); // mk_varpool
-			a->nxt = a_free[i];
-			a_free[i] = a;
-	}	}
+		prepopulate(a_cnt, i);
+	}
 }
 
 static void
@@ -3950,7 +3497,37 @@ exec_prog(Prim **q, int ix)
 	default:
 		break;
 	}
+
 	return rv.val;
+}
+
+static int
+streamable(Lextok *t)
+{
+	if (t && !(t->visit & 4))
+	{	t->visit |= 4;
+		switch (t->typ) {
+		case FIRST_T:
+		case LAST_T:
+		case BEGIN:
+		case END:
+		case PRV:
+		case JMP:
+		case N_CORE:
+			printf("script is not streamable:\n");
+			show_error(t->lnr);
+			return 0;
+		case CALL:
+			if (!streamable(t->c))
+			{	return 0;
+			}
+		default:
+			if (!streamable(t->lft)
+			||  !streamable(t->rgt))
+			{	return 0;
+	}	}	}
+
+	return 1;
 }
 
 int
@@ -4001,6 +3578,11 @@ prep_prog(FILE *nfd)
 	mk_fsm(p_tree, 0);				// visit |= 2
 	opt_fsm(p_tree);				// visit |= 8
 //	dump_tree(p_tree, 0);
+
+	if (stream == 1
+	&& !streamable(p_tree))
+	{	return 0;
+	}
 
 	if (preserve || p_debug == 4)
 	{	FILE *x = fopen(FsmDot, "a");

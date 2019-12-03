@@ -9,7 +9,8 @@ set W 100
 set H  24
 
 wm title . "icobra"
-wm geometry . ${W}x$H+20+20	;# widthxheight+offsetx+offsety
+wm geometry . +20+20	;# widthxheight+offsetx+offsety
+wm resizable . ${W} ${H}
 
 proc showfile {fn n} {
 	global W H
@@ -25,7 +26,6 @@ proc showfile {fn n} {
 	frame .p
 
 	text .p.t -relief raised -bd 2 \
-		-width $W -height $H \
 		-yscrollcommand ".p.ys set" \
 		-xscrollcommand ".p.xs set" \
 		-setgrid 1
@@ -34,9 +34,9 @@ proc showfile {fn n} {
 	scrollbar .p.ys -command ".p.t yview"
 
 	pack .p.xs -side bottom -fill x
-	pack .p.ys -side right  -fill y
-	pack .p.t -side left
-	pack .p
+	pack .p.ys -side left   -fill y
+	pack .p.t  -side left   -fill both -expand true
+	pack .p -fill both -expand true
 
 	set fd -1
 	catch { set fd [open $fn r] } errmsg
@@ -59,7 +59,7 @@ proc showfile {fn n} {
 }
 
 if {$argc != 2} {
-	puts "usage: foo filename linenr"
+	puts "usage: window filename linenr"
 	exit 1
 }
 

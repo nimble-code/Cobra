@@ -84,8 +84,10 @@ b	# last identifier in 3rd arg
 # p
 = "step 1, nr matches:"
 
-## Step 2 prep -- some usefule functions
+## Step 2 prep -- some useful functions
 %{
+	TaintParam[ "makesureitsglobal" ] = 0;
+	Handled[ "makesureitsglobal" ] = 0;
 	function search_calls(rr)
 	{
 		cnt = 1;
@@ -98,13 +100,16 @@ b	# last identifier in 3rd arg
 		rr = rr.prv;
 		if (rr.typ == "ident")	# fct name
 		{	TaintParam[ rr.txt ] = cnt;
+# print "set TaintParam[ " rr.txt " ] to " cnt "\n";
 		}
 	}
 
 	function search_params()
 	{
+# print "Checking TaintParam " .txt "\n";
 		fp = TaintParam[ .txt ];
 		pf = Handled[ .txt ];
+# print "TaintParam [ " .txt "] == " fp "\n";
 		if (fp > 0 && pf == 0)
 		{	Handled[ .txt ] = fp;
 			cnt = 1;
@@ -130,7 +135,7 @@ b	# last identifier in 3rd arg
 							&&  s.txt != "+="
 							&&  s.txt != "-=")	# not a clear lvalue
 							{	r.mark = 2;	# new taint mark
-#								print r.fnm ":" r.lnr ": " r.txt " new mark 2\n";
+# print r.fnm ":" r.lnr ": " r.txt " new mark 2\n";
 						}	}
 						r = r.nxt;
 					}
@@ -158,6 +163,7 @@ step2:
 	{	restore(1, "");
 		unset TaintParam;
 		unset Handled;
+# print "Unset TaintParam\n";
 		Stop;
 	}
 
@@ -175,7 +181,7 @@ step2:
 	# update set of potentially tainted variables
 	save(1, "|");	# add
 
-#	print "expanded set: " marks(1) "\n";
+# print "expanded set: " marks(1) "\n";
 
 	reset();		# clear marks in 0
 	fcts();			# mark fcts, to find tainted ones
@@ -191,8 +197,9 @@ step2:
 		. = .nxt;
 	}
 	unset TaintParam;	# done with this round
+# print "Unset2 TaintParam\n";
 
-#	print "new marks: " marks(0) "\n";
+# print "new marks: " marks(0) "\n";
 
 	n1 = marks(1);	# count them
 	save(1, "|");
@@ -215,19 +222,25 @@ step2:
 
 # Step 3 -- check if any mark=2 tainted variable is used
 # in a call to memcpy, strcpy, strncpy sprintf, snprintf etc.
+# in any other than the first argument
 %{
 	if (.mark != 2 || .round == 0) { .mark = 0; Next; }
 
+	cnt = 0;
 	b = .prv;
 	while (b.round != 0)
-	{	b = b.prv;
+	{	if (b.txt == ",")
+		{	cnt = 1;
+		}
+		b = b.prv;
 	}
 	b = b.prv;	# fct name
-	if (b.txt == "memcpy"
+	if (cnt == 1
+	&& (b.txt == "memcpy"
 	||  b.txt == "strcpy"
 	||  b.txt == "strncpy"
 	||  b.txt == "sprintf"
-	||  b.txt == "snprintf")
+	||  b.txt == "snprintf"))
 	{	b.mark = 1;
 	} else
 	{	.mark = 0;

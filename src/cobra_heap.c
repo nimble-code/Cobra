@@ -339,3 +339,25 @@ stop_timer(int cid, int always, const char *s)
 		do_unlock(cid);
 	}
 }
+
+#if 0
+void
+memtest(void)
+{	unsigned int bit=1024*1024*1024;
+	double sum=0.0;
+	char *x;
+
+	while (bit > 4096)
+	{	x = sbrk(bit);
+		if (x != (void *) -1)
+		{	sum += (double) bit;
+//			printf("sbrk +%lu	%lu	%.1f\n",
+				(ulong) bit, (ulong) x, sum/1024.0/1024.0);
+		} else
+		{	bit >>= 1;
+		}
+	}
+	printf("%.1f Mb\n", sum/1024.0/1024.0);
+	exit(0);
+}
+#endif

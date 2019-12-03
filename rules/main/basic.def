@@ -180,7 +180,7 @@ def check_for1		# for.cobra
 	m for \(	# find for statements
 	n		# should be (
 	j		# move to matching )
-	e {		# keep match only the next token is {
+	e {		# keep match only if the next token is {
 	
 	b for		# back to start of for (..)
 	n \;		# move the mark forward to the start of the condition
@@ -189,8 +189,8 @@ def check_for1		# for.cobra
 	
 	s {		# bind the matching token to the {, which we know is there
 	n {		# move to the start of the loop body {
-	c $$ /[^!><=]*=	# match for the bound symbol followed
-			# by an assignment operator +=, -=, =, etc
+	c $$ /^[^!><=]*=$	# match for the bound symbol followed
+				# by an assignment operator +=, -=, =, etc
 	>1
 end
 

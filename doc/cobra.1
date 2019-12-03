@@ -198,6 +198,11 @@ Read source files from stdin. Requires one of:
 Suppress the display of detailed matches, showin only number of matches.
 (Most useful in combination with \f3\-f\f1, \f3\-expr\f1, or \f3\-commands\f1.
 .TP
+.B \-text
+Suppress the default categorization of tokens for a source programming
+language (the default is C). This increases performance when processing
+other types of input, especially in applications of runtime verification.
+.TP
 .B \-tok
 Produce a tokenized version of the source files and then stop.
 .TP
@@ -453,5 +458,7 @@ DOI 10.1007/s11334-016-0282-x, pp. 1-15, May 2016,
 G.J. Holzmann, \f2Cobra - a fast structural code analysis\f1.
 Spin 2017 Symposium, Santa Barbara, CA, USA, ACM Publ.
 (describes the current \*C version 2.)
+.sp
+See also the online tutorials on Cobra.
 .in -2
 .br 

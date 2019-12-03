@@ -11,6 +11,8 @@
 #include <assert.h>
 #include "cobra_pre.h"
 
+extern int eol;
+
 static const struct {
 	char	*str;
 	char	*typ;
@@ -811,7 +813,41 @@ line(int cid)	// called also in cobra_prep.c
 	process_line(Px.lex_out, cid);	// where the data structure is build
 }
 
-extern int eol;
+void
+t_lex(int cid)
+{	int m, n = 0;
+
+	while (n != EOF)
+	{	n = nextchar(cid);
+		if (isspace(n))
+		{	continue;
+		}
+
+		strcpy(Px.lex_yytext, "");
+		if (isalnum((uchar) n) || n == '_')
+		{	m = append_char(n, 0, cid);
+			while ((n = nextchar(cid)) != EOF)
+			{	if (!isalnum((uchar) n) && n != '_')
+				{	pushback(n, cid);
+					break;
+				}
+				m = append_char(n, m, cid);
+			}
+		} else
+		{	m = append_char(n, 0, cid);
+		}
+
+		assert(m < MAXYYTEXT);
+		Px.lex_yytext[m] = '\0';
+
+		if (Ctok)
+		{	printf("line\t%d\t%s\n", Px.lex_lineno, Px.lex_yytext);
+		} else
+		{	basic_prim(Px.lex_yytext, cid);
+		}
+	}
+}
+
 int
 c_lex(int cid)	// called in cobra_prep.c
 {	int n=0;
@@ -821,7 +857,6 @@ c_lex(int cid)	// called in cobra_prep.c
 	while (n != EOF)
 	{	strcpy(Px.lex_yytext, "");
 		n = nextchar(cid);
-// fprintf(stderr, "%d %d\n", cid, n);
 		switch (n) {
 		case '\n':
 			line(cid);
@@ -839,7 +874,7 @@ c_lex(int cid)	// called in cobra_prep.c
 			}
 			pushback(n, cid);
 			token('\\', cid);
-			return '\\';
+			return '\\';	// should probably be continue instead
 		case '/':
 			n = nextchar(cid);
 			switch (n) {

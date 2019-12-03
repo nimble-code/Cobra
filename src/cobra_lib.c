@@ -8,7 +8,6 @@
 #include <regex.h>
 
 FILE		*track_fd;
-TokRange	**tokrange;
 char		*b_cmd;
 char		CobraDot[64];
 char		FsmDot[64];
@@ -26,8 +25,10 @@ int		top_only;
 int		top_up;
 int		no_caller_info;	// mode of fcts
 
+extern TokRange	**tokrange;
 extern char	*C_TMP;
 extern int	runtimes;
+extern int	read_stdin;
 extern char	*pattern(char *);
 extern char	*unquoted(char *);
 extern char	*progname;
@@ -47,6 +48,11 @@ static char	 specialcase[MAXYYTEXT];
 static FList **flst[2];
 static History	*h_last;
 
+#if defined(STREAM_LIM) && (STREAM_LIM > 0)
+ extern int	add_stream(Prim *);
+ extern int	stream;
+ static int	stream_cnt;	// counts bytes, not tokens
+#endif
 static int	cnt;
 static int	did_prep;	// support eval expressions in all commands, eg mark
 static int	inscript;
@@ -824,12 +830,21 @@ run_threads(void *(*f)(void*), int which)
 void
 run_bup_threads(void *(*f)(void*))
 {
-	if (verbose>1) printf("backup\n");
-	backup(0);
-	if (verbose>1) printf("prog\n");
+	if (!read_stdin)
+	{	if (verbose>1)
+		{	printf("backup\n");
+		}
+		backup(0);
+		if (verbose>1)
+		{	printf("prog\n");
+	}	}
+
 	run_threads(f, 4);
 	regstop();
-	if (verbose>1) printf("---\n");
+
+	if (verbose>1)
+	{	printf("---\n");
+	}
 }
 
 static void
@@ -2894,7 +2909,7 @@ readf(char *s, char *t)
 	ini_pre(0);
 	as = (char *) emalloc(strlen(s)+1);
 	strcpy(as, s);
-	if (add_file(as, 0))	// cid: single-core
+	if (add_file(as, 0, 1))	// cid: single-core
 	{	post_process(0);
 		ctokens();
 	}
@@ -2911,14 +2926,39 @@ static void *
 prog_range(void *arg)
 {	int *i = (int *) arg;
 	Prim *r, *from, *upto;
-	int j, local_cnt = 0;
-
+	int j = 0, local_cnt = 0;
+//int bug=0;
 	from = tokrange[*i]->from;
 	upto = tokrange[*i]->upto;
 
 //	start_timer(Ncore + *i);
+
+//printf("%d .. %d\n", from->seq, upto->seq);
+//static int ncalls=0;
+
 	for (r = from; r && r->seq <= upto->seq; r = r->nxt)
 	{	j = exec_prog(&r, *i);
+
+#if defined(STREAM_LIM) && (STREAM_LIM > 0)
+		if (stream == 1)
+		{	stream_cnt += strlen(r->txt);
+			if (stream_cnt >= STREAM_LIM
+			||  r->seq + 100 > upto->seq)	// getting to close to the end
+			{	Prim *place = r;
+//printf("Here stream_cnt %d lim %d -- seq %d\n", stream_cnt, STREAM_LIM, r->seq);
+//ncalls++;
+				if (add_stream(r))	// can free up to cur
+				{	r = place;
+					stream_cnt = 0;
+					upto = plst;
+//printf("new %d .. %d\n", r->seq, upto?upto->seq:-1);
+//bug=1;
+				} else	// exhausted input stream
+				{	stream = 0;
+					if (verbose)
+					{	printf("exhausted input\n");
+		}	}	}	}
+#endif
 		if (j == -2)
 		{	continue;
 		}
@@ -2926,7 +2966,11 @@ prog_range(void *arg)
 		{	break;
 		}
 		local_cnt += j;
+//if (bug) printf("<%d upto %d> stream_cnt %d streamlim %d\n", r?r->seq:-11, upto->seq, stream_cnt, STREAM_LIM);
 	}
+
+//printf("ncalls %d :: %d %p  DONE %d -- %d -- %d\n", ncalls, j, (void *) r, from->seq, r?r->seq:-1, upto->seq);
+
 //	stop_timer(Ncore + *i, 1, "Program");
 
 	tokrange[*i]->param = local_cnt;
@@ -2936,6 +2980,9 @@ prog_range(void *arg)
 		fflush(stdout);
 	}
 
+	extern void wrap_stats(void);
+	wrap_stats();
+
 	return NULL;
 }
 
@@ -2944,6 +2991,18 @@ prog(FILE *fd)
 {
 	if (prep_prog(fd))
 	{	// start_timer(0);
+#if defined(STREAM_LIM) && (STREAM_LIM > 0)
+		if (stream == 1)
+		{	static int just_one = 0;
+			if (just_one++)
+			{	fprintf(stderr, "error: multiple %%{ ... %%} scripts (can only stream one)\n");
+				return;
+			}
+			while (add_stream(0)) // make sure we have enough tokens
+			{	if (plst && plst->seq > STREAM_LIM)
+				{	break;
+		}	}	}
+#endif
 		run_bup_threads(prog_range);
 		if (verbose>1)
 		{	printf("\n");
@@ -3218,64 +3277,6 @@ cleanup(int unused)
 }
 
 // externally visible functions:
-
-void
-set_ranges(Prim *a, Prim *b)
-{	static short tokmaxrange = 0;
-	int i, j, span = count/Ncore;
-	Prim *x;
-
-//	printf("count %d -- plst->seq %d\n", count, plst->seq);
-
-	if (verbose == 1 && count == 0)
-	{	fprintf(stderr, "cobra: no input?\n");
-	}
-
-	if (verbose > 1 && !cobra_texpr)
-	{	printf("span %d mult %d < %d\n",
-			span, span*Ncore, count);
-	}
-
-	ini_par();
-
-	if (!tokrange || Ncore > tokmaxrange)
-	{	tokrange = (TokRange **) emalloc(Ncore * sizeof(TokRange *));
-		if (Ncore > tokmaxrange)
-		{	tokmaxrange = Ncore;
-	}	}
-
-	for (i = 0, x = a; i < Ncore; i++)
-	{	if (!tokrange[i])
-		{	tokrange[i] = (TokRange *) emalloc(sizeof(TokRange));
-		}
-		tokrange[i]->seq = i;
-		tokrange[i]->from = x;
-		for (j = 0; x && j < span; j++)
-		{	x = x->nxt;
-		}
-		if (!x)
-		{	tokrange[i]->upto = b;
-	//		assert(i == Ncore-1);
-		} else
-		{	tokrange[i]->upto = x->prv;
-		}
-// printf("%d: from %p .. %p\n", i, (void *) tokrange[i]->from, (void *) tokrange[i]->upto);
-	}
-	tokrange[Ncore-1]->upto = b;
-
-	if (!a || !b || cobra_texpr)
-	{	return;
-	}
-
-	if (Ncore > 1)
-	{	for (i = 0; verbose == 1 && i < Ncore; i++)
-		{	printf("set %d: %d-%d <%d> (%s:%d - %s:%d)\n",
-				i, tokrange[i]->from->seq, tokrange[i]->upto->seq,
-				(int)(tokrange[i]->upto->seq - tokrange[i]->from->seq),
-				tokrange[i]->from->fnm, tokrange[i]->from->lnr,
-				tokrange[i]->upto->fnm, tokrange[i]->upto->lnr);
-	}	}
-}
 
 void
 show_error(int p_lnr)
