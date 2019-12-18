@@ -172,6 +172,9 @@ check_args(char *s, const char *c_base)	// single-core
 	{	return s;
 	}
 
+//	printf("s: '%s'\nc_base: '%s'\nn=%d\np: '%s'\na: '%s'\nq: '%s'\n",
+//		s, c_base, n, p?q:"-----", a?a:"=====", q?q:"_____");
+
 	if (p)
 	{	n += strlen(c_base) + strlen("/../bin") - strlen("$COBRA");
 	}
@@ -179,6 +182,7 @@ check_args(char *s, const char *c_base)	// single-core
 	{	n += listfiles(0, "") - strlen("$ARGS");
 		assert(a > p);
 	}
+
 	if (q)
 	{	if (!no_cpp)
 		{	n += strlen(" -cpp ");
@@ -186,6 +190,7 @@ check_args(char *s, const char *c_base)	// single-core
 		if (no_display)
 		{	n += strlen(" -terse ");
 		}
+		n += strlen(anypp());	// new 12/2019
 		// should also check java/C++,python etc.
 	}
 
@@ -219,6 +224,12 @@ check_args(char *s, const char *c_base)	// single-core
 			if (no_display)
 			{	strcat(c, " -terse ");
 		}	}
+
+		if (Nfiles == 0)	// new 12/2019: no args to expand
+		{	printf("error: no $ARGS for '%s'\n", s);
+			return (char *) 0;
+		}
+
 		for (m = 0; m < NHASH; m++)	// bug fix: was n
 		for (f = files[m]; f; f = f->nxt)
 		{	strcat(c, " ");

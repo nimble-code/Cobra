@@ -1573,7 +1573,7 @@ pre_scan(char *bc)	// non-generic commands
 
 	case '!': // shell escape
 		{	char *c = check_args(bc+1, C_BASE);
-			if (system(c) < 0)	// shell escape
+			if (!c || system(c) < 0)	// shell escape
 			{	printf("error\n");
 		}	}
 		return 1;
