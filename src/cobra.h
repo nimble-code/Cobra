@@ -163,8 +163,8 @@ extern ArgList *cl_var;
 
 extern char  CobraDot[64];
 extern char  FsmDot[64];
-extern char  ShowDot[64];
-extern char  ShowFsm[64];
+extern char  ShowDot[128];
+extern char  ShowFsm[128];
 extern char *cobra_target;
 extern char *cobra_texpr;
 extern char *cobra_commands;

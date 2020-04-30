@@ -2447,7 +2447,7 @@ cpop(const char *s, const int ix)
 		rm_aname("", 0, ix);	// all non-array vars now out of scope
 		return c->ra;
 	}
-	printf("error(%d): cannot happen: POP %s fails\n", ix, s);
+	printf("error(%d): cannot happen: POP %s fails\n", ix, s?s:"");
 	return 0;
 }
 

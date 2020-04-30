@@ -417,7 +417,8 @@ p_comment(const char *s, int cid)
 	||  (p = strchr(buf, '\n')) != NULL)
 	{	*p = '\0';
 	}
-	strncat(Px.lex_yytext, buf, MAXYYTEXT - 3);
+	strncat(Px.lex_yytext, buf, MAXYYTEXT-1); // was MAXYYTEXT-3, gcc complained
+	Px.lex_yytext[MAXYYTEXT-1] = '\0';
 	if (with_comments)
 	{	show2("cmnt", Px.lex_yytext, cid);
 	}

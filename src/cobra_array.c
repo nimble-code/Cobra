@@ -263,7 +263,7 @@ set_array_element(Arr_var *a, const char *el, Rtype *rv, const int ix)
 		break;
 	case STR:
 		e->s = rv->s;
-		if (isdigit(rv->s[0]))
+		if (isdigit((int) rv->s[0]))
 		{	e->val = atoi(e->s);
 			rv->rtyp = VAL;
 		} else

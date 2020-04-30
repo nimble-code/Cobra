@@ -11,8 +11,8 @@ FILE		*track_fd;
 char		*b_cmd;
 char		CobraDot[64];
 char		FsmDot[64];
-char		ShowDot[64];
-char		ShowFsm[64];
+char		ShowDot[128];
+char		ShowFsm[128];
 char		*yytext;	// cobra_eval.y and cobra_prog.y
 char		*global_t;
 
@@ -3380,6 +3380,9 @@ cobra_main(void)
 			done();
 			return;
 		}
+		if (verbose>1)
+		{	printf("execute cobra commands\n");
+		}
 		strcpy(buf, cobra_commands);
 		(void) one_line(trimline(buf));
 		done();
@@ -3502,7 +3505,6 @@ erase:				if (n > 0)
 			// checking p_stop gets us a way out on interrupts
 		  } while (ch != '\n' && n < sizeof(buf) && p_stop < 10);
 		} // else
-
 		if (!one_line(trimline(buf)))
 		{	break;
 		}
