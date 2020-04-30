@@ -182,16 +182,16 @@ cwe120_2_range(Prim *from, Prim *upto, int cid)
 		{	mycur_nxt();	// (
 			if (!mymatch("(")) { continue; }
 			mycur_nxt();	// "..."
-			if (strstr(mycur->txt, "/%s"))	// no width specifier or %m
+			if (strstr(mycur->txt, "%s"))	// no width specifier or %m
 			{	store_simple(&(thr[cid].Snprintf), mycur, 0);
 			}
 			continue;
 		}
-		if (strstr(mycur->txt, "/scanf"))
+		if (strstr(mycur->txt, "scanf"))
 		{	mycur_nxt();	// (
 			if (!mymatch("(")) { continue; }
 			mycur_nxt();	// "..."
-			if (strstr(mycur->txt, "/%s"))	// no width specifier or %m
+			if (strstr(mycur->txt, "%s"))	// no width specifier or %m
 			{	store_simple(&(thr[cid].Scanf), mycur, 0);
 	}	}	}
 }
@@ -292,7 +292,7 @@ cwe120_3_range(Prim *from, Prim *upto, int cid)
 			{	continue;
 			}
 			val = x->nv->nxt->nxt;	// [ N ]
-			if (!isdigit(val->txt[0]))
+			if (!isdigit((int) (val->txt[0])))
 			{	continue;
 			}
 			dsc = atoi( val->txt );			// array size field of dst	
@@ -302,7 +302,7 @@ cwe120_3_range(Prim *from, Prim *upto, int cid)
 				{	continue;
 				}
 				val2 = y->nv->nxt->nxt;
-				if (!isdigit(val2->txt[0]))
+				if (!isdigit((int) (val2->txt[0])))
 				{	continue;
 				}
 				ssc = atoi( val2->txt );	// array size field of src

@@ -29,12 +29,14 @@ OTHER=abstract \
 	switch_default
 
 .PHONY: all install clean
-
-CFLAGS=-O2 -Wall -DYY_NO_INPUT -I. -pedantic -Werror -Wshadow -std=c99
-LDFLAGS?=c.ar -pthread		# on mac: make LDFLAGS=c.ar
+LDFLAGS?=c.ar -pthread
 CC?=gcc
+F?=-O2
+		# on mac: make LDFLAGS=c.ar
+		# gprof: make F="-g -pg"
+CFLAGS=-Wall -pedantic -Werror -Wshadow ${F} -DYY_NO_INPUT -I. -std=c99
 
-all:	c.ar cwe scope_check
+all:	c.ar cwe scope_check find_taint
 
 cwe:	cwe.h c.ar c_api.h $(CWE)
 	$(CC) $(CFLAGS) -o cwe $(CWE) $(LDFLAGS)
@@ -45,19 +47,22 @@ scope_check: c.ar c_api.h scope_check.c
 c.ar:
 	cd ../src; make c.ar
 
+find_taint:	find_taint.c cwe_util.c
+	$(CC) $(CFLAGS) -o find_taint find_taint.c cwe_util.c $(LDFLAGS)
+
 $(OTHER): c_api.h c.ar
 
 install:
 	@echo "use one of: install_linux, install_cygwin, or install_mac"
 
 install_linux: all
-	cp cwe scope_check ../bin_linux
+	cp cwe scope_check find_taint ../bin_linux
 
 install_cygwin: all
 	cp *.exe ../bin_cygwin
 
 install_mac: all
-	cp cwe scope_check ../bin_mac
+	cp cwe scope_check find_taint ../bin_mac
 
 clean:
 	rm -f *.exe *.o cwe $(OTHER)
