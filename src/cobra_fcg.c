@@ -49,15 +49,15 @@ add_def(const Prim *c, const Prim *r, const int ix)
 		{	return;	// already there
 	}	}
 
-	n     = (FList *) hmalloc(sizeof(FList), ix);
-	n->nm = (char *)  hmalloc(strlen(s)+1, ix);
+	n     = (FList *) hmalloc(sizeof(FList), ix, 115);
+	n->nm = (char *)  hmalloc(strlen(s)+1, ix, 115);
 	strcpy(n->nm, s);
 
 	n->p = (Prim *) r;	// fct name
 	n->q = c;		// location of curly (start of body)
 
 	if (cplusplus && y)
-	{	n->ns = (char *) hmalloc(strlen(y)+1, ix);
+	{	n->ns = (char *) hmalloc(strlen(y)+1, ix, 116);
 		strcpy(n->ns, y);
 	}
 
@@ -70,7 +70,6 @@ add_def(const Prim *c, const Prim *r, const int ix)
 		prev_n->nxt = n;
 	}
 	last_fct = n;
-//	printf("Add fct def %s\n", n->nm);
 }
 
 static void
@@ -101,12 +100,9 @@ add_caller(Prim *r, Prim *x, const int ix)
 		 || !ns
 		 || !last_fct->ns
 		 || strcmp(ns, last_fct->ns) == 0))
-		{
-//			printf("..nope %s %s\n", fct, ns);
-			return; // already there
+		{	return; // already there
 	}	}
-// 	printf("Add caller %s -- %s\n", fct, ns);
-	c = (FList *) hmalloc(sizeof(FList), ix);
+	c = (FList *) hmalloc(sizeof(FList), ix, 117);
 	c->p   = r;
 	c->nm  = fct;
 	c->ns  = ns;
@@ -455,7 +451,7 @@ fct_defs(void)
 	Prim *o_cur = cur;
 
 	if (!flist || Ncore > maxn)
-	{	flist = (FList **) emalloc(Ncore * sizeof(FList *));
+	{	flist = (FList **) emalloc(Ncore * sizeof(FList *), 108);
 		if (Ncore > maxn)
 		{	maxn = Ncore;
 		}

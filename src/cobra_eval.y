@@ -91,7 +91,8 @@ static int
 eval_lex(void)
 {	int p;
 
-	yylval = (Lextok *) emalloc(sizeof(Lextok));
+	yylval = (Lextok *) emalloc(sizeof(Lextok), 10);
+
 	while (isspace((uchar) b_cmd[iscan]))
 	{	iscan++;
 	}
@@ -101,7 +102,7 @@ eval_lex(void)
 	case '/':
 		if ((last_tok == EQ || last_tok == NE)
 		&&  (p = isregexp(&b_cmd[iscan])) > 0)
-		{	yylval->s = emalloc((p+1)*sizeof(char));
+		{	yylval->s = emalloc((p+1)*sizeof(char), 11);
 			strncpy(yylval->s, &b_cmd[iscan], p+1);
 			yylval->typ = REGEX;
 			iscan += p;
@@ -121,7 +122,7 @@ eval_lex(void)
 		// special case of strings
 		// since these have no special
 		// meaning in eval exprs
-		yylval->s = emalloc(2*sizeof(char));
+		yylval->s = emalloc(2*sizeof(char), 12);
 		yylval->s[0] = b_cmd[iscan++];
 		yylval->typ = NAME;
 		return NAME;
@@ -141,7 +142,7 @@ eval_lex(void)
 			return EOE;
 		}
 		b_cmd[iscan] = '\0';
-		yylval->s = emalloc(strlen(&b_cmd[p])+1);
+		yylval->s = emalloc(strlen(&b_cmd[p])+1, 13);
 		strcpy(yylval->s, &b_cmd[p]);	// safe
 		b_cmd[iscan++] = '"';
 		yylval->typ = NAME;
@@ -196,7 +197,7 @@ eval_lex(void)
 		||      b_cmd[iscan] == '.')
 		{	iscan++;
 		}
-		yylval->s = emalloc((iscan-p+1)*sizeof(char));
+		yylval->s = emalloc((iscan-p+1)*sizeof(char), 14);
 		strncpy(yylval->s, &b_cmd[p], iscan-p);
 		yylval->typ = NAME;
 		return NAME;

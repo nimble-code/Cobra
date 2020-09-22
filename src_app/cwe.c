@@ -21,22 +21,22 @@ struct Options {
 	int	*target;
 	int	 orcode;
 } options[] = {
-	{ "cwe_119 ",	&cwe119,	A|B|C },
-	{ "cwe_119_1 ",	&cwe119,	A     },
-	{ "cwe_119_2 ",	&cwe119,	  B   },
-	{ "cwe_119_3 ",	&cwe119,	    C },
-	{ "cwe_120 ",	&cwe120,	A|B|C },
-	{ "cwe_120_1 ",	&cwe120,	A     },
-	{ "cwe_120_2 ",	&cwe120,	  B   },
-	{ "cwe_120_3 ",	&cwe120,	    C },
-	{ "cwe_131 ",	&cwe131,	A     },
-	{ "cwe_134 ",	&cwe134,	A     },
-	{ "cwe_170 ",	&cwe170,	A     },
-	{ "cwe_197 ",	&cwe197,	A     },
-	{ "cwe_468 ",	&cwe468,	A     },
-	{ "cwe_805 ",	&cwe805,	A     },
-	{ "cwe_416 ",	&cwe416,	A     },
-	{ "cwe_457 ",	&cwe457,	A     },
+	{ "119 ",	&cwe119,	A|B|C },
+	{ "119_1 ",	&cwe119,	A     },
+	{ "119_2 ",	&cwe119,	  B   },
+	{ "119_3 ",	&cwe119,	    C },
+	{ "120 ",	&cwe120,	A|B|C },
+	{ "120_1 ",	&cwe120,	A     },
+	{ "120_2 ",	&cwe120,	  B   },
+	{ "120_3 ",	&cwe120,	    C },
+	{ "131 ",	&cwe131,	A     },
+	{ "134 ",	&cwe134,	A     },
+	{ "170 ",	&cwe170,	A     },
+	{ "197 ",	&cwe197,	A     },
+	{ "468 ",	&cwe468,	A     },
+	{ "805 ",	&cwe805,	A     },
+	{ "416 ",	&cwe416,	A     },
+	{ "457 ",	&cwe457,	A     },
 	{ 0, 0, 0 }
 };
 
@@ -49,7 +49,7 @@ note(const char *s)
 	}
 
 	if (verbose)
-	{	printf("cwe_%s\n", s);
+	{	printf("cwe %s\n", s);
 	}
 	fflush(stdout);
 }
@@ -64,7 +64,7 @@ cobra_main(void)
 
 	set_multi();
 
-	if (!cwe_args)
+	if (strlen(backend) == 0)
 	{	cwe119 = A|B|C;
 		cwe120 = A|B|C;
 		cwe131 = A;
@@ -77,16 +77,31 @@ cobra_main(void)
 		cwe457 = A;
 	} else
 	{	for (i = 0; options[i].pattern; i++)
-		{	if (strstr(cwe_args, options[i].pattern))
+		{	if (strstr(backend, options[i].pattern))
 			{	*(options[i].target) |= options[i].orcode;
 				found++;
 		}	}
 
 		if (!found)
-		{	fprintf(stderr, "saw: '%s'\n", cwe_args);
-			fprintf(stderr, "usage: cwe [cwe_119[_[123]]] [cwe_120[_[123]]] [cwe_131] [cwe_134]\n");
-			fprintf(stderr, "	    [cwe_170] [cwe_197] [cwe_468] [cwe_805] [cwe_416] [cwe_457]\n");
-			fprintf(stderr, "	if no args are given, all checks are enabled\n");
+		{	fprintf(stderr, "cwe: unrecognized -- option(s): '%s'\n", backend);
+			fprintf(stderr, "cwe: valid options to enable the corresponding cwe checks are:\n");
+			fprintf(stderr, "	    --119	(enables 119_1, 119_2, and 119_3)\n");
+			fprintf(stderr, "	    --119_1\n");
+			fprintf(stderr, "	    --119_2\n");
+			fprintf(stderr, "	    --119_3\n");
+			fprintf(stderr, "	    --120	(enables 120_1, 120_2, and 120_3)\n");
+			fprintf(stderr, "	    --120_1\n");
+			fprintf(stderr, "	    --120_2\n");
+			fprintf(stderr, "	    --120_3\n");
+			fprintf(stderr, "	    --131\n");
+			fprintf(stderr, "	    --134\n");
+			fprintf(stderr, "	    --170\n");
+			fprintf(stderr, "	    --197\n");
+			fprintf(stderr, "	    --416\n");
+			fprintf(stderr, "	    --457\n");
+			fprintf(stderr, "	    --468\n");
+			fprintf(stderr, "	    --805\n");
+			fprintf(stderr, "cwe: if no -- options are specified, all checks are enabled\n");
 			exit(1);
 	}	}
 	if (runtimes)

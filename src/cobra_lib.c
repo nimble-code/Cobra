@@ -33,6 +33,7 @@ extern char	*pattern(char *);
 extern char	*unquoted(char *);
 extern char	*progname;
 extern void	clear_seen(void);
+extern int	has_stop(void);
 
 static FILE	*prog_fd;
 static const char *C_MAIN  = "main";
@@ -48,11 +49,6 @@ static char	 specialcase[MAXYYTEXT];
 static FList **flst[2];
 static History	*h_last;
 
-#if defined(STREAM_LIM) && (STREAM_LIM > 0)
- extern int	add_stream(Prim *);
- extern int	stream;
- static int	stream_cnt;	// counts bytes, not tokens
-#endif
 static int	cnt;
 static int	did_prep;	// support eval expressions in all commands, eg mark
 static int	inscript;
@@ -302,7 +298,7 @@ same_level(const Prim *a, const Prim *b, const char *s)
 	// {     n
 	//   x	n+1
 	// }     n
-// printf("same_level '%s' %d -- '%s' %d\n", a->txt, a->curly, b->txt, b->curly);
+
 	if (strcmp(a->txt, "{") == 0)
 	{	if (strcmp(b->txt, "}") != 0)
 		{	return (a->curly == b->curly-1);
@@ -360,8 +356,8 @@ add_history(const char *s)
 	&&  strcmp(h_last->s, s) == 0)
 	{	return;
 	}
-	h = (History *) emalloc(sizeof(History));
-	h->s = (char *) emalloc(strlen(s)+1);
+	h = (History *) emalloc(sizeof(History), 45);
+	h->s = (char *) emalloc(strlen(s)+1, 46);
 	strcpy(h->s, s);
 	if (h_last)
 	{	h_last->nxt = h;
@@ -727,7 +723,7 @@ push_stack(const char *s)
 	{	t = free_stack;
 		free_stack = free_stack->nxt;
 	} else
-	{	t = (Stack *) emalloc(sizeof(Stack));
+	{	t = (Stack *) emalloc(sizeof(Stack), 47);
 	}
 	t->nm  = s;
 	t->nxt = stack;
@@ -938,7 +934,7 @@ browse(char *s, char *t)
 
 	if (strlen(f->s) > 0
 	&& (!lastcall || strcmp(lastcall, f->s) != 0))
-	{	lastcall = (char *) emalloc(strlen(f->s)+1);
+	{	lastcall = (char *) emalloc(strlen(f->s)+1, 48);
 		strcpy(lastcall, f->s);
 		s = f->s;
 	} else if (strlen(s) == 0 || strlen(f->s) == 0)
@@ -956,12 +952,12 @@ parse_args(const char *s)	// comma separated list val nm, str nm
 
 	s = skipwhite(s);
 	while (strlen(s) > 0)
-	{	t = (ArgList *) emalloc(sizeof(ArgList));
+	{	t = (ArgList *) emalloc(sizeof(ArgList), 49);
 		for (i = 0; (isalnum((uchar) *s) || *s == '_') && i < sizeof(b)-1; i++)
 		{	b[i] = *s++;
 		}
 		b[i] = '\0';
-		t->nm = emalloc(strlen(b) + 1);
+		t->nm = emalloc(strlen(b) + 1, 50);
 		strcpy(t->nm, b);
 
 		if (!a)
@@ -1021,14 +1017,14 @@ one_script(FILE *fd, const char *nm, char *buf, const int sz)
 	}	}
 
 	if (!s)
-	{	s = (Script *) emalloc(sizeof(Script));
+	{	s = (Script *) emalloc(sizeof(Script), 51);
 		if (!scripts)
 		{	scripts = s_tail = s;
 		} else
 		{	s_tail->nxt = s;
 			s_tail = s;
 	}	}
-	s->nm = (char *) emalloc(strlen(nm)+1);
+	s->nm = (char *) emalloc(strlen(nm)+1, 52);
 	strcpy(s->nm, nm);
 	if (c != NULL)
 	{	*c = '(';	// undo
@@ -1061,10 +1057,10 @@ one_script(FILE *fd, const char *nm, char *buf, const int sz)
 			return 1;
 		}
 		c = buf;	// dont call trimline here
-		x = (Cmd *) emalloc(sizeof(Cmd));
-		x->cmd = (char *) emalloc(strlen(c)+1);
+		x = (Cmd *) emalloc(sizeof(Cmd), 53);
+		x->cmd = (char *) emalloc(strlen(c)+1, 54);
 		strcpy(x->cmd, c);
-		x->work = (char *) emalloc(strlen(c)+1);
+		x->work = (char *) emalloc(strlen(c)+1, 55);
 		strcpy(x->work, "");
 		if (last)
 		{	last->nxt = x;
@@ -1130,18 +1126,18 @@ replace_args(char *c, ArgList *a)	// in def-macro
 
 	if (cnt_delta(cl_var, c, &len) +
 	    cnt_delta(a,      c, &len) == 0)
-	{	s = (char *) emalloc(len * sizeof(char));
+	{	s = (char *) emalloc(len * sizeof(char), 56);
 		strcpy(s, c);
 		return s;
 	}
 
 	assert(len > 0);
-	s = t = (char *) emalloc(len * sizeof(char));
+	s = t = (char *) emalloc(len * sizeof(char), 57);
 
 	if (cl_var != NULL)	// command-line params, if any
 	{	check_list(cl_var, c, s, len);
 		c = t;	// take result as the new input
-		s = t = (char *) emalloc(len * sizeof(char));
+		s = t = (char *) emalloc(len * sizeof(char), 58);
 	}
 
 	check_list(a, c, s, len);	// replace actual params
@@ -1165,7 +1161,7 @@ do_script(char *fnd, char *a, char *b)
 	}
 
 	i = strlen(fnd)+strlen(a)+strlen(b)+3;
-	z = (char *) emalloc(i*sizeof(char));
+	z = (char *) emalloc(i*sizeof(char), 59);
 
 	snprintf(z, i, "%s %s %s", f, a, b);
 
@@ -1308,7 +1304,7 @@ read_scripts(void)
 		strlen(C_MAIN) +
 		strlen(".cobra") + 1;
 
-	buf = (char *) emalloc(n*sizeof(char));
+	buf = (char *) emalloc(n*sizeof(char), 60);
 
 	// check cobra/rules directory
 	snprintf(buf, n, "%s/%s", C_BASE, cobra_target);
@@ -1345,7 +1341,7 @@ static void
 set_default(char *d)
 {
 	if (strlen(d) < MAXYYTEXT)
-	{	dflt = (char *) emalloc(strlen(d)+1);
+	{	dflt = (char *) emalloc(strlen(d)+1, 61);
 		strcpy(dflt, d);
 	} else
 	{	printf("default command too long: %s\n", d);
@@ -1455,10 +1451,10 @@ load_map(char *s)
 		while (*ptr != '\0')
 		{	h += (int) *ptr++;
 		}
-		Map *m = (Map *) emalloc(sizeof(Map));
-		m->txt = (char *) emalloc(strlen(a)+1);
+		Map *m = (Map *) emalloc(sizeof(Map), 62);
+		m->txt = (char *) emalloc(strlen(a)+1, 63);
 		strcpy(m->txt, a);
-		m->typ = (char *) emalloc(strlen(b)+1);
+		m->typ = (char *) emalloc(strlen(b)+1, 64);
 		strcpy(m->typ, b);
 		m->nxt = remap[h&255];
 		remap[h&255] = m;
@@ -1606,10 +1602,36 @@ pre_scan(char *bc)	// non-generic commands
 		} else if (strncmp(bc, "setlinks", strlen("setlinks")) == 0)
 		{	set_links();	// cobra_fcg.c
 			return 1;
+		} else if (strncmp(bc, "stream", 6) == 0)
+		{	char *qtr;
+
+			if (!read_stdin)
+			{	printf("stream command ignored in non-streaming mode\n");
+				return 1;
+			}
+			if ((qtr = strstr(bc, "mode=")) != NULL)
+			{	qtr += 5;
+				if (strncmp(qtr, "text", 4) != 0)
+				{	printf("mode: unrecognized setting\n");
+				} else
+				{	extern void set_textmode(void);
+					set_textmode();
+			}	}
+			if ((qtr = strstr(bc, "limit=")) != NULL)
+			{	qtr += 6;
+				stream_lim = atoi(qtr);
+				printf("stream limit: %d lines\n", stream_lim);
+			}
+			if ((qtr = strstr(bc, "margin=")) != NULL)
+			{	qtr += 7;
+				stream_margin = atoi(qtr);
+				printf("stream margin: %d lines\n", stream_margin);
+			}
+			return 1;
 		} else
 		{	break;
 		}
-			// fall thru
+			// only save falls thru
 
 	case '>':	// save
 		bc++;
@@ -1878,7 +1900,7 @@ pre_scan(char *bc)	// non-generic commands
 			{	(void) nr_marks(0);	// = "string:" or =
 				if (!no_match || cnt > 0)
 				{	if (scrub)
-					{	scrub_caption = emalloc(strlen(prefix)+1);
+					{	scrub_caption = emalloc(strlen(prefix)+1, 65);
 						strcpy(scrub_caption, prefix);
 					} else if (!track_fd)
 					{	printf("%s %d\n",	// =
@@ -2421,30 +2443,20 @@ contains_range(void *arg)
 		}
 		found = 0;
 		for (q = r->nxt; q && q->seq < stop->seq; q = q->nxt)
-		{
-#if 0
-			// not reliable for yacc generated files
+		{	// not reliable for yacc generated files
 			// could check filename prefix up to .
-			if (q->lnr < r->lnr)
-			{	break;	// likely file boundary crossed
-			}
-#endif
-//			printf("same_level %d\n", same_level(r, q, s));
+			// if (q->lnr < r->lnr)
+			// {	break;	// likely file boundary crossed
+			// }
 			if ((top_up && one_up(r, q, s))
 			|| (!top_up && (!top_only || same_level(r, q, s))))
-			{
-//				printf("Here '%s'\n", q->txt);
-				if (r_apply(r, q, s, 0)
+			{	if (r_apply(r, q, s, 0)
 				&& (!*t || r_apply(r, q->nxt, t, 1)))
 				{	found = 1;
 					if (and_mode && !inverse)
 					{	local_cnt++;
 						q->mark = -1;	// hide from test at loop-start
-//						printf("%s:%d: Here %s %s (%s) %d %p\n",
-//							q->fnm, q->lnr, q->txt, q->nxt->txt,
-//							q->typ, q->seq, (void *) q);
 					}
-//					printf("	Yes\n");
 					break;
 		}	}	}
 		if (( found && !inverse)
@@ -2452,7 +2464,6 @@ contains_range(void *arg)
 		{	if (!and_mode || inverse)
 			{	local_cnt++;
 				r->mark++;
-//				printf("	mark (%d %d)\n", found, inverse);
 	}	}	}
 	tokrange[*i]->param = local_cnt;
 
@@ -2907,7 +2918,7 @@ readf(char *s, char *t)
 		return;
 	}
 	ini_pre(0);
-	as = (char *) emalloc(strlen(s)+1);
+	as = (char *) emalloc(strlen(s)+1, 66);
 	strcpy(as, s);
 	if (add_file(as, 0, 1))	// cid: single-core
 	{	post_process(0);
@@ -2927,38 +2938,27 @@ prog_range(void *arg)
 {	int *i = (int *) arg;
 	Prim *r, *from, *upto;
 	int j = 0, local_cnt = 0;
-//int bug=0;
+
 	from = tokrange[*i]->from;
 	upto = tokrange[*i]->upto;
 
 //	start_timer(Ncore + *i);
 
-//printf("%d .. %d\n", from->seq, upto->seq);
-//static int ncalls=0;
-
 	for (r = from; r && r->seq <= upto->seq; r = r->nxt)
 	{	j = exec_prog(&r, *i);
 
-#if defined(STREAM_LIM) && (STREAM_LIM > 0)
 		if (stream == 1)
-		{	stream_cnt += strlen(r->txt);
-			if (stream_cnt >= STREAM_LIM
-			||  r->seq + 100 > upto->seq)	// getting to close to the end
+		{	if (r->seq + 100 > upto->seq)	// getting too close to the end
 			{	Prim *place = r;
-//printf("Here stream_cnt %d lim %d -- seq %d\n", stream_cnt, STREAM_LIM, r->seq);
-//ncalls++;
 				if (add_stream(r))	// can free up to cur
 				{	r = place;
-					stream_cnt = 0;
 					upto = plst;
-//printf("new %d .. %d\n", r->seq, upto?upto->seq:-1);
-//bug=1;
 				} else	// exhausted input stream
 				{	stream = 0;
 					if (verbose)
 					{	printf("exhausted input\n");
 		}	}	}	}
-#endif
+
 		if (j == -2)
 		{	continue;
 		}
@@ -2966,11 +2966,11 @@ prog_range(void *arg)
 		{	break;
 		}
 		local_cnt += j;
-//if (bug) printf("<%d upto %d> stream_cnt %d streamlim %d\n", r?r->seq:-11, upto->seq, stream_cnt, STREAM_LIM);
 	}
-
-//printf("ncalls %d :: %d %p  DONE %d -- %d -- %d\n", ncalls, j, (void *) r, from->seq, r?r->seq:-1, upto->seq);
-
+#ifdef DEBUG_MEM
+	extern void report_memory_use(void);
+	report_memory_use();
+#endif
 //	stop_timer(Ncore + *i, 1, "Program");
 
 	tokrange[*i]->param = local_cnt;
@@ -2982,6 +2982,10 @@ prog_range(void *arg)
 
 	extern void wrap_stats(void);
 	wrap_stats();
+#if 1
+	extern void list_stats(void);
+	list_stats();
+#endif
 
 	return NULL;
 }
@@ -2991,18 +2995,26 @@ prog(FILE *fd)
 {
 	if (prep_prog(fd))
 	{	// start_timer(0);
-#if defined(STREAM_LIM) && (STREAM_LIM > 0)
 		if (stream == 1)
-		{	static int just_one = 0;
-			if (just_one++)
-			{	fprintf(stderr, "error: multiple %%{ ... %%} scripts (can only stream one)\n");
-				return;
+		{	static int script_nr = 0;
+			static int first_has_stop = -1;
+			script_nr++;
+			if (script_nr == 1)
+			{	while (add_stream(0)) // make sure we have enough tokens
+				{	if (plst && plst->seq > stream_lim)
+					{	break;
+				}	}
+				first_has_stop = has_stop();
 			}
-			while (add_stream(0)) // make sure we have enough tokens
-			{	if (plst && plst->seq > STREAM_LIM)
-				{	break;
-		}	}	}
-#endif
+			if (script_nr > 1 && first_has_stop == 0)
+			{	fprintf(stderr, "error: saw multiple scripts (can only stream one)\n");
+				fprintf(stderr, "error: and initial script does not end with STOP\n");
+
+			}
+			if (verbose)
+			{	printf("cobra: running script #%d\n", script_nr);
+		}	}
+
 		run_bup_threads(prog_range);
 		if (verbose>1)
 		{	printf("\n");
@@ -3178,6 +3190,7 @@ help(char *s, char *unused)	// 1
 	printf("  %8s  %c %s\n", "pe", ' ',             "pattern   same as pat or pattern (pattern expression)");
 	printf("  %8s  %c %s\n", "restore", ' ',	"n         alternative syntax for: <n");
 	printf("  %8s  %c %s\n", "setlinks", ' ',	"          set .bound field for if/else/switch/case/break stmnts");
+	printf("  %8s  %c %s\n", "stream"  , ' ',	"[mode=text] [limit=N] [margin=N] when streaming input from stdin");
 	printf("  %8s  %c %s\n", "terse", ' ',		"on|off    enable/disable display of details with d/l/p");
 	printf("  %8s  %c %s\n", "track", ' ',		"start fnm|stop temporarily divert all output to fnm");
 	printf("  %8s  %c %s\n", "unmark", ' ',		"p [p2]    alternative syntax for: mark no p [p2]");
@@ -3281,16 +3294,16 @@ cleanup(int unused)
 void
 show_error(int p_lnr)
 {	char buf[MAXYYTEXT];
-	int lcnt = 0;
+	int lns = 0;
 
 	assert(prog_fd);
 	
 	rewind(prog_fd);
 	while (fgets(buf, sizeof(buf), prog_fd))
-	{	lcnt++;
+	{	lns++;
 		printf("%c%2d %s",
-			(lcnt==p_lnr)?'>':' ',
-			lcnt, buf);
+			(lns==p_lnr)?'>':' ',
+			lns, buf);
 	}
 }
 
@@ -3357,7 +3370,7 @@ cobra_main(void)
 	snprintf(ShowDot, sizeof(ShowDot), "%s %s%s &", DOT, C_TMP, CobraDot);
 	snprintf(ShowFsm, sizeof(ShowFsm), "%s %s%s &", DOT, C_TMP, FsmDot);
 
-	yytext = (char *) emalloc(MAXYYTEXT*sizeof(char));
+	yytext = (char *) emalloc(MAXYYTEXT*sizeof(char), 67);
 	
 	if (cobra_texpr)
 	{	cobra_te(cobra_texpr, 0, 0);

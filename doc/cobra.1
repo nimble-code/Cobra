@@ -40,12 +40,25 @@ See also \f3\-noheaderfiles\f1.
 .B \-C++
 Recognize C++ keywords.
 .TP
-.BI "\-commands \f2'commands'\f1"
+.BI "\-c \f2'commands'\f1"
 Execute query \f2commands\f1, and then stop.
 Individual query commands are separated by semi-colons.
-See also \f3\-e\f1. Can be abbreviated to \f3\-c\f1
+For example:
 .br
-Implies also option \f3\-quiet\f1.
+.in +5
+	cobra \-c \f2'm /regex; p' *.c\f1
+.in -5
+.br
+can be used to find tokens matching a regular expression.
+.br
+Implies \f3\-quiet\f1.
+See also \f3\-e\f1.
+
+.TP
+.B \-comments
+Do not truncate C-style comments after the first newline
+(which, without this option, is the default).
+
 .TP
 .B \-cpp
 Run the C preprocessor over the input files before scanning them.
@@ -62,6 +75,11 @@ Implies \f3\-preserve\f1.
 .B \-Dstr
 Pass directive to the C preprocessor.
 See also \f3\-cpp\f1, \f3\-U\f1 and \f3\-I\f1.
+
+.TP
+.B \-eol
+Treat newlines as explicit EOL tokens. (By default all white space is ignored.)
+
 .TP
 .BI "\-expr \f2'token_expression'\f1
 (Alternatively: \f3-e\f1, see also \f3-pattern\f1) Report (sequences of) lines matching a token expression.
@@ -136,6 +154,12 @@ Do not tag C qualifiers separately (e.g., const, volatile).
 .B \-noheaderfiles
 Do not process any files with names ending in \f3.h\f1.
 See also \f3\-allheaderfiles\f1.
+
+.TP
+.B \-nostream
+Do not enabled the default input streaming when reading from stdin.
+See also \f3\-stream\f1 and \f3\-stream_margin\f1.
+
 .TP
 .B \-notypedefs
 Do not process C typedef definitions. By default the typedefs are
@@ -183,16 +207,30 @@ Recognize Python keywords.
 .B \-quiet
 Quiet mode.
 Produces no intermediate output on matches and run-times.
+
+.TP
+.B \-regex "expr"
+See \f3\-e\f1.
+
 .TP
 .B \-runtimes
 Report the runtime of all commands executed, if it exceeds one second.
 .TP
 .B \-scrub
 Produce output in the format expected by the \f2scrub\f1 tool.
+
 .TP
-.B \-stdin
-Read source files from stdin. Requires one of:
-\f3\-commands\f1, \f3\-expr\f1, \f3-pattern\f1, or \f3\-f\f1.
+.B \-stream N
+Set the stdin stream buffer size to N bytes (default is 8192).
+This is only relevant when the input files are read from stdin.
+See also \f3\-stream_margin\f1.
+
+.TP
+.B \-stream_margin N
+Set the stdin windon margin to N tokens (default is 1000).
+This is the number of tokens before the current token being processed
+that is retained in the sliding input window.
+
 .TP
 .B \-terse
 Suppress the display of detailed matches, showin only number of matches.
@@ -209,9 +247,20 @@ Produce a tokenized version of the source files and then stop.
 .B \-Ustr
 Pass directive to the C preprocessor.
 See also \f3\-cpp\f1, \f3\-D\f1 and \f3\-I\f1.
+
+.TP
+.B \-V
+Print current \*C version number and stop.
+Also \f3\-version\f1.
+
 .TP
 .B \-v
 Verbose mode.
+
+.B \-version
+Print the Cobra version number and exit.
+See also \f3\-V\f1.
+
 .TP
 .B \-view
 Must be followed by one of \f3\-expr\f1, \f3\-pattern\f1, or \f3\-f\f1.
@@ -223,13 +272,15 @@ When combined with \f3\-f file\f1 and the file contains a single inline
 program, displays a dot-graph of the DFA of that program.
 .br
 The \f3\-view\f1 option implies \f3\-preserve\f1.
+
 .TP
 .BI "\-var name=value"
 Set \f2name\f1 to \f2value\f1 in user-defined parameterized scripts.
-.TP
-.B \-version
-Print current \*C version number and stop.
-Can be abbreviated as \f3\-V\f1.
+.PP
+All arguments starting with a double hyphen are passed to
+the standalone backend processor, if one was defined.
+If no backend is used (i.e., the Cobra default backend is used),
+these arguments are silently ignored.
 
 .SH EXAMPLES
 In all example below the initial \f2$\f1 character is the shell

@@ -41,7 +41,7 @@ extern int *Cdepth;
 extern void rm_var(const char *s, int one, const int ix);
 extern uint hasher(const char *s);
 extern ulong hash2(const char *s);
-extern char *derive_string(Prim **, Lextok *, const int);
+extern char *derive_string(Prim **, Lextok *, const int, const char *);
 extern void what_type(Renum);
 extern void eval_prog(Prim **, Lextok *, Rtype *, const int);
 

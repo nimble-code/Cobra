@@ -9,7 +9,7 @@
 
 // should really be a copy of cobra_fe.h
 
-#define tool_version	"Version 3.1 - 30 October 2019"
+#define tool_version	"Version 3.2 - 20 September 2020"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -29,40 +29,7 @@
  #include <sys/times.h>
 #endif
 
-typedef struct Prim	Prim;
-typedef struct TokRange	TokRange;
-
-struct Prim {
-	char	*fnm;
-	int	 lnr;
-
-	short	curly;		// {} level of nesting
-	short	round;		// ()
-	short	bracket;	// []
-	short	len;
-
-	char	*typ;
-	char	*txt;
-
-	int	 seq;		// sequence nr
-	int	 mark;		// user-definable
-
-	short	 mset[4];	// 4 sets of marks;  0=undo
-	Prim	*mbnd[4];	// 4 sets of bounds; 0=undo
-
-	Prim	*bound;		// bound symbol
-	Prim	*jmp;		// from { or } to } or { etc
-
-	Prim	*prv;
-	Prim	*nxt;
-};
-
-struct TokRange {
-	int	 seq;
-	int	 param;
-	Prim	*from;
-	Prim	*upto;
-};
+#include "../src/cobra_prim.h"
 
 #define NEXT		cobra_nxt()
 #define LAST		cobra_prv()
@@ -132,6 +99,6 @@ extern int verbose;
 extern int with_comments;
 extern int runtimes;
 
-extern char *cwe_args;
 extern char *progname;
+extern char *backend;
 #endif

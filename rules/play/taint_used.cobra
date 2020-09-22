@@ -1,8 +1,11 @@
 
-# check if any variables marked with 2 is used
+# check if any variables marked with 2 are used
 # in calls to memcpy, strcpy, strncpy sprintf, snprintf etc.
 %{
-	if (.mark != 2 || .round == 0) { .mark = 0; Next; }
+	if (.mark != 2 || .round == 0)
+	{	.mark = 0;
+		Next;
+	}
 
 	b = .prv;
 	while (b.round != 0)

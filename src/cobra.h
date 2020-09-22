@@ -112,6 +112,7 @@ extern char *cobra_txt(void);
 extern char *cobra_typ(void);
 extern char *fct_which(const Prim *);
 
+extern int add_stream(Prim *);
 extern int cobra_lnr(void);
 extern int cobra_nxt(void);
 extern int cobra_prv(void);
@@ -176,6 +177,7 @@ extern int inside_range;
 extern int inverse;
 extern int and_mode;
 extern int view_mode;
+extern int stream;
 extern int top_only;
 extern int top_up;
 extern int global_n;

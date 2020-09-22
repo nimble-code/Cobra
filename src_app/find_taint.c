@@ -1,39 +1,8 @@
-#include "c_api.h"
+#include "taint.h"
 
-typedef struct Tainted Tainted;
-#define TPSZ	128	// must be power of 2
+// read-only constants
 
-static struct Tainted {
-	char	*fnm;		// fct name
-	Prim	*src;		// where alert originated
-	Prim	*param;		// name of param
-	int	 pos;		// position of param
-	int	 handled;	// in search_params
-	Tainted *nxt;
-} *tainted_param[TPSZ], *tainted_return[TPSZ];
-
-enum Seen {
-	SeenVar		=   1,
-	SeenParam	=   2,
-	SeenDecl	=   4
-};
-
-enum Tags {
-	None			=    0,
-	FctName			=    1,
-	Target			=    2,
-	Alloca			=    4,
-	UseOfTaint		=    8,
-	DerivedFromTaint	=   16,
-	PropViaFct		=   32,
-	VulnerableTarget   	=   64,	// vulnerable targets
-	CorruptableSource   	=  128,	// corruptable sources
-	ExternalSource		=  256,
-	DerivedFromExternal	=  512,
-	Stop			= 1024
-};
-
-static char *marks[] = {
+static const char *marks[] = {
 	"None",			// 0	0
 	"FctName",		// 1	1
 	"Target",		// 2	2
@@ -48,55 +17,53 @@ static char *marks[] = {
 	"Stop"			// 1024	11
 };
 
-extern void mark_fcts(void);	// in cwe_util.c
+static const char *t_links[] = {
+	 "[", "]", "(", ")", "{", "}"
+};
 
-#if 0
-	mset[0] stores a mark to indicate that scope was checked before
-	mset[1] stores marks indicating potentially dangerous targets
-	mset[2] stores reusable tags indicating fct definitions
-	mset[3] stores marks for vars set from external sources
-#endif
+static int setlimit;	// not modified after init
+
+// globals
+
+static int Into;
+static int warnings;
+static int banner;
+static int ngets;
+static int ngets_bad;
+static int nfopen;
+
+//	mset[0] stores a mark to indicate that scope was checked before
+//	mset[1] stores marks indicating potentially dangerous targets
+//	mset[2] stores reusable tags indicating fct definitions
+//	mset[3] stores marks for vars set from external sources
 
 // utility functions
 
 static void
-what_mark(enum Tags t)
+what_mark(const char *prefix, enum Tags t)
 {	int i, j;
+	int cnt = 0;
 
 	for (i = j = 1; j < Stop; i++, j *= 2)
 	{	if (t & j)
-		{	printf("%s ", marks[i]);
+		{	printf("%s%s", cnt ? ", " : prefix, marks[i]);
+			cnt++;
 	}	}
-#if 0
-	if (t&FctName)	printf("FctName ");
-	if (t&Target)	printf("Target ");
-	if (t&Alloca)	printf("Alloca ");
-	if (t&UseOfTaint)	printf("Taintable ");
-	if (t&DerivedFromTaint)	printf("DerivedFromTaint ");
-	if (t&PropViaFct)	printf("PropViaFct ");
-	if (t==VulnerableTarget)	printf("VulnerableTarget ");
-	if (t==CorruptableSource)	printf("CorruptableSource ");
-	if (t&ExternalSource)	printf("ExternalSource ");
-	if (t&DerivedFromExternal) printf("DerivedFromExternal ");
-#endif
 }
 
-static void
-show_bindings(const char *s, const Prim *a, const Prim *b)
+void
+show_bindings(const char *s, const Prim *a, const Prim *b, int cid)
 {
-	if (!verbose)
-	{	return;
-	}
-
+	do_lock(cid);
 	if (a)
 	{	printf("Bind <%s>\t%s:%d: %s (%d)\tto ", s,
 			a->fnm, a->lnr, a->txt, a->mark);
 	}
 
 	if (b)
-	{	printf("%s:%d: %s :: ",
+	{	printf("%s:%d: %s ::",
 			b->fnm, b->lnr, b->txt);
-		what_mark(b->mark);
+		what_mark(" ", b->mark);
 		printf("\n");
 	} else
 	{	printf("--\n");
@@ -108,124 +75,11 @@ show_bindings(const char *s, const Prim *a, const Prim *b)
 	{	printf("\t\t[already bound to %s:%d: %s]\n",
 			a->bound->fnm, a->bound->lnr, a->bound->txt);
 	}
-}
-
-static unsigned int
-t_hash(const char *s)
-{	unsigned int h = 0x88888EEFL;
-	const char t = *s++;
-
-	while (*s != '\0')
-	{	h ^= ((h << 8) ^ (h >> (24))) + *s++;
-	}
-	return ((h << 7) ^ (h >> (25))) ^ t;
+	do_unlock(cid);
 }
 
 static void
-TaintedParam(Prim *p, const int pos, Prim *nm)
-{	Tainted *t, *prv = 0;	// remember which params are potentially tainted
-	char *s;
-	int h, k;
-
-	if (!p)
-	{	return;
-	}
-
-	s = p->txt;
-	if (strstr(s, "scanf") != NULL
-	||  strstr(s, "printf")  != NULL	// warn about these calls?
-	||  strcmp(s, "fopen") == 0
-	||  strcmp(s, "strcmp") == 0
-	||  strcmp(s, "gets") == 0
-	||  strcmp(s, "main") == 0)	// not called directly
-	{	return;			// no source to search for these
-	}
-	p->bound = nm->bound?nm->bound:nm;
-
-	h = t_hash(s)&(TPSZ-1);
-
-	for (t = tainted_param[h]; t; prv = t, t = t->nxt)	// sorted
-	{	k = strcmp(t->fnm, s);
-		if (k > 0)
-		{	break;
-		}
-		if (k == 0
-		&&  t->src == p
-		&&  t->pos == pos)
-		{	return; // already there
-	}	}
-
-	t = (Tainted *) emalloc(sizeof(Tainted));
-	t->fnm = (char *) emalloc(strlen(s)+1);
-	strcpy(t->fnm, s);
-	t->src = p;	// where did the alert originate
-	t->param = nm;
-	t->pos = pos;
-
-	if (prv == NULL)	// new first entry
-	{	t->nxt = tainted_param[h];
-		tainted_param[h] = t;
-	} else	// insert after prv
-	{	t->nxt = prv->nxt;
-		prv->nxt = t;
-	}
-
-	if (verbose)
-	{	printf("%s:%d:\tTaintedParam %s( param %d = %s )\n",
-			p->fnm, p->lnr, s, pos, nm->txt);
-	}
-}
-
-static void
-TaintedReturn(const char *s)
-{	Tainted *t, *prv = 0;	// remember which fcts can return a tainted result
-	int h, k;
-
-	h = t_hash(s)&(TPSZ-1);
-	for (t = tainted_return[h]; t; prv = t, t = t->nxt)
-	{	k = strcmp(t->fnm, s);
-		if (k > 0)
-		{	break;
-		}
-		if (k == 0)
-		{	return;
-	}	}
-
-	t = (Tainted *) emalloc(sizeof(Tainted));
-	t->fnm = (char *) emalloc(strlen(s)+1);
-	strcpy(t->fnm, s);
-	if (prv == NULL)	// new first entry
-	{	t->nxt = tainted_return[h];
-		tainted_return[h] = t;
-	} else	// insert after prv
-	{	t->nxt = prv->nxt;
-		prv->nxt = t;
-	}
-
-	if (verbose)
-	{	printf("\tTaintedReturn %s\n", s);
-	}
-}
-
-static int
-HasTaintedReturn(const char *s)
-{	Tainted *t;
-	int h, k;
-
-	h = t_hash(s)&(TPSZ-1);
-	for (t = tainted_return[h]; t; t = t->nxt)
-	{	k = strcmp(t->fnm, s);
-		if (k > 0)
-		{	break;
-		}
-		if (k == 0)
-		{	return 1;
-	}	}
-	return 0;
-}
-
-static void
-search_calls(Prim *inp)	// see if marked var inp.txt is used as a parameter in a fct call
+search_calls(Prim *inp, int cid)	// see if marked var inp.txt is used as a parameter in a fct call
 {	Prim *r = inp;
 	int cnt = 1;	// parameter nr
 
@@ -249,178 +103,49 @@ search_calls(Prim *inp)	// see if marked var inp.txt is used as a parameter in a
 	{	return;
 	}
 
-	show_bindings("search_calls", r, inp->bound?inp->bound:inp);
-
+	// if (verbose)
+	// {	show_bindings("search_calls", r, inp->bound?inp->bound:inp, cid);
+	// }
 	// Remember
 	//	fct name r->txt
 	//	param name inp and nr (cnt)
 	// there may be multiple entries for the same call
 
-	TaintedParam(r, cnt, inp);	// store and check use of the param in this fct later
-}
-
-static int
-search_params(void)	// cur->txt is  fct name, at start of fct def, PropViaFct
-{	Prim *r, *ocur = cur;
-	Tainted *t;
-	int pos, cnt = 0, level, k, h;
-
-	// the marked formal parameters are vulnerable targets,
-	// so check if the params are assigned to somewhere in the fct
-
-	if (strcmp(cur->txt, "main") == 0)	// cannot be called directly
-	{	return 0;			// params like argv handled separately
-	}
-
-	if (verbose > 1)
-	{	printf("%s:%d: check fct body of %s() for possibly bad params\n",
-		cur->fnm, cur->lnr, cur->txt);
-	}
-
-	h = t_hash(cur->txt)&(TPSZ-1);
-
-	for (t = tainted_param[h]; t; t = t->nxt)		// list of fcts that use marked vars as params
-	{	k = strcmp(t->fnm, cur->txt);
-		if (k > 0)
-		{	break;	// cur->txt is not in the (sorted) list
-		}
-		if (k != 0	// if fct is on the bad list
-		||  t->handled)	// it could propagate taints
-		{	continue;
-		}
-		t->handled = 1;
-
-		// if cur->txt is a file static fct, then
-		// the caller at t->src must be in the same file
-		if (strcmp(t->src->fnm, cur->fnm) != 0) // different file
-		{	// check that cur->txt is not preceded by "static"
-			Prim *z = cur->prv;	// skip over typenames and * decorations
-			while (z
-			&&	z->curly == 0	// preceding fct name
-			&&	(strcmp(z->typ, "type") == 0
-			||       strcmp(z->txt, "*") == 0
-			||	 strcmp(z->typ, "modifier") == 0))
-			{	z = z->prv;
-			}
-			if (z
-			&&  strcmp(z->txt, "static") == 0)	// typ: @storage
-			{	continue;			// fct not visible to caller
-		}	}
-
-		if (verbose)
-		{	printf("%s:%d:	checking fct %s()==%s() for use of tainted param nr %d -- %s\n",
-				cur->fnm, cur->lnr, cur->txt, t->fnm, t->pos, ocur->txt);
-		}
-		pos = 1;
-		level = 1 + cur->round;	// to see if we've reached the end of the formal params
-more:
-		while (cur->round > level
-		||    (!MATCH(")")
-		&&     !MATCH(",")))
-		{	cur = cur->nxt;		// move to next param
-		}
-		if (pos == t->pos)		// the position of a vulnerable param
-		{	cur = cur->prv;
-			if (TYPE("ident"))	// the (formal) param name, before the comma
-			{			// check the fct body for uses of this param
-				if (verbose > 1)
-				{	printf("cnt %d :: param check: %s (param pos %d = %s)\n",
-						pos, t->fnm, t->pos, cur->txt);
-				}
-				r = cur->nxt;
-				while (strcmp(r->txt, "{") != 0)
-				{	r = r->nxt;
-				}
-				r = r->nxt;
-				while (r->curly >= 1)				// search fct body
-				{	if (strcmp(r->txt, "sizeof") == 0)	// args need no mark
-					{	r = r->nxt;
-						if (r->jmp)
-						{	r = r->jmp;
-					}	}
-					if (strcmp(r->txt, cur->txt) == 0	// same ident
-					&&  r->mark == 0)			// not yet marked
-					{
-#if 0
-	// mark it, no matter what the context is
-						Prim *s = r->nxt;		// check if assigned to
-						if (strcmp(s->txt, "[") == 0
-						&&  s->jmp)
-						{	s = s->jmp->nxt;
-						}
-						if (!strchr(s->txt, (int) '='))
-						{
-#endif
-							r->mark |= PropViaFct;		// new taint mark
-							show_bindings("search_params", r, t->param);
-							if (!r->bound)		// for traceback
-							{	r->bound = t->param;
-							}
-							cnt++;
-							if (verbose > 1)
-							{	printf("%s:%d: use of marked param %s -> +%d\n",
-									r->fnm, r->lnr, cur->txt, PropViaFct);
-							}
-#if 0
-						}
-#endif
-					}
-					r = r->nxt;
-			}	}
-			cur = ocur;		// restore; done with this param
-		} else if (strcmp(cur->txt, ")") != 0)
-		{	cur = cur->nxt;
-			pos++;
-			if (pos <= t->pos)
-			{	goto more;	// move to next position
-	}	}	}
-
-	if (verbose && cnt > 0)
-	{	printf("found %d uses of marked params (adding mark %d)\n", cnt, PropViaFct);
-	}
-
-	return cnt;
+	param_is_tainted(r, cnt, inp, cid);	// store and check use of the param in this fct later
 }
 
 static void
-search_returns(const char *nm)
-{	Prim *r, *s;
-	int cnt = 0;
+save_set_range(Prim *from, Prim *upto, int cid)
+{	Prim *mycur = from;
+	int into = Into;	// get a local copy
 
-	r = cur->nxt;
-	while (r && r->curly == 0)
-	{	r = r->nxt;
+	while (mycur && mycur->seq <= upto->seq)
+	{	mycur->mset[into] = mycur->mark;
+		mycur->mbnd[into] = mycur->bound;
+		mycur->mark  = 0;
+		mycur->bound = 0;
+		mycur = mycur->nxt;
 	}
+}
 
-	while (r && r->curly > 0)	// search the fct body for return stmnts
-	{	if (strcmp(r->txt, "return") == 0)
-		{	s = r->nxt;
-			while (s && strcmp(s->txt, ";") != 0)
-			{	if (s->mark != 0)
-				{	TaintedReturn(nm); // fct nm can return tainted result
-					cnt++;
-					break;
-				}
-				s = s->nxt;
-		}	}
-		r = r->nxt;
-	}
+static void *
+save_set_run(void *arg)
+{	int *i = (int *) arg;
+	Prim *from, *upto;
 
-	if (verbose && cnt > 0)
-	{	printf("search returns of %s\n", nm);
-	}
+	from = tokrange[*i]->from;
+	upto = tokrange[*i]->upto;
+
+	save_set_range(from, upto, *i);
+
+	return NULL;
 }
 
 static void
 save_set(const int into)
 {
-	// assert(into < 4);
-	for (cur = prim; cur; cur = cur->nxt)	// save_set, called 3x
-	{	cur->mset[into] = cur->mark;
-		cur->mbnd[into] = cur->bound;
-		cur->mark = 0;
-		cur->bound = 0;
-	}
+	Into = into;
+	run_threads(save_set_run);
 }
 
 static Prim *
@@ -433,9 +158,11 @@ move_to(Prim *p, const char *s)
 }
 
 static void
-check_var(Prim *r, Prim *x)	// mark later uses of r->txt within scope level, DerivedFromExternal
+check_var(Prim *r, Prim *x, int cid)	// mark later uses of r->txt within scope level, DerivedFromExternal
 {	Prim *w = r;		// starting at token x
 	int level = x?x->curly:0;
+
+// printf("%d: check_var %s - forward scan <%d> ((%d::%s))\n", r->lnr, r->txt, r->mark, x->lnr, x->txt);
 
 	if (x
 	&&  r->seq < x->seq)
@@ -449,33 +176,55 @@ check_var(Prim *r, Prim *x)	// mark later uses of r->txt within scope level, Der
 	while (r && r->curly >= level)
 	{	if (strcmp(r->txt, w->txt) == 0)
 		{	r->mark |= DerivedFromExternal;
-			show_bindings("check_var", r, w);
+			if (verbose)
+			{	show_bindings("check_var", r, w, cid);
+			}
 			r->bound = w; // point to place where an external source was tagged
 			if (verbose > 1)
-			{	printf("%s:%d: marked new occurrence of %s (+%d -> %d)\n",
-					r->fnm, r->lnr, r->txt, DerivedFromExternal, r->mark);
+			{	do_lock(cid);
+				printf("%d: %s:%d: marked new occurrence of %s (+%d -> %d)\n",
+					cid, r->fnm, r->lnr, r->txt, DerivedFromExternal, r->mark);
+				do_unlock(cid);
 		}	}
 		r = r->nxt;
 	}
 }
 
 static void
-trace_back(const Prim *p, const int a)
+trace_back(const char *prefix, const Prim *p, const int a)
 {	Prim *e, *f = (Prim *) 0;
-	int cnt=10;
+	int cnt=10, first=1;
 
 	if (!p)
 	{	return;
 	}
-
 	for (e = p->mbnd[a]; cnt > 0 && e; cnt--, e = e->mbnd[a])
 	{	if (e != f
 		&& (e->mset[a] != Target || verbose))
-		{	printf("\t\t>%s:%d: %s (", e->fnm, e->lnr, e->txt);
-			what_mark(e->mset[a]);
+		{	if (first)
+			{	first = 0;
+				printf("%s\n", prefix);
+			}
+			printf("\t\t>%s:%d: %s (", e->fnm, e->lnr, e->txt);
+			what_mark("", e->mset[a]);
+			what_mark("\t", e->mset[(a==3)?1:3]);	// 1->3, 3->1
 			printf(")\n");
 			if (!f) { f = e; } // remember the first
 	}	}
+}
+
+static void
+add_details(Prim *p, const int a, Prim *q, const int b)
+{	//   prv		 nxt
+	if (p->mset[a])
+	{	what_mark("\tT:", p->mset[a]);
+	}
+	if (q->mset[b])
+	{	what_mark("\tE:", q->mset[b]);
+	}
+	printf("\n");
+	trace_back("\t  (taints)", p, a);
+	trace_back("\t  (external)", q, b);
 }
 
 // the main steps
@@ -490,7 +239,7 @@ step1_find_sources(void)	// external sources of potentially malicious data
 	//  argv
 	//  scanf(     "...", arg, ...)
 	// fscanf(fd,  "...", arg, ...)
-	// sscanf(str, "...", arg, ...)
+	// sscanf(str, "...", arg, ...) <- handled with assignments
 	// fgets(str, size, fd)
 	//  gets(str)
 	// getline(buf, size, fd)
@@ -498,7 +247,7 @@ step1_find_sources(void)	// external sources of potentially malicious data
 
 	for (cur = prim; cur; cur = cur->nxt)	// step1: mark potentially tainted sources
 	{
-		if (strcmp(cur->txt, "argv") == 0)
+		if (strcmp(cur->txt, "argv") == 0)	// always marked, whether in main or not
 		{	cur->mark |= ExternalSource;
 			cnt++;
 			if (verbose > 1)
@@ -507,15 +256,18 @@ step1_find_sources(void)	// external sources of potentially malicious data
 			}
 			continue;
 		}
+
 		if (strcmp(cur->txt, "scanf") == 0)		// mark args below
 		{	isfd = 0;
-		} else if (strcmp(cur->txt, "fscanf") == 0
-		       ||  strcmp(cur->txt, "sscanf") == 0)	// mark args below
+		} else if (strcmp(cur->txt, "fscanf") == 0)	// mark args below
 		{	isfd = 1;
 		} else if (strcmp(cur->txt, "gets") == 0)	// warn right away
 		{	isfd = 0;
-			printf("%s:%d: error: unbounded call to gets\n",
-				cur->fnm, cur->lnr);
+			if (verbose || !no_match || !no_display)	// no -terse argument
+			{	printf(" %3d: %s:%d: warning: unbounded call to gets()\n",
+					++warnings, cur->fnm, cur->lnr);
+			}
+			ngets++;
 			q = move_to(cur->nxt, "(");
 			if (!q)
 			{	continue;
@@ -609,18 +361,96 @@ step1_find_sources(void)	// external sources of potentially malicious data
 }
 
 static int
-step2a_pre_scope(void)	// propagate external source marks across '='
-{	Prim *q;
+handle_sscanf(Prim *from, int cid)
+{	Prim *mycur, *q = from->nxt;
+	char *r, *z, *u;
+	unsigned int bad = 0, pos = 0;
 	int cnt = 0;
 
-	for (cur = prim; cur; cur = cur->nxt)	// step2a: prop of tainted thru assignments
-	{	if (cur->mark == 0)
+	mycur = from;
+
+	if (strcmp(q->txt, "(") != 0)
+	{	return 0;
+	}
+	q = q->nxt;
+	if (q->mark == 0)	// unless first arg tainted
+	{	return 0;
+	}
+	q = q->nxt;
+	if (strcmp(q->txt, ",") != 0)
+	{	return 0;
+	}
+	q = q->nxt;	// the format string
+	if (strstr(q->txt, "%s") == NULL)
+	{	return 0;
+	}
+
+	u = q->txt;	// handle: sscanf(tainted, "....", propagating to %s args
+	while ((z = strstr(u, "%s")) != NULL)
+	{	r = u;	// find arg position of %s
+		while (r <= z)
+		{	if (*r == '%'
+			&&  *(r+1) != '%')
+			{	pos++;
+			}
+			r++;
+		}
+		if (pos < 8*sizeof(unsigned int))
+		{	bad |= 1<<pos;	// up to 64 args
+		}
+		u = z+2; // skip over %s, and search for more
+	}
+	q = q->nxt;	 // , after format string
+	if (!bad || !q)
+	{	return 0;
+	}
+
+	pos = 1;
+	while (strcmp(q->txt, ")") != 0
+	&&     q->round > mycur->round)	// all args
+	{	if (strcmp(q->txt, ",") == 0)
+		{	pos++;
+		} else  if (strcmp(q->typ, "ident") == 0
+			&& (bad & (1<<pos))
+			&& !(q->mark & DerivedFromExternal))
+		{	q->mark |= DerivedFromExternal;
+			cnt++;
+			if (verbose > 1)
+			{	do_lock(cid);
+				printf("%d: %s:%d: marked sscanf arg '%s' (+%d)\n",
+					cid, q->fnm, q->lnr, q->txt, DerivedFromExternal);
+				do_unlock(cid);
+		}	}
+		q = q->nxt;
+	}
+
+	return cnt;
+}
+
+static void
+step2a_pre_scope_range(Prim *from, Prim *upto, int cid)	// propagate external source marks
+{	Prim *mycur, *q;
+	int cnt = 0; // step2a: prop of tainted thru assignments thru '=' or sscanf
+
+	for (mycur = from; mycur && mycur->seq <= upto->seq; mycur = mycur->nxt)
+	{
+		if (strcmp(mycur->txt, "sscanf") == 0)
+		{	cnt += handle_sscanf(mycur, cid);
+			continue;
+		}
+
+		if (mycur->mark == 0)
 		{	continue;
 		}
-		q = cur->prv;
+		q = mycur->prv;
 
-		if (q && strchr(q->txt, '='))	// tainted var is assigned to something
-		{	q = q->prv;		// propagate mark to lhs
+		if (q && strchr(q->txt, '=')
+		&& (q->txt[1] == '\0'
+		|| (q->txt[0] != '='
+		&&  q->txt[0] != '>'
+		&&  q->txt[0] != '<'
+		&&  q->txt[0] != '!')))	// tainted var assigned to something
+		{	q = q->prv;	// propagate mark to lhs
 
 			if (strcmp(q->txt, "]") == 0) // skip over possible array index
 			{	q = q->jmp;
@@ -632,12 +462,43 @@ step2a_pre_scope(void)	// propagate external source marks across '='
 			&&  !(q->mark & DerivedFromExternal))
 			{	q->mark |= DerivedFromExternal;
 				if (verbose > 1)
-				{	printf("\t%s:%d: prescope propagated %s (+%d)\n",
+				{	do_lock(cid);
+					printf("\t%s:%d: prescope propagated %s (+%d)\n",
 						q->fnm, q->lnr, q->txt, DerivedFromExternal);
+					do_unlock(cid);
 				}
 				cnt++;
-	}	}	}
+		}	}
+	}
+	tokrange[cid]->param = cnt;
+	if (verbose > 1)
+	{	do_lock(cid);
+		printf("%d: step2a_pre_scope tries to return %d\n", cid, cnt);
+		do_unlock(cid);
+	}
+}
 
+static void *
+step2a_pre_scope_run(void *arg)
+{	int *i = (int *) arg;
+	Prim *from, *upto;
+
+	from = tokrange[*i]->from;
+	upto = tokrange[*i]->upto;
+
+	step2a_pre_scope_range(from, upto, *i);
+
+	return NULL;
+}
+
+static int
+step2a_pre_scope(void)
+{	int cnt;
+
+	cnt = run_threads(step2a_pre_scope_run);
+	if (verbose > 1)
+	{	printf("step2a_pre_scope returns %d\n", cnt);
+	}
 	return cnt;
 }
 
@@ -664,25 +525,27 @@ likely_decl(const Prim *p)
 }
 
 static void
-step2b_check_scope(void)	// ExternalSource|DerivedFromExternal, DerivedFromExternal
-{	Prim *q;
+step2b_check_scope_range(Prim *from, Prim *upto, int cid)	// ExternalSource|DerivedFromExternal, DerivedFromExternal
+{	Prim *q, *mycur;
 
 	// find declaration for marked external sources, so that
 	// we can check all occurrences within the same scope
 
-	for (cur = prim; cur; cur = cur->nxt)	// step2b: use of tainted within same scope
-	{	if (!(cur->mark & (ExternalSource|DerivedFromExternal | DerivedFromExternal))
-		||   (cur->mset[0] & SeenVar))
-		{	continue;
+	mycur = from;
+	while (mycur && mycur->seq <= upto->seq)	// step2b: use of tainted within same scope
+	{	if (!(mycur->mark & (ExternalSource|DerivedFromExternal | DerivedFromExternal))
+		||   (mycur->mset[0] & SeenVar))
+		{	mycur = mycur->nxt;
+			continue;
 		}
-		cur->mset[0] |= SeenVar;	// only once per marked variable
+		mycur->mset[0] |= SeenVar;	// only once per marked variable
 
 		// search backwards to likely point of declaration
-		for (q = cur; q && !likely_decl(q); )
+		for (q = mycur; q && !likely_decl(q); )
 		{	q = q->prv;
 			while (q
 			&&     (q->curly > 0 || q->round > 0)	// stick to locals & params
-			&&     strcmp(q->txt, cur->txt) != 0)	// find the same ident name
+			&&     strcmp(q->txt, mycur->txt) != 0)	// find the same ident name
 			{	q = q->prv;
 			}
 			if (!q
@@ -690,27 +553,33 @@ step2b_check_scope(void)	// ExternalSource|DerivedFromExternal, DerivedFromExter
 			{	q = 0;
 		}	}
 		if (!q)
-		{	continue;
+		{	mycur = mycur->nxt;
+			continue;
 		}
 
 		// found the likely point of decl, which could be a formal param
-		// q->txt is the name of the variable, matching cur->txt
+		// q->txt is the name of the variable, matching mycur->txt
 		if (verbose > 1)
-		{	printf("%s:%d: %s likely declared here (level %d::%d)\n",
-				q->fnm, q->lnr, cur->txt, q->curly, q->round);
+		{	do_lock(cid);
+			printf("%d: %s:%d: %s likely declared here (level %d::%d)\n",
+				cid, q->fnm, q->lnr, mycur->txt, q->curly, q->round);
+			do_unlock(cid);
 		}
 		if (q->mset[0] & SeenDecl) // checked before for this var
-		{	continue;
+		{	mycur = mycur->nxt;
+			continue;
 		}
 		q->mset[0] |= SeenDecl;
 
 		if (q->curly == 0)		// must be a formal parameter
 		{	if (q->round != 1)	// nope, means we dont know
 			{	if (verbose>1)
-				{	printf("%s:%d: '%s' untracked global (declared at %s:%d)\n",
-						cur->fnm, cur->lnr, cur->txt, q->fnm, q->lnr);
-
+				{	do_lock(cid);
+					printf("%d: %s:%d: '%s' untracked global (declared at %s:%d)\n",
+						cid, mycur->fnm, mycur->lnr, mycur->txt, q->fnm, q->lnr);
+					do_unlock(cid);
 				}
+				mycur = mycur->nxt;
 				continue; 	// likely global, give up
 			}
 			q = move_to(q, "{");	// scope of param is the fct body
@@ -721,37 +590,124 @@ step2b_check_scope(void)	// ExternalSource|DerivedFromExternal, DerivedFromExter
 		}	}
 
 		if (!q)
-		{	continue;		// give up
+		{	mycur = mycur->nxt;
+			continue;		// give up
 		}
 
-		// located the block level where cur->txt is declared:
+		// located the block level where mycur->txt is declared:
 		// now we must search this scope to mark all new
-		// occurences that appear *after* cur itself upto the
+		// occurences that appear *after* mycur itself upto the
 		// end of this level of scope
 
 		if (0)
-		{	printf("check_var %s:%d '%s' level %d <<%d %d>>\n",
-				cur->fnm, cur->lnr, cur->txt, q->nxt->curly,
-				cur->seq, q->nxt->seq);
+		{	do_lock(cid);
+			printf("%d: check_var %s:%d '%s' level %d <<%d %d>>\n",
+				cid, mycur->fnm, mycur->lnr, mycur->txt, q->nxt->curly,
+				mycur->seq, q->nxt->seq);
+			do_unlock(cid);
 		}
-		check_var(cur, q->nxt);	// mark DerivedFromExternal
+		check_var(mycur, q->nxt, cid);	// mark DerivedFromExternal
+		mycur = mycur->nxt;
 	}
+}
+
+static void *
+step2b_check_scope_run(void *arg)
+{	int *i = (int *) arg;
+	Prim *from, *upto;
+
+	from = tokrange[*i]->from;
+	upto = tokrange[*i]->upto;
+
+	step2b_check_scope_range(from, upto, *i);
+
+	return NULL;
+}
+
+static void
+step2b_check_scope(void)
+{
+	run_threads(step2b_check_scope_run);
+}
+
+static void
+step2c_part1_range(Prim *from, Prim *upto, int cid)
+{	Prim *mycur;
+
+	mycur = from;
+	while (mycur && mycur->seq <= upto->seq)	// step2c_6: prop of tainted thru fct calls
+	{	if (mycur->mark != 0
+		&&  mycur->round > 0
+		&&  mycur->curly > 0)
+		{	search_calls(mycur, cid);
+			// check if marked var is used as a param in a fct call
+			// and remember these params in param_is_tainted
+			// which is used below to mark vars derived from these
+		}
+		mycur = mycur->nxt;
+	}
+}
+
+static void *
+step2c_part1_run(void *arg)
+{	int *i = (int *) arg;
+	Prim *from, *upto;
+
+	from = tokrange[*i]->from;
+	upto = tokrange[*i]->upto;
+
+	step2c_part1_range(from, upto, *i);
+
+	return NULL;
 }
 
 static void
 step2c_part1(void)
 {
-	for (cur = prim; cur; cur = cur->nxt)	// step2c_6: prop of tainted thru fct calls
-	{	if (cur->round > 0
-		&&  cur->curly > 0
-		&&  cur->mark != 0)
-		{	search_calls(cur);
-			// check if marked var is used as a param in a fct call
-			// and remember these params in TaintedParam
-			// which is used below to mark vars derived from these
-	}	}
+	run_threads(step2c_part1_run);
 }
 
+#if 1
+static void
+step2c_part2_range(Prim *from, Prim *upto, int cid)
+{	Prim *mycur = from;
+	Prim *q;
+	int cnt = 0;
+
+	while (mycur && mycur->seq <= upto->seq)	// step2c_6: prop of tainted thru fct params and returns
+	{	if (mycur->mset[2])		// for each function
+		{	q = mycur;		  // save
+			cnt += is_param_tainted(mycur, setlimit, cid);  // mark uses of tainted params PropViaFct
+			mycur = q;		  // restore
+			search_returns(mycur, cid); // used in next scan below
+		}
+		mycur = mycur->nxt;
+	}
+	tokrange[cid]->param = cnt;
+}
+
+static void *
+step2c_part2_run(void *arg)
+{	int *i = (int *) arg;
+	Prim *from, *upto;
+
+	from = tokrange[*i]->from;
+	upto = tokrange[*i]->upto;
+
+	step2c_part2_range(from, upto, *i);
+
+	return NULL;
+}
+
+static int
+step2c_part2(void)
+{	int cnt;
+
+	cnt = run_threads(step2c_part2_run);
+	return cnt;
+}
+
+#else
 static int
 step2c_part2(void)
 {	Prim *q;
@@ -760,27 +716,28 @@ step2c_part2(void)
 	for (cur = prim; cur; cur = cur->nxt)	// step2c_6: prop of tainted thru fct params and returns
 	{	if (cur->mset[2])		// for each function
 		{	q = cur;		  // save
-			cnt += search_params();	  // mark uses of tainted params PropViaFct
+			cnt += is_param_tainted(cur, setlimit, 0);  // mark uses of tainted params PropViaFct
 			cur = q;		  // restore
-			search_returns(cur->txt); // used in next scan below
+			search_returns(cur, 0); // used in next scan below
 	}	}
-
 	return cnt;
 }
+#endif
 
-static int
-step2c_part3(void)
-{	Prim *r;
+static void
+step2c_part3_range(Prim *from, Prim *upto, int cid)
+{	Prim *mycur, *r;
 	int cnt = 0;
 
-	for (cur = prim; cur; cur = cur->nxt)	// step2c_6: use of tainted returns from fct calls
-	{	if (strcmp(cur->txt, "(") == 0
-		&&  cur->curly > 0
-		&&  cur->prv
-		&&  strcmp(cur->prv->typ, "ident") == 0
-		&&  HasTaintedReturn(cur->prv->txt))
+	// step2c_6: use of tainted returns from fct calls
+	for (mycur = from; mycur && mycur->seq <= upto->seq; mycur = mycur->nxt)
+	{	if (strcmp(mycur->txt, "(") == 0
+		&&  mycur->curly > 0
+		&&  mycur->prv
+		&&  strcmp(mycur->prv->typ, "ident") == 0
+		&&  is_return_tainted(mycur->prv->txt, cid))
 		{	// possible fct call returning tainted result
-			r = cur->prv->prv;	// token before the call
+			r = mycur->prv->prv;	// token before the call
 			if (strchr(r->txt, '=') != NULL) // used in assignment?
 			{	r = r->prv;
 				if (strcmp(r->txt, "]") == 0
@@ -791,13 +748,35 @@ step2c_part3(void)
 				&&  strcmp(r->typ, "ident") == 0
 				&&  r->mark == 0)
 				{	r->mark |= PropViaFct;	// mark it
-					show_bindings("iterate", r, cur->prv);
+					if (verbose)
+					{	show_bindings("iterate", r, mycur->prv, cid);
+					}
 					if (!r->bound)
-					{	r->bound = cur->prv; // origin, fct nm
+					{	r->bound = mycur->prv; // origin, fct nm
 					}
 					cnt++;
 	}	}	}	}
+	tokrange[cid]->param = cnt;
+}
 
+static void *
+step2c_part3_run(void *arg)
+{	int *i = (int *) arg;
+	Prim *from, *upto;
+
+	from = tokrange[*i]->from;
+	upto = tokrange[*i]->upto;
+
+	step2c_part3_range(from, upto, *i);
+
+	return NULL;
+}
+
+static int
+step2c_part3(void)
+{	int cnt;
+
+	cnt = run_threads(step2c_part3_run);
 	return cnt;
 }
 
@@ -808,9 +787,9 @@ step2c_step6_iterate(void)	// PropViaFct
 	// check propagation of the marked variables (vulnerable targets)
 	// through fct calls or via return statements
 
-	       step2c_part1();
-	cnt  = step2c_part2();
-	cnt += step2c_part3();
+	       step2c_part1();	// parallel
+	cnt  = step2c_part2();	// parallel
+	cnt += step2c_part3();	// parallel
 
 	if (verbose)
 	{	printf("iterate (%d) returns %d\n", PropViaFct, cnt);
@@ -826,21 +805,26 @@ step3_step7_check_uses(const int v)	// used as args of: memcpy, strcpy, sprintf,
 	int nr_commas;
 
 	for (cur = prim; cur; cur = cur->nxt)	// step3_7: check suspect uses of tainted data
-	{	if (cur->mark == 0
-		|| (cur->mark & v)
-		||  cur->round == 0)
+	{
+		if (cur->round == 0
+		|| cur->mark == 0
+//		||  (v == VulnerableTarget  && cur->mset[1] == 0)
+//		||  (v == CorruptableSource && cur->mset[3] == 0)
+		|| (cur->mark & v))
 		{	continue;
 		}
+		// was marked before, but not with v
 		if (verbose > 1)
 		{	printf("%s:%d: Check Uses, mark %d, txt %s round: %d\n",
 				cur->fnm, cur->lnr, v, cur->txt, cur->round);
 		}
+
 		q = cur;
 		nr_commas = 0;
 		while (q->round >= cur->round)
 		{	if (q->round == cur->round
 			&&  strcmp(q->txt, ",") == 0)
-			{	nr_commas++;
+			{	nr_commas++;	// nr of actual param
 			}
 			q = q->prv;
 		}
@@ -853,16 +837,18 @@ step3_step7_check_uses(const int v)	// used as args of: memcpy, strcpy, sprintf,
 		if (strcmp(q->txt, "sizeof") == 0)
 		{	continue;
 		}
-
 		if ((strcmp(q->txt, "fopen") == 0	// make sure the fd doesn't have external source
 		||   strcmp(q->txt, "freopen") == 0)
 		&&  nr_commas == 0			// first arg: pathname
 		&&  (cur->mark & (ExternalSource | DerivedFromExternal)))
-		{	cnt++;
-			printf("%s:%d: contents of %s in call to fopen() is possibly tainted: ",
-				cur->fnm, cur->lnr, cur->txt);
-				what_mark(cur->mark);
+		{	if (verbose || !no_display || !no_match)		// no -terse argument was given
+			{	cnt++;
+				printf(" %3d: %s:%d: warning: contents of '%s' in call to fopen() possibly tainted",
+					++warnings, cur->fnm, cur->lnr, cur->txt);
+				what_mark(": ", cur->mark);
 				printf("\n");
+			}
+			nfopen++;
 			continue;
 		}
 
@@ -893,7 +879,6 @@ step3_step7_check_uses(const int v)	// used as args of: memcpy, strcpy, sprintf,
 			}
 
 			// scan the format string for conversions specifiers
-
 			for (qtr = w->txt, nr = 1; ; qtr++, nr++)
 			{	while (*qtr != '\0' && *qtr != '%')
 				{	qtr++;
@@ -913,7 +898,8 @@ step3_step7_check_uses(const int v)	// used as args of: memcpy, strcpy, sprintf,
 					// the nr-th format conversion is %n
 					// check if its that the one that was marked
 					if (nr == nr_commas - correction)
-					{	printf("%s:%d: warning: %s() ", cur->fnm, cur->lnr, q->txt);
+					{	printf(" %3d: %s:%d: warning: %s() ",
+							++warnings, cur->fnm, cur->lnr, q->txt);
 						printf("uses '%%n' with corruptable arg '%s'\n", cur->txt);
 					}
 					break;
@@ -922,11 +908,11 @@ step3_step7_check_uses(const int v)	// used as args of: memcpy, strcpy, sprintf,
 					break;
 				default:
 					break;
-			}	}
-			continue;
-		}
+		}	}	}
 
+		// check other fcts, including sprintf
 		if (strcmp(q->txt, "memcpy") == 0
+		||  strcmp(q->txt, "strcat") == 0
 		||  strcmp(q->txt, "strcpy") == 0
 		||  strcmp(q->txt, "sprintf") == 0
 		||  (v == CorruptableSource && strcmp(q->txt, "gets") == 0))
@@ -935,7 +921,9 @@ step3_step7_check_uses(const int v)	// used as args of: memcpy, strcpy, sprintf,
 			||   (v == CorruptableSource && nr_commas  > 0))
 			&&  !(cur->mark & v))	// not already marked
 			{	cur->mark |= v;
-				show_bindings("check_uses", cur, q);
+				if (verbose)
+				{	show_bindings("check_uses", cur, q, 0);
+				}
 				if (!cur->bound)
 				{	cur->bound = q;	// origin
 				} // else printf("6 does this happen?\n");
@@ -956,17 +944,23 @@ step4_find_targets(void)
 {	Prim *q, *r;
 	int cnt = 0;
 
-	for (cur = prim; cur; cur = cur->nxt)	// step4: mark potentially corruptable targets
+	for (cur = prim; cur; cur = cur?cur->nxt:0)	// step4: mark potentially corruptable targets
 	{	// dont look inside struct declarations
-		if (MATCH("struct")
-		||  MATCH("union"))
-		{	while (!MATCH("{") && cobra_nxt())
-			{	;
-			}
+		if (cur->curly > 0	// we're considering local decls only
+		&&  (MATCH("struct")
+		||   MATCH("union")))
+		{	// may be a ref, not a def
+			// check if we get to a ';' before we see a '{'
+			while (!MATCH("{") && cobra_nxt())
+			{	if (MATCH(";"))		// not a def, dont skip
+				{	break;
+			}	}
 			if (!cur)
 			{	break;
 			}
-			cur = cur->jmp;
+			if (!MATCH(";") && cur->jmp)
+			{	cur = cur->jmp;
+			}
 			continue;
 		}
 		if (MATCH("static"))	// not a stack var
@@ -988,7 +982,7 @@ step4_find_targets(void)
 			{	cur = q;
 				continue;
 			}
-			cur = cur->prv;
+			cur = cur->prv;	
 			if (!TYPE("ident"))
 			{	cur = q;
 				continue;
@@ -1006,7 +1000,8 @@ step4_find_targets(void)
 		&&  cur->curly > 0	// local to fct
 		&&  cur->round == 0)	// not a type cast
 		{	q = cur;
-findmore:		while (!TYPE("ident")
+findmore:
+			while (!TYPE("ident")
 			&&     !MATCH(";")
 			&&     cur->curly == q->curly)
 			{	if (MATCH("="))	// skip initializers
@@ -1066,8 +1061,53 @@ step5_find_taints(void)		// completes Step 1 from taint_track.cobra script
 					continue;
 				}
 				if (!(cur->mark & UseOfTaint))
-				{	cur->mark |= UseOfTaint;	// use of the taintable var
-					show_bindings("find_taints1", cur, q);
+				{	if (cur->mset[3])		// was it marked ExternalSource before?
+					{	char lbuf[2048];
+						int len = 0, noprint = 1;	// by default, don't print these
+
+						sprintf(lbuf, " %3d: %s:%d: '%s' in ", ++warnings,
+							cur->fnm, cur->lnr, cur->txt);
+						r = cur;
+						while (r->round > 0 && r->round == cur->round)
+						{	r = r->prv;
+						}
+						r = r->prv;	// token before ( ... ) if enclosed
+						r = r->prv;	// undo first r->nxt
+						len = strlen(lbuf);
+						do {	r = r->nxt;
+							if (len + strlen(r->txt) + 1 < sizeof(lbuf))
+							{	strcat(lbuf, r->txt);
+							}
+							if (strcmp(r->txt, "gets") == 0)
+							{	ngets_bad++;
+								if (verbose || !no_display || !no_match)
+								{	noprint = 0; // print if not terse
+							}	}
+						} while (r->seq != cur->nxt->seq);
+
+						if (noprint == 0)			// not gets()
+						{	if (!banner)
+							{	printf("=== Potentially dangerous assignments:\n");
+								banner = 1;
+							}
+							printf("%s", lbuf);	// print warning
+							if (r->txt[0] == ','
+							||  r->txt[0] == '[')
+							{	printf("...");
+							}
+							cur->mset[1] |= UseOfTaint; // for add_details XXX
+							cur->mbnd[1] = cur->bound;
+							add_details(cur, 1, cur, 3);
+						} else
+						{	warnings--;		// no warning issued, undo increment
+						}
+						cur->mark |= UseOfTaint;	// use of the taintable var
+						break; // no need to tag subsequent uses of the same var
+					}
+					cur->mark |= UseOfTaint;	// use of the taintable var
+					if (verbose)
+					{	show_bindings("find_taints1", cur, q, 0);
+					}
 					if (!cur->bound)
 					{	cur->bound = q;	// remember origin
 					} // else printf("1 does this happen?\n");
@@ -1083,9 +1123,10 @@ step5_find_taints(void)		// completes Step 1 from taint_track.cobra script
 
 				r = cur->prv;
 				s = cur->nxt;
-				if (strchr(s->txt, (int) '=') != 0)	// q followed by =
-				{	cur = cur->nxt;			// q is overwritten
-					continue;
+				if (strcmp(s->txt, "[") == 0		// array element
+				||  strchr(s->txt, (int) '=') != 0)	// q followed by =
+				{	cur = cur->nxt;
+					continue;			// if =, q is overwritten
 				}
 				if (strcmp(r->txt, "&") == 0)		// q's address is taken
 				{	r = r->prv;
@@ -1094,20 +1135,22 @@ step5_find_taints(void)		// completes Step 1 from taint_track.cobra script
 				{	r = r->prv;
 					if (strcmp(r->txt, "]") == 0)
 					{	r = r->jmp;
-						r = r->prv;
+						r = r?r->prv:r;
 					}
 					if (strcmp(r->typ, "ident") == 0
 					&&  !(r->mark & DerivedFromTaint))
 					{	r->mark |= DerivedFromTaint;	// newly tainted
-						show_bindings("find_taints2", r, q);
+						if (verbose)
+						{	show_bindings("find_taints2", r, q, 0);
+						}
 						if (!r->bound)
 						{	r->bound = q;	// remember origin
 						} // else printf("2 does this happen?\n");
 
 						cnt++;
 						if (verbose > 1)
-						{	printf("%s:%d '%s' tainted by asignment\n",
-								r->fnm, r->lnr, r->txt);
+						{	printf("%s:%d '%s' tainted by asignment from taintable '%s'\n",
+								r->fnm, r->lnr, r->txt, s->prv->txt);
 				}	}	}
 			// doesnt catch less likely assignments, like ptr = offset + buf
 			// not yet: n.q = buf n->q = buf
@@ -1122,119 +1165,54 @@ step5_find_taints(void)		// completes Step 1 from taint_track.cobra script
 }
 
 static void
-do_report(const Prim *q, const int cnt, const int a, const int b)
-{	Prim *p;
+issue_warning(Prim *q, const int a, const int b)
+{	int none = 1;
+	Prim *p;
 
-	switch (cnt) {
-	default:
-	case 0: break;
-	case 1:
-		if (verbose)
-		{	printf("%s:%d: '%s' -- target vulnerable, but no external source\n",
-				cur->fnm, cur->lnr, cur->txt);
+	if (!banner)
+	{	printf("=== Potentially dangerous assignments:\n");
+		banner = 1;
+	}
+	printf(" %3d: %s:%d: in call to '%s'", ++warnings, cur->fnm, cur->lnr, cur->txt);
+	printf(" marked arguments:");
+	for (p = q->nxt; p && p->round > cur->round; p = p->nxt)
+	{	if (strcmp(p->txt, ",") == 0)
+		{	continue;
 		}
-		break;
-	case 2:
-		if (verbose)
-		{	printf("%s:%d: '%s' -- external source, but target not vulnerable\n",
-				cur->fnm, cur->lnr, cur->txt);
+		if (p->mset[a] + p->mset[b] == 0)
+		{	continue; // skip this arg
 		}
-		break;
-	case 3:
-		printf("%s:%d: '%s'", cur->fnm, cur->lnr, cur->txt);
-		if (q)
-		{	int none = 1;
-			printf(" marked arguments:");
-			for (p = q->nxt; p && p->round > cur->round; p = p->nxt)
-			{	if (strcmp(p->txt, ",") == 0
-				|| p->mset[a] + p->mset[b] == 0)
-				{	continue; // for-loop
-				}
-				if (none)
-				{	printf("\n");
-				}
-				printf("\t%s\t", p->txt);
-				if (p->mset[a])
-				{	what_mark(p->mset[a]);
-					printf("\t");
-				}
-				what_mark(p->mset[b]);
-				printf("\n");
-				trace_back(p, a);
-				trace_back(p, b);
-				none = 0;
-			}
-			if (none)
-			{	printf("\n");
-			}
-			cur = p; // avoid duplicate reporting
-		} else
-		{	p = cur;
-			printf("\t'%s'\t", p->txt);
-			if (p->mset[a])
-			{	what_mark(p->mset[a]);
-				printf("\t");
-			}
-			what_mark(p->mset[b]);
-			printf("\n");
-			if (p->bound)
-			{	printf("\t\tbound: %s:%d\n",
-					p->bound?p->bound->fnm:"",
-					p->bound?p->bound->lnr:0);
-			}
-			if (p->mbnd[a])
-			{	trace_back(p, a);
-			}
-			if (p->mbnd[b]
-			&&  p->mbnd[b] != p->mbnd[a])
-			{	trace_back(p, b);
-		}	}
-		break;
+		if (none)
+		{	printf("\n");
+			none = 0;
+		}
+		printf("\t%s", p->txt);
+		add_details(p, a, p, b);
+	}
+	if (none)
+	{	printf("\n");
 	}
 }
 
 static void
-step8_check_overlap(const int a, const int b)	// a: CorruptableSource, b: VulnerableTarget
+step8_check_contamination(const int a, const int b)
 {	Prim *p, *q;
-	int nrcommas, nrdots, cnt, level;
+	int cnt, nrcommas, nrdots, level;
 
-	for (cur = prim; cur; cur = cur->nxt)	// step8: check overlap of taints and targets
-	{
-		if (verbose > 1
-		&& (cur->mset[a] || cur->mset[b]))
-		{	printf("%s:%d:  '%s' %d %d\t",
-				cur->fnm, cur->lnr, cur->txt,
-				cur->mset[1], cur->mset[3]);
-			what_mark(cur->mset[a]);
-			printf("\t");
-			what_mark(cur->mset[b]);
-			printf("\n");
-		}
-
-		cnt = 0;
-		if (cur->mset[a])	// & (UseOfTaint     | DerivedFromTaint)
-		{	cnt |= 1;
-		}
-		if (cur->mset[b])	// & (ExternalSource | DerivedFromExternal)
-		{	cnt |= 2;
-		}
-		if (cnt)
-		{	do_report(0, cnt, a, b);
-			continue;
-		}
-
-		// additional check for the use of tainted or corruptable data
-		// in the following four specific function calls:
-
-		if (!TYPE("ident")
-		|| (strcmp(cur->txt, "sprintf") != 0
-		&&  strcmp(cur->txt, "snprintf") != 0
-		&&  strcmp(cur->txt, "strcpy") != 0
-		&&  strcmp(cur->txt, "memcpy") != 0))
+	// a) dangerous assignments
+	for (cur = prim; cur; cur = cur->nxt)	// step8: assignments & calls
+	{	if (strcmp(cur->typ, "ident") != 0
+		|| (strcmp(cur->txt, "sprintf") != 0	// >1
+		&&  strcmp(cur->txt, "snprintf") != 0	// >1
+		&&  strcmp(cur->txt, "strcpy") != 0	// 2nd
+		&&  strcmp(cur->txt, "strcat") != 0	// 2nd
+		&&  strcmp(cur->txt, "strncpy") != 0	// 2nd
+		&&  strcmp(cur->txt, "strncat") != 0	// 2nd
+		&&  strcmp(cur->txt, "memcpy") != 0))	// 2nd
 		{	continue;
 		}
 
-		// first arg should have mset[a] != 0 -- ie a corruptable target
+		// the first arg should have mset[a] != 0 -- ie a corruptable target
 		// some the remaining args should have mset[b] != 0 -- ie an external source
 
 		p = q = move_to(cur, "(");
@@ -1249,30 +1227,120 @@ step8_check_overlap(const int a, const int b)	// a: CorruptableSource, b: Vulner
 			       ||  strcmp(p->txt, "->") == 0)
 			{	nrdots++;
 			} else if (nrdots == 0 && p->bracket == 0 && p->round == level)
-			{	if (p->mset[a] != 0 && nrcommas == 0)
+			{	if (p->mset[a] != 0 && nrcommas == 0)		// Taintable
 				{	cnt |= 1;
 				}
-				if (p->mset[b] != 0 && nrcommas != 0)
-				{	cnt |= 2;
-			}	}
-			if (verbose>1)
-			{	printf("%s:%d: '%s' (%d :: %d)\n",
-					p->fnm, p->lnr, p->txt, p->mset[a], p->mset[b]);
-			}
-		} while (p && p->round > cur->round); // arg list
-
-		do_report(q, cnt, a, b);
+				if (p->mset[b] != 0 && nrcommas != 0)	// External
+				{
+					if (strstr(cur->txt, "printf") != NULL	// sprintf or snprintf: any arg
+					||  nrcommas == 1)			// the others: 2nd arg only
+					{	cnt |= 2;
+			}	}	}
+		} while (cnt < 3 && p && p->nxt && p->round > cur->round); // arg list
+		if (cnt == 3)
+		{	issue_warning(q, a, b); // q is start of arg list
+		}
 	}
+}
+
+static void
+taint_usage(void)
+{
+	printf("find_taint: unrecognized -- option(s): '%s'\n", backend);
+	printf("valid options are:\n");
+	printf("	--sanity	start with a check for missing links in input token-stream\n");
+	printf("	--sequential	disable parallel processing in backend (overruling -N settings)\n");
+	printf("	--limitN	with N a number, limit distance from fct call to fct def to Nk tokens\n");
+	printf("	--exit		immediately exit after startup phase in front end is completed\n");
+}
+
+static void
+sanity_check(void)
+{	int B[6] = { 0, 0, 0 };
+	int L[6] = { 0, 0, 0 };
+	int cnt = 0;
+	int i;
+
+	for (cur = prim; cur; cur = cur?cur->nxt:0)
+	{	cnt++;
+		for (i = 0; i < 6; i++)
+		{	if (strcmp(cur->txt, t_links[i]) == 0)
+			{	if (cur->jmp == 0)
+				{	B[i]++;
+					if (i==5)
+					{	printf("missing link on '%s': %s:%d\n",
+							t_links[i], cur->fnm, cur->lnr);
+					}
+				} else if (strcmp(cur->fnm, cur->jmp->fnm) != 0)
+				{	L[i]++;
+					printf("cross-file link on '%s': %s:%d -> %s:%d (seq: %d -> %d\n",
+						t_links[i],
+						cur->fnm, cur->lnr,
+						cur->jmp->fnm, cur->jmp->lnr,
+						cur->seq, cur->jmp->seq);
+	}	}	}	}
+
+	printf("%d tokens\n", cnt);
+	printf("tokens without link:\n");
+	for (i = 0; i < 6; i++)
+	{	printf("\t'%s'=%d", t_links[i], B[i]);
+	}
+	printf("\ncross-file links:\n");
+	for (i = 0; i < 6; i++)
+	{	printf("\t'%s'=%d", t_links[i], L[i]);
+	}
+	printf("\n");
+}
+
+static int
+valid_args(void)
+{	char *arg;
+	int valid = 0;
+
+	if ((arg = strstr(backend, "limit")) != NULL)
+	{	arg = &arg[5];
+		if (isdigit((int) *arg))
+		{	setlimit = atoi(arg);
+			printf("limiting distance from fct call to fct def to %d,000 tokens\n", setlimit);
+			valid++;
+	}	}
+	if (strstr(backend, "sequential") != NULL)
+	{	Ncore = 1;	// option --sequential, overrides -N from front-end
+		printf("disabled parallel processing in backend\n");
+		valid++;
+	}
+	if (strstr(backend, "sanity") != NULL)
+	{	sanity_check();
+		valid++;
+	}
+	if (strstr(backend, "exit") != NULL)	// to measure time needed for startup alone
+	{	exit(0);
+	}
+
+	if (!valid)	// not a great test
+	{	taint_usage();
+	}
+
+	return valid;
 }
 
 void
 cobra_main(void)
-{	int i, cnt = 0;
+{	int cnt = 0;
 
-	mark_fcts();
+	if (strlen(backend) > 0
+	&&  !valid_args())
+	{	return;
+	}
+
+	set_multi();
+	ini_timers();
+	taint_init();
+
+	mark_fcts();	// sequential
 	save_set(2);	// marking function definitions
 
-	// part 1 of 3
+	// phase 1 of 3
 	// 	mark data that could originate from external inputs
 	// 	after locating the initial external sources, iterate
 	//	to find
@@ -1289,6 +1357,7 @@ cobra_main(void)
 	}
 
 	cnt = step1_find_sources();	// check the most common types; mark ExternalSource
+
 	if (!cnt)
 	{	printf("taint: no sources of external input found\n");
 		if (!p_debug)
@@ -1300,9 +1369,9 @@ cobra_main(void)
 	// first iteration, to mark all derived external sources
 
 	while (cnt)
-	{	cnt = step2a_pre_scope();	// mark DerivedFromExternal
-		step2b_check_scope();		// mark DerivedFromExternal
-		cnt += step2c_step6_iterate();	// mark PropViaFct
+	{	cnt = step2a_pre_scope();	// mark DerivedFromExternal	| parallel
+		step2b_check_scope();		// mark DerivedFromExternal	| parallel
+		cnt += step2c_step6_iterate();	// mark PropViaFct		| parallel
 	}
 
 	// once: check how the marked vars may be used
@@ -1312,7 +1381,7 @@ cobra_main(void)
 
 	// ==== done with potentially dangerous external sources  ====
 
-	// part 2 of 3
+	// phase 2 of 3
 	// look for fixed size buffers declared on the stack
 	// these can be targets for code injection
 	// pattern:  @type ^;* @ident [   ^;* ;
@@ -1330,16 +1399,14 @@ cobra_main(void)
 
 	// find anything that can point to Target or Alloca
 
-	step5_find_taints();	// mark: UseOfTaint, DerivedFromTaint
+	step5_find_taints();	// mark: UseOfTaint, DerivedFromTaint	| not parallel, but not expensive
 
 	// check propagation of marked vars thru fct params or returns
 	// and mark vars derived from these
 
-	for (i = 0; i < TPSZ; i++)
-	{	tainted_param[i] = NULL;
-		tainted_return[i] = NULL;			// new lists
-	}
-	while (step2c_step6_iterate() != 0)	// mark PropViaFct
+	reset_tables();
+
+	while (step2c_step6_iterate() != 0)	// mark PropViaFct	| parallel
 	{	;
 	}
 
@@ -1352,9 +1419,9 @@ cobra_main(void)
 	// all potentially dangerous targets that appear in copy routines
 	// are now marked CorruptableSource
 
-	save_set(1);	// uses of CorruptableSource
+	save_set(1);	// uses of CorruptableSource | parallel
 
-	// part 3 of 3
+	// phase 3 of 3
 	// check if the msets 1 and 3 overlap
 	// meaning that an external source can be
 	// used in a dangerous operation for a fct-local buffer
@@ -1362,5 +1429,21 @@ cobra_main(void)
 	{	printf("\n=====Phase3 -- check overlap\n");
 	}
 
-	step8_check_overlap(1, 3); // CorruptableSource , VulnerableTarget
+	step8_check_contamination(1, 3);	// assignment of Sources to Targets | not parallel
+
+//	in verbose mode, subtract ngets and nfopen from warnings
+	if (verbose || !no_display || !no_match)	// not terse
+	{	warnings -= (ngets + nfopen + ngets_bad);
+	}
+	if (ngets)
+	{	printf("%3d calls to gets() noted, %d writing to taintable objects\n", ngets, ngets_bad);
+		// the ngets_bad are reported separately as well, and add to the count in 'warnings'
+	}
+	if (nfopen)
+	{	printf("%3d uses of potentially tainted arguments in calls to fopen()\n", nfopen);
+	}
+	if (warnings)
+	{	printf("%3d %staint warnings\n", warnings, (ngets+nfopen>0)?"other ":"");
+		printf("%3d total warnings\n", warnings+ngets+nfopen+ngets_bad);
+	}
 }

@@ -1,0 +1,55 @@
+# requries cobra version 3.2 (sept 2020) or later
+# test the list functions:
+#	 1 list_add_top
+#	 2 list_add_bot
+#	 3 list_del_top
+#	 4 list_del_bot
+#	 5 list_get_top
+#	 6 list_get_bot
+#	 7 list_new_tok
+#	 8 list_rel_tok
+#	 9 list_rel
+#	10 list_len
+
+# test the stream command too:
+stream mode=text limit=666 margin=333
+%{
+	cnt++;
+	n = list_new_tok();
+	n.seq = 1;
+	n.mark = cnt;
+	if (.seq % 2)
+	{	list_add_top(test, n);
+	} else
+	{	list_add_bot(test, n);
+	}
+%}
+%{
+	count = 10;
+	while (count >= 0)
+	{	count--;
+		n = list_get_bot(test);
+		print "removed from end: " n.mark "\n";
+		list_del_bot(test);
+	}
+	n = list_get_top(test);
+	while (n.seq > 0)	# check if we can traverse the list ourselves
+	{	print "===> " n.mark "\n";
+		n = n.nxt;
+	}
+	Stop;
+%}
+%{
+	print cnt " ::: " list_len(test) "\n";
+	cnt = 1;
+	n = list_get_top(test);
+	while (n.seq > 0)
+	{	print cnt "..." n.mark "\n";
+		list_del_top(test);
+		n = list_get_top(test);
+		cnt++;
+	}
+	print "length: " list_len(test) "\n";
+	list_rel(test);	# release
+	Stop;
+%}

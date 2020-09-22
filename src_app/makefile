@@ -1,6 +1,7 @@
 # Cobra - interactive static structural code analyzer
 # Sample background checkers, linked to the Cobra
 # front-end in c.ar, using the api defined in c_api.h
+# (c) 2017-2020 Gerard Holzmann, Nimble Research
 # See the license file in ../src
 
 CWE=cwe.o cwe_util.o \
@@ -26,7 +27,8 @@ OTHER=abstract \
 	nomacros \
 	nr_cases \
 	rule23_rule31 \
-	switch_default
+	switch_default \
+	find_taint
 
 .PHONY: all install clean
 LDFLAGS?=c.ar -pthread
@@ -35,20 +37,29 @@ F?=-O2
 		# on mac: make LDFLAGS=c.ar
 		# gprof: make F="-g -pg"
 CFLAGS=-Wall -pedantic -Werror -Wshadow ${F} -DYY_NO_INPUT -I. -std=c99
+CFLAGSNOPT=-Wall -pedantic -Werror -Wshadow -DYY_NO_INPUT -I. -std=c99
 
 all:	c.ar cwe scope_check find_taint
 
 cwe:	cwe.h c.ar c_api.h $(CWE)
-	$(CC) $(CFLAGS) -o cwe $(CWE) $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ $(CWE) $(LDFLAGS)
 
 scope_check: c.ar c_api.h scope_check.c
-	$(CC) $(CFLAGS) -o scope_check scope_check.c $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ scope_check.c $(LDFLAGS)
 
 c.ar:
 	cd ../src; make c.ar
 
-find_taint:	find_taint.c cwe_util.c
-	$(CC) $(CFLAGS) -o find_taint find_taint.c cwe_util.c $(LDFLAGS)
+find_taint:	taint.h find_taint.c taint_tables.c cwe_util.c
+	$(CC) $(CFLAGSNOPT) -o $@ find_taint.c taint_tables.c cwe_util.c $(LDFLAGS)
+	# find_taint runs faster if backend is compiled without optimization
+
+find_taint_opt:	find_taint.c taint_tables.c cwe_util.c
+	$(CC) $(CFLAGS) -o $@ find_taint.c taint_tables.c cwe_util.c $(LDFLAGS)
+	# for comparisons only
+
+find_stats:	find_stats.c cwe_util.c
+	$(CC) $(CFLAGS) -o $@ find_stats.c cwe_util.c $(LDFLAGS)
 
 $(OTHER): c_api.h c.ar
 

@@ -191,6 +191,14 @@ set_multi(void)
 	tokrange = (TokRange **) emalloc(Ncore * sizeof(TokRange *));
 	t_id     = (pthread_t *) emalloc(Ncore * sizeof(pthread_t));
 
+	if (Ncore == 1)
+	{	tokrange[0] = (TokRange *) emalloc(sizeof(TokRange));
+		tokrange[0]->seq  = 0;
+		tokrange[0]->from = a;
+		tokrange[0]->upto = b;
+		return;
+	}
+
 	for (i = 0, x = a; i < Ncore; i++)
 	{	if (!tokrange[i])
 		{	tokrange[i] = (TokRange *) emalloc(sizeof(TokRange));

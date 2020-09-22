@@ -100,3 +100,31 @@
     now all recoded to support multi-core checks
   - added online tutorials for the all existing capabilities of cobra
     verison 3.1, including the new runtime verification options.
+
+3.2 sep 2020
+  - added new find_taint backend module for finding cases of potential
+    code injection in code bases.
+  - reduced memory use and inproved runtime performance in processing
+    streaming data, with revised token recycling.
+  - added runtime and command-line options for defining the size of the
+    moving event window (-stream) in applications of runtime verification.
+  - added support for multi-script streaming in runtime verification.
+    (earlier only a single script could be used)
+  - added predefined functions for handling lists, queues, stack within Cobra scripts
+  - improved accuracy of bracket-pairing across ifdef directives in C/C++ code,
+    using a stack-based method for remembering settings across these directives.
+  - better method for passing command-line arguments to backend modules,
+    recognizing options preceded by a double dash, which are now passed to
+    backend modules uninterpreted.
+  - added support for the use of binary exclusive or (^), binary right-shift (>>),
+    and binary left-shift (<<) operators in Cobra scripts.
+  - added support for modifying additional token fields in Cobra scripts:
+    specifically the fields: .round, .bracket, .curly, and .len, in addition
+    to the already allowed fields .mark, .fnm, and .lnr.
+  - increased the sizes of some arrays to prevent static analyzer warnings on
+    potential buffer overflow.
+  - added a compiler directive NO_SBRK option to support newer Mac & Linux platforms
+    (preventing direct calls to the sbrk() system-routine).
+  - added compiler directive DEBUG_MEM for generating diagnostic output on memory
+    use during script executions.
+  - additional small bug fixes.

@@ -6,6 +6,8 @@
 
 #include "cobra_pre.h"
 
+#define NBUCKETS	128
+
 #define Put(a,b)	\
 	{	if (b>=0 && b<NDEPTH) \
 		{	Px.lex_range[a][b] = Px.lex_plst; \
@@ -32,6 +34,7 @@ Prim	*cur;
 Prim	*prim;
 int	 count;
 
+static	Prim	*free_tokens[NBUCKETS];
 static	JumpTbl	*jmptbl;
 static	Files	*files[NHASH];
 static	Files	*frr = (Files *) 0;
@@ -171,10 +174,6 @@ check_args(char *s, const char *c_base)	// single-core
 	if (!a && !p && !q)
 	{	return s;
 	}
-
-//	printf("s: '%s'\nc_base: '%s'\nn=%d\np: '%s'\na: '%s'\nq: '%s'\n",
-//		s, c_base, n, p?q:"-----", a?a:"=====", q?q:"_____");
-
 	if (p)
 	{	n += strlen(c_base) + strlen("/../bin") - strlen("$COBRA");
 	}
@@ -194,7 +193,7 @@ check_args(char *s, const char *c_base)	// single-core
 		// should also check java/C++,python etc.
 	}
 
-	c = (char *) emalloc((n+1)*sizeof(char));	// single core
+	c = (char *) emalloc((n+1)*sizeof(char), 69);	// single core
 	if (p)
 	{	*p = '\0';
 		strncpy(c, s, n);	// upto $COBRA
@@ -289,7 +288,7 @@ rebind_curly(Prim *from, Prim *upto)
 	{	p->curly = cl;
 		if (strcmp(p->txt, "{") == 0)
 		{	cl++;
-			j = (JumpTbl *) emalloc(sizeof(JumpTbl));
+			j = (JumpTbl *) emalloc(sizeof(JumpTbl), 70);
 			j->b = p;
 			j->nxt = jmptbl;
 			jmptbl = j;
@@ -312,7 +311,7 @@ try_fix(Prim *from, Prim *upto)
 
 	for (p = from; p && p->seq <= upto->seq; p = p->nxt)
 	{	if (strcmp(p->txt, "{") == 0)
-		{	j = (JumpTbl *) emalloc(sizeof(JumpTbl));
+		{	j = (JumpTbl *) emalloc(sizeof(JumpTbl), 71);
 			j->b = p;
 			j->nxt = jmptbl;
 			jmptbl = j;
@@ -416,60 +415,109 @@ seen_one(int n, const char *s, int partial)
 	return (Files *) 0;
 }
 
-#if defined(STREAM_LIM) && (STREAM_LIM > 0)
-static Prim *free_tokens;
-
 void
 recycle_token(Prim *from, Prim *stopat)
 {	Prim *w, *v;
-
+ #ifndef NO_STRING_RECYCLE
+	char *s;
+	int ln;
+ #endif
+ #ifndef NO_MARGIN
+	// keep the most recent 100 tokens
+	// in case variables in a script
+	// still point to these
+	int cnt = 0;
+	for (w = stopat; w && w != from; w = w->prv)
+	{	if (cnt++ >= stream_margin)
+		{	break;
+	}	}
+	if (w && w->seq > from->seq)
+	{	stopat = w;
+	}
+ #endif
 	for (w = from; w && w != stopat; w = v)
 	{	v = w->nxt;
+ #ifdef NO_STRING_RECYCLE
 		memset(w, 0, sizeof(Prim));
-		w->nxt = free_tokens;
-		free_tokens = w;
+		w->nxt = free_tokens[0];
+		free_tokens[0] = w;
+ #else
+		ln = w->len;
+		s  = w->txt;
+		memset(w, 0, sizeof(Prim));
+		w->txt = s;
+		w->len = ln;
+		if (ln > 0 && ln < NBUCKETS)
+		{	w->nxt = free_tokens[ln];
+			free_tokens[ln] = w;
+		} else
+		{	w->nxt = free_tokens[0];
+			free_tokens[0] = w;
+		}
+ #endif
 	}
 }
-#endif
 
 static int
 new_prim(const char *s, const char *t, int cid)
 {	Prim *p;
+	int ln;
 
 	assert(cid >= 0 && cid < Ncore);
 
 	if (!all_headers
-	&&  strstr(Px.lex_fname, HEADER) != NULL)
+	&&  strstr(Px.lex_fname, HEADER) != NULL
+	&&  strncmp(Px.lex_fname, "./", 2) != 0)
 	{	return 0;
 	}
-#if defined(STREAM_LIM) && (STREAM_LIM > 0)
-	if (stream == 1 && free_tokens)
-	{	p = free_tokens;
-		free_tokens = p->nxt;
+
+	ln = s?strlen(s):0;
+ #ifdef NO_STRING_RECYCLE
+	int bn = 0;
+ #else
+	int bn = (ln > 0 && ln < NBUCKETS) ? ln : 0;
+ #endif
+	if (stream == 1
+	&&  free_tokens[bn])
+	{	p = free_tokens[bn];
+		free_tokens[bn] = p->nxt;
+ #ifndef NO_STRING_RECYCLE
+		if (p->len > 0 && p->len >= ln)
+		{	assert(p->txt && strlen(p->txt) == p->len);
+			strcpy(p->txt, s);
+		} else
+ #endif
+		if (ln > 0)
+		{	p->txt = (char *) hmalloc(ln+1, cid, 127);
+			strcpy(p->txt, s);
+		} else	// ln == 0
+		{	p->txt = "";	
+		}
+		p->len = ln;
 		p->nxt = (Prim *) 0;
 	} else
-#endif
-	p = (Prim *) hmalloc(sizeof(Prim), cid);
+	{	p = (Prim *) hmalloc(sizeof(Prim), cid, 128);
+		p->len = ln;
+		if (ln > 0)
+		{	p->txt = (char *) hmalloc(ln+1, cid, 128);
+			strcpy(p->txt, s);
+		} else	// ln == 0
+		{	p->txt = "";
+	}	}
+
 	p->seq     = Px.lex_count;
 	p->lnr     = Px.lex_lineno;
 	p->fnm     = Px.lex_fname;
 	p->jmp     = 0;
 	p->bound   = 0;
-	p->len     = s?strlen(s):0;
 	p->curly   = Px.lex_curly;
 	p->round   = Px.lex_roundb;
 	p->bracket = Px.lex_bracket;
 
 	Px.lex_count++;
 
-	if (s)
-	{	p->txt = (char *) hmalloc(strlen(s)+1, cid);
-		strcpy(p->txt, s);
-	} else
-	{	p->txt = "";
-	}
 	if (t)
-	{	p->typ = (char *) hmalloc(strlen(t)+1, cid);
+	{	p->typ = (char *) hmalloc(strlen(t)+1, cid, 129);
 		strcpy(p->typ, t);
 	} else
 	{	p->typ = "";
@@ -602,13 +650,12 @@ remember(const char *s, int imbalance, int cid)
 	{	if (strcmp(r->s, s) == 0)
 		{	return;
 	}	}
-//printf("Remember %s\n", s);
-	r    = (Files *) hmalloc(sizeof(Files), cid);
-	r->s =  (char *) hmalloc(strlen(s)+1, cid);
+
+	r    = (Files *) hmalloc(sizeof(Files), cid, 130);
+	r->s =  (char *) hmalloc(strlen(s)+1, cid, 130);
 	strcpy(r->s, s);
 	r->last_token = Px.lex_plst;
 	r->imbalance = imbalance;
-
 	if (Px.lex_last)
 	{	r->first_token = Px.lex_last->nxt;
 	} else
@@ -638,6 +685,13 @@ sanitycheck(int cid)
 	if (Px.lex_bracket != 0)
 	{	imbalance |= (1<<BRACKET_b);
 		Px.lex_bracket = 0;
+	}
+
+	// new 5/2020:
+	int i,j;
+	for (j = 0; j < BRACKET_b+1; j++)
+	for (i = 0; i < NDEPTH; i++)
+	{	Px.lex_range[j][i] = 0;
 	}
 
 	return imbalance;
@@ -743,7 +797,7 @@ void
 rem_file(const char *s)
 {	Files *r;
 
-	r = (Files *) emalloc(sizeof(Files));
+	r = (Files *) emalloc(sizeof(Files), 72);
 	r->s = (char *) s;	// comes from argv
 	r->nxt = files[0];
 	files[0] = r;
@@ -808,7 +862,10 @@ post_process(int fromscratch)
 			||  !r->last_token
 			||  already_there(j, r->s))
 			{	if (verbose > 1)
-				{	printf("--%s\n", r->s);
+				{	printf("--%s (%p %p %d)\n", r->s,
+						(void *) r->first_token,
+						(void *) r->last_token,
+						already_there(j, r->s));
 				}
 				continue;
 			}
@@ -857,7 +914,6 @@ post_process(int fromscratch)
 	} else
 	{	cur = prim = pre[0].lex_prim;
 		plst = pre[0].lex_plst;
-
 		if (verbose>1) printf("connect\n");
 		for (cid = 1; plst && cid < Ncore; cid++)
 		{	if (!Px.lex_prim)

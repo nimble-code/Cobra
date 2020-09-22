@@ -36,6 +36,8 @@ int preserve;
 int python;
 int read_stdin;
 int stream;
+int stream_lim = 8192;
+int stream_margin = 1000;
 int runtimes;
 int scrub;
 int verbose;
@@ -52,6 +54,7 @@ char	*cobra_texpr;		// -e xxx
 char	*cobra_commands;	// -c xxx
 char	*cwe_args;		// standalone cwe checker
 char	*progname = "";		// e.g. cobra or cwe
+char	*backend = "";		// args passed to backend with --arg
 
 TokRange  **tokrange;
 
@@ -63,6 +66,11 @@ static int	 handle_typedefs = 1;
 static int	 textmode;
 static int	 with_qual = 1;
 static int	 with_type = 1;
+
+extern Prim	*prim, *plst;
+
+extern void	 set_ranges(Prim *, Prim *);
+extern void	 recycle_token(Prim *, Prim *);
 
 static int
 process(int cid)
@@ -86,18 +94,25 @@ static void
 add_preproc(const char *s)	// before parsing
 {
 	if (strlen(preproc) == 0)
-	{	preproc = (char *) emalloc(strlen(s) + 1);
+	{	preproc = (char *) emalloc(strlen(s) + 1, 16);
 		strcpy(preproc, s);
 		no_cpp = with_comments = 0;
 	} else
 	{	char *op = preproc; // emalloc uses sbrk
 		int    n = strlen(op) + strlen(s) + 2;
-		preproc = emalloc(n*sizeof(char));
+		preproc = emalloc(n*sizeof(char), 17);
 		snprintf(preproc, n, "%s %s", op, s);
 	}
 }
 
 // externally visible functions:
+
+void
+set_textmode(void)
+{
+	textmode = 1;
+	printf("stream mode: text\n");
+}
 
 void
 set_tmpname(char *s, const char *t, const int n)
@@ -145,29 +160,20 @@ add_file(char *f, int cid, int slno)
 		{	fprintf(stderr, "cannot open tmp file %s\n", f);
 			return 0;
 		}
-
 		while (fgets(buff, sizeof(buff), stdin))
 		{	fprintf(tfd, "%s", buff);
-#if defined(STREAM_LIM) && (STREAM_LIM > 0)
-			lncnt += strlen(buff);
-//			printf("::: <<%s>>\n", buff);
+			lncnt += strlen(buff);	// counts bytes
 			if (stream == 1
-			&&  lncnt > STREAM_LIM)
+			&&  lncnt > stream_lim)
 			{	break;
 			}
-#else
-			lncnt++;
-#endif
 		}
-#if defined(STREAM_LIM) && (STREAM_LIM > 0)
-		if (verbose > 1)
+		if (verbose > 1 && stream == 1)
 		{	static long total_read = 0;
 			total_read += lncnt;
-			printf("	Read %d %s of %d max\tcumulative: %ld\n",
-				lncnt, (STREAM_LIM>0)?"bytes":"lines",
-				STREAM_LIM, total_read);
+			printf("	Read %d bytes of %d max\tcumulative: %ld\n",
+				lncnt, stream_lim, total_read);
 		}
-#endif
 		fclose(tfd);
 	}
 
@@ -191,8 +197,7 @@ add_file(char *f, int cid, int slno)
 			    + strlen(fnm)
 			    + 8;	// some margin
 
-		buf = (char *) hmalloc(n, cid);
-
+		buf = (char *) hmalloc(n, cid, 124);
 		snprintf(buf, n, "%s %s -w -E -x %s %s > %s",
 			    CPP, preproc, lang, f, fnm);
 
@@ -223,7 +228,7 @@ add_file(char *f, int cid, int slno)
 	if (strlen(fnm) > 0)
 	{	unlink(fnm);
 	}
-//printf("Addstream %p\n", (void *) tfd);
+
 	if (tfd)
 	{	unlink(f);	// read_stdin, tmp filename
 		return lncnt;
@@ -242,8 +247,6 @@ set_ranges(Prim *a, Prim *b)
 	int i, j, span = count/Ncore;
 	Prim *x;
 
-//	printf("count %d -- plst->seq %d\n", count, plst->seq);
-
 	if (verbose == 1 && count == 0)
 	{	fprintf(stderr, "cobra: no input?\n");
 	}
@@ -256,14 +259,14 @@ set_ranges(Prim *a, Prim *b)
 	ini_par();
 
 	if (!tokrange || Ncore > tokmaxrange)
-	{	tokrange = (TokRange **) emalloc(Ncore * sizeof(TokRange *));
+	{	tokrange = (TokRange **) emalloc(Ncore * sizeof(TokRange *), 18);
 		if (Ncore > tokmaxrange)
 		{	tokmaxrange = Ncore;
 	}	}
 
 	for (i = 0, x = a; i < Ncore; i++)
 	{	if (!tokrange[i])
-		{	tokrange[i] = (TokRange *) emalloc(sizeof(TokRange));
+		{	tokrange[i] = (TokRange *) emalloc(sizeof(TokRange), 19);
 		}
 		tokrange[i]->seq = i;
 		tokrange[i]->from = x;
@@ -276,7 +279,6 @@ set_ranges(Prim *a, Prim *b)
 		} else
 		{	tokrange[i]->upto = x->prv;
 		}
-// printf("%d: from %p .. %p\n", i, (void *) tokrange[i]->from, (void *) tokrange[i]->upto);
 	}
 	tokrange[Ncore-1]->upto = b;
 
@@ -294,13 +296,6 @@ set_ranges(Prim *a, Prim *b)
 	}	}
 }
 
-
-#if defined(STREAM_LIM) && (STREAM_LIM > 0)
-
-extern Prim *prim, *plst;
-extern void set_ranges(Prim *, Prim *);
-extern void recycle_token(Prim *, Prim *);
-
 int
 add_stream(Prim *pt)
 {	static short l_bracket;	// initially 0
@@ -309,9 +304,16 @@ add_stream(Prim *pt)
 	Prim *notnew = plst;
 	int correct = textmode?0:1;
 
-	if (0)
+	if (verbose > 1)
 	{	if (plst)
-		{	printf("Add Stream %d :: %s :: seq %d\n", plst->lnr, plst->txt, plst->seq);
+		{	printf("Add Stream %d -- %d :: %s\n", prim->lnr, plst->lnr, plst->txt);
+			if (prim && pt)
+			{	printf("pre_: lnr: %d seq: %d -- lnr: %d seq: %d\n",
+					pt->lnr - prim->lnr,
+					pt->seq - prim->seq,
+					plst->lnr - pt->lnr,
+					plst->seq - pt->seq);
+			}
 		} else
 		{	printf("Add Stream\n");
 	}	}
@@ -346,13 +348,19 @@ add_stream(Prim *pt)
 	if (verbose > 1)
 	{	if (plst)
 		{	printf("Done Add Stream %d -- %d :: %s\n", prim->lnr, plst->lnr, plst->txt);
+			if (prim && pt)
+			{	printf("post: lnr: %d seq: %d -- lnr: %d seq: %d\n",
+					pt->lnr - prim->lnr,
+					pt->seq - prim->seq,
+					plst->lnr - pt->lnr,
+					plst->seq - pt->seq);
+			}
 		} else
 		{	printf("Done Add Stream\n");
 	}	}
 
 	return 1;
 }
-#endif
 
 static void
 Nthreads(char *s)
@@ -385,7 +393,7 @@ record_typename(Prim *c, int cid)	// single-core
 	char	 level = c->curly;
 	int	 nah;
 
-	n = (Stack *) hmalloc(sizeof(Stack), cid);
+	n = (Stack *) hmalloc(sizeof(Stack), cid, 125);
 	n->nm = p;
 	n->na = s_hash(p);
 	nah = n->na & (NAHASH-1);
@@ -396,7 +404,7 @@ record_typename(Prim *c, int cid)	// single-core
 	{	n->nxt = Px.lex_tps[nah]->lst;
 		Px.lex_tps[nah]->lst = n;
 	} else
-	{	t = (Typedef *) hmalloc(sizeof(Typedef), cid);
+	{	t = (Typedef *) hmalloc(sizeof(Typedef), cid, 126);
 		t->level = level;
 		t->lst = n;
 		t->up = Px.lex_tps[nah];
@@ -500,10 +508,10 @@ static void
 set_par(const char *varname, const char *value)	// single-core
 {	ArgList *a;
 
-	a     = (ArgList *) emalloc(sizeof(ArgList));
-	a->nm =    (char *) emalloc(strlen(varname)+1);
+	a     = (ArgList *) emalloc(sizeof(ArgList), 20);
+	a->nm =    (char *) emalloc(strlen(varname)+1, 21);
 	strcpy(a->nm, varname);
-	a->s  =    (char *) emalloc (strlen(value)+1);
+	a->s  =    (char *) emalloc (strlen(value)+1, 22);
 	strcpy(a->s, value);
 	a->nxt = cl_var;
 	cl_var = a;
@@ -555,6 +563,8 @@ usage(char *s)
 	fprintf(stderr, "\t-regex \"expr\"       -- see -e\n");
 	fprintf(stderr, "\t-runtimes           -- report runtimes of commands executed, if >1s\n");
 	fprintf(stderr, "\t-scrub              -- produce output in scrub-format\n");
+	fprintf(stderr, "\t-stream N           -- set stdin stream buffer-limit to N bytes (default %d)\n", stream_lim);
+	fprintf(stderr, "\t-stream_margin N    -- set stdin window margin to N tokens (default %d)\n", stream_margin);
 	fprintf(stderr, "\t-terse              -- disable output from d, l, and p commands, implies -quiet\n");
 	fprintf(stderr, "\t-text               -- no token types, just text-strings and symbols\n");
 	fprintf(stderr, "\t-tok                -- only tokenize the input\n");
@@ -564,6 +574,7 @@ usage(char *s)
 	fprintf(stderr, "\t-view -e \"token_expr\" -- show dot-graph of NDFA for expr\n");
 	fprintf(stderr, "\t-V                  -- print version number and exit\n");
 	fprintf(stderr, "\t-var name=value     -- set name in def-script to value (cf. -f)\n");
+	fprintf(stderr, "all arguments starting with -- are passed to standalone backends, e.g. --debug\n");
 	return 1;
 }
 
@@ -574,7 +585,6 @@ list_checkers(void)	// also used in cobra_lib.c
 	printf("predefined checks include:\n");
 	memset(buf, 0, sizeof(buf));
 	snprintf(buf, sizeof(buf), "ls %s/main > ._cobra_tmp_", C_BASE);
-//	printf("buf: '%s'\n", C_BASE);
 	if (system(buf) >= 0)		// list checkers
 	{	snprintf(buf, sizeof(buf), "sort ._cobra_tmp_ | grep -v -e .def$ | sed 's;^;  ;'");
 		if (system(buf) < 0)	// list checkers
@@ -650,19 +660,19 @@ ini_par(void)
 	static short premax = 0;
 
 	if (!t_id || Ncore > t_idmax)
-	{	t_id = (pthread_t *) emalloc(Ncore * sizeof(pthread_t));
+	{	t_id = (pthread_t *) emalloc(Ncore * sizeof(pthread_t), 23);
 		if (Ncore > t_idmax)
 		{	t_idmax = Ncore;
 	}	}
 
 	if (!pass_arg || Ncore > passmax)
-	{	pass_arg =  (Pass *) emalloc(Ncore * sizeof(Pass));
+	{	pass_arg =  (Pass *) emalloc(Ncore * sizeof(Pass), 24);
 		if (Ncore > passmax)
 		{	passmax = Ncore;
 	}	}
 
 	if (!pre || Ncore > premax)
-	{	pre = (Pre *) emalloc(Ncore * sizeof(Pre));
+	{	pre = (Pre *) emalloc(Ncore * sizeof(Pre), 25);
 		if (Ncore > premax)
 		{	premax = Ncore;
 	}	}
@@ -761,7 +771,7 @@ unquoted(char *p)
 
 char *
 pattern(char *p)
-{	char *n = (char *) emalloc(2*strlen(p)+1);
+{	char *n = (char *) emalloc(2*strlen(p)+1, 26);
 	char *m = n;
 	char *q = p;
 	int len = strlen(p);
@@ -859,14 +869,14 @@ set_base(void)
 	int   n;
 
 	if ((h = getenv("C_TMP")) != NULL)	// eg on older cygwin: C_TMP=C:/cygwin
-	{	C_TMP = (char *) emalloc(strlen(h)+1);
+	{	C_TMP = (char *) emalloc(strlen(h)+1, 27);
 		strcpy(C_TMP, h);
 		if (verbose)
 		{	printf("cobra: using env variable $C_TMP=%s\n", C_TMP);
 	}	}
 
 	if ((h = getenv("C_BASE")) != NULL)	// env setting wins
-	{	C_BASE = (char *) emalloc(strlen(h)+1);
+	{	C_BASE = (char *) emalloc(strlen(h)+1, 28);
 		strcpy(C_BASE, h);
 		if (verbose)
 		{	printf("cobra: using env variable $C_BASE=%s\n", C_BASE);
@@ -878,7 +888,7 @@ set_base(void)
 	{	return 0;
 	}
 	n = strlen(h) + strlen("/.cobra") + 1;
-	f = (char *) emalloc(n*sizeof(char));
+	f = (char *) emalloc(n*sizeof(char), 29);
 	snprintf(f, n, "%s/.cobra", h);
 	if ((fd = fopen(f, "r")) == NULL)
 	{	return 0;
@@ -895,7 +905,7 @@ set_base(void)
 			while (is_blank((uchar)*h))
 			{	h++;
 			}
-			C_BASE = (char *) emalloc(strlen(h)+1);
+			C_BASE = (char *) emalloc(strlen(h)+1, 30);
 			strcpy(C_BASE, h);
 		}
 		if (strncmp(buf, "ncore:", 6) == 0)
@@ -916,7 +926,7 @@ do_configure(const char *s)
 	char *h;
 	char *f;
 
-	f = (char *) emalloc(strlen(s) + strlen("/basic.cobra") + 1);
+	f = (char *) emalloc(strlen(s) + strlen("/basic.cobra") + 1, 31);
 	sprintf(f, "%s/basic.cobra", s);
 
 	if ((fd = fopen(s, "r")) == NULL)
@@ -930,7 +940,7 @@ F:		fprintf(stderr, "cobra: configuration failed\n");
 	{	fprintf(stderr, "cobra: env variable $HOME not set\n");
 		goto F;
 	}
-	f = (char *) emalloc(strlen(h) + strlen("/.cobra") + 1);
+	f = (char *) emalloc(strlen(h) + strlen("/.cobra") + 1, 32);
 	sprintf(f, "%s/.cobra", h);
 
 	if ((fd = fopen(f, "w")) == NULL)
@@ -1129,10 +1139,24 @@ RegEx:			  no_match = 1;		// -expr or -regex
 
 		case 's': if (strcmp(argv[1], "-scrub") == 0)
 			  {	scrub = 1;
-			  } else
-			  {	return usage(argv[1]);
+				break;
 			  }
-			  break;
+			  if (strcmp(argv[1], "-stream") == 0)
+			  {	argc--; argv++;
+				if (isdigit((uchar) argv[1][0]))
+				{	stream_lim = atoi(argv[1]);
+					printf("cobra: stream limit: %d lines\n", stream_lim);
+					break;
+			  	}
+			  } else if (strcmp(argv[1], "-stream_margin") == 0)
+			  {	argc--; argv++;
+				if (isdigit((uchar) argv[1][0]))
+				{	stream_margin = atoi(argv[1]);
+					printf("cobra: stream margin: %d lines\n", stream_margin);
+					break;
+			  	}
+			  }
+			  return usage(argv[1]);
 
 		case 't': if (strcmp(argv[1], "-tok") == 0)
 			  {	Ctok = 1;
@@ -1178,6 +1202,15 @@ RegEx:			  no_match = 1;		// -expr or -regex
 		case 'V': printf("%s\n", tool_version);
 			  return 0;
 
+		case '-': // -- arguments are passed to backend, if any
+			  if (strlen(argv[1]) > 2)
+			  {	int n = strlen(backend) + strlen(&argv[1][2]) + 2;
+				char *z = (char *) emalloc(n*sizeof(char), 33);
+				sprintf(z, "%s%s ", backend, &argv[1][2]);
+				backend = z; // no need to free the old ptr
+				break;
+			  } // else fall thru
+
 		default:
 			return usage(argv[1]);
 		}
@@ -1189,12 +1222,16 @@ RegEx:			  no_match = 1;		// -expr or -regex
 	{	printf("error: cannot open ~/.cobra : check tool installation\n");
 	}
 
+	if (strstr(progname, "taint") != NULL) // shouldn't be hardcoded
+	{	handle_typedefs = 0;
+	}
+
 	if (strstr(progname, "cwe") != NULL)
 	{
 cwe_mode:	no_match = 1;	// for consistency with -f
 		if (cobra_target)
 		{	int n = strlen(cobra_target)+2;
-			cwe_args = (char *) emalloc(n*sizeof(char));
+			cwe_args = (char *) emalloc(n*sizeof(char), 34);
 			snprintf(cwe_args, n, "%s ", cobra_target); // add space
 		}
 
@@ -1204,11 +1241,11 @@ cwe_mode:	no_match = 1;	// for consistency with -f
 			char *foo = cwe_args;
 			// keep a space at the end of each arg
 			if (!cwe_args)
-			{	cwe_args = (char *) emalloc(n*sizeof(char));
+			{	cwe_args = (char *) emalloc(n*sizeof(char), 35);
 				snprintf(cwe_args, n, "%s ", argv[1]);
 			} else
 			{	n += strlen(cwe_args) + 1;
-				cwe_args = (char *) emalloc(n*sizeof(char));
+				cwe_args = (char *) emalloc(n*sizeof(char), 36);
 				snprintf(cwe_args, n, "%s%s ", foo, argv[1]);
 			}
 			argc--; argv++;
@@ -1250,10 +1287,11 @@ cwe_mode:	no_match = 1;	// for consistency with -f
 	&& (!(cobra_texpr || cobra_target || cobra_commands || Ctok)
 	||  Ncore != 1
 	||  !no_cpp))
-	{	fprintf(stderr, "%s: error: streaming input\n", progname);
-		fprintf(stderr, "    requires -expr, -pat or -f, no -cpp, and ncore=1\n");
-		return 1;
-	}
+	{	if (strstr(progname, "cobra") != NULL)
+		{	fprintf(stderr, "%s: error: streaming input\n", progname);
+			fprintf(stderr, "    requires -expr, -pat or -f, no -cpp, and ncore=1\n");
+			return 1;
+	}	}
 
 	if (read_stdin)
 	{	if (no_cpp)
@@ -1262,7 +1300,6 @@ cwe_mode:	no_match = 1;	// for consistency with -f
 			if (stream == 1 && Ctok)
 			{	Prim *rp;
 				do {	rp = plst;
-//printf("+ %d\n", pre[0].lex_lineno);
 					if (!add_file("", 0, pre[0].lex_lineno))
 					{	break;
 					}
@@ -1277,7 +1314,6 @@ cwe_mode:	no_match = 1;	// for consistency with -f
 	if (Ctok)
 	{	return 0;
 	}
-
 	post_process(1);	// collect info from cores
 	cobra_main();		// cobra and cobra_checkers
 

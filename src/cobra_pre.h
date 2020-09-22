@@ -13,7 +13,7 @@
 
 #define NHASH		 256
 #define NDEPTH		 256	// max nesting of parens etc
-#define NOUT		2048
+#define NOUT		4096
 #define NIN		8192
 
 #ifndef HEADER
@@ -26,6 +26,14 @@
 
 typedef struct Pre	Pre;
 typedef struct Pass	Pass;
+typedef struct Triple	Triple;
+
+struct Triple {
+	short	 lex_bracket;
+	short	 lex_curly;
+	short	 lex_roundb;
+	Triple	*nxt;
+};
 
 struct Pre {	// one struct allocated per core
 	char	*lex_fname;
@@ -34,6 +42,7 @@ struct Pre {	// one struct allocated per core
 	Prim	*lex_last;
 	Prim	*lex_plst;
 	Prim	*lex_prim;
+	Triple	*triples;	// stack, for handling ifdef nesting with nocpp
 
 	Files	*lex_files[NHASH];
 	Typedef	*lex_tps[NAHASH];

@@ -92,10 +92,6 @@ struct Store {
 	Store	*nxt;
 };
 
-#if defined(STREAM_LIM) && (STREAM_LIM > 0)
- extern int add_stream(Prim *);
-#endif
-
 static List	*curstates[3]; // 2 is initial
 static List	*freelist;
 static Match	*free_match;
@@ -133,8 +129,6 @@ static void	mk_active(Store *, Store *, int, int);
 static void	mk_states(int);
 static void	mk_trans(int n, int match, char *pat, int dest);
 static void	show_state(FILE *, Nd_Stack *);
-
-extern int	stream;
 
 static void
 reinit_te(void)
@@ -214,8 +208,8 @@ te_regstart(const char *s)
 {	Rlst *r;
 	int n;
 
-	r = (Rlst *) emalloc(sizeof(Rlst));
-	r->trex = (regex_t *) emalloc(sizeof(regex_t));
+	r = (Rlst *) emalloc(sizeof(Rlst), 90);
+	r->trex = (regex_t *) emalloc(sizeof(regex_t), 90);
 
 	n = regcomp(r->trex, s, REG_NOSUB|REG_EXTENDED);
 	if (n != 0)	// compile
@@ -328,9 +322,9 @@ add_token(char *s)
 		{	return n->type;
 	}	}
 
-	n = (Node *) emalloc(sizeof(Node));
+	n = (Node *) emalloc(sizeof(Node), 91);
 	n->type = OPERAND + nrtok++;
-	n->tok  = (char *) emalloc(strlen(s)+1);
+	n->tok  = (char *) emalloc(strlen(s)+1, 91);
 	strcpy(n->tok, s);
 
 	n->nxt = tokens;
@@ -343,10 +337,10 @@ static void
 nnode(int op, char *s)
 {	Node *t;
 
-	t = (Node *) emalloc(sizeof(Node));
+	t = (Node *) emalloc(sizeof(Node), 92);
 	t->type = op;
 	if (s)
-	{	t->tok = (char *) emalloc(strlen(s)+1);
+	{	t->tok = (char *) emalloc(strlen(s)+1, 92);
 		strcpy(t->tok, s);
 	}
 	if (!rev_end)
@@ -485,7 +479,7 @@ new_operator(int s)
 			op_stack = op_stack->lst;
 		}
 	} else
-	{	e = (Op_Stack *) emalloc(sizeof(Op_Stack));
+	{	e = (Op_Stack *) emalloc(sizeof(Op_Stack), 93);
 		e->op = s;
 
 		// if the operator on the top of the
@@ -567,7 +561,7 @@ static Nd_Stack *
 mk_el(Node *n)
 {	Nd_Stack *t;
 
-	t = (Nd_Stack *) emalloc(sizeof(Nd_Stack));
+	t = (Nd_Stack *) emalloc(sizeof(Nd_Stack), 94);
 	t->seq = Seq++;
 	t->n = n;
 	return t;
@@ -667,7 +661,7 @@ static Nd_Stack *
 epsilon(void)
 {	Nd_Stack *t;
 
-	t = mk_el((Node *) emalloc(sizeof(Node)));
+	t = mk_el((Node *) emalloc(sizeof(Node), 95));
 	t->n->type = add_token("epsilon");
 	t->n->tok  = "";
 	return t;
@@ -677,8 +671,15 @@ static void
 prep_transitions(Nd_Stack *t, int src)
 {	char *s;
 	int dst, match = 1;
-
-	if (t->n)	// NNODE
+#ifdef PROTECT
+	static int t_depth=0;
+	if (t_depth++ > 25000)	// to prevent stack overflow
+	{	fprintf(stderr, "cobra: formula too complex, recursion depth exceeded\n");
+		memusage();
+		exit(1);
+	}
+#endif
+again:	if (t->n)	// NNODE
 	{	s = t->n->tok;
 
 		if (*s == '^')
@@ -704,10 +705,14 @@ prep_transitions(Nd_Stack *t, int src)
 	} else		// CNODE
 	{	prep_transitions(t->lft, src);
 		if (t->rgt)
-		{	prep_transitions(t->rgt, src);
+		{	t = t->rgt;	// remove tail-recursion
+			goto again;	// was: prep_transitions(t->rgt, src);
 		} else	// accept
 		{	mk_trans(src, 0, 0, Seq+1);
 	}	}
+#ifdef PROTECT
+	t_depth--;
+#endif
 }
 
 static void
@@ -755,7 +760,7 @@ clone_node(Node *t)
 	{	return (Node *) 0;
 	}
 
-	e = (Node *) emalloc(sizeof(Node));
+	e = (Node *) emalloc(sizeof(Node), 96);
 	e->type = t->type;
 	e->tok  = t->tok;
 //	e->succ = t->succ;
@@ -771,7 +776,7 @@ clone_nd_stack(Nd_Stack *t)
 	{	return (Nd_Stack *) 0;
 	}
 
-	n = (Nd_Stack *) emalloc(sizeof(Nd_Stack));
+	n = (Nd_Stack *) emalloc(sizeof(Nd_Stack), 97);
 	n->seq = Seq++;
 	n->n   = clone_node(t->n);
 	n->lft = clone_nd_stack(t->lft);
@@ -856,7 +861,7 @@ mk_states(int nr)					// called from main.c
 {	int i;
 
 	nr_states = nr;
-	states = (State *) emalloc(sizeof(State)*(nr+1));
+	states = (State *) emalloc(sizeof(State)*(nr+1), 98);
 	states[nr].accept = 1;
 	for (i = 0; i <= nr; i++)
 	{	states[i].seq = i;
@@ -867,8 +872,8 @@ static Range *
 new_range(char *s, Range *r)
 {	Range *n;
 
-	n = (Range *) emalloc(sizeof(Range));
-	n->pat = (char *) emalloc(strlen(s)+1);
+	n = (Range *) emalloc(sizeof(Range), 99);
+	n->pat = (char *) emalloc(strlen(s)+1, 99);
 	strcpy(n->pat, s);
 	n->or = r;
 
@@ -913,13 +918,13 @@ mk_trans(int src, int match, char *pat, int dest)	// called from main.c
 	assert(src >= 0 && src < nr_states);
 	assert(states != NULL);
 
-	t = (Trans *) emalloc(sizeof(Trans));
+	t = (Trans *) emalloc(sizeof(Trans), 100);
 
 	if (pat
 	&& (b = strchr(pat, ':')) != NULL)	// possible variable binding
 	{	if (b > pat && *(b-1) == '\\')	// x\:zzz => x:zzz
 		{	int n = strlen(pat)+1;
-			g = emalloc(n*sizeof(char));
+			g = emalloc(n*sizeof(char), 101);
 			*(b-1) = '\0';
 			strncpy(g, pat, n);
 			strncat(g, b,   n);
@@ -967,7 +972,7 @@ get_store(Store *n)
 		free_stored = free_stored->nxt;
 		b->ref = (Prim *) 0;
 	} else
-	{	b = (Store *) emalloc(sizeof(Store));
+	{	b = (Store *) emalloc(sizeof(Store), 102);
 	}
 
 	if (n)
@@ -1073,7 +1078,7 @@ mk_active(Store *bnd, Store *new, int src, int into)
 		freelist = freelist->nxt;
 		c->nxt = (List *) 0;
 	} else
-	{	c = (List *) emalloc(sizeof(List));
+	{	c = (List *) emalloc(sizeof(List), 103);
 	}
 
 	if (!bnd && !new)
@@ -1084,7 +1089,7 @@ mk_active(Store *bnd, Store *new, int src, int into)
 			free_state = free_state->nxt;
 			c->s->nxt = 0;
 		} else
-		{	c->s = (State *) emalloc(sizeof(State));
+		{	c->s = (State *) emalloc(sizeof(State), 104);
 		}
 		memcpy(c->s, &states[src], sizeof(State));
 
@@ -1151,7 +1156,7 @@ add_match(Prim *f, Prim *t, Store *bd)
 		free_match = m->nxt;
 		m->bind = (Bound *) 0;
 	} else
-	{	m = (Match *) emalloc(sizeof(Match));
+	{	m = (Match *) emalloc(sizeof(Match), 105);
 	}
 	m->from = f;
 	m->upto = t;
@@ -1161,7 +1166,7 @@ add_match(Prim *f, Prim *t, Store *bd)
 		{	n = free_bound;
 			free_bound = n->nxt;
 		} else
-		{	n = (Bound *) emalloc(sizeof(Bound));
+		{	n = (Bound *) emalloc(sizeof(Bound), 106);
 		}
 		n->ref = b->ref;
 		n->nxt = m->bind;
@@ -1411,7 +1416,7 @@ startover:
 			{	n = free_bound;
 				free_bound = n->nxt;
 			} else
-			{	n = (Bound *) emalloc(sizeof(Bound));
+			{	n = (Bound *) emalloc(sizeof(Bound), 107);
 			}
 			n->ref = b->ref;
 			n->nxt = matches->bind;
@@ -1580,15 +1585,14 @@ cobra_te(char *te, int and, int inv)
 	copy_list(current, 2);	// remember initial states, 2 was empty so far
 	matched.curly = matched.round = matched.bracket = -1;
 
-#if defined(STREAM_LIM) && (STREAM_LIM > 0)
-	// when reading from stdin (stream) this gives us an
-	// initial token stream fragment of STREAM_LIM bytes
+	// if reading from stdin (stream) this gives us an
+	// initial token stream fragment of stream_lim lines
 	// which allows for the required read-ahead to match the
 	// pattern in the nested for-loop on q_now
 
 	if (stream == 1)
 	{	while (add_stream(0)) // make sure we have enough tokens
-		{	if (plst && plst->seq > STREAM_LIM)
+		{	if (plst && plst->seq > stream_lim)
 			{	break;	// stream could start with many comments
 	}	}	}
 
@@ -1596,26 +1600,21 @@ cobra_te(char *te, int and, int inv)
 	// we extend the sequence further with a call to add_stream(),
 	// until that returns null; the value of cur can change in that call
 
-	static int stream_cnt = 0;	// we must count bytes, not tokens
-#endif
 	for ( ; cur; cur = cur->nxt)
 	{	free_list(current);
 		free_list(1 - current);
 		copy_list(2, current);	// initial state
 		c_lft = b_lft = p_lft = (Prim *) 0;
-#if defined(STREAM_LIM) && (STREAM_LIM > 0)
-		if (stream == 1)
-		{	stream_cnt += strlen(cur->txt);
-			if (stream_cnt >= STREAM_LIM
-			||  cur->seq + 100 > plst->seq)
-			{	Prim *place = cur;
-				if (add_stream(cur))	// can free up to cur
-				{	cur = place;
-					stream_cnt = 0;
-				} else	// exhausted input stream
-				{	stream = 2;
-		}	}	}
-#endif
+
+		if (stream == 1
+		&&  cur->seq + 100 > plst->seq)
+		{	Prim *place = cur;
+			if (add_stream(cur))	// can free up to cur
+			{	cur = place;
+			} else	// exhausted input stream
+			{	stream = 2;
+		}	}
+
 		for (q_now = cur; q_now; q_now = q_now->nxt)
 		{
 			if (q_now->fnm != cur->fnm)	// no match across files

@@ -7,7 +7,7 @@
 #ifndef COBRA_FE
 #define COBRA_FE
 
-#define tool_version	"Version 3.1 - 30 April 2020"
+#define tool_version	"Version 3.2 - 20 September 2020"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -18,6 +18,8 @@
 #include <unistd.h>
 #include <assert.h>
 #include <pthread.h>
+// shared with ../src_app/c_api.h :
+#include "cobra_prim.h"
 
 #ifndef PC
  #if defined(_WIN32) || defined(_WIN64) || defined(__CYGWIN__)
@@ -39,9 +41,7 @@
 
 typedef struct ArgList	ArgList;
 typedef struct Files	Files;
-typedef struct Prim	Prim;
 typedef struct Stack	Stack;
-typedef struct TokRange	TokRange;
 typedef struct Typedef Typedef;
 typedef unsigned char	uchar;
 
@@ -49,38 +49,6 @@ struct ArgList {
 	char	*s;	// actual param
 	char	*nm;	// formal param
 	ArgList	*nxt;
-};
-
-struct Prim {
-	char	*fnm;
-	int	 lnr;
-
-	short	curly;		// {} level of nesting
-	short	round;		// ()
-	short	bracket;	// []
-	short	len;
-
-	char	*typ;
-	char	*txt;
-
-	int	 seq;		// sequence nr
-	int	 mark;		// user-definable
-
-	short	 mset[4];	// 4 sets of marks;  0=undo
-	Prim	*mbnd[4];	// 4 sets of bounds; 0=undo
-
-	Prim	*bound;		// bound symbol
-	Prim	*jmp;		// from { or } to } or { etc
-
-	Prim	*prv;
-	Prim	*nxt;
-};
-
-struct TokRange {
-	int	 seq;
-	int	 param;
-	Prim	*from;
-	Prim	*upto;
 };
 
 struct Files {
@@ -126,6 +94,8 @@ extern int	p_debug;
 extern int	preserve;
 extern int	python;
 extern int	scrub;
+extern int	stream_lim;
+extern int	stream_margin;
 extern int	verbose;
 extern int	with_comments;
 
@@ -135,14 +105,14 @@ extern int	listfiles(int, const char *);
 extern int	mkstemp(char *);
 extern int	sanitycheck(int);
 
-extern size_t	*hmalloc(size_t, const int);
+extern size_t	*hmalloc(size_t, const int, const int);
 
 extern void	basic_prim(const char *s, int cid);
 extern void	cobra_main(void);
 extern void	do_lock(int);
 extern void	do_unlock(int);
 extern void	efree(void *);
-extern void	*emalloc(size_t);
+extern void	*emalloc(size_t, const int);
 extern void	ini_heap(void);
 extern void	ini_lock(void);
 extern void	ini_par(void);
@@ -160,10 +130,5 @@ extern void	unlock_print(int);
 
 #define free		efree
 #define is_blank(x)	((x) == ' ' || (x) == '\t')	// avoiding isblank()
-
-#ifndef STREAM_LIM
- // -pat when reading from stdin:
- #define STREAM_LIM	8192
-#endif
 
 #endif

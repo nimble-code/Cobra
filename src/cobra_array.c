@@ -52,6 +52,7 @@ static Arr_var **arr_vars;	// Ncore copies, lists of base-names
 static Arr_var **free_arr;
 static Arr_el  **free_els;
 static Alist    *alist;
+static char	**statstring;
 
 #ifdef STATS
  static int stats_scn;	// assuming single core
@@ -102,17 +103,17 @@ find_array(const char *nm, const int ix, const int mk)	// find or create
 		{	a = free_arr[ix];
 			free_arr[ix] = a->nxt;
 			if (a->len < len)
-			{	a->name = (char *) hmalloc(len+1, ix);
+			{	a->name = (char *) hmalloc(len+1, ix, 110);
 				a->len = len;
 			}
 			a->typ = 0;
 		} else
-		{	a = (Arr_var *) hmalloc(sizeof(Arr_var), ix);
-			a->name = (char *) hmalloc(len+1, ix);
+		{	a = (Arr_var *) hmalloc(sizeof(Arr_var), ix, 111);
+			a->name = (char *) hmalloc(len+1, ix, 111);
 			a->len  = len;
 			a->h_mask = H_MASK;	// initial values
 			a->h_limit = H_SIZE<<3;
-			a->ht = (Arr_el **) emalloc(H_SIZE * sizeof(Arr_el *));
+			a->ht = (Arr_el **) emalloc(H_SIZE * sizeof(Arr_el *), 1);
 		}
 		strcpy(a->name, nm);
 		a->cdepth = Cdepth[ix];
@@ -140,7 +141,7 @@ resize_array(Arr_var *a, const int ix)
 	printf("resizing array %s (size %u) to %d hash-slots\n",
 		a->name, a->size, h_size);
  #endif
-	n_ht   = (Arr_el **) hmalloc(h_size * sizeof(Arr_el *), ix);
+	n_ht   = (Arr_el **) hmalloc(h_size * sizeof(Arr_el *), ix, 112);
 
 	for (h2 = 0; h2 <= a->h_mask; h2++)
 	{	for (e = a->ht[h2]; e; e = f)	// in sort-order on h0
@@ -197,14 +198,14 @@ get_array_element(Arr_var *a, const char *el, const int mk, const int ix)
 	{	e = free_els[ix];
 		free_els[ix] = e->nxt;
 		if (e->len < len)
-		{	e->a_index = (char *) hmalloc(len+1, ix);
+		{	e->a_index = (char *) hmalloc(len+1, ix, 113);
 			e->len = len;
 		}
 		e->val = 0;
 		e->p = NULL;
 	} else
-	{	e = (Arr_el *) hmalloc(sizeof(Arr_el), ix);
-		e->a_index = (char *) hmalloc(len+1, ix);
+	{	e = (Arr_el *) hmalloc(sizeof(Arr_el), ix, 114);
+		e->a_index = (char *) hmalloc(len+1, ix, 114);
 		e->len = len;
 	}
 	e->h   = h0;
@@ -301,14 +302,14 @@ rm_array_element(const char *nm, const char *el, const int ix)
 	if (!a)
 	{	return;
 	}
-	h0 = hasher(el);
+	h0 = hasher(el);			// uses el
 	h1 = h0&(a->h_mask);
 	for (e = a->ht[h1]; e; prv = e, e = e->nxt)
 	{	if (e->h > h0)
 		{	break;
 		}
 		if (e->h == h0
-		&&  strcmp(e->a_index, el) == 0
+		&&  strcmp(e->a_index, el) == 0	// one of two places where el is needed
 		&&  a->cdepth == Cdepth[ix])
 		{
 			if (0)
@@ -428,12 +429,11 @@ array_unify_name(const char *nm, const int ix)
 	// have the same indices, though not necessarily
 	// the same stored values
 
-	if (Ncore == 1)
+	if (Ncore == 1 || !nm)
 	{	return;
 	}
-
 	a = find_array(nm, ix, 1);
-	for (n = 0; n < Ncore; n++)
+	for (n = 0; a && n < Ncore; n++)
 	{	if (n == ix)
 		{	continue;
 		}
@@ -463,12 +463,11 @@ array_unify_name(const char *nm, const int ix)
 static void
 add_alist(const char *nm)
 {	Alist *v;
-
 	for (v = alist; v; v = v->nxt)
 	{	if (strcmp(v->nm, nm) == 0)
 		{	return;
 	}	}
-	v = (Alist *) emalloc(sizeof(Alist));
+	v = (Alist *) emalloc(sizeof(Alist), 2);
 	v->nm = nm;
 	v->nxt = alist;
 	alist = v;
@@ -582,7 +581,6 @@ array_unify(Lextok *qin, const int ix)	// make array qin->rgt->s in core q->val 
 	if (Ncore <= 1)
 	{	return;
 	}
-
 	if (q->typ != CPU)
 	{	which = q->val;
 	}
@@ -638,7 +636,7 @@ rm_aname_el(Prim **ref_p, Lextok *t, const int ix)	// remove array element
 	{	rm_aname(t->lft->s, 1, ix);
 		return;
 	}
-	s = derive_string(ref_p, t->rgt, ix);
+	s = derive_string(ref_p, t->rgt, ix, statstring[ix]); // avoid leaking mem on s
 	rm_array_element(t->lft->s, s, ix);
 }
 
@@ -715,9 +713,15 @@ ini_arrays(void)
 		arr_vars = NULL;
 	}
 	if (!arr_vars)
-	{	arr_vars = (Arr_var **) emalloc(NCORE * sizeof(Arr_var *));
-		free_arr = (Arr_var **) emalloc(NCORE * sizeof(Arr_var *));
-		free_els = (Arr_el  **) emalloc(NCORE * sizeof(Arr_el  *));
+	{	arr_vars = (Arr_var **) emalloc(NCORE * sizeof(Arr_var *), 3);
+		free_arr = (Arr_var **) emalloc(NCORE * sizeof(Arr_var *), 4);
+		free_els = (Arr_el  **) emalloc(NCORE * sizeof(Arr_el  *), 5);
+
+		statstring = (char **) emalloc(NCORE * sizeof(char *), 6);
+		int i;
+		for (i = 0; i < NCORE; i++)
+		{	statstring[i] = (char *) emalloc(512 * sizeof(char), 7); // shouldnt be fixed
+		}
 	}
 }
 
@@ -729,10 +733,10 @@ prepopulate(int k, const int ix)
 	{	k--;
 	}
 	while (k-- >= 0)
-	{	a = (Arr_var *) emalloc(sizeof(Arr_var));
+	{	a = (Arr_var *) emalloc(sizeof(Arr_var), 8);
 		a->h_mask = H_MASK;
 		a->h_limit = H_SIZE<<3;
-		a->ht = (Arr_el **) emalloc(H_SIZE * sizeof(Arr_el *));
+		a->ht = (Arr_el **) emalloc(H_SIZE * sizeof(Arr_el *), 9);
 		a->nxt = free_arr[ix];
 		free_arr[ix] = a;
 	}

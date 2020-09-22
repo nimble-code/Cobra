@@ -1,0 +1,107 @@
+# crude way to calculate cyclomatic complexity numbers
+# multicore runs sometimes trigger an exception
+# cause not pinned down yet
+
+fcts	# most of the time goes here
+%{
+	max_cc = 1;
+	nr = 0;
+	cum = 0;
+	cum_ln = 0;
+	max_cc_nm = .;
+	max_ln_nm = .;
+	max_ln = 0;
+	Stop;
+%}
+%{
+	if (!.mark) { Next; }
+
+	nm = .;
+	. = .nxt;
+	while (.curly == nm.curly && nm.fnm == .fnm && .mark == 0) {	# in case it's not 0
+		. = .nxt;
+	}
+
+	if (.fnm != nm.fnm)
+	{	lock();
+		print "CC	" 0 "	" 0 "	" nm.txt  "\n";
+		unlock();
+		. = nm.nxt;
+		Next;
+	}
+	cc = 1;
+	while (.curly > nm.curly && .mark == 0 && .fnm == nm.fnm) {
+		if (.txt == "if"
+		||  .txt == "while"
+		||  .txt == "for") {
+			cc++;
+		}
+		if (.txt == "case"
+		||  .txt == "default") {
+			q = .prv;
+			if (q.txt != ":")
+			{	cc++; # not a fallthru
+		}	}
+		q = .;
+		. = .nxt;
+		if (q.seq == .seq) { break; }
+	}
+	if (cc > max_cc) {
+		max_cc = cc;
+		max_cc_nm = nm;
+	}
+	nl = .lnr - nm.lnr;
+	if (nl > max_ln) {
+		max_ln = nl;
+		max_ln_nm = nm;
+	}
+	if (nl < 0)
+	{	lock();
+		print nm.fnm ":" nm.lnr ": error: " nm.txt " " cc " " nl " " nm.curly " " .curly "\n";
+		unlock();
+		. = nm.nxt;
+		Next;
+	}
+#	counts[cc]++;
+	cum_ln = cum_ln + nl;
+	cum = cum + cc;
+	nr++;
+	lock();
+	print "CC	" cc "	" nl "	" nm.txt  "\n";	# for correlation plot
+	unlock();
+	if (.mark) { . = .prv; }		# correct overshoot
+%}
+%{
+	max_cc_all[cpu] = max_cc;
+	max_ln_all[cpu] = max_ln;
+	max_cc_fnm[cpu] = max_cc_nm;
+	max_ln_fnm[cpu] = max_ln_nm;
+	Stop;
+%}
+%{
+	if (cpu != 0)
+	{	Stop;
+	}
+	nr_total = sum(nr);
+	cum_total = sum(cum);
+	cum_ln_total = sum(cum_ln);
+	if (nr_total > 0)
+	{	print "nr fcts: " nr_total "\tavg cc: " cum_total/nr_total "\tavg lns: " cum_ln_total/nr_total "\n";
+	}
+	a_unify(0);
+	print "there\n";
+	i = 1; while (i < ncore)
+	{	if (max_cc_all[i] > max_cc)
+		{	max_cc = max_cc_all[i];
+			max_cc_nm = max_cc_fnm[i];
+		}
+		if (max_ln_all[i] > max_ln)
+		{	max_ln = max_ln_all[i];
+			max_ln_nm = max_ln_fnm[i];
+		}
+		i++;
+	}
+	print "max cc: "	max_cc "\t" max_cc_nm.fnm ":" max_cc_nm.lnr ":\t" max_cc_nm.txt"\n";
+	print "max ln: "	max_ln "\t" max_ln_nm.fnm ":" max_ln_nm.lnr ":\t" max_ln_nm.txt"\n";
+	Stop;
+%}

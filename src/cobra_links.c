@@ -201,7 +201,7 @@ store_var(TrackVar **lst, Prim *v, int tag, int cid)
 			{	p->cnt++;
 			}
 			if (v->lnr != p->t->lnr)
-			{	q = (Lnrs *) hmalloc(sizeof(Lnrs), cid);
+			{	q = (Lnrs *) hmalloc(sizeof(Lnrs), cid, 119);
 				q->nxt = p->lst;
 				q->nv  = v;
 				p->lst = q;
@@ -214,9 +214,9 @@ store_var(TrackVar **lst, Prim *v, int tag, int cid)
 		{	break;
 	}	}
 
-	n = (TrackVar *) hmalloc(sizeof(TrackVar), cid);
+	n = (TrackVar *) hmalloc(sizeof(TrackVar), cid, 120);
 	n->t = v;
-	n->lst = (Lnrs *) hmalloc(sizeof(Lnrs), cid);
+	n->lst = (Lnrs *) hmalloc(sizeof(Lnrs), cid, 120);
 	n->lst->nv = v;
 
 	if (tag)
@@ -642,7 +642,7 @@ break_links(void)
 	seen_break_links = 1;
 
 	if (lastN < Ncore || !thr)
-	{	thr = (ThreadLocal_links *) emalloc(Ncore * sizeof(ThreadLocal_links));
+	{	thr = (ThreadLocal_links *) emalloc(Ncore * sizeof(ThreadLocal_links), 68);
 		lastN = Ncore;
 	} else
 	{	memset(thr, 0, Ncore * sizeof(ThreadLocal_links));

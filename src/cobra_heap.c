@@ -24,6 +24,10 @@
  #endif
 #endif
 
+#ifdef DEBUG_MEM
+static size_t	 Emu[160];
+#endif
+
 typedef long unsigned int	ulong;
 
 static sem_t	  *sem;
@@ -63,7 +67,7 @@ extern char *progname;
 extern void lock_print(int);
 extern void unlock_print(int);
 
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(__linux__) || defined(NO_SBRK)
 	#include <stdlib.h>
 	#define sbrk	malloc
 #else
@@ -86,7 +90,7 @@ efree(void *ptr)
 //	printf("nope\n");
 }
 
-void *
+static void *
 e_malloc(size_t size)	// bytes
 {	static size_t *have_mem = (void *) 0;
 	static size_t  have_cnt = 0;	// bytes
@@ -117,7 +121,7 @@ e_malloc(size_t size)	// bytes
 }
 
 void *
-emalloc(size_t size)	// size in bytes
+emalloc(size_t size, const int caller)	// size in bytes
 {	void *n;
 	int p;
 
@@ -127,8 +131,8 @@ emalloc(size_t size)	// size in bytes
 	n = e_malloc(size * sizeof(char));
 
 	if (!n)
-	{	fprintf(stderr, "out of memory (%lu bytes - wanted %lu more)\n",
-			total_used, (ulong) size);
+	{	fprintf(stderr, "%d: out of memory (%lu bytes - wanted %lu more)\n",
+			caller, total_used, (ulong) size);
 		verbose++;
 		memusage();
 		exit(1);
@@ -136,8 +140,24 @@ emalloc(size_t size)	// size in bytes
 	memset(n, 0, size);
 	total_used += (unsigned long) size;
 
+#ifdef DEBUG_MEM
+	assert(caller >= 0 && caller < sizeof(Emu)/sizeof(size_t));
+	Emu[caller] += size;
+#endif
+
 	return n;
 }
+
+#ifdef DEBUG_MEM
+void
+report_memory_use(void)
+{	int j;
+	for (j = 0; j < sizeof(Emu)/sizeof(size_t); j++)
+	{	if (Emu[j])
+		{	printf("Emu[%d]	%lu\n", j, Emu[j]);
+	}	}
+}
+#endif
 
 void
 ini_heap(void)
@@ -145,10 +165,10 @@ ini_heap(void)
 	int i;
 
 	if (!heap || Ncore > maxn)
-	{	heap    = (size_t **) emalloc(Ncore * sizeof(size_t *));
-		heapsz  =     (int *) emalloc(Ncore * sizeof(int));
+	{	heap    = (size_t **) emalloc(Ncore * sizeof(size_t *), 37);
+		heapsz  =     (int *) emalloc(Ncore * sizeof(int), 38);
 		for (i = 0; i < Ncore; i++)
-		{	heap[i] = (size_t *) emalloc(HeapSz * sizeof(char));
+		{	heap[i] = (size_t *) emalloc(HeapSz * sizeof(char), 39);
 			heapsz[i] = HeapSz / sizeof(size_t);
 		}
 		if (Ncore > maxn)
@@ -157,7 +177,7 @@ ini_heap(void)
 }
 
 size_t *
-hmalloc(size_t size, const int ix)	// size in bytes
+hmalloc(size_t size, const int ix, const int caller)	// size in bytes
 {	size_t *m;
 
 	size += sizeof(size_t) - 1;
@@ -168,24 +188,25 @@ hmalloc(size_t size, const int ix)	// size in bytes
 
 	if (!heap[ix] || heapsz[ix] <= size)	// words
 	{
-//fprintf(stderr, "%d in\n", ix);
 		lock_print(ix);
 		if (HeapSz < size * sizeof(size_t))
 		{
-// printf("Adjust %lu -> %lu\n", HeapSz, (unsigned long) (size * sizeof(size_t)));
 			HeapSz = (int) size * sizeof(size_t);
 		}
-// printf("Add %lu bytes\n", HeapSz);
-		heap[ix]   = (size_t *) emalloc(HeapSz * sizeof(char));
+		heap[ix]   = (size_t *) emalloc(HeapSz * sizeof(char), 40);
 		heapsz[ix] = HeapSz / sizeof(size_t);	// words
 		unlock_print(ix);
-//fprintf(stderr, "%d out\n", ix);
 	}
 
 	m = heap[ix];
 
 	heap[ix]   += size;	// words
 	heapsz[ix] -= size;	// words
+
+#ifdef DEBUG_MEM
+	assert(caller >= 0 && caller < sizeof(Emu)/sizeof(size_t));
+	Emu[caller] += size;
+#endif
 
 	return m;
 }
@@ -259,7 +280,6 @@ lock_print(int who)
 	if (sem_wait(sem) != 0)
 	{	perror("sem_wait");
 	}
-//fprintf(stderr, "Locked by %d\n", who);
 }
 
 void
@@ -268,7 +288,6 @@ unlock_print(int who)
 	if (Ncore <= 1)
 	{	return;
 	}
-//fprintf(stderr, "Unlocked by %d\n", who);
 	if (sem_post(sem) != 0)
 	{	perror("sem_post");
 	}
@@ -280,17 +299,17 @@ ini_timers(void)
 	// allow for separate timers for cobra_prog.y programs
 #if 0
 	if (!start_time || Ncore > maxn)
-	{	start_time = (clock_t *) emalloc(2 * Ncore * sizeof(clock_t));
-		stop_time  = (clock_t *) emalloc(2 * Ncore * sizeof(clock_t));
-		delta_time = (double *)  emalloc(2 * Ncore * sizeof(double));
+	{	start_time = (clock_t *) emalloc(2 * Ncore * sizeof(clock_t), 41);
+		stop_time  = (clock_t *) emalloc(2 * Ncore * sizeof(clock_t), 42);
+		delta_time = (double *)  emalloc(2 * Ncore * sizeof(double), 43);
 		if (Ncore > maxn)
 		{	maxn = Ncore;
 	}	}
 #else
 	if (!start_time || Ncore > maxn)
-	{	start_time = (struct timeval *) emalloc(2 * (Ncore+1) * sizeof(struct timeval));
-		stop_time  = (struct timeval *) emalloc(2 * (Ncore+1) * sizeof(struct timeval));
-		delta_time = (double *)  emalloc(2 * (Ncore+1) * sizeof(double));
+	{	start_time = (struct timeval *) emalloc(2 * (Ncore+1) * sizeof(struct timeval), 41);
+		stop_time  = (struct timeval *) emalloc(2 * (Ncore+1) * sizeof(struct timeval), 42);
+		delta_time = (double *)  emalloc(2 * (Ncore+1) * sizeof(double), 43);
 		// +1 for cwe timer
 		if (Ncore > maxn)
 		{	maxn = Ncore;

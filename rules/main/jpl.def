@@ -1,6 +1,6 @@
 #### see main/jpl.cobra
 
-def fct_names			# helper function
+def fcts			# helper function
 	cpp on
 	r
 	m @ident \(; n
@@ -132,7 +132,7 @@ end
 
 def jpl_rule4
 	cpp on
-	fct_names
+	fcts
 	s {			# tag symbol to {
 	n {			# move to it
 	m ir $$			# match of fct name inside the range

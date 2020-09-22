@@ -192,20 +192,66 @@ static const struct {
 static const struct {
 	char	*str;
 } directive[] = {
-	{ "define" },
-	{ "elif" },
-	{ "else" },
-	{ "endif" },
-	{ "error" },
-	{ "ident" },
-	{ "if" },
-	{ "ifdef" },
-	{ "ifndef" },
-	{ "include" },
-	{ "pragma" },
-	{ "undef" },
+	{ "define" },	// isdirective() returns 1
+	{ "elif" },	// 2
+	{ "else" },	// 3
+	{ "endif" },	// 4
+	{ "error" },	// 5
+	{ "ident" },	// 6
+	{ "if" },	// 7
+	{ "ifdef" },	// 8
+	{ "ifndef" },	// 9
+	{ "include" },	// 10
+	{ "pragma" },	// 11
+	{ "undef" },	// 12
 	{ 0 }
 };
+
+static Triple *free_triples;
+
+static void
+push_triple(int cid)
+{	Triple *t;
+
+	if (free_triples)
+	{	t = free_triples;
+		free_triples = free_triples->nxt;
+	} else
+	{	t = (Triple *) emalloc(sizeof(Triple), 44);
+	}
+	t->lex_bracket = Px.lex_bracket;
+	t->lex_curly   = Px.lex_curly;
+	t->lex_roundb  = Px.lex_roundb;
+	t->nxt = Px.triples;
+	Px.triples = t;
+}
+
+static int
+top_triple(int cid, int restore)
+{
+	if (!Px.triples)
+	{	if (verbose)
+		{	printf("warning: top_triple error\n");
+		}
+		return 0;
+	} else if (restore)
+	{	Px.lex_bracket = Px.triples->lex_bracket;
+		Px.lex_curly   = Px.triples->lex_curly;
+		Px.lex_roundb  = Px.triples->lex_roundb;
+	}
+	return 1;
+}
+
+static void
+pop_triple(int cid)
+{
+	if (top_triple(cid, 0))
+	{	Triple *t = Px.triples;
+		Px.triples = Px.triples->nxt;
+		t->nxt = free_triples;
+		free_triples = t;
+	}
+}
 
 static int
 isdirective(int cid)
@@ -214,7 +260,7 @@ isdirective(int cid)
 	assert(cid >= 0 && cid < Ncore);
 	for (i = 0; directive[i].str; i++)
 	{	if (strcmp(directive[i].str, Px.lex_yytext) == 0)
-		{	return 1;
+		{	return 1+i;
 	}	}
 	return 0;
 }
@@ -348,7 +394,7 @@ setlineno(const char *s, int cid)
 	}
 	if (strcmp(Px.lex_fname, b) != 0)
 	{	check_recall(cid);
-		Px.lex_fname = (char *) hmalloc(n+1, cid);	// XXX setlineno
+		Px.lex_fname = (char *) hmalloc(n+1, cid, 118);	// XXX setlineno
 		strcpy(Px.lex_fname, b);
 		if (seenbefore(b, 0))
 		{	Px.lex_dontcare = 1;
@@ -556,11 +602,28 @@ name(int c, int cid)
 	assert(m < MAXYYTEXT);
 	Px.lex_yytext[m] = '\0';
 	if (Px.lex_preprocessing == 1)
-	{	if (isdirective(cid))
+	{	int a = isdirective(cid);
+		if (a)
 		{	char buf[MAXYYTEXT+64];
 			snprintf(buf, sizeof(buf), "#%s", Px.lex_yytext);
 			show2("cpp", buf, cid);
 			Px.lex_preprocessing = 2; // need EOP token
+			switch (a) {
+			case 4:
+				pop_triple(cid);
+				break;
+			case 2:
+			case 3:
+				top_triple(cid, 1);
+				break;
+			case 7:
+			case 8:
+			case 9:
+				push_triple(cid);
+				break;
+			default:
+				break;
+			}
 		} else	
 		{	show2("ident", Px.lex_yytext, cid);
 		}	
@@ -995,6 +1058,7 @@ N:			t = number(n, cid);
 			}
 			continue;
 		}
+
 		if (isalpha((uchar) n) || n == '_')
 		{	name(n, cid);
 			continue;
