@@ -62,6 +62,7 @@ extern int Ncore;
 extern int no_display;
 extern int runtimes;
 extern int verbose;
+extern int tfree, tnew;
 extern char *progname;
 
 extern void lock_print(int);
@@ -156,6 +157,8 @@ report_memory_use(void)
 	{	if (Emu[j])
 		{	printf("Emu[%d]	%lu\n", j, Emu[j]);
 	}	}
+	printf("tfree: %6d\n", tfree);
+	printf("tnew : %6d\n", tnew);
 }
 #endif
 

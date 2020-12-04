@@ -28,12 +28,18 @@ typedef struct State	State;
 typedef struct Store	Store;
 typedef struct Trans	Trans;
 typedef struct Rlst	Rlst;
+typedef struct PrimStack PrimStack;
 
 struct Node {		// NNODE
 	int	  type;	// operator or token code 
 	char	 *tok;	// token name
 	Node	 *nxt;	// linked list
 	Nd_Stack *succ;	// successor state
+};
+
+struct PrimStack {
+	Prim		*t;
+	PrimStack	*nxt;
 };
 
 struct Op_Stack {
@@ -108,12 +114,13 @@ static Op_Stack	*op_stack;
 static Prim	*q_now;
 static Prim	*c_lft;
 static Prim	*b_lft;
-static Prim	*p_lft;
-static Prim	 matched;
+static Prim	*r_lft;
 static State	*states;
 static Store	*free_stored;
 static State	*free_state;
 static Rlst	*re_list;
+
+static PrimStack *p_curly, *p_round, *p_bracket, *p_free;
 
 static int	current;
 static int	nr_states;
@@ -157,7 +164,6 @@ reinit_te(void)
 	old_matches = matches;
 	matches = (Match *) 0;
 
-	memset(&matched, 0, sizeof(Prim));
 	cur = prim;
 }
 
@@ -1263,13 +1269,76 @@ recall(State *s, Trans *t, char *text)
 }
 
 static void
+move2free(PrimStack *n)
+{
+	if (n)
+	{	PrimStack *m = n;
+		while (m->nxt)
+		{	m = m->nxt;
+		}
+		m->nxt = p_free;
+		p_free = n;
+	}
+}
+
+static void
+clr_stacks(void)
+{
+	move2free(p_curly);
+	move2free(p_round);
+	move2free(p_bracket);
+	p_curly = p_round = p_bracket = (PrimStack *) 0;
+}
+
+static PrimStack *
+get_prim(Prim *p, PrimStack *q)
+{	PrimStack *n;
+
+	if (p_free)
+	{	n = p_free;
+		p_free = p_free->nxt;
+	} else
+	{	n = (PrimStack *) emalloc(sizeof(PrimStack), 109);
+	}
+	n->t   = p;
+	n->nxt = q;
+
+	return n;
+}
+
+static void
 set_level(char *p)
 {
 	switch (*p) {
-	case '{': c_lft = q_now; break;
-	case '(': p_lft = q_now; break;
-	case '[': b_lft = q_now; break;
+	case '{':
+		if (c_lft && c_lft != q_now)
+		{	p_curly = get_prim(c_lft, p_curly);
+		}
+		c_lft = q_now;
+		break;
+	case '(':
+		if (r_lft && r_lft != q_now)
+		{	p_round = get_prim(r_lft, p_round);
+		}
+		r_lft = q_now;
+		break;
+	case '[':
+		if (b_lft && b_lft != q_now)
+		{	p_bracket = get_prim(b_lft, p_bracket);
+		}
+		b_lft = q_now;
+		break;
 	}
+}
+
+static PrimStack *
+pop_prim(PrimStack *n)
+{	PrimStack *p = n->nxt;
+
+	n->nxt = p_free;
+	p_free = n;
+
+	return p;
 }
 
 static int
@@ -1281,16 +1350,26 @@ check_level(char *p)
 		{	if (q_now->curly != c_lft->curly)
 			{	return 1;
 			}
-			c_lft = &matched;
+			if (p_curly)
+			{	c_lft = p_curly->t;
+				p_curly = pop_prim(p_curly);
+			} else
+			{	c_lft = (Prim *) 0;
+			}
 			return 2;
 		}
 		break;
 	case ')':
-		if (p_lft)
-		{	if (q_now->round != p_lft->round)
+		if (r_lft)
+		{	if (q_now->round != r_lft->round)
 			{	return 1;
 			}
-			p_lft = &matched;
+			if (p_round)
+			{	r_lft = p_round->t;
+				p_round = pop_prim(p_round);
+			} else
+			{	r_lft = (Prim *) 0;
+			}
 			return 2;
 		}
 		break;
@@ -1299,7 +1378,12 @@ check_level(char *p)
 		{	if (q_now->bracket != b_lft->bracket)
 			{	return 1;
 			}
-			b_lft = &matched;
+			if (p_bracket)
+			{	b_lft = p_bracket->t;
+				p_bracket = pop_prim(p_bracket);
+			} else
+			{	b_lft = (Prim *) 0;
+			}
 			return 2;
 		}
 		break;
@@ -1457,7 +1541,7 @@ matches2marks(void)
 	}	}	}	}
 
 	clr_matches(NEW_M);
-	printf("%d match%s\n", cnt, (cnt==1)?"":"es");
+	printf("%d token%s marked\n", cnt, (cnt==1)?"":"s");
 	return cnt;
 }
 
@@ -1548,6 +1632,18 @@ tp_desc(char *t)
 	return " ";
 }
 
+static void
+show_curstate(int rx)
+{	List *c;
+	printf("%d :: %s :: ", rx, q_now->txt);
+//	printf("%d[%s] :: ", r_lft?r_lft->round:-9, r_lft?r_lft->txt:"??");
+	for (c = curstates[current]; c; c = c->nxt)
+	{	State *s = c->s;
+		printf("S%d%s | ", s->seq, s->accept?"*":"");
+	}
+	printf("\n");
+}
+
 void
 cobra_te(char *te, int and, int inv)
 {	List  *c;
@@ -1583,7 +1679,6 @@ cobra_te(char *te, int and, int inv)
 	mk_fsa();
 
 	copy_list(current, 2);	// remember initial states, 2 was empty so far
-	matched.curly = matched.round = matched.bracket = -1;
 
 	// if reading from stdin (stream) this gives us an
 	// initial token stream fragment of stream_lim lines
@@ -1604,7 +1699,8 @@ cobra_te(char *te, int and, int inv)
 	{	free_list(current);
 		free_list(1 - current);
 		copy_list(2, current);	// initial state
-		c_lft = b_lft = p_lft = (Prim *) 0;
+		c_lft = b_lft = r_lft = (Prim *) 0;
+		clr_stacks();
 
 		if (stream == 1
 		&&  cur->seq + 100 > plst->seq)
@@ -1626,16 +1722,20 @@ cobra_te(char *te, int and, int inv)
 			} else
 			{	rx = 0;
 			}
+			if (verbose)
+			{	show_curstate(rx);
+			}
 			for (c = curstates[current]; c; c = c->nxt)
 			{	s = c->s;
 				for (t = s->trans; t; t = t->nxt)
-				{	if (0)
-					{	printf("\tcheck %d->%d	%s %s  %s  %s\n",
+				{	if (verbose)
+					{	printf("\tcheck %d->%d	%s %s  %s  %s :: %d\n",
 							s->seq, t->dest,
-							t->match?"match":" ",
-							t->pat?t->pat:" ",
-							t->recall?"recall":" ",
-							t->or?"or":" ");
+							t->match?"match":"-nomatch-",
+							t->pat?t->pat:" -nopat- ",
+							t->recall?"recall":"-norecall-",
+							t->or?"or":"no_or",
+							(c->nxt && c->nxt->s)?c->nxt->s->seq:-99);
 					}
 					if (!t->pat)
 					{	if (!t->match)	// epsilon move
@@ -1743,10 +1843,15 @@ cobra_te(char *te, int and, int inv)
 					} else
 					{	tmx = strcmp(m, p);
 					}
-
+// printf(" <<%s <> %s || %d <> %d>> ", m, p, t->match, tmx);
+// t->match == 1 && tmx == 0
+// t->match == 0 && tmx != 0
 					if (t->match != (tmx != 0))
-					{	if (t->match && *(m+1) == '\0')
+					{
+// printf(" <%d :: %d,%d> ", r_lft?r_lft->lnr:-21, r_lft?r_lft->round:-11, q_now->round);
+						if (t->match && *(m+1) == '\0')
 						{	set_level(m); // if bracket
+// printf(" <$2:%d> ", rx);
 							if (rx == 1)
 							{	// saw closing bracket
 								// opening was set but doesnt match
@@ -1764,8 +1869,12 @@ cobra_te(char *te, int and, int inv)
 						}
 						anychange = 1;
 						if (is_accepting(s->bindings, t->dest)
-						|| rx == 2)
-						{
+//						|| rx == 2
+						)
+						{	if (verbose)
+							{	printf("\t\tgoto L (%d -> %d)\n",
+									s->seq, t->dest);
+							}
 							goto L;
 						}
 			}	}	}	// for loop over transitions

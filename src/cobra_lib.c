@@ -2186,20 +2186,22 @@ list(char *s, char *t)
 {	char *lstfnm = NULL;
 	int lstlnr = 0;
 	int hit = 0, n = 0, tlnr = 0;
-	int lastn = -1, plus = 0;
-	int from=0, upto=0, lcnt = 0;
+	int lastn = -1, plus = 0, lcnt = 0;
+//	int from=0, upto=0;
 	char *c, *lastfnm = "";
 	FILE *fd = (track_fd) ? track_fd : stdout;
 
 
 	if (strcmp(s, "*") != 0)
 	{	if (strchr(s, '-'))
-		{	if (sscanf(s, "%d-%d", &from, &upto) != 2)
-			{	printf("error: bad arg '%s'\n", s);
-				return;
-			}
+		{	// range option pending
+		//	if (sscanf(s, "%d-%d", &from, &upto) != 2)
+		//	{	printf("error: bad arg '%s'\n", s);
+		//		return;
+		//	}
 		} else
-		{	from = upto = n = (*s)?atoi(s):0;
+		{	n = (*s)?atoi(s):0;
+//			from = upto = n;
 	}	}
 
 	if (*t)

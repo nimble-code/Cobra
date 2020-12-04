@@ -33,6 +33,7 @@ Prim	*plst;	// post parsing
 Prim	*cur;
 Prim	*prim;
 int	 count;
+int	 tfree, tnew;
 
 static	Prim	*free_tokens[NBUCKETS];
 static	JumpTbl	*jmptbl;
@@ -481,6 +482,7 @@ new_prim(const char *s, const char *t, int cid)
 	&&  free_tokens[bn])
 	{	p = free_tokens[bn];
 		free_tokens[bn] = p->nxt;
+		tfree++;
  #ifndef NO_STRING_RECYCLE
 		if (p->len > 0 && p->len >= ln)
 		{	assert(p->txt && strlen(p->txt) == p->len);
@@ -498,8 +500,9 @@ new_prim(const char *s, const char *t, int cid)
 	} else
 	{	p = (Prim *) hmalloc(sizeof(Prim), cid, 128);
 		p->len = ln;
+		tnew++;
 		if (ln > 0)
-		{	p->txt = (char *) hmalloc(ln+1, cid, 128);
+		{	p->txt = (char *) hmalloc(ln+1, cid, 144);
 			strcpy(p->txt, s);
 		} else	// ln == 0
 		{	p->txt = "";
@@ -757,7 +760,6 @@ rescan(void)
 
 	Files *f;
 	extern void do_typedefs(int);
-
 	ini_pre(0);
 	for (n = 0; n < NHASH; n++)
 	for (f = files[n]; f; f = f->nxt)
@@ -866,6 +868,9 @@ post_process(int fromscratch)
 						(void *) r->first_token,
 						(void *) r->last_token,
 						already_there(j, r->s));
+				}
+				if (fromscratch)
+				{	Nfiles++;
 				}
 				continue;
 			}

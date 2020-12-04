@@ -104,7 +104,7 @@ graph(Prim *from, Prim *upto)
 	int scb = node(from);	// stack of current block
 	int ecb = node(upto);	// end of current block -- not yet connected
 	int ssb;	// start of sub block
-	int esb = -1;	// end of sub block
+	int esb;	// end of sub block
 	int essb;	// end of sub-sub block
 	int ln;
 	char str[256];

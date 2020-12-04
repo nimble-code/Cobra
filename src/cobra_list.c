@@ -217,7 +217,7 @@ unlist(const char *nm, const int ix)	// remove list
 
 void
 list_stats(void)
-{	if (verbose)
+{	if (verbose>1)
 	{	printf("nalloc: %d nfree: %d, nrecycle %d\n", nalloc, nfree_els, nrecycle);
 	}
 }

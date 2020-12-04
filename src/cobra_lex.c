@@ -678,7 +678,7 @@ ifeither(const int a, const int b, char *if_a, char *if_b, char *ifno, int cid)
 static int
 operator(int c, int cid)
 {	int n;
-	char *dst = "";
+	char *dst = ""; // initialization not used but in case things change later
 
 	switch (c) {
 	case '^':

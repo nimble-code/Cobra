@@ -705,6 +705,18 @@ eval_aname(Prim **ref_p, Lextok *q, Rtype *ts, int ix)	// array name, index
 }
 
 void
+new_array(char *s, int ix)
+{	Arr_var *a = find_array(s, ix, 1);
+
+	if (a)
+	{	printf("global array %s[]\n", s);
+		a->cdepth = 0;
+	} else
+	{	printf("error: global decl of %s[] failed\n", s);
+	}
+}
+
+void
 ini_arrays(void)
 {	static int vmax;
 

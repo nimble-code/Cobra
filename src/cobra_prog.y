@@ -111,7 +111,8 @@ static Var_nm	*check_var(const char *, const int);
 #endif
 
 static Lextok	*add_return(Lextok *);
-static void	 add_fct(Lextok *);
+static void	handle_global(Lextok *);
+static void	add_fct(Lextok *);
 static void	fixstr(Lextok *);
 static void	mk_fsm(Lextok *, const int);
 static void	mk_lab(Lextok *, Lextok *);
@@ -122,6 +123,7 @@ static void	yyerror(const char *);
 
 void	eval_prog(Prim **, Lextok *, Rtype *, const int);
 
+extern void	new_array(char *, int);	// cobra_array.c
 extern void	show_error(int);
 extern int	xxparse(void);
 static int	yylex(void);
@@ -137,7 +139,7 @@ extern int	stream;
 %token	A_UNIFY LOCK UNLOCK ASSERT TERSE TRUE FALSE VERBOSE
 %token	FCTS MARKS SAVE RESTORE RESET
 %token	ADD_TOP ADD_BOT POP_TOP POP_BOT TOP BOT
-%token	OBTAIN_EL RELEASE_EL UNLIST LLENGTH
+%token	OBTAIN_EL RELEASE_EL UNLIST LLENGTH GLOBAL
 
 %right	'='
 %left	OR
@@ -205,7 +207,8 @@ stmnt	: IF '(' expr ')' c_prog optelse {
 b_stmnt	: p_lhs '=' expr { $2->lft = $1; $2->rgt = $3; $$ = $2; }
 	| p_lhs '=' NEWTOK '(' ')' { $2->lft = $1; $2->rgt = $3; $$ = $2; };
 	| ASSERT '(' expr ')'	{ $1->lft = $3; $$ = $1; }
-	| GOTO NAME		{ $1->lft = $2; $$ = $1; }
+	| GLOBAL glob_list	{ $$ = $1; handle_global($2); }
+	| GOTO   NAME		{ $1->lft = $2; $$ = $1; }
 	| PRINT args		{ $1->lft = $2; $$ = $1; }
 	| UNSET NAME '[' e_list ']' {
 			   $1->lft = $2;
@@ -248,6 +251,13 @@ params	: /* empty */		{ $$ =  0; }
 	;
 actuals	: /* empty */		{ $$ = 0; }
 	| e_list
+	;
+
+glob_nm : NAME
+	| NAME '[' ']'		{ $$ = $1; $$->rgt = $2; }
+	;
+glob_list: glob_nm
+	| glob_list ',' glob_nm	{ $$ = $2; $$->lft = $1; $$->rgt = $3; }
 	;
 
 par_list: NAME
@@ -376,6 +386,7 @@ static struct Keywords {
 	{ "fnm",	FNM },
 	{ "for",	FOR },
 	{ "function",	FUNCTION },
+	{ "global",	GLOBAL },
 	{ "goto",	GOTO },
 	{ "if",		IF },
 	{ "in",		IN },
@@ -1540,6 +1551,9 @@ get_var(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)
 			rv->rtyp = STP;
 			sep[ix].T_stop++;
 		}
+	}
+	if (0 && n)
+	{	printf("get_var %s, depth %d\n", n->nm, n->cdepth);
 	}
 	return n;
 }
@@ -2811,6 +2825,49 @@ reset_int(const int ix)
 	(void) clear_range((void *) &ix);
 }
 
+static void
+new_scalar(char *s, int ix)
+{	Var_nm *g = mk_var(s, 0, ix);
+
+	if (g)
+	{	printf("global scalar %s\n", s);
+		g->cdepth = 0;
+	} else
+	{	printf("error: global decl of %s failed, cpu %d\n", s, ix);
+	}
+}
+
+static void
+new_global(Lextok *q)
+{	int i;
+	if (q->typ != NAME)
+	{	printf("new_global: unexpected type %d\n", q->typ);
+		return;
+	}
+	for (i = 0; i < Ncore; i++)
+	{	if (q->rgt && q->rgt->typ == '[')
+		{	new_array(q->s, i);
+		} else
+		{	new_scalar(q->s, i);
+	}	}
+}
+
+static void
+handle_global(Lextok *t)
+{
+	if (!t)
+	{	return;
+	}
+
+	handle_global(t->lft);
+
+	if (t->typ == ',')
+	{	new_global(t->rgt);
+	} else if (t->typ == NAME)
+	{	new_global(t);
+	}
+}
+
 void
 eval_prog(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)
 {	Prim  *p;
@@ -3216,7 +3273,8 @@ next:
 		rv->ptr->len = 0;
 		rv->rtyp = PTR;
 		break;
-#if 1
+
+	// list functions
 	case TOP:
 		//Assert("top", q->lft != NULL, q);
 		rv->rtyp = PTR;
@@ -3277,7 +3335,11 @@ next:
 		rv->rtyp = VAL;
 		rv->val = 0;
 		break;
-#endif
+	// end list functions
+
+	case GLOBAL:
+		break;
+
 	case FOR:
 	default:
 		printf("line %d: cannot happen: %d (%s) ", q->lnr, q->typ, q->s);
@@ -3300,6 +3362,7 @@ next:
 		case PRINT:
 		case BREAK:
 		case CONTINUE:
+		case GLOBAL:
 		case GOTO:
 		case SKIP:
 		case ELSE:
@@ -3388,7 +3451,8 @@ mk_var(const char *s, const int t, const int ix)
 	}	}	}
 
 	if (g)
-	{	return g;	// global match
+	{	// printf("mk_var: global match %s depth %d\n", g->nm, g->cdepth);
+		return g;	// global match
 	}
 
 	if (v_free[ix])
@@ -3414,6 +3478,7 @@ mk_var(const char *s, const int t, const int ix)
 	n->rtyp = t;
 	n->s  = "";
 	n->cdepth = Cdepth[ix];
+//	printf("mk_var: new %s depth %d\n", n->nm, n->cdepth);
 
 	if (lastn)
 	{	n->nxt = lastn->nxt;

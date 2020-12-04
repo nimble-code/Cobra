@@ -36,8 +36,9 @@ int preserve;
 int python;
 int read_stdin;
 int stream;
-int stream_lim = 8192;
-int stream_margin = 1000;
+int stream_lim = 100000;
+int stream_margin = 100;
+int stream_margin_set;
 int runtimes;
 int scrub;
 int verbose;
@@ -168,13 +169,28 @@ add_file(char *f, int cid, int slno)
 			{	break;
 			}
 		}
-		if (verbose > 1 && stream == 1)
-		{	static long total_read = 0;
-			total_read += lncnt;
-			printf("	Read %d bytes of %d max\tcumulative: %ld\n",
-				lncnt, stream_lim, total_read);
-		}
-		fclose(tfd);
+		if (stream == 1)
+		{	static int warned = 0;
+			if (verbose > 1)
+			{	static long total_read = 0;
+				total_read += lncnt;
+				printf("	Read %d bytes of %d max\tcumulative: %ld\n",
+					lncnt, stream_lim, total_read);
+			}
+			if (stream_margin_set)
+			{	if (1000*stream_margin > stream_lim
+				&&  !warned)
+				{	printf("cobra: reduce memory with -stream_margin %d",
+						stream_lim/1000);
+					printf(" (< 0.1%% of the window size of -stream %d)\n", stream_lim);
+					warned = 1;
+				}
+			} else if (stream_lim >= 10000)
+			{	stream_margin = stream_lim/1000;
+				if (!warned)
+				{	warned = 1;
+					printf("cobra: adjusted stream_margin to %d\n", stream_margin);
+		}	}	}
 	}
 
 	if (no_cpp)
@@ -563,7 +579,7 @@ usage(char *s)
 	fprintf(stderr, "\t-regex \"expr\"       -- see -e\n");
 	fprintf(stderr, "\t-runtimes           -- report runtimes of commands executed, if >1s\n");
 	fprintf(stderr, "\t-scrub              -- produce output in scrub-format\n");
-	fprintf(stderr, "\t-stream N           -- set stdin stream buffer-limit to N bytes (default %d)\n", stream_lim);
+	fprintf(stderr, "\t-stream N           -- set stdin stream buffer-limit to N  (default %d)\n", stream_lim);
 	fprintf(stderr, "\t-stream_margin N    -- set stdin window margin to N tokens (default %d)\n", stream_margin);
 	fprintf(stderr, "\t-terse              -- disable output from d, l, and p commands, implies -quiet\n");
 	fprintf(stderr, "\t-text               -- no token types, just text-strings and symbols\n");
@@ -1152,6 +1168,7 @@ RegEx:			  no_match = 1;		// -expr or -regex
 			  {	argc--; argv++;
 				if (isdigit((uchar) argv[1][0]))
 				{	stream_margin = atoi(argv[1]);
+					stream_margin_set = 1;
 					printf("cobra: stream margin: %d lines\n", stream_margin);
 					break;
 			  	}
