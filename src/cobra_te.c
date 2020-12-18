@@ -119,6 +119,8 @@ static State	*states;
 static Store	*free_stored;
 static State	*free_state;
 static Rlst	*re_list;
+static char	*glob_te = "";
+static char	json_msg[64];
 
 static PrimStack *p_curly, *p_round, *p_bracket, *p_free;
 
@@ -129,6 +131,7 @@ static int	Seq   = 1;
 static int	ncalls;
 static int	nerrors;
 static int	p_matched;
+static int	nr_json;
 
 static void	clr_matches(int);
 static void	free_list(int);
@@ -198,11 +201,26 @@ list_states(char *tag, int n)
 #endif
 
 static void
+json_match(const char *te, const char *msg, const char *f, int ln)
+{
+	printf("  { \"type\"\t:\t\"%s\",\n", te);
+	printf("    \"message\"\t:\t\"%s\",\n", msg);
+	printf("    \"file\"\t:\t\"%s\",\n", f);
+	printf("    \"line\"\t:\t%d,\n", ln);
+	printf("  }");
+}
+
+static void
 te_error(const char *s)
 {
-	fprintf(stderr, "error: %s\n", s);
+	if (json_format)
+	{	sprintf(json_msg, "\"error: %s\"", s);
+		json_match(glob_te, json_msg, "", 0);
+	} else
+	{	fprintf(stderr, "error: %s\n", s);
+	}
 	if (cobra_texpr)	// non-interactive
-	{	exit(1);
+	{	noreturn();
 	}
 	nerrors++;
 }
@@ -296,7 +314,8 @@ show_fsm(void)
 	fprintf(fd, "}\n");
 	fclose(fd);
 
-	if (preserve)
+	if (preserve
+	&& !json_format)
 	{	printf("wrote '%s'\n", CobraDot);
 	}
 
@@ -373,6 +392,7 @@ static void
 show_re(void)
 {	Node *t;
 
+	// verbose mode
 	for (t = rev_pol; t; t = t->nxt)
 	{	if (t->tok)			// operand
 		{	printf("%s ", t->tok);
@@ -682,7 +702,7 @@ prep_transitions(Nd_Stack *t, int src)
 	if (t_depth++ > 25000)	// to prevent stack overflow
 	{	fprintf(stderr, "cobra: formula too complex, recursion depth exceeded\n");
 		memusage();
-		exit(1);
+		noreturn();
 	}
 #endif
 again:	if (t->n)	// NNODE
@@ -1182,19 +1202,28 @@ add_match(Prim *f, Prim *t, Store *bd)
 	matches = m;
 	p_matched++;
 
-	if (stream == 1)
+	if (stream == 1)	// when streaming, print matches now
 	{	Prim *c, *r;
-		printf("stdin:%d: ", f->lnr);
-		for (c = r = f; c; c = c->nxt)
-		{	printf("%s ", c->txt);
-			if (c->lnr != r->lnr)
-			{	printf("\nstdin:%d: ", c->lnr);
-				r = c;
-			}
-			if (c == t)
-			{	break;
-		}	}
-		printf("\n");
+		if (json_format)
+		{	printf("%s {\n", (nr_json>0)?",":"[");
+			sprintf(json_msg, "lines %d..%d",
+				f?f->lnr:0, t?t->lnr:0);
+			json_match(glob_te, json_msg, f?f->fnm:"", f?f->lnr:0);
+			printf("}");
+			nr_json++;
+		} else
+		{	printf("stdin:%d: ", f->lnr);
+			for (c = r = f; c; c = c->nxt)
+			{	printf("%s ", c->txt);
+				if (c->lnr != r->lnr)
+				{	printf("\nstdin:%d: ", c->lnr);
+					r = c;
+				}
+				if (c == t)
+				{	break;
+			}	}
+			printf("\n");
+		}
 		if (verbose && bd && bd->ref)
 		{	printf("bound variables matched: ");
 			while (bd && bd->ref)
@@ -1541,7 +1570,9 @@ matches2marks(void)
 	}	}	}	}
 
 	clr_matches(NEW_M);
-	printf("%d token%s marked\n", cnt, (cnt==1)?"":"s");
+	if (!json_format)
+	{	printf("%d token%s marked\n", cnt, (cnt==1)?"":"s");
+	}
 	return cnt;
 }
 
@@ -1562,8 +1593,9 @@ convert_matches(int n)
 		{	continue;
 		}
 		p++;
-		if (m->bind)
-		{	if ((verbose || !no_match) && w++ == 0)
+		if (m->bind && !json_format)
+		{	if ((verbose || !no_match)
+			&&  w++ == 0)
 			{	printf("bound variables matched:\n");
 			}
 			for (b = m->bind; b; b = b->nxt)
@@ -1579,10 +1611,15 @@ convert_matches(int n)
 						b->ref->txt);
 	}	}	}	}
 
-	printf("%d patterns matched\n", p);
+	if (!json_format)
+	{	printf("%d patterns matched\n", p);
+	}
 
 	if (no_match && no_display && w>0)
-	{	printf("%d match%s of bound variables\n", w, (w==1)?"":"es");
+	{	if (!json_format)
+		{	printf("%d match%s of bound variables\n",
+				w, (w==1)?"":"es");
+		}
 		return w;
 	}
 
@@ -1635,13 +1672,42 @@ tp_desc(char *t)
 static void
 show_curstate(int rx)
 {	List *c;
+	// verbose mode
 	printf("%d :: %s :: ", rx, q_now->txt);
-//	printf("%d[%s] :: ", r_lft?r_lft->round:-9, r_lft?r_lft->txt:"??");
 	for (c = curstates[current]; c; c = c->nxt)
 	{	State *s = c->s;
 		printf("S%d%s | ", s->seq, s->accept?"*":"");
 	}
+	printf("%s %s %s", c_lft?"{..":"", r_lft?"(..":"", b_lft?"[..}":"");
 	printf("\n");
+}
+
+void
+json(const char *te)
+{	Prim *sop = (Prim *) 0;
+
+	// the token at start of each pattern match is marked 2
+	// all tokens that are part of the match are marked 1
+	// tokens that match a bound variable are marked  3
+
+	printf("[\n");
+	for (cur = prim; cur; cur = cur?cur->nxt:0)
+	{	if (cur->mark != 2)
+		{	continue;
+		}
+		if (sop)
+		{	printf(",\n");
+		}
+		// start of match
+		sop = cur;	// fname and lnr
+		while (cur && cur->mark > 0)
+		{	cur = cur->nxt;
+		}
+		// end of match
+		sprintf(json_msg, "lines %d..%d", sop->lnr, cur?cur->lnr:0);
+		json_match(te, json_msg, sop?sop->fnm:"", sop?sop->lnr:0);
+	}
+	printf("\n]\n");
 }
 
 void
@@ -1654,10 +1720,26 @@ cobra_te(char *te, int and, int inv)
 	int    anychange;
 	int    rx;
 	int    tmx;
+	int    c_present = 0;
+	int    r_present = 0;
+	int    b_present = 0;
+	int    mustbreak = 0;
 
 	if (!te)
 	{	return;
 	}
+	glob_te = te;
+
+	p = te;
+	while (*p)
+	{	switch (*p++) {
+		case '{': c_present |= 1; break;
+		case '(': r_present |= 1; break;
+		case '[': b_present |= 1; break;
+		case '}': c_present |= 2; break;
+		case ')': r_present |= 2; break;
+		case ']': b_present |= 2; break;
+	}	}
 
 	if (ncalls++ > 0)
 	{	reinit_te();
@@ -1718,7 +1800,7 @@ cobra_te(char *te, int and, int inv)
 			}
 			anychange = 0;
 			if (*(q_now->txt+1) == '\0')
-			{	rx = check_level(q_now->txt);
+			{	rx = check_level(q_now->txt); // try to match }, ), ] to {, (, [
 			} else
 			{	rx = 0;
 			}
@@ -1729,25 +1811,57 @@ cobra_te(char *te, int and, int inv)
 			{	s = c->s;
 				for (t = s->trans; t; t = t->nxt)
 				{	if (verbose)
-					{	printf("\tcheck %d->%d	%s %s  %s  %s :: %d\n",
+					{	printf("\tcheck %d->%d	%s, %s,  %s,  %s\t:: nxt S%d\n",
 							s->seq, t->dest,
 							t->match?"match":"-nomatch-",
 							t->pat?t->pat:" -nopat- ",
 							t->recall?"recall":"-norecall-",
 							t->or?"or":"no_or",
-							(c->nxt && c->nxt->s)?c->nxt->s->seq:-99);
+							(c->nxt && c->nxt->s)?c->nxt->s->seq:-1);
 					}
-					if (!t->pat)
-					{	if (!t->match)	// epsilon move
-						{	if (q_now->prv)
+					if (!t->pat)	// epsilon move
+					{
+						if (!t->match)
+						{
+							if (q_now->prv)
 							{ q_now = q_now->prv;
 							} else
-							{ printf("%s:%d: re error for . (s%d->s%d) <%p>\n",
+							{ if (json_format)
+							  { sprintf(json_msg, "\"re error for . (S%d->S%d)\"",
+								s->seq, t->dest);
+							    json_match(te, json_msg, cur->fnm, cur->lnr);
+							  } else
+							  { printf("%s:%d: re error for . (s%d->s%d) <%p>\n",
 								cur->fnm, cur->lnr,
 								s->seq, t->dest,
 								(void *) t->nxt);
-								break;
-						}	}
+							  }
+							  break;
+							}
+						} else
+						{	if (*(q_now->txt+1) == '\0')
+							{	switch (*q_now->txt) { // instances where . should not match
+								case '{':
+									if (c_lft && c_present==3) { continue; }
+									break;
+								case '(':
+									if (r_lft && r_present==3) { continue; }
+									break;
+								case '[':
+									if (b_lft && b_present==3) { continue; }
+									break;
+								case '}': // } matches end of current interval
+									  // or we're in an open interval
+									if (rx == 2 || (c_lft && c_present==3)) { continue; }
+									break;
+								case ')':
+									if (rx == 2 || (r_lft && r_present==3)) { continue; }
+									break;
+								case ']':
+									if (rx == 2 || (b_lft && b_present==3)) { continue; }
+									break;
+						}	}	}
+
 						mk_active(s->bindings, 0, t->dest, 1-current);
 						anychange = 1;
 						if (is_accepting(s->bindings, t->dest))
@@ -1777,6 +1891,9 @@ cobra_te(char *te, int and, int inv)
 								} else
 								{	m = q_now->txt;
 									p = r->pat;
+									if (strcmp(p, ".") == 0)
+									{	goto is_match;
+									}
 								}
 								if (strcmp(m, p) == 0)
 								{	goto is_match;
@@ -1843,22 +1960,18 @@ cobra_te(char *te, int and, int inv)
 					} else
 					{	tmx = strcmp(m, p);
 					}
-// printf(" <<%s <> %s || %d <> %d>> ", m, p, t->match, tmx);
-// t->match == 1 && tmx == 0
-// t->match == 0 && tmx != 0
 					if (t->match != (tmx != 0))
 					{
-// printf(" <%d :: %d,%d> ", r_lft?r_lft->lnr:-21, r_lft?r_lft->round:-11, q_now->round);
 						if (t->match && *(m+1) == '\0')
 						{	set_level(m); // if bracket
-// printf(" <$2:%d> ", rx);
 							if (rx == 1)
 							{	// saw closing bracket
 								// opening was set but doesnt match
 								continue; // not a true match
 							}
 							if (rx == 2)	// match, must advance
-							{	leave_state(c->s->seq, 1-current);
+							{	mustbreak = 1;
+								leave_state(c->s->seq, 1-current);
 						}	}
 		is_match:
 						if (t->saveas)
@@ -1868,25 +1981,30 @@ cobra_te(char *te, int and, int inv)
 						{	mk_active(s->bindings, 0, t->dest, 1-current);
 						}
 						anychange = 1;
-						if (is_accepting(s->bindings, t->dest)
-//						|| rx == 2
-						)
+						if (is_accepting(s->bindings, t->dest))
 						{	if (verbose)
 							{	printf("\t\tgoto L (%d -> %d)\n",
 									s->seq, t->dest);
 							}
 							goto L;
 						}
-			}	}	}	// for loop over transitions
+					}	// if matching, may set anychange
+					if (mustbreak)	// forced exit from this state
+					{	mustbreak = 0;
+						break;
+					}
+				}		// for each possible transistion
+			}			// for each current state
 
-		L:	free_list(current);
+		L:	mustbreak = 0;
+			free_list(current);
 			if (anychange)
 			{	current = 1 - current;	// move forward
 			} else
-			{	break;			// no match, Next
+			{	break;			// no match of pattern, Next
 			}
-		}	// for-loop match attempt
-	}		// for-loop starting point of match attempt
+		}	// for-loop match attempt on token q_now
+	}		// for-loop starting match attempt
 
 	te_regstop();
 
@@ -1901,12 +2019,38 @@ cobra_te(char *te, int and, int inv)
 		for (rx = 0, x = matches; x; x = x->nxt)
 		{	rx++;
 		}
-		(void) convert_matches(0);
+		if (convert_matches(0))
+		{	if (json_format)
+			{	json(te);
+				clear_matches();
+		}	}
 		rx = 0;
-	} else if (stream <= 0)
-	{	(void) convert_matches(0);
-		display("", "");
-	} else
-	{	printf("%d pattern%s matched\n", p_matched, p_matched==1?"":"s");
-	}
+	} else if (stream <= 0)	// not streaming
+	{	if (convert_matches(0) > 0)
+		{	if (json_format)
+			{	json(te);
+			} else
+			{	display("", "");
+			}
+		} else
+		{	if (json_format)
+			{	if (nr_json == 0)
+				{	printf("[ ");
+					json_match(te, "no matches found", "stdin", 0);
+				}
+				printf("]\n");
+			} else
+			{	printf("0 patterns matched\n");
+		}	}
+	} else			// streaming input
+	{	if (json_format)
+		{	if (nr_json == 0)
+			{	printf("[ ");
+				json_match(te, "no matches found", "stdin", 0);
+			}
+			printf("]\n");
+		} else
+		{	printf("%d pattern%s matched\n",
+				p_matched, p_matched==1?"":"s");
+	}	}
 }

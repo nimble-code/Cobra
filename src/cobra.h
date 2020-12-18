@@ -140,8 +140,10 @@ extern void fct_defs(void);
 extern void fcts(char *, char *);
 extern void findfunction(char *, char *);
 extern void fix_imbalance(void);
+extern void json(const char *);
 extern void list_checkers(void);
 extern void noreturn(void);
+extern void re_enable(void);
 extern void rescan(void);
 extern void run_bup_threads(void *(*f)(void*));
 extern void run_threads(void *(*f)(void*), int);
@@ -181,6 +183,7 @@ extern int stream;
 extern int top_only;
 extern int top_up;
 extern int global_n;
+extern int json_format;
 
 extern Prim *cur;
 extern Prim *plst;

@@ -44,6 +44,7 @@ int scrub;
 int verbose;
 int with_comments = 1;
 int full_comments;
+int json_format;
 
 ArgList		*cl_var;	// -var name=xxx, cobra_lib.c
 pthread_t	*t_id;
@@ -559,6 +560,7 @@ usage(char *s)
 	fprintf(stderr, "\t-f file             -- execute commands from file and stop (cf -view)\n");
 	fprintf(stderr, "\t-Idir, -Dstr, -Ustr -- preprocessing directives\n");
 	fprintf(stderr, "\t-Java               -- recognize Java keywords\n");
+	fprintf(stderr, "\t-json               -- generate json output for -pattern/-pe matches (only)\n");
 	fprintf(stderr, "\t-lib                -- list available predefined cobra -f checks\n");
 	fprintf(stderr, "\t-m or -macros       -- parse text of macros (implies -nocpp)\n");
 	fprintf(stderr, "\t-n or -nocpp        -- do not do any C preprocessing%s\n", !no_cpp?"":" (default)");
@@ -1065,6 +1067,13 @@ RegEx:			  no_match = 1;		// -expr or -regex
 
 		case 'I': add_preproc(argv[1]);
 			  break;
+
+		case 'j':
+			  if (strcmp(argv[1], "-json") == 0)
+			  {	json_format = 1;
+				break;
+			  }
+			  return usage(argv[1]);
 
 		case 'J':
 			  if (strcmp(argv[1], "-Java") == 0)

@@ -1968,6 +1968,13 @@ pre_scan(char *bc)	// non-generic commands
 		}
 		break;
 
+	case 'j':	// json msg
+		if (strncmp(bc, "json ", strlen("json ")) == 0)
+		{	json(bc + strlen("json "));
+			return 1;
+		} // else it maps to j[ump]
+		break;
+
 	default:
 		break;
 	}
@@ -2215,14 +2222,14 @@ list(char *s, char *t)
 			return;
 	}	}
 
-//	(void) convert_matches(n);
 	if (no_display)
 	{	return;
 	}
 
 	for (cur = prim; !p_stop && cur; cur = cur?cur->nxt:0)
 	{	if (!cur->mark)
-		{	continue;
+		{	lstfnm = NULL; // force fnm on each match
+			continue;
 		}
 
 		if (cobra_lnr() == lastn
@@ -2258,7 +2265,8 @@ list(char *s, char *t)
 		{	reproduce(lcnt, (*t)?t:"0");
 		}
 
-		if (!scrub && hit
+		if (!scrub
+		&&  hit
 		&& (tlnr > 0 || lstlnr+1 != cobra_lnr()))
 		{	if (verbose && !gui)
 			{	fprintf(fd, "\n"); // to separate records
@@ -3343,11 +3351,17 @@ nr_marks(const int n)
 static struct termios n_tio;
 
 void
+re_enable(void)
+{
+	n_tio.c_lflag |= (ICANON | ECHO);
+	tcsetattr(STDIN_FILENO, TCSANOW, &n_tio);
+}
+
+void
 noreturn(void)
 {
 	printf("cobra: fatal error\n");
-	n_tio.c_lflag |= (ICANON | ECHO);
-	tcsetattr(STDIN_FILENO, TCSANOW, &n_tio); // re-enable
+	re_enable();
 	exit(1);
 }
 
@@ -3529,8 +3543,7 @@ erase:				if (n > 0)
 	}
 out:
 	if (!gui) // re-enable
-	{	n_tio.c_lflag |= (ICANON | ECHO);
-		tcsetattr(STDIN_FILENO, TCSANOW, &n_tio);
+	{	re_enable();
 	}
 	done();
 }
