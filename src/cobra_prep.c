@@ -550,13 +550,13 @@ usage(char *s)
 	fprintf(stderr, "\t-cpp                -- enable C preprocessing%s\n", no_cpp?"":" (default)");
 	fprintf(stderr, "\t-d and -v -d        -- debug cobra inline program executions\n");
 	fprintf(stderr, "\t-eol                -- treat newlines as EOL tokens\n");
-	fprintf(stderr, "\t-e name             -- (or -expr or -regex) print lines with tokens matching name\n");
+	fprintf(stderr, "\t-e name             -- (or -expr -regex -re) print lines with tokens matching name\n");
 	fprintf(stderr, "\t-e \"token_expr\"     -- print lines matching a token_expr (cf -view)\n");
 	fprintf(stderr, "\t                       use meta-symbols: ( | ) . * + ?\n");
 	fprintf(stderr, "\t                       use ^name for not-matching name\n");
 	fprintf(stderr, "\t                       var-binding:   name:@ident\n");
 	fprintf(stderr, "\t                       var-reference: :name\n");
-	fprintf(stderr, "\t                       see also -pe\n");
+	fprintf(stderr, "\t                       same as -re, -regex,-expr, see also -pe\n");
 	fprintf(stderr, "\t-f file             -- execute commands from file and stop (cf -view)\n");
 	fprintf(stderr, "\t-Idir, -Dstr, -Ustr -- preprocessing directives\n");
 	fprintf(stderr, "\t-Java               -- recognize Java keywords\n");
@@ -776,15 +776,51 @@ seq_scan(int argc, char *argv[])
 #endif
 
 char *
+check_negations(char *p)
+{	char *m, *n;
+	// check that in a regular expression negations of
+	// meta-symbols ( | ) . * + ? don't occur
+
+	if (strlen(p) == 0)
+	{	return p;
+	}
+
+	m = n = (char *) emalloc(2*strlen(p) + 1, 110);
+	while (*p != '\0')
+	{	*n++ = *p;
+		if (*p == '^')
+		{	p++;
+			switch (*p) {
+			case '(':
+			case ')':
+			case '|':
+			case '.':
+			case '*':
+			case '+':
+			case '?':
+				*n++ = '\\';
+				*n++ = *p;
+				break;
+		}	}
+		p++;
+	}
+	*n = '\0';
+	return m;
+}
+
+char *
 unquoted(char *p)
 {	int len = strlen(p);
+
+	// called before a regular expression is
+	// passed to cobra_te in an interactive session
 
 	if ((*p == '\'' || *p == '\"')
 	&&   p[len-1] == *p)
 	{	p[len-1] = '\0';
 		p++;
 	}
-	return p;
+	return check_negations(p);
 }
 
 char *
@@ -1043,8 +1079,8 @@ main(int argc, char *argv[])
 			  {	eol = 1;
 				break;
 			  }
-RegEx:			  no_match = 1;		// -expr or -regex
-			  cobra_texpr = argv[2];
+RegEx:			  no_match = 1;		// -e -expr -re or -regex
+			  cobra_texpr = check_negations(argv[2]);
 			  argc--; argv++;
 			  if (view)
 			  {	p_debug = 5;
@@ -1157,7 +1193,8 @@ RegEx:			  no_match = 1;		// -expr or -regex
 			  {	runtimes++;
 				break;
 			  }
-			  if (strcmp(argv[1], "-regex") == 0)
+			  if (strcmp(argv[1], "-regex") == 0
+			  ||  strcmp(argv[1], "-re") == 0)
 			  {	goto RegEx;
 			  }
 			  return usage(argv[1]);
@@ -1288,6 +1325,11 @@ cwe_mode:	no_match = 1;	// for consistency with -f
 
 	if (strlen(preproc) > 0 && no_cpp)
 	{	fprintf(stderr, "warning: ignoring '%s'\n", preproc);
+	}
+
+	if (cobra_texpr
+	&&  strstr(cobra_texpr, "EOL"))
+	{	eol = 1;
 	}
 
 	umask(022);

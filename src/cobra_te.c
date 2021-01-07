@@ -37,8 +37,22 @@ struct Node {		// NNODE
 	Nd_Stack *succ;	// successor state
 };
 
+#define IMPLICIT	1
+#define EXPLICIT	2
+
+// the type marking in the PrimStack records if a
+// brace { ( [ from the source was matches explicitly
+// with the same character in the pattern,
+// or matched implicitly with a dot, or a negated token
+// or bound variable.
+// this covers most cases, but not all, because the
+// NDA can be in multiple states simultaneously, and
+// the history of matches can differ between those states
+// example: { .* { .* } .* }
+
 struct PrimStack {
 	Prim		*t;
+	int		type;	// IMPLICIT or EXPLICIT
 	PrimStack	*nxt;
 };
 
@@ -98,6 +112,8 @@ struct Store {
 	Store	*nxt;
 };
 
+extern int	eol;
+
 static List	*curstates[3]; // 2 is initial
 static List	*freelist;
 static Match	*free_match;
@@ -112,9 +128,6 @@ static Node	*rev_pol;
 static Node	*rev_end;
 static Op_Stack	*op_stack;
 static Prim	*q_now;
-static Prim	*c_lft;
-static Prim	*b_lft;
-static Prim	*r_lft;
 static State	*states;
 static Store	*free_stored;
 static State	*free_state;
@@ -122,7 +135,8 @@ static Rlst	*re_list;
 static char	*glob_te = "";
 static char	json_msg[64];
 
-static PrimStack *p_curly, *p_round, *p_bracket, *p_free;
+static PrimStack *prim_stack;
+static PrimStack *prim_free;
 
 static int	current;
 static int	nr_states;
@@ -1305,119 +1319,75 @@ move2free(PrimStack *n)
 		while (m->nxt)
 		{	m = m->nxt;
 		}
-		m->nxt = p_free;
-		p_free = n;
+		m->nxt = prim_free;
+		prim_free = n;
 	}
 }
 
 static void
 clr_stacks(void)
 {
-	move2free(p_curly);
-	move2free(p_round);
-	move2free(p_bracket);
-	p_curly = p_round = p_bracket = (PrimStack *) 0;
-}
-
-static PrimStack *
-get_prim(Prim *p, PrimStack *q)
-{	PrimStack *n;
-
-	if (p_free)
-	{	n = p_free;
-		p_free = p_free->nxt;
-	} else
-	{	n = (PrimStack *) emalloc(sizeof(PrimStack), 109);
-	}
-	n->t   = p;
-	n->nxt = q;
-
-	return n;
+	move2free(prim_stack);
+	prim_stack = (PrimStack *) 0;
 }
 
 static void
-set_level(char *p)
-{
-	switch (*p) {
-	case '{':
-		if (c_lft && c_lft != q_now)
-		{	p_curly = get_prim(c_lft, p_curly);
-		}
-		c_lft = q_now;
-		break;
-	case '(':
-		if (r_lft && r_lft != q_now)
-		{	p_round = get_prim(r_lft, p_round);
-		}
-		r_lft = q_now;
-		break;
-	case '[':
-		if (b_lft && b_lft != q_now)
-		{	p_bracket = get_prim(b_lft, p_bracket);
-		}
-		b_lft = q_now;
-		break;
+push_prim(void)
+{	PrimStack *n;
+
+	if (prim_free)
+	{	n = prim_free;
+		n->type = 0;
+		prim_free = prim_free->nxt;
+	} else
+	{	n = (PrimStack *) emalloc(sizeof(PrimStack), 109);
 	}
+	n->t   = q_now;
+	n->nxt = prim_stack;
+	prim_stack = n;
 }
 
-static PrimStack *
-pop_prim(PrimStack *n)
-{	PrimStack *p = n->nxt;
+static void
+pop_prim(void)
+{	PrimStack *n = prim_stack;
 
-	n->nxt = p_free;
-	p_free = n;
+	if (!n)
+	{	return;
+	}
 
-	return p;
+	prim_stack = n->nxt;
+
+	n->nxt = prim_free;
+	prim_free = n;
 }
 
 static int
-check_level(char *p)
-{
-	switch (*p) {
+check_level(void)
+{	int rv = 0;
+
+	switch (q_now->txt[0]) {	// we know it's 1 character
 	case '}':
-		if (c_lft)
-		{	if (q_now->curly != c_lft->curly)
-			{	return 1;
-			}
-			if (p_curly)
-			{	c_lft = p_curly->t;
-				p_curly = pop_prim(p_curly);
-			} else
-			{	c_lft = (Prim *) 0;
-			}
-			return 2;
-		}
-		break;
 	case ')':
-		if (r_lft)
-		{	if (q_now->round != r_lft->round)
-			{	return 1;
-			}
-			if (p_round)
-			{	r_lft = p_round->t;
-				p_round = pop_prim(p_round);
-			} else
-			{	r_lft = (Prim *) 0;
-			}
-			return 2;
-		}
-		break;
 	case ']':
-		if (b_lft)
-		{	if (q_now->bracket != b_lft->bracket)
-			{	return 1;
-			}
-			if (p_bracket)
-			{	b_lft = p_bracket->t;
-				p_bracket = pop_prim(p_bracket);
-			} else
-			{	b_lft = (Prim *) 0;
-			}
-			return 2;
+		if (!prim_stack
+		||  !prim_stack->t)
+		{	break;		// report error?
 		}
+		if (prim_stack->t->jmp == q_now)
+		{	rv = 2;
+		} else
+		{	rv = 1;
+		}
+		pop_prim();
+		break;
+	case '{':
+	case '(':
+	case '[':
+		push_prim();
 		break;
 	}
-	return 0;
+
+	return rv;
 }
 
 static void
@@ -1678,7 +1648,9 @@ show_curstate(int rx)
 	{	State *s = c->s;
 		printf("S%d%s | ", s->seq, s->accept?"*":"");
 	}
-	printf("%s %s %s", c_lft?"{..":"", r_lft?"(..":"", b_lft?"[..}":"");
+	if (prim_stack && prim_stack->t)
+	{	printf("%s...", prim_stack->t->txt);
+	}
 	printf("\n");
 }
 
@@ -1712,18 +1684,15 @@ json(const char *te)
 
 void
 cobra_te(char *te, int and, int inv)
-{	List  *c;
-	Trans *t;
-	State *s;
-	char  *m;
-	char  *p;
-	int    anychange;
-	int    rx;
-	int    tmx;
-	int    c_present = 0;
-	int    r_present = 0;
-	int    b_present = 0;
-	int    mustbreak = 0;
+{	List	*c;
+	Trans	*t;
+	State	*s;
+	char	*m;
+	char	*p;
+	int	anychange;
+	int	rx;
+	int	tmx;
+	int	mustbreak = 0;
 
 	if (!te)
 	{	return;
@@ -1731,14 +1700,22 @@ cobra_te(char *te, int and, int inv)
 	glob_te = te;
 
 	p = te;
-	while (*p)
-	{	switch (*p++) {
-		case '{': c_present |= 1; break;
-		case '(': r_present |= 1; break;
-		case '[': b_present |= 1; break;
-		case '}': c_present |= 2; break;
-		case ')': r_present |= 2; break;
-		case ']': b_present |= 2; break;
+	for (p = te; *p != '\0'; p++)
+	{	if (*p == ':'
+		&&   p > te+1
+		&& *(p+1) != '@'
+		&& *(p+1) != ' ' 
+		&& *(p-1) != ' '
+		&& *(p-1) != '^'
+		&& *(p-1) != '[')
+		{	printf("warning: is a space missing before : in '%c:%c'?\n",
+				*(p-1), *(p+1));
+	}	}
+	if (!eol && strstr(te, "EOL"))
+	{	static int warned = 0;
+		if (!warned)
+		{	warned = 1;
+			printf("warning: use of EOL requires -eol cmdln arg\n");
 	}	}
 
 	if (ncalls++ > 0)
@@ -1751,8 +1728,20 @@ cobra_te(char *te, int and, int inv)
 	{	te_regstop();
 		return;
 	}
-
-	assert(!nd_stack->nxt);
+	if (nd_stack->nxt)	// error
+	{	Nd_Stack *q = nd_stack;
+		while (q)
+		{	printf("\tseq %d\n", q->seq);
+			printf("\tvis %d\n", q->visited);
+			printf("\tn   %s\n", q->n?q->n->tok:"--");
+			printf("\tlft %p\n", (void *) q->lft);
+			printf("\trgt %p\n", (void *) q->rgt);
+			printf("\tpnd %p\n", (void *) q->pend);
+			printf("---\n");
+			q = q->nxt;
+		}
+		assert(!nd_stack->nxt);
+	}
 
 	if (p_debug)
 	{	show_fsm();
@@ -1781,7 +1770,6 @@ cobra_te(char *te, int and, int inv)
 	{	free_list(current);
 		free_list(1 - current);
 		copy_list(2, current);	// initial state
-		c_lft = b_lft = r_lft = (Prim *) 0;
 		clr_stacks();
 
 		if (stream == 1
@@ -1800,18 +1788,19 @@ cobra_te(char *te, int and, int inv)
 			}
 			anychange = 0;
 			if (*(q_now->txt+1) == '\0')
-			{	rx = check_level(q_now->txt); // try to match }, ), ] to {, (, [
+			{	rx = check_level();	// try to match }, ), ] to {, (, [
 			} else
 			{	rx = 0;
 			}
 			if (verbose)
 			{	show_curstate(rx);
 			}
+
 			for (c = curstates[current]; c; c = c->nxt)
 			{	s = c->s;
 				for (t = s->trans; t; t = t->nxt)
 				{	if (verbose)
-					{	printf("\tcheck %d->%d	%s, %s,  %s,  %s\t:: nxt S%d\n",
+					{	printf("\tcheck %d->%d	%s, pat: '%s',  %s,  %s\t:: nxt S%d\n",
 							s->seq, t->dest,
 							t->match?"match":"-nomatch-",
 							t->pat?t->pat:" -nopat- ",
@@ -1819,11 +1808,9 @@ cobra_te(char *te, int and, int inv)
 							t->or?"or":"no_or",
 							(c->nxt && c->nxt->s)?c->nxt->s->seq:-1);
 					}
-					if (!t->pat)	// epsilon move
-					{
-						if (!t->match)
-						{
-							if (q_now->prv)
+					if (!t->pat)	// epsilon move, eg .*
+					{	if (!t->match) // can this happen?
+						{	if (q_now->prv)
 							{ q_now = q_now->prv;
 							} else
 							{ if (json_format)
@@ -1839,28 +1826,35 @@ cobra_te(char *te, int and, int inv)
 							  break;
 							}
 						} else
-						{	if (*(q_now->txt+1) == '\0')
-							{	switch (*q_now->txt) { // instances where . should not match
-								case '{':
-									if (c_lft && c_present==3) { continue; }
-									break;
-								case '(':
-									if (r_lft && r_present==3) { continue; }
-									break;
-								case '[':
-									if (b_lft && b_present==3) { continue; }
-									break;
-								case '}': // } matches end of current interval
-									  // or we're in an open interval
-									if (rx == 2 || (c_lft && c_present==3)) { continue; }
-									break;
-								case ')':
-									if (rx == 2 || (r_lft && r_present==3)) { continue; }
-									break;
-								case ']':
-									if (rx == 2 || (b_lft && b_present==3)) { continue; }
-									break;
-						}	}	}
+						{	// intercept special case where
+							// the source is } ) or ], and the pattern is . (dot)
+							// no match if the brace closed an interval (rx != 0)
+							if (q_now->txt[0] == '{'
+							||  q_now->txt[0] == '('
+							||  q_now->txt[0] == '[')
+							{	if (verbose)
+								{	printf("\timplicit . match of %s\n",
+										q_now->txt);
+								}
+								assert(prim_stack);
+								prim_stack->type |= IMPLICIT;
+							} else if (rx)
+							{	// implicit match
+								if (verbose)
+								{	printf("\timplicit . match of '%s' :: ",
+										q_now->txt);
+								}
+								assert(prim_free);
+								if (!(prim_free->type & IMPLICIT))
+								{	// not a match
+									if (verbose)
+									{	printf("rejected\n");
+									}
+									continue;
+								} else
+								{	if (verbose)
+									{	printf("accepted\n");
+						}	}	}	}
 
 						mk_active(s->bindings, 0, t->dest, 1-current);
 						anychange = 1;
@@ -1872,7 +1866,37 @@ cobra_te(char *te, int and, int inv)
 
 					if (t->recall)	// bound variable ref
 					{	if (recall(c->s, t, q_now->txt))
-						{	mk_active(s->bindings, 0, t->dest, 1-current);
+						{
+							if (!t->match
+							&&  (q_now->txt[0] == '{'
+							  || q_now->txt[0] == '('
+							  || q_now->txt[0] == '['))
+							{	if (verbose)
+								{	printf("\timplicit ^ match of %s\n",
+										q_now->txt);
+								}
+								assert(prim_stack);
+								prim_stack->type |= IMPLICIT;
+							}
+							if (!t->match && rx)
+							{	// implicit match, prim_stack just popped
+								if (verbose)
+								{	printf("\timplicit ^ MATCH of '%s' :: ",
+										q_now->txt);
+								}
+								assert(prim_free);
+								if (!(prim_free->type & IMPLICIT))
+								{	// not a match
+									if (verbose)
+									{	printf("rejected.\n");
+									}
+									continue;
+								}
+								if (verbose)
+								{	printf("accepted\n");
+								}
+							}
+							mk_active(s->bindings, 0, t->dest, 1-current);
 							anychange = 1;
 							if (is_accepting(s->bindings, t->dest))
 							{	goto L;
@@ -1925,7 +1949,7 @@ cobra_te(char *te, int and, int inv)
 					} else
 					{	m = q_now->txt;
 						p = t->pat;
-						// {@0
+						// e.g., {@0
 						if (p[1] == '@' && isdigit((int) p[2]))
 						{	int nr = atoi(&p[2]);
 							switch (p[0]) {
@@ -1961,18 +1985,38 @@ cobra_te(char *te, int and, int inv)
 					{	tmx = strcmp(m, p);
 					}
 					if (t->match != (tmx != 0))
-					{
-						if (t->match && *(m+1) == '\0')
-						{	set_level(m); // if bracket
-							if (rx == 1)
-							{	// saw closing bracket
-								// opening was set but doesnt match
-								continue; // not a true match
-							}
-							if (rx == 2)	// match, must advance
-							{	mustbreak = 1;
-								leave_state(c->s->seq, 1-current);
-						}	}
+					{	if (*(m+1) == '\0')
+						{	// if it was a } ) or ] then rx could be non-zero
+							if (t->match)
+							{	if (*m == '{' || *m == '(' || *m == '[')
+								{	// explicit match of { ( [
+									if (verbose)
+									{	printf("\texplicit match of %s\n", m);
+									}
+									assert(prim_stack);
+									prim_stack->type |= EXPLICIT;
+								}
+								if (rx)
+								{	// explicit match of } ) ]
+									if (verbose)
+									{	printf("\texplicit match of '%s' :: ", m);
+									}
+									// prim_stack popped
+									assert(prim_free);
+									if (!(prim_free->type & EXPLICIT))
+									{	// not a match
+										if (verbose)
+										{	printf("rejected..\n");
+										}
+										continue;
+									}
+									if (verbose)
+									{	printf("accepted\n");
+									}
+									if (rx == 2)
+									{	mustbreak = 1;
+										leave_state(c->s->seq, 1-current);
+						}	}	}	}
 		is_match:
 						if (t->saveas)
 						{	Store *b = saveas(s, t->saveas, q_now->txt);
@@ -1986,6 +2030,10 @@ cobra_te(char *te, int and, int inv)
 							{	printf("\t\tgoto L (%d -> %d)\n",
 									s->seq, t->dest);
 							}
+							// we found a match at the current token
+							// so even though there may be others, we
+							// move on; is_accepting() already cleared
+							// the states
 							goto L;
 						}
 					}	// if matching, may set anychange

@@ -1970,7 +1970,9 @@ pre_scan(char *bc)	// non-generic commands
 
 	case 'j':	// json msg
 		if (strncmp(bc, "json ", strlen("json ")) == 0)
-		{	json(bc + strlen("json "));
+		{	if (cnt > 0)
+			{	json(bc + strlen("json "));
+			}
 			return 1;
 		} // else it maps to j[ump]
 		break;
