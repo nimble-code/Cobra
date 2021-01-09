@@ -1262,7 +1262,7 @@ is_accepting(Store *b, int s)
 		free_list(1 - current);		// remove next states
 		copy_list(2, 1 - current);	// replace with initial states
 
-		cur = q_now;	// move ahead, avoid overlap
+//		cur = q_now;	// move ahead, avoid overlap
 
 		return 1;
 	}
@@ -1530,13 +1530,16 @@ matches2marks(void)
 
 	for (m = matches; m; m = m->nxt)
 	{	p = m->from;
+		p->bound = m->upto;
 		if (p)
-		{	p->mark++;	// start of pattern, one extra increment
-			for (p = m->from; ; p = p->nxt)
-			{	p->mark++;
+		{	p->mark |= 2;	// start of pattern
+			cnt++;
+			for (p = p->nxt; p; p = p->nxt)
+			{	p->mark |= 1;
 				cnt++;
 				if (p == m->upto)
-				{	break;
+				{	p->mark |= 8;
+					break;
 	}	}	}	}
 
 	clr_matches(NEW_M);
@@ -1572,7 +1575,7 @@ convert_matches(int n)
 			{	if (!b->ref)
 				{	continue;
 				}
-				b->ref->mark += 2;	// the bound variable mark=3
+				b->ref->mark |= 4;	// the bound variable
 				w++;
 				if (verbose || !no_match)
 				{	printf("\t%d: %s:%d: %s\n", seq,
@@ -1642,14 +1645,16 @@ tp_desc(char *t)
 static void
 show_curstate(int rx)
 {	List *c;
+	PrimStack *p;
+
 	// verbose mode
-	printf("%d :: %s :: ", rx, q_now->txt);
+	printf("%d/%d %d :: %s :: %s :: ", cur->lnr, q_now->lnr, rx, cur->txt, q_now->txt);
 	for (c = curstates[current]; c; c = c->nxt)
 	{	State *s = c->s;
 		printf("S%d%s | ", s->seq, s->accept?"*":"");
 	}
-	if (prim_stack && prim_stack->t)
-	{	printf("%s...", prim_stack->t->txt);
+	for (p = prim_stack; p; p = p->nxt)
+	{	printf("%s... ", p->t?p->t->txt:"?...");
 	}
 	printf("\n");
 }
@@ -1658,25 +1663,33 @@ void
 json(const char *te)
 {	Prim *sop = (Prim *) 0;
 
-	// the token at start of each pattern match is marked 2
-	// all tokens that are part of the match are marked 1
-	// tokens that match a bound variable are marked  3
+	// tokens that are part of a match are marked         &1
+	// the token at start of each pattern match is marked &2
+	// the token at end of each pattern match is marked   &8
+	// tokens that match a bound variable are marked      &4
 
 	printf("[\n");
 	for (cur = prim; cur; cur = cur?cur->nxt:0)
-	{	if (cur->mark != 2)
+	{	if (!(cur->mark & 2))	// find start of match
 		{	continue;
 		}
 		if (sop)
 		{	printf(",\n");
 		}
 		// start of match
-		sop = cur;	// fname and lnr
-		while (cur && cur->mark > 0)
-		{	cur = cur->nxt;
+		sop = cur;
+
+		if (cobra_texpr && cur->bound)	// not interactive
+		{	sprintf(json_msg, "lines %d..%d", cur->lnr, cur->bound->lnr);
+		} else
+		{	while (cur && cur->mark > 0)
+			{	if (cur->nxt)
+				{	cur = cur->nxt;
+				} else
+				{	break;
+			}	}
+			sprintf(json_msg, "lines %d..%d", sop->lnr, cur?cur->lnr:0);
 		}
-		// end of match
-		sprintf(json_msg, "lines %d..%d", sop->lnr, cur?cur->lnr:0);
 		json_match(te, json_msg, sop?sop->fnm:"", sop?sop->lnr:0);
 	}
 	printf("\n]\n");
