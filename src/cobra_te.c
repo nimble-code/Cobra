@@ -113,6 +113,7 @@ struct Store {
 };
 
 extern int	eol;
+extern void	set_cnt(int);
 
 static List	*curstates[3]; // 2 is initial
 static List	*freelist;
@@ -1533,10 +1534,14 @@ matches2marks(void)
 		p->bound = m->upto;
 		if (p)
 		{	p->mark |= 2;	// start of pattern
-			cnt++;
+			if (!p->mark)
+			{	cnt++;
+			}
 			for (p = p->nxt; p; p = p->nxt)
-			{	p->mark |= 1;
-				cnt++;
+			{	if (!p->mark)
+				{	cnt++;
+				}
+				p->mark |= 1;
 				if (p == m->upto)
 				{	p->mark |= 8;
 					break;
@@ -1546,6 +1551,7 @@ matches2marks(void)
 	if (!json_format)
 	{	printf("%d token%s marked\n", cnt, (cnt==1)?"":"s");
 	}
+	set_cnt(cnt);
 	return cnt;
 }
 
@@ -1560,7 +1566,6 @@ convert_matches(int n)
 	if (!matches)
 	{	return 0;
 	}
-
 	for (m = matches; m; seq++, m = m->nxt)
 	{	if (n != 0 && n != seq)
 		{	continue;
@@ -1679,7 +1684,7 @@ json(const char *te)
 		// start of match
 		sop = cur;
 
-		if (cobra_texpr && cur->bound)	// not interactive
+		if (cur->bound)	// assume this wasnt set for other reasons...
 		{	sprintf(json_msg, "lines %d..%d", cur->lnr, cur->bound->lnr);
 		} else
 		{	while (cur && cur->mark > 0)

@@ -1969,10 +1969,14 @@ pre_scan(char *bc)	// non-generic commands
 		break;
 
 	case 'j':	// json msg
-		if (strncmp(bc, "json ", strlen("json ")) == 0)
-		{	if (cnt > 0)
-			{	json(bc + strlen("json "));
-			}
+		if (strncmp(bc, "json", strlen("json")) == 0)
+		{	nr_marks(0);
+			if (cnt > 0)
+			{	if (strlen(bc) > strlen("json "))
+				{	json(bc + strlen("json "));
+				} else
+				{	json(" ");
+			}	}
 			return 1;
 		} // else it maps to j[ump]
 		break;
@@ -1980,7 +1984,6 @@ pre_scan(char *bc)	// non-generic commands
 	default:
 		break;
 	}
-
 	return 2;	// not handled yet
 }
 
@@ -3302,6 +3305,12 @@ cleanup(int unused)
 }
 
 // externally visible functions:
+
+void
+set_cnt(int n)
+{
+	cnt = n;
+}
 
 void
 show_error(int p_lnr)
