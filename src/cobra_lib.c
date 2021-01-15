@@ -1968,7 +1968,7 @@ pre_scan(char *bc)	// non-generic commands
 		}
 		break;
 
-	case 'j':	// json msg
+	case 'j':	// json [msg]
 		if (strncmp(bc, "json", strlen("json")) == 0)
 		{	nr_marks(0);
 			if (cnt > 0)

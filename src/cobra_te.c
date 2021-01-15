@@ -1667,15 +1667,19 @@ show_curstate(int rx)
 void
 json(const char *te)
 {	Prim *sop = (Prim *) 0;
+	uint seen = 0;
 
 	// tokens that are part of a match are marked         &1
 	// the token at start of each pattern match is marked &2
-	// the token at end of each pattern match is marked   &8
 	// tokens that match a bound variable are marked      &4
+	// the token at end of each pattern match is marked   &8
 
 	printf("[\n");
 	for (cur = prim; cur; cur = cur?cur->nxt:0)
-	{	if (!(cur->mark & 2))	// find start of match
+	{	if (cur->mark)
+		{	seen |= 2;
+		}
+		if (!(cur->mark & 2))	// find start of match
 		{	continue;
 		}
 		if (sop)
@@ -1696,6 +1700,23 @@ json(const char *te)
 			sprintf(json_msg, "lines %d..%d", sop->lnr, cur?cur->lnr:0);
 		}
 		json_match(te, json_msg, sop?sop->fnm:"", sop?sop->lnr:0);
+		seen |= 4;
+	}
+	if (seen == 2)	// saw marked tokens, but no patterns, find ranges to report
+	{	for (cur = prim; cur; cur = cur?cur->nxt:0)
+		{	if (!cur->mark)
+			{	continue;
+			}
+			sop = cur;
+			while (cur && cur->mark)
+			{	if (cur->nxt)
+				{	cur = cur->nxt;
+				} else
+				{	break;
+			}	}
+			sprintf(json_msg, "lines %d..%d", sop->lnr, cur?cur->lnr:0);
+			json_match(te, json_msg, sop?sop->fnm:"", sop?sop->lnr:0);
+		}
 	}
 	printf("\n]\n");
 }
