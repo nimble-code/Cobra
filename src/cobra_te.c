@@ -1537,7 +1537,7 @@ matches2marks(void)
 			if (!p->mark)
 			{	cnt++;
 			}
-			for (p = p->nxt; p; p = p->nxt)
+			for (; p; p = p->nxt)
 			{	if (!p->mark)
 				{	cnt++;
 				}

@@ -3197,11 +3197,12 @@ help(char *s, char *unused)	// 1
 	printf("  %8s  %c %s\n", "fcg", ' ',            "[f|*] [g] show fct call graph [from fct f] [to fct g]");
 	printf("  %8s  %c %s\n", "ff", ' ',		"f         find function f");
 	printf("  %8s  %c %s\n", "ft", ' ',		"t         mark the defintion of structure type t");
+	printf("  %8s  %c %s\n", "json", ' ',		"[msg]     print results of a pattern search (pe) in json format");
 	printf("  %8s  %c %s\n", "ncore", ' ',		"n         set the number of cores to use to n");
 	printf("  %8s  %c %s\n", "quiet", ' ',		"on|off    more/less verbose in script executions");
 	printf("  %8s  %c %s\n", "save", ' ',		"n         alternative syntax for: >n");
 	printf("  %8s  %c %s\n", "re", ' ',             "expr      match a token expression (cf commandline option -e expr)");
-	printf("  %8s  %c %s\n", "pat", ' ',            "pattern   match a pattern (cf commandline option -pattern expr)");
+	printf("  %8s  %c %s\n", "pat", ' ',            "pattern   match a pattern (cf commandline option -pe expr)");
 	printf("  %8s  %c %s\n", "pe", ' ',             "pattern   same as pat or pattern (pattern expression)");
 	printf("  %8s  %c %s\n", "restore", ' ',	"n         alternative syntax for: <n");
 	printf("  %8s  %c %s\n", "setlinks", ' ',	"          set .bound field for if/else/switch/case/break stmnts");
