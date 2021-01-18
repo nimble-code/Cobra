@@ -1665,14 +1665,71 @@ show_curstate(int rx)
 }
 
 void
+json_full(int which)
+{	int n = 0;
+	int lst;
+
+	for (cur = prim; cur; cur = cur?cur->nxt:0)
+	{	if (!(cur->mark & 2))	// find start of match
+		{	continue;
+		}
+		n++;	// nr of match
+		if (which != 0 && n != which)
+		{	continue;
+		}
+		if (cur->bound)
+		{	Prim *p;
+			printf("%s:%d..%d\n%3d: ",
+				cur->fnm, cur->lnr,
+				cur->bound->lnr,
+				cur->lnr);
+			lst = cur->lnr;
+			for (p = cur; p; p = p->nxt)
+			{	if (lst != p->lnr)
+				{	lst = p->lnr;
+					printf("\n%3d: ", lst);
+				}
+				if (p->mark & 4)
+				{	printf("**%s**", p->txt);
+				} else
+				{	printf("%s ", p->txt);
+				}
+				if (p == cur->bound)
+				{	printf("\n");
+					break;
+			}	}
+		} else
+		{	printf("error: bound not set\n");
+			break;
+		}
+		if (which != 0)
+		{	break;
+	}	}
+}
+
+void
 json(const char *te)
 {	Prim *sop = (Prim *) 0;
-	uint seen = 0;
+	int seen = 0;
 
 	// tokens that are part of a match are marked         &1
 	// the token at start of each pattern match is marked &2
 	// tokens that match a bound variable are marked      &4
 	// the token at end of each pattern match is marked   &8
+
+	// if the json argument is a number or a single *, then
+	// the output is verbose for that match (or all, for a *)
+	int j = 0;
+	while (te[j] == ' ' || te[j] == '\t')
+	{	j++;
+	}
+	if (te[j] >= '0' && te[j] <= '9')
+	{	json_full( atoi((const char *) te) );
+		return;
+	} else if (strcmp(&te[j], "*") == 0)
+	{	json_full(0);
+		return;
+	}
 
 	printf("[\n");
 	for (cur = prim; cur; cur = cur?cur->nxt:0)

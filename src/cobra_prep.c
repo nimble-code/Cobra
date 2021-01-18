@@ -831,7 +831,7 @@ pattern(char *p)
 	int len = strlen(p);
 	int inrange = 0;
 
-	// first check if the pattern is quoted:
+	// check if the pattern is quoted:
 	// e.g. when typed inline, and remove quotes
 
 	if ((*p == '\'' || *p == '\"')
@@ -840,10 +840,27 @@ pattern(char *p)
 		p++;
 	}
 
+	// insert or remove escapes for
+	// intepretation as a code pattern
+	// instead of a standard regex
+
 	while (len > 0)
 	{	switch (*p) {
 		case '\\':
-			*n++ = *p++;
+			// escaped symbols (|)+?
+			// are now not-literal but meta
+			switch (*(p+1)) {
+			case '(':
+			case ')':
+			case '|':
+			case '+':
+			case '?':
+				// remove the '\\'
+				p++;
+				break;
+			default:
+				*n++ = *p++;
+			}
 			*n++ = *p++;
 			len -= 2;
 			break;
