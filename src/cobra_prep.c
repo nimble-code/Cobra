@@ -572,6 +572,7 @@ usage(char *s)
 	fprintf(stderr, "\t-Nn                 -- use n threads\n");
 	fprintf(stderr, "\t-pattern \"tokens\"   -- (or -pat) like -expr but simplified: (|)+? are regular symbols\n");
 	fprintf(stderr, "\t-pe \"tokens\"        -- same as -pattern: pattern expression matching\n");
+	fprintf(stderr, "\t                       (|)+? can be turned back into meta-symbols by preceding them with \\\n");
 	fprintf(stderr, "\t                       * and ] are meta-symbols unless preceded by a space\n");
 	fprintf(stderr, "\t                       [ is a meta-symbol unless followed by a space\n");
 	fprintf(stderr, "\t                       a tokenpattern preceded by / is a regular expr, escape with \\\n");
