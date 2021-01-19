@@ -1818,6 +1818,7 @@ cobra_te(char *te, int and, int inv)
 	{	reinit_te();
 		nerrors = 0;
 	}
+//	printf("in: \"%s\"\n", te);
 
 	thompson(te);
 	if (!nd_stack || nerrors > 0)

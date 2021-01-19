@@ -829,16 +829,18 @@ pattern(char *p)
 {	char *n = (char *) emalloc(2*strlen(p)+1, 26);
 	char *m = n;
 	char *q = p;
-	int len = strlen(p);
+	int len;
 	int inrange = 0;
 
 	// check if the pattern is quoted:
 	// e.g. when typed inline, and remove quotes
 
+	len = strlen(p);
 	if ((*p == '\'' || *p == '\"')
 	&&   p[len-1] == *p)
 	{	p[len-1] = '\0';
 		p++;
+		len -= 2;
 	}
 
 	// insert or remove escapes for
@@ -899,7 +901,7 @@ pattern(char *p)
 			break;
 		}
 	}
-	// printf("inp: %s\nout: %s\n", q, m); exit(1);
+//	printf("inp: %s\nout: %s\n", q, m);
 	return m;
 }
 

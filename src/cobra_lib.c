@@ -1463,6 +1463,19 @@ load_map(char *s)
 	run_threads(map_range, 5);
 }
 
+static int
+starts_with_qualifier(const char *s)
+{	int i, n;
+
+	for (i = 0; s && qual[i].s; i++)
+	{	n = strlen(qual[i].s);
+		if (strncmp(s, qual[i].s, n) == 0
+		&&  isspace((uchar) s[n]))
+		{	return 1;
+	}	}
+	return 0;
+}
+
 static char *
 check_qualifiers(char *s)
 {	int i, n;
@@ -1473,8 +1486,11 @@ check_qualifiers(char *s)
 
 	s = (char *) skipwhite(s);
 	if (*s == '\\')
-	{	return (s+1);
-	}
+	{	if (starts_with_qualifier(s+1)) // dont interpret qualifier
+		{	return (s+1);		// if preceded by backslash
+		} else
+		{	return s;
+	}	}
 
 	for (i = 0; s && qual[i].s; i++)
 	{	n = strlen(qual[i].s);
