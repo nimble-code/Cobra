@@ -2,50 +2,63 @@
 
 r
 %{
-	unset Snprintf;
-	unset Scanf;
+	unset NoWidth;
 	Stop;
 %}
 %{
-	if (.txt == "snprintf")
+	if (.txt == "scanf"
+	||  .txt == "vfscanf"
+	||  .txt == "vscanf"
+	||  .txt == "vprintf")
 	{	. = .nxt;	# (
 		if (.txt != "(") { Next; }
 		. = .nxt;	# "..."
 		if (match(.txt, "/%s"))	# no width specifier or %m
-		{	Snprintf[.fnm, .lnr] = .;
+		{	NoWidth[.fnm, .lnr] = .;
 		}
 		Next;
 	}
-	if (match(.txt, "/scanf"))
+	if (.txt == "sprintf"
+	||  .txt == "vsprintf"
+	||  .txt == "vfprintf"
+	||  .txt == "fscanf"
+	||  .txt == "sscanf"
+	||  .txt == "vfscanf"
+	||  .txt == "vsscanf")
 	{	. = .nxt;	# (
 		if (.txt != "(") { Next; }
-		. = .nxt;	# "..."
-		if (match(.txt, "/%s"))	# no width specifier or %m
-		{	Scanf[.fnm, .lnr] = .;
+		. = .nxt;	# 1st arg
+		. = .nxt;	# ","
+		. = .nxt;	# 2nd arg
+		if (match(.txt, "/%s"))
+		{	NoWidth[.fnm, .lnr] = .;
 		}
 		Next;
 	}
-%}
-%{
-	sz = size(Snprintf);
-	if (sz > 0)
-	{	lock();
-		print "cwe_120_2: " sz " warnings: snprintf  :: missing width limit on %s\n";
-		if (verbose || sz < 10)
-		{	for (i in Snprintf)
-			{	dot = Snprintf[i.txt];
-				print "\t" i.txt ": " dot.txt "\n";
-		}	}
-		unlock();
+	if (.txt == "snprintf"
+	||  .txt == "vsnprintf")
+	{	. = .nxt;	# (
+		if (.txt != "(") { Next; }
+		. = .nxt;	# 1st arg
+		. = .nxt;	# ","
+		. = .nxt;	# 2nd arg
+		. = .nxt;	# ","
+		. = .nxt;	# 3rd arg
+		if (match(.txt, "/%s"))
+		{	NoWidth[.fnm, .lnr] = .;
+		}
+		Next;
 	}
 
-	sz = size(Scanf);
+%}
+%{
+	sz = size(NoWidth);
 	if (sz > 0)
 	{	lock();
-		print "cwe_120_2: " sz " warnings: scanf  :: missing width limit on %s\n";
+		print "cwe_120_2: " sz " warnings: printf or scanf  :: missing width limit on %s\n";
 		if (verbose || sz < 10)
-		{	for (i in Scanf)
-			{	dot = Scanf[i.txt];
+		{	for (i in Snprintf)
+			{	dot = NoWidth[i.txt];
 				print "\t" i.txt ": " dot.txt "\n";
 		}	}
 		unlock();
