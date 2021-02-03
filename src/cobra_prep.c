@@ -879,11 +879,18 @@ pattern(char *p)
 			len--;
 			break;
 		case ']':
-		case '*':
 			if (p == q || *(p-1) == ' ')
 			{	*n++ = '\\';
-			} else if (*p == ']')
+			} else
 			{	inrange--;
+			}
+			*n++ = *p++;
+			len--;
+			break;
+		case '*':
+			if (p == q
+			|| (*(p-1) == ' ' && !inrange))
+			{	*n++ = '\\';
 			}
 			*n++ = *p++;
 			len--;

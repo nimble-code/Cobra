@@ -53,6 +53,7 @@ struct Node {		// NNODE
 struct PrimStack {
 	Prim		*t;
 	int		type;	// IMPLICIT or EXPLICIT
+	int		i_state; // for implicit matches, the state
 	PrimStack	*nxt;
 };
 
@@ -96,6 +97,7 @@ struct State {
 };
 
 struct Rlst {
+	char	*s;
 	regex_t	*trex;
 	Rlst	*nxt;
 };
@@ -235,7 +237,9 @@ te_error(const char *s)
 	{	fprintf(stderr, "error: %s\n", s);
 	}
 	if (cobra_texpr)	// non-interactive
-	{	noreturn();
+	{
+stop_timer(0, 0, "te");
+		noreturn();
 	}
 	nerrors++;
 }
@@ -247,8 +251,15 @@ te_regstart(const char *s)
 {	Rlst *r;
 	int n;
 
+	for (r = re_list; r; r = r->nxt)
+	{	if (strcmp(r->s, s) == 0)
+		{	return r->trex;
+	}	}
+
 	r = (Rlst *) emalloc(sizeof(Rlst), 90);
 	r->trex = (regex_t *) emalloc(sizeof(regex_t), 90);
+	r->s = (char *) emalloc(strlen(s)+1, 110);
+	strcpy(r->s, s);
 
 	n = regcomp(r->trex, s, REG_NOSUB|REG_EXTENDED);
 	if (n != 0)	// compile
@@ -962,6 +973,7 @@ mk_trans(int src, int match, char *pat, int dest)	// called from main.c
 	t = (Trans *) emalloc(sizeof(Trans), 100);
 
 	if (pat
+	&& *pat != '['
 	&& (b = strchr(pat, ':')) != NULL)	// possible variable binding
 	{	if (b > pat && *(b-1) == '\\')	// x\:zzz => x:zzz
 		{	int n = strlen(pat)+1;
@@ -980,7 +992,9 @@ mk_trans(int src, int match, char *pat, int dest)	// called from main.c
 				pat = b;	 // the pattern to match (eg @ident)
 	}	}	}
 
-	if (pat && *pat == '/')	// new 5/27/2019
+	if (pat
+	&& *pat == '/'
+	&&  strlen(pat) > 1)
 	{	t->t = te_regstart(pat+1);
 	}
 
@@ -1290,7 +1304,7 @@ saveas(State *s, char *name, char *text)
 
 static int
 recall(State *s, Trans *t, char *text)
-{	Store *b;
+{	Store *b, *c;
 	char *name = t->recall;
 
 	if (t->match)	// match any
@@ -1298,6 +1312,17 @@ recall(State *s, Trans *t, char *text)
 		{	if (strcmp(b->name, name) == 0
 			&&  strcmp(b->text, text) == 0)
 			{	b->ref = q_now;
+				if (verbose)
+				{	printf(">> matching var %s : %s\n", name, text);
+					printf(">> removing other bindings:\t");
+					for (c = s->bindings; c; c = c->nxt)
+					{	if (c != b)
+						{	printf("%s :: %s ", c->name, c->text);
+					}	}
+					printf("\n");
+				}
+				b->nxt = 0;
+				s->bindings = b;
 				return 1;
 		}	}
 		return 0;
@@ -1338,7 +1363,7 @@ push_prim(void)
 
 	if (prim_free)
 	{	n = prim_free;
-		n->type = 0;
+		n->type = n->i_state = 0;
 		prim_free = prim_free->nxt;
 	} else
 	{	n = (PrimStack *) emalloc(sizeof(PrimStack), 109);
@@ -1572,8 +1597,7 @@ convert_matches(int n)
 		}
 		p++;
 		if (m->bind && !json_format)
-		{	if ((verbose || !no_match)
-			&&  w++ == 0)
+		{	if (verbose && w++ == 0)
 			{	printf("bound variables matched:\n");
 			}
 			for (b = m->bind; b; b = b->nxt)
@@ -1582,7 +1606,7 @@ convert_matches(int n)
 				}
 				b->ref->mark |= 4;	// the bound variable
 				w++;
-				if (verbose || !no_match)
+				if (verbose)
 				{	printf("\t%d: %s:%d: %s\n", seq,
 						b->ref->fnm,
 						b->ref->lnr,
@@ -1664,53 +1688,130 @@ show_curstate(int rx)
 	printf("\n");
 }
 
-void
-json_full(int which)
-{	int n = 0;
-	int lst;
+static void
+pattern_full(int which, int N, int M)
+{	Prim *p;
+	int r = 0, n = 0, k;
+	int lst, bv = 0;
+	int hits = 0;
+	int total = 0;
+	FILE *fd = track_fd?track_fd:stdout;
 
 	for (cur = prim; cur; cur = cur?cur->nxt:0)
 	{	if (!(cur->mark & 2))	// find start of match
 		{	continue;
 		}
-		n++;	// nr of match
-		if (which != 0 && n != which)
-		{	continue;
+		if (!cur->bound)
+		{	fprintf(fd, "%s:%d: bound not set, skipping\n",
+				cur->fnm, cur->lnr);
+			continue;
 		}
-		if (cur->bound)
-		{	Prim *p;
-			printf("%s:%d..%d\n%3d: ",
-				cur->fnm, cur->lnr,
-				cur->bound->lnr,
-				cur->lnr);
-			lst = cur->lnr;
-			for (p = cur; p; p = p->nxt)
-			{	if (lst != p->lnr)
-				{	lst = p->lnr;
-					printf("\n%3d: ", lst);
-				}
-				if (p->mark & 4)
-				{	printf("**%s**", p->txt);
-				} else
-				{	printf("%s ", p->txt);
+		total++;
+		if (N >= 0)
+		{	k = cur->lnr;
+			for (p = cur, r = 1; p; p = p->nxt)
+			{	if (p->lnr != k)
+				{	k = p->lnr;
+					r++;
 				}
 				if (p == cur->bound)
-				{	printf("\n");
-					break;
+				{	break;
 			}	}
-		} else
-		{	printf("error: bound not set\n");
-			break;
+			if (M < 0)	// json which N
+			{	if (r < which || r > N)
+				{	continue; // not in range
+				}
+			} else 		// json which N M
+			{	if (r < N || r > M)
+				{	continue;
+		}	}	}
+
+		n++;	// nr of match
+
+		if ((N < 0 || M > 0)
+		&&  which != 0
+		&&  n != which)
+		{	continue;
 		}
+		hits++;
+
+		lst = cur->lnr;
+		fprintf(fd, "%s:%d..%d", cur->fnm, lst, cur->bound->lnr);
+		if (r > 0)
+		{	fprintf(fd, " (%d lines)\n", r);
+		} else
+		{	fprintf(fd, "\n");
+		}
+
+		for (p = cur; p; p = p->nxt)
+		{	if (p->mark & 4)
+			{	fprintf(fd, "bound var '%s', line %d\n", p->txt, p->lnr);
+				bv = p->lnr; // keep last one
+			}
+			if (p == cur->bound)
+			{	break;
+		}	}
+		if (no_display && cur->bound->lnr+4 > lst)	// terse mode
+		{	show_line(fd, cur->fnm, 0, lst, lst+1, bv);
+			fprintf(fd, " ...\n");
+			show_line(fd, cur->fnm, 0, cur->bound->lnr-1, cur->bound->lnr, bv);
+		} else
+		{	show_line(fd, cur->fnm, 0, lst, cur->bound->lnr, bv);
+		}
+		
 		if (which != 0)
 		{	break;
 	}	}
+	if (which == 0)
+	{	fprintf(fd, "%d of %d patterns printed\n", hits, total);
+	}
+}
+
+static void
+dp_usage(const char *s, int nr)
+{
+	printf("dp: unrecognized option '%s' (nr=%d)\n", s, nr);
+	printf("usage (with n N and M numbers):\n");
+	printf("    dp  \t	# print all patterns fully\n");
+	printf("    dp n\t	# print only the n-th pattern fully\n");
+	printf("    dp N M\t	# print all patterns between N and M lines long\n");
+	printf("    dp n N M	# print the n-th pattern between N and M lines long\n");
+	printf("in terse mode only the first and last 2 lines of each pattern are printed\n");
+}
+
+void
+display_patterns(const char *te)
+{	int j = 0;
+	int nr, a, b, c;
+
+	while (te[j] == ' ' || te[j] == '\t')
+	{	j++;
+	}
+	if (isdigit((int) te[j]))
+	{	nr = sscanf(&te[j], "%d %d %d", &a, &b, &c);
+		switch (nr) {
+		case  1: b = -1;	// fall thru
+		case  2: c = -1;	// fall thru
+		case  3: pattern_full(a, b, c);
+			 break;
+		default: dp_usage(&te[j], nr);
+			 break;
+		}
+	} else if (te[j] == '\0')
+	{	pattern_full(0, -1, -1);
+	} else
+	{	dp_usage(&te[j], 0);
+	}
 }
 
 void
 json(const char *te)
 {	Prim *sop = (Prim *) 0;
 	int seen = 0;
+
+	// usage:
+	//	json		# prints json format summary of all matches
+	//	json string	# puts string the type field
 
 	// tokens that are part of a match are marked         &1
 	// the token at start of each pattern match is marked &2
@@ -1719,17 +1820,6 @@ json(const char *te)
 
 	// if the json argument is a number or a single *, then
 	// the output is verbose for that match (or all, for a *)
-	int j = 0;
-	while (te[j] == ' ' || te[j] == '\t')
-	{	j++;
-	}
-	if (te[j] >= '0' && te[j] <= '9')
-	{	json_full( atoi((const char *) te) );
-		return;
-	} else if (strcmp(&te[j], "*") == 0)
-	{	json_full(0);
-		return;
-	}
 
 	printf("[\n");
 	for (cur = prim; cur; cur = cur?cur->nxt:0)
@@ -1789,11 +1879,15 @@ cobra_te(char *te, int and, int inv)
 	int	rx;
 	int	tmx;
 	int	mustbreak = 0;
+	Trans	dummy;
 
+	memset(&dummy, 0, sizeof(Trans));
+								
 	if (!te)
 	{	return;
 	}
 	glob_te = te;
+	start_timer(0);
 
 	p = te;
 	for (p = te; *p != '\0'; p++)
@@ -1823,6 +1917,7 @@ cobra_te(char *te, int and, int inv)
 	thompson(te);
 	if (!nd_stack || nerrors > 0)
 	{	te_regstop();
+		stop_timer(0, 0, "te");
 		return;
 	}
 	if (nd_stack->nxt)	// error
@@ -1841,7 +1936,9 @@ cobra_te(char *te, int and, int inv)
 	}
 
 	if (p_debug)
-	{	show_fsm();
+	{	printf("in: \"%s\"\n", te);
+		show_fsm();
+		stop_timer(0, 0, "te");
 		return;
 	}
 	mk_fsa();
@@ -1935,6 +2032,7 @@ cobra_te(char *te, int and, int inv)
 								}
 								assert(prim_stack);
 								prim_stack->type |= IMPLICIT;
+								prim_stack->i_state = s->seq;
 							} else if (rx)
 							{	// implicit match
 								if (verbose)
@@ -1942,7 +2040,8 @@ cobra_te(char *te, int and, int inv)
 										q_now->txt);
 								}
 								assert(prim_free);
-								if (!(prim_free->type & IMPLICIT))
+								if (!(prim_free->type & IMPLICIT)
+								||   (prim_free->i_state != s->seq))
 								{	// not a match
 									if (verbose)
 									{	printf("rejected\n");
@@ -1950,7 +2049,8 @@ cobra_te(char *te, int and, int inv)
 									continue;
 								} else
 								{	if (verbose)
-									{	printf("accepted\n");
+									{	printf("accepted (%d)\n",
+											prim_free->type);
 						}	}	}	}
 
 						mk_active(s->bindings, 0, t->dest, 1-current);
@@ -1974,6 +2074,7 @@ cobra_te(char *te, int and, int inv)
 								}
 								assert(prim_stack);
 								prim_stack->type |= IMPLICIT;
+								prim_stack->i_state = s->seq;
 							}
 							if (!t->match && rx)
 							{	// implicit match, prim_stack just popped
@@ -1982,7 +2083,8 @@ cobra_te(char *te, int and, int inv)
 										q_now->txt);
 								}
 								assert(prim_free);
-								if (!(prim_free->type & IMPLICIT))
+								if (!(prim_free->type & IMPLICIT)
+								||   (prim_free->i_state != s->seq))
 								{	// not a match
 									if (verbose)
 									{	printf("rejected.\n");
@@ -1990,7 +2092,8 @@ cobra_te(char *te, int and, int inv)
 									continue;
 								}
 								if (verbose)
-								{	printf("accepted\n");
+								{	printf("accepted (%d)\n",
+										prim_free->type);
 								}
 							}
 							mk_active(s->bindings, 0, t->dest, 1-current);
@@ -2004,8 +2107,7 @@ cobra_te(char *te, int and, int inv)
 					if (t->or)		// a range
 					{	Range *r;
 						if (t->match)	// normal or-series
-						{
-							for (r = t->or; r; r = r->or)
+						{	for (r = t->or; r; r = r->or)
 							{	if (*(r->pat) == '@')
 								{	m = tp_desc(q_now->typ);
 									p = r->pat+1;
@@ -2016,26 +2118,91 @@ cobra_te(char *te, int and, int inv)
 									{	goto is_match;
 									}
 								}
-								if (strcmp(m, p) == 0)
+
+								// embedded regex inside range
+								if (*p == '/'
+								&&  strlen(p) > 1)
+								{	regex_t *z = te_regstart(p+1);
+									tmx = te_regmatch(z, m);
+								} else if (*p == '\\')
+								{	tmx = strcmp(m, p+1);
+								} else
+								{	tmx = strcmp(m, p);
+								}
+								if (tmx == 0)
+								{	if (verbose)
+									{	printf("regex matches -> accept\n");
+									}
+									goto is_match;
+								}
+
+								if (*p == ':' && *(p+1) != '\0')
+								{	dummy.recall = (p+1);
+									if (verbose)
+									{	printf("\tbound var ref '%s' vs '%s'\n",
+											p, m);
+									}
+									if (recall(c->s, &dummy, m))
+									{	if (verbose)
+										{	printf(" matched\n");
+										}
+										goto is_match;
+									} else if (verbose)
+									{	printf(" not matched\n");
+									}
+								} else if (strcmp(m, p) == 0)
 								{	goto is_match;
 							}	}
-							continue;	  // no match
-						} else		// negated
-						{
-							for (r = t->or; r; r = r->or)
+							continue;	// no match
+						} else			// negated
+						{	for (r = t->or; r; r = r->or)
 							{	if (*(r->pat) == '@')
 								{	m = tp_desc(q_now->typ);
 									p = r->pat+1;
+									if (strcmp(m, p) == 0)
+									{	break;
+									}
 								} else
 								{	m = q_now->txt;
 									p = r->pat;
-								}
-								if (strcmp(m, p) == 0)
-								{	break;
-							}	}
+
+									// embedded regex inside range
+									if (*p == '/'
+									&&  strlen(p) > 1)
+									{	regex_t *z = te_regstart(p+1);
+										tmx = te_regmatch(z, m);
+									} else if (*p == '\\')
+									{	tmx = strcmp(m, p+1);
+									} else
+									{	tmx = strcmp(m, p);
+									}
+									if (tmx == 0)
+									{	if (verbose)
+										{	printf("regex matches -> reject\n");
+										}
+										break; // no match
+									}
+
+									if (*p == ':' && *(p+1) != '\0')
+									{	dummy.recall = (p+1);
+										if (verbose)
+										{	printf("\tbound var ^'%s' vs '%s'\t",
+												p, m);
+										}
+										if (recall(c->s, &dummy, m))
+										{	if (verbose)
+											{	printf(" matching\n");
+											}
+											continue;
+										} else if (verbose)
+										{	printf(" not matching\n");
+										}
+										break;
+									} else if (strcmp(m, p) == 0)
+									{	break;
+							}	}	}
 							if (r)
-							{
-								continue;
+							{	continue;
 							}
 							goto is_match;
 					}	}
@@ -2074,7 +2241,8 @@ cobra_te(char *te, int and, int inv)
 					// match==0 && m != p	m: tokentext, p: pattern
 					// match==1 && m == p
 
-					if (*p == '/') // regexpr, could be: t->t != NULL
+					if (*p == '/'
+					&&  strlen(p) > 1) // regexpr, could be: t->t != NULL
 					{	tmx = te_regmatch(t->t, m);
 					} else if (*p == '\\')
 					{	tmx = strcmp(m, p+1);
@@ -2117,6 +2285,11 @@ cobra_te(char *te, int and, int inv)
 		is_match:
 						if (t->saveas)
 						{	Store *b = saveas(s, t->saveas, q_now->txt);
+							if (verbose)
+							{	printf("==%s:%d: New Binding: %s -> %s\n",
+									q_now->fnm, q_now->lnr,
+									t->saveas, q_now->txt);
+							}
 							mk_active(s->bindings, b, t->dest, 1-current);
 						} else
 						{	mk_active(s->bindings, 0, t->dest, 1-current);
@@ -2198,4 +2371,5 @@ cobra_te(char *te, int and, int inv)
 		{	printf("%d pattern%s matched\n",
 				p_matched, p_matched==1?"":"s");
 	}	}
+	stop_timer(0, 0, "te");
 }

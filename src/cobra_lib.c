@@ -1850,7 +1850,12 @@ pre_scan(char *bc)	// non-generic commands
 		if (strncmp(bc, "default", strlen("default")) == 0)
 		{	set_default(nextarg(bc));
 			return 1;
-		} // else it maps to 'display'
+		}
+		if (strncmp(bc, "dp", 2) == 0)
+		{	display_patterns(nextarg(bc));
+			return 1;
+		}
+		// else it maps to 'display'
 		break;
 
 	case 'f':

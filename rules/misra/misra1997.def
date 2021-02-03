@@ -48,10 +48,9 @@ end
 
 def m97_rule10
 	cpp off
-	r; m //\*.*\;.*\*/		# stmnt separator in C comment
-	m //\*[^\*]*\;			# avoid /* ... */ ...;
-	m //\*[^/]*\;			# ditto
-	m ///.*\;			# stmnt separator in C++ comment
+	r
+	m @cmnt
+	m & /\;				# stmnt separator in comment
 	= "=== R10: (Advisory) Sections of code should not be commented out:"
 	d
 end

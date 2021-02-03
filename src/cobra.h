@@ -134,6 +134,7 @@ extern void cobra_tag(Prim *);
 extern void cobra_te(char *, int, int);
 extern void context(char *, char *);
 extern void display(char *, char *);
+extern void display_patterns(const char *);
 extern void dogrep(const char *);
 extern void fcg(char *from_f, char *to_f);
 extern void fct_defs(void);
