@@ -4,12 +4,6 @@ quiet on
 
 . jpl.def
 
-#### LOC-1 Language Compliance
-
-jpl_rule1
-	= "=== R1: Do not stray outside the language definition (no pragmas):"
-	d
-
 # jpl_rule2	# not in scope - compile with warnings, use static analysis
 
 #### LOC-2 Predictable Execution
@@ -46,10 +40,6 @@ jpl_rule9b
 	d
 
 # jpl_rule10	# not statically checkable - use memory protection, margins, barriers etc
-
-jpl_rule11
-	= "=== R11: Do not use goto, setjmp or longjmp:"
-	d
 jpl_rule12a
 	= "=== R12a: Do not use selective value assignments to elements of an enum list:"
 	d
@@ -101,19 +91,58 @@ jpl_rule14h
 jpl_rule15
 	= "=== R15: Check the validity of values passed to functions:"
 	d
-jpl_rule16 2	# assertion density 2%
-	# reports stats
+
 jpl_rule17
 	= "=== R17: Use u32, i16, etc instead of predefined C data types such as int, short, etc.:"
 #	d
 . binop.cobra	# jpl_rule18: use braces
 	binop R18
+jpl_rule19b
+	= "=== R19b: Do not use side-effects in conditions:"
+	d
+
+#### LOC-4 Code Clarity
+
+jpl_rule24
+	= "=== R24: Place no more than one statement or declaration per line:"
+#	d
+jpl_rule25a
+	= "=== R25a: Use short functions with no more than 6 parameters:"
+	d
+jpl_rule25b 60
+	= "=== R25b: Don't use functions longer than nr lines:"
+	# = "fct length:" (.range)	# report fct lengths
+	b; j; b				# match  fct names
+	d
+jpl_rule26_27
+	= "=== R26-27: More than the max of two levels of indirection:"
+	d
+
+# jpl_rule29	# not in scope - no non-constant fct pointers
+# jpl_rule30	# not in scope - no casting of fct pointers
+
+
+#### the remaing rules require cpp off ###
+
+#### LOC-1 Language Compliance
+
+jpl_rule1
+	= "=== R1: Do not stray outside the language definition (no pragmas):"
+	d
+
+#### LOC-2 Predictable Execution
+
+jpl_rule11
+	= "=== R11: Do not use goto, setjmp or longjmp:"
+	d
+
+#### LOC-3 Defensive Coding
+
+jpl_rule16 2	# assertion density 2%
+	# reports stats
 
 jpl_rule19a
 	= "=== R19a: Do not use side-effects in assertions:"
-	d
-jpl_rule19b
-	= "=== R19b: Do not use side-effects in conditions:"
 	d
 
 #### LOC-4 Code Clarity
@@ -133,28 +162,13 @@ jpl_rule21		# no macros in functions
 jpl_rule22		# no undef or redefine
 	= "=== R22: Do not undefine or redefine macros:"
 	d
+
 . jpl/rule23	# match directives in same file
 	# prints warnings
-jpl_rule24
-	= "=== R24: Place no more than one statement or declaration per line:"
-#	d
-jpl_rule25a
-	= "=== R25a: Use short functions with no more than 6 parameters:"
-	d
-jpl_rule25b 60
-	= "=== R25b: Don't use functions longer than nr lines:"
-	# = "fct length:" (.range)	# report fct lengths
-	b; j; b				# match  fct names
-	d
-jpl_rule26_27
-	= "=== R26-27: More than the max of two levels of indirection:"
-	d
+
 jpl_rule28
 	= "=== R28: Do not hide dereference operations in typedefs:"
 	d
-
-# jpl_rule29	# not in scope - no non-constant fct pointers
-# jpl_rule30	# not in scope - no casting of fct pointers
 
 . jpl/rule31.cobra	# place no code before #include
 	= "=== R31: include directives should not be preceded by code"

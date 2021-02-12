@@ -26,22 +26,12 @@ check_ifelseif
 	= "=== Missing else at end of if-else-if chain:"
 	d
 
-. reverse_null.cobra
-	# === find likely reverse null patterns
-
 . extern.cobra
 	# === find inconsistent extern declarations
-
-check_macro_args
-	= "=== Macro argument not enclosed in parentheses:"
-	d
 
 check_switch
 	= "=== Missing default in switch statement:"
 	d
-
-check_param_count
-	# reports mismatch of formal and actual parameters
 
 check_braces
 	= "=== Use parentheses around binary operators:"
@@ -54,5 +44,17 @@ check_side_effect
 check_asm(asm)
 	= "=== Limit the use of assembly code"
 	d
+
+# the next three turn cpp off
+
+. reverse_null.cobra
+	# === find likely reverse null patterns
+
+check_macro_args
+	= "=== Macro argument not enclosed in parentheses:"
+	d
+
+check_param_count
+	# reports mismatch of formal and actual parameters
 
 quiet off

@@ -52,8 +52,8 @@ struct Node {		// NNODE
 
 struct PrimStack {
 	Prim		*t;
-	int		type;	// IMPLICIT or EXPLICIT
-	int		i_state; // for implicit matches, the state
+	uint		type;	// IMPLICIT or EXPLICIT
+	uint		i_state; // for implicit matches, the state
 	PrimStack	*nxt;
 };
 
@@ -114,7 +114,7 @@ struct Store {
 	Store	*nxt;
 };
 
-extern int	eol;
+extern int	eol, eof;
 extern void	set_cnt(int);
 
 static List	*curstates[3]; // 2 is initial
@@ -1573,7 +1573,7 @@ matches2marks(void)
 	}	}	}	}
 
 	clr_matches(NEW_M);
-	if (!json_format)
+	if (!json_format && !no_match && !no_display)
 	{	printf("%d token%s marked\n", cnt, (cnt==1)?"":"s");
 	}
 	set_cnt(cnt);
@@ -1613,16 +1613,15 @@ convert_matches(int n)
 						b->ref->txt);
 	}	}	}	}
 
-	if (!json_format)
+	if (!json_format && !no_match && !no_display)
 	{	printf("%d patterns matched\n", p);
-	}
-
-	if (no_match && no_display && w>0)
-	{	if (!json_format)
+		if (w > 0)
 		{	printf("%d match%s of bound variables\n",
 				w, (w==1)?"":"es");
-		}
-		return w;
+	}	}
+
+	if (no_match && no_display && w>0)	// ?
+	{	return w;
 	}
 
 	return matches2marks();
@@ -1868,6 +1867,8 @@ json(const char *te)
 	printf("\n]\n");
 }
 
+extern void fix_eol(void);
+
 void
 cobra_te(char *te, int and, int inv)
 {	List	*c;
@@ -1898,14 +1899,23 @@ cobra_te(char *te, int and, int inv)
 		&& *(p-1) != ' '
 		&& *(p-1) != '^'
 		&& *(p-1) != '[')
-		{	printf("warning: is a space missing before : in '%c:%c'?\n",
+		{	fprintf(stderr, "warning: is a space missing before : in '%c:%c'?\n",
 				*(p-1), *(p+1));
 	}	}
+	anychange = 0;
 	if (!eol && strstr(te, "EOL"))
-	{	static int warned = 0;
-		if (!warned)
-		{	warned = 1;
-			printf("warning: use of EOL requires -eol cmdln arg\n");
+	{	anychange = 1;
+		eol = 1;
+	}
+	if (!eof && strstr(te, "EOF"))
+	{	anychange = 1;
+		eof = 1;
+	}
+	if (anychange)
+	{	fix_eol();
+		if (!json_format && !no_match && !no_display)
+		{	fprintf(stderr, "warning: use of EOL/EOF requires -eol/-eof cmdln arg\n");
+			fprintf(stderr, "         rescanned input\n");
 	}	}
 
 	if (ncalls++ > 0)
@@ -2032,19 +2042,32 @@ cobra_te(char *te, int and, int inv)
 								}
 								assert(prim_stack);
 								prim_stack->type |= IMPLICIT;
-								prim_stack->i_state = s->seq;
+								if (Seq < 8*sizeof(uint))
+								{	prim_stack->i_state |= (1 << s->seq);
+								} else
+								{	prim_stack->i_state = s->seq;
+								}
 							} else if (rx)
-							{	// implicit match
+							{	int mismatch;
+								// implicit match
 								if (verbose)
 								{	printf("\timplicit . match of '%s' :: ",
 										q_now->txt);
 								}
 								assert(prim_free);
+								if (Seq < 8*sizeof(uint))
+								{	mismatch = !(prim_free->i_state & (1 << s->seq));
+								} else
+								{	mismatch = (prim_free->i_state != s->seq);
+								}
 								if (!(prim_free->type & IMPLICIT)
-								||   (prim_free->i_state != s->seq))
+								||  mismatch)
 								{	// not a match
 									if (verbose)
-									{	printf("rejected\n");
+									{	printf("rejected [%d %d %d]\n",
+											prim_free->type,
+											prim_free->i_state,
+											s->seq);
 									}
 									continue;
 								} else
@@ -2074,17 +2097,27 @@ cobra_te(char *te, int and, int inv)
 								}
 								assert(prim_stack);
 								prim_stack->type |= IMPLICIT;
-								prim_stack->i_state = s->seq;
+								if (Seq < 8*sizeof(uint))
+								{	prim_stack->i_state |= (1 << s->seq);
+								} else
+								{	prim_stack->i_state = s->seq;
+								}
 							}
 							if (!t->match && rx)
-							{	// implicit match, prim_stack just popped
+							{	int mismatch;
+								// implicit match, prim_stack just popped
 								if (verbose)
 								{	printf("\timplicit ^ MATCH of '%s' :: ",
 										q_now->txt);
 								}
 								assert(prim_free);
+								if (Seq < 8*sizeof(uint))
+								{	mismatch = !(prim_free->i_state & (1 << s->seq));
+								} else
+								{	mismatch = (prim_free->i_state != s->seq);
+								}
 								if (!(prim_free->type & IMPLICIT)
-								||   (prim_free->i_state != s->seq))
+								||   mismatch)
 								{	// not a match
 									if (verbose)
 									{	printf("rejected.\n");
@@ -2352,22 +2385,18 @@ cobra_te(char *te, int and, int inv)
 			}
 		} else
 		{	if (json_format)
-			{	if (nr_json == 0)
-				{	printf("[ ");
-					json_match(te, "no matches found", "stdin", 0);
+			{	if (nr_json > 0)
+				{	printf("]\n");
 				}
-				printf("]\n");
-			} else
+			} else if (!no_display && !no_match)
 			{	printf("0 patterns matched\n");
 		}	}
 	} else			// streaming input
 	{	if (json_format)
-		{	if (nr_json == 0)
-			{	printf("[ ");
-				json_match(te, "no matches found", "stdin", 0);
+		{	if (nr_json > 0)
+			{	printf("]\n");
 			}
-			printf("]\n");
-		} else
+		} else if (!no_display && !no_match)
 		{	printf("%d pattern%s matched\n",
 				p_matched, p_matched==1?"":"s");
 	}	}

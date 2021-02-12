@@ -132,7 +132,7 @@ end
 def check_condition	# condition.cobra
 	# check for assignments in conditions
 	# that are not enclosed in round braces
-	cpp on
+	# cpp on		# check_condition
 	r
 	m if \(
 	m while \(
@@ -151,7 +151,7 @@ def check_condition	# condition.cobra
 end
 
 def check_empty		# empty.cobra
-	cpp on
+	# cpp on		# check_empty
 	r; m for; n \(; j
 	e \;
 	= "=== Empty for statements:"
@@ -175,7 +175,6 @@ end
 
 def check_for1		# for.cobra
 	# for ( ... ; ... ; ... ) { ... }
-	cpp on
 	r
 	m for \(	# find for statements
 	n		# should be (
@@ -195,7 +194,6 @@ def check_for1		# for.cobra
 end
 
 def check_for2		# jpl_rule13a
-	cpp on
 	r
 	m for \(	# mark for
 	n;j;e {; j	# move to (
@@ -211,14 +209,24 @@ def check_for2		# jpl_rule13a
 end
 
 def check_for
+	# cpp on		# check_for
 	check_for1
 	check_for2
+end
+
+def check_switch	# switch.cobra
+	# cpp on		# check_switch
+	r
+	m switch
+	n {
+	c no top default
+	b switch
 end
 
 # find if-else-if chains that lack a final else
 
 def check_ifelseif	# ifelseif.cobra
-	cpp on
+	# cpp on		# check_ifelseif
 	r
 	%{
 		expect("else");
@@ -241,8 +249,8 @@ def check_ifelseif	# ifelseif.cobra
 	%}
 end
 
-def check_macro_args		# macro_args-m.cobra
-	cpp off
+def check_macro_args	# macro_args-m.cobra
+	cpp off		# check_macro_args
 	r
 	# check if all macro arguments are enclosed in parentheses
 	# cf. jpl_rule20b -- which checks if the macro body is a syntactic unit
@@ -282,8 +290,8 @@ def check_macro_args		# macro_args-m.cobra
 	%}
 end
 
-def check_param_count		# param_count_check.cobra
-	cpp off
+def check_param_count	# param_count_check.cobra
+	cpp off		# check_param_count
 	r
 	## nr of parameters of function calls matches prototype
 	
@@ -445,13 +453,4 @@ def check_param_count		# param_count_check.cobra
 		}	}
 		Stop;
 	%}
-end
-
-def check_switch		# switch.cobra
-	cpp on
-	r
-	m switch
-	n {
-	c no top default
-	b switch
 end

@@ -7,6 +7,72 @@ ncore 1
 # rule 0
 	# compile with all warnings enabled
 
+# rule 03 -- limit scope
+	p10_rule6b(IR03)
+
+# rule 04 -- check return values of fcts, check pointer params
+	p10_rule7(IR04)
+
+# rule 06
+	r
+	m char; m int; m short; m long; m float; m double
+	= "=== IR06: use u32, i16, etc instead of predefined C data types:"
+#	d
+
+# rule 07
+	p10_rule1b(IR07)	# recursion
+
+# rule 08
+	p10_rule2(IR08)		# verifiable loop bounds
+
+# rule 09
+	p10_rule3(IR09)		# dynamic memory allocation
+
+# rule 10
+	r
+	m taskDelay; m sleep; m /nanosleep$
+	= "=== IR10: do not use task delays for task synchronization:"
+	d
+
+# rule 11
+	check_ipc
+	= "=== R11: receive ipc messages in only one place in each task:"
+	d
+
+# rule 15
+	check_fct_hdrs
+	= "=== IR15: functions defined in header files:"
+	d
+	p10_rule6a(IR15)	# no single letter globals, no fcts or data decl in headers
+
+# rule 16
+	p10_rule4(IR16, 80)	# max nr of physical lines per fct
+	p10_rule4_log(IR16, 75)	# max nr of logic lines per fct
+	check_linelength(85)
+	= "=== IR16: lines longer than 85 chars (not counting whitespace):"
+	d
+
+# rule 17
+	p10_rule1a(IR17)	# goto, setjmp, longjmp, recursion
+
+# rule 18
+	p10_rule9(IR18)		# pointer use
+
+# rule 19
+	# cpp on
+	r	# (f...)(...);
+	m @type
+	b; unmark const; n
+	n	# move to following typename
+	m & \(	# likely function pointer
+	j
+	n
+	m & \(
+	= "=== IR19: do not use non-constant function pointers:"
+	d
+
+# rules requiring cpp off
+
 # rule 01 -- conform to language standard
 	cpp off
 	r; m @cpp; m & /pragma
@@ -18,13 +84,7 @@ ncore 1
 	d
 
 # rule 02 -- assertion density
-	p10_rule5(IR02, 2)
-
-# rule 03 -- limit scope
-	p10_rule6b(IR03)
-
-# rule 04 -- check return values of fcts, check pointer params
-	p10_rule7(IR04)
+	p10_rule5(IR02, 2)	# 2 percent assertion density overall
 
 # rule 05
 	check_braces
@@ -55,7 +115,7 @@ ncore 1
 	= "=== IR05: side-effects in assertions:"
 	d
 
-	cpp on
+	# cpp on
 	r
 	m \(			# all conditions
 	b			# token before the (
@@ -78,65 +138,7 @@ ncore 1
 	= "=== IR05: multiple side-effects in same condition:"
 	d
 
-# rule 06
-	r
-	m char; m int; m short; m long; m float; m double
-	= "=== IR06: use u32, i16, etc instead of predefined C data types:"
-#	d
-
-# rule 07
-	p10_rule1b(IR07)	# recursion
-
-# rule 08
-	p10_rule2(IR08)		# verifiable loop bounds
-
-# rule 09
-	p10_rule3(IR09)		# dynamic memory allocation
-
-# rule 10
-	r
-	m taskDelay; m sleep; m /nanosleep$
-	= "=== IR10: do not use task delays for task synchronization:"
-	d
-
-# rule 11
-	check_ipc
-	= "=== R11: receive ipc messages in only one place in each task:"
-	d
-
 # rule 14
 	p10_rule8(IR14)		# preprocessor use
-
-# rule 15
-	check_fct_hdrs
-	= "=== IR15: functions defined in header files:"
-	d
-	p10_rule6a(IR15)	# no single letter globals, no fcts or data decl in headers
-
-# rule 16
-	p10_rule4(IR16, 80)	# max nr of physical lines per fct
-	p10_rule4_log(IR16, 75)	# max nr of logic lines per fct
-	check_linelength(85)
-	= "=== IR16: lines longer than 85 chars (not counting whitespace):"
-	d
-
-# rule 17
-	p10_rule1a(IR17)	# goto, setjmp, longjmp, recursion
-
-# rule 18
-	p10_rule9(IR18)		# pointer use
-
-# rule 19
-	cpp on
-	r	# (f...)(...);
-	m @type
-	b; unmark const; n
-	n	# move to following typename
-	m & \(	# likely function pointer
-	j
-	n
-	m & \(
-	= "=== IR19: do not use non-constant function pointers:"
-	d
 
 quiet off

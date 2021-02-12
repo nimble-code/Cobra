@@ -1,18 +1,18 @@
 #### see main/jpl.cobra
 
-def fcts			# helper function
-	cpp on
+def fcts		# helper function
+	# cpp on
 	r
 	m @ident \(; n
-	w (!.curly)		# not inside a fct
-	j			# jump to end of param list
-	e {			# make sure its followed by {
-	j			# jump back to start of param list
-	b			# fct name
+	w (!.curly)	# not inside a fct
+	j		# jump to end of param list
+	e {		# make sure its followed by {
+	j		# jump back to start of param list
+	b		# fct name
 end
 
 def jpl_rule1
-	cpp off		# must come before 'r'
+	cpp off		# jpl_rule1 :: cpp off must come before 'r'
 	r; m @cpp; m & /pragma
 
 	#  do not turn cpp back on
@@ -21,7 +21,7 @@ def jpl_rule1
 end
 
 def jpl_rule3a
-	cpp on		# must come before the 'r'
+	# cpp on	# must come before the 'r'
 	r
 	m for \(	# mark for
 	n;j;e {; j	# move to (
@@ -41,7 +41,7 @@ def jpl_rule3a
 end
 
 def jpl_rule3b
-	cpp on
+	# cpp on
 	#  partial check: the loop condition must contain a comparison
 	r
 	m for \(; n
@@ -80,7 +80,7 @@ def jpl_rule3b
 end
 
 def jpl_rule3c
-	cpp on
+	# cpp on
 %{
 	# extract the pattern of every for-statement
 	# complain if:
@@ -131,7 +131,7 @@ def jpl_rule3c
 end
 
 def jpl_rule4
-	cpp on
+	# cpp on
 	fcts
 	s {			# tag symbol to {
 	n {			# move to it
@@ -140,7 +140,7 @@ def jpl_rule4
 end
 
 def jpl_rule5
-	cpp on
+	# cpp on
 	r
 	m @ident \(
 	n; j; e {; j; b		# fct definitions
@@ -156,19 +156,19 @@ def jpl_rule5
 end
 
 def jpl_rule7
-	cpp on
+	# cpp on
 	r
 	m taskDelay; m sleep; m /nanosleep$
 end
 
 def jpl_rule9a
-	cpp on
+	# cpp on
 	r
 	m /^sem.*Create$; m /^sem.*Take; m /^sem.*Give
 end
 
 def jpl_rule9b
-	cpp on
+	# cpp on
 	r
 	m taskLock;   m intLock;   m taskRtpLock
 	m taskUnlock; m intUnlock; m taskRtpUnlock
@@ -176,7 +176,7 @@ def jpl_rule9b
 end
 
 def jpl_rule11
-	cpp off
+	cpp off			# jpl_rule11
 	r; m goto
 	n; unmark /^yy		# not for yacc generated code
 	b;
@@ -184,28 +184,28 @@ def jpl_rule11
 end
 
 def jpl_rule12a
-	cpp on
+	# cpp on
 	r
 	m enum; n; m & {	# nameless enum
 	c =; s =; c ,		# no comma before the first =
 end
 
 def jpl_rule12b
-	cpp on
+	# cpp on
 	r
 	m enum; n; n; m & {
 	c =; s =; c ,		# named enum
 end
 
 def jpl_rule13a
-	cpp on
+	# cpp on
 	# !echo "=== no global single character identifiers
 	r
 	m @ident; m & (!.curly && !.round); m & /^.$
 end
 
 def jpl_rule14a
-	cpp on
+	# cpp on
 	# !echo "=== R14: Check the return value of non-void functions, or explicitly cast to (void)."
 	r
 	m @ident \(; m & (!.curly); n; j; e {;
@@ -215,7 +215,7 @@ def jpl_rule14a
 end
 
 def jpl_rule14b
-	cpp on
+	# cpp on
 	r
 	m @ident \(; m & (!.curly); n; j; e {
 	j; b; b; unmark void; n {
@@ -225,13 +225,13 @@ def jpl_rule14b
 end
 
 def jpl_rule14c
-	cpp on
+	# cpp on
 	r
 	m @ident \(; m & (!.curly); n; j; n; m & {; b; j; b; b; m & /[\;}]
 end
 
 def jpl_rule14d
-	cpp on
+	# cpp on
 	r
 	m @ident \(; m & (!.curly); n; j; e {
 	j; b; b; mark no void; n	# all non-void fcts
@@ -246,7 +246,7 @@ def jpl_rule14d
 end
 
 def jpl_rule14e
-	cpp on
+	# cpp on
 	r
 	<1			# all non-void fcts
 	n $$ \(; n $$ \(
@@ -259,7 +259,7 @@ def jpl_rule14e
 end
 
 def jpl_rule14f
-	cpp on
+	# cpp on
 	r
 	<1			# all non-void fcts
 	b $$ \(			# backward to a use (do multiple times?)
@@ -272,7 +272,7 @@ def jpl_rule14f
 end
 
 def jpl_rule14g
-	cpp on
+	# cpp on
 	r
 	<1			# all non-void fcts
 	b $$ \(			# backward to a use (do multiple times?)
@@ -285,7 +285,7 @@ def jpl_rule14g
 end
 
 def jpl_rule14h
-	cpp on
+	# cpp on
 	r
 	m @ident \(
 	m & (!.curly)
@@ -299,7 +299,7 @@ def jpl_rule14h
 end
 
 def jpl_rule15
-	cpp on
+	# cpp on
 	# check that each parameter appears in a condition
 	r
 	m @ident \(; n; j; e {; j
@@ -312,7 +312,7 @@ def jpl_rule15
 end
 
 def jpl_rule16(nr)
-	cpp off
+	cpp off		# jpl_rule16
 	r
 	m \;		# all statements
 	>1		# save in set 1
@@ -329,13 +329,13 @@ def jpl_rule16(nr)
 end
 
 def jpl_rule17
-	cpp on
+	# cpp on
 	r
 	m char; m int; m short; m long; m float; m double
 end
 
 def jpl_rule19a
-	cpp off
+	cpp off		# jpl_rule19a
 	r
 	m /ASSERT \(
 	m /Assert \(
@@ -353,7 +353,7 @@ def jpl_rule19a
 end
 
 def jpl_rule19b
-	cpp on
+	# cpp on
 	r
 	m \(			# all conditions
 	b			# token before the (
@@ -372,13 +372,13 @@ def jpl_rule19b
 end
 
 def jpl_rule20a
-	cpp off
+	cpp off		# jpl_rule20a
 	r; m @cpp; m & /if; m no /endif
 	n; unmark /^yy; unmark /^YY; unmark 0; unmark 1
 end
 
 def jpl_rule20b
-	cpp off
+	cpp off		# jpl_rule20b
 	r
 	%{
 		if (!@cpp || .txt != "#define")
@@ -424,23 +424,23 @@ def jpl_rule20b
 end
 
 def jpl_rule20c
-	cpp off
+	cpp off		# jpl_rule20c
 	r; m @cpp; m & /define[^/]*\#
 end
 
 def jpl_rule21
-	cpp off
+	cpp off		# jpl_rule21
 	r; m @cpp; m & /define
 	m & (.curly>0)
 end
 
 def jpl_rule22
-	cpp off
+	cpp off		# jpl_rule22
 	r; m @cpp; m & /undef
 end
 
 def jpl_rule24
-	cpp on
+	# cpp on
 	r
 	m \;
 	s \;
@@ -448,7 +448,7 @@ def jpl_rule24
 end
 
 def jpl_rule25a
-	cpp on
+	# cpp on
 	r
 	m @ident \(; n; j; e {; j
 	m & (!.curly)
@@ -475,7 +475,7 @@ def jpl_rule25a
 end
 
 def jpl_rule25b(nr)	# uses one argument
-	cpp on
+	# cpp on
 	r
 	# check fct length < nr lines
 	m @ident \(; n; j; e {; m & (!.curly); n
@@ -483,7 +483,7 @@ def jpl_rule25b(nr)	# uses one argument
 end
 
 def jpl_rule26_27
-	cpp on
+	# cpp on
 	r; m * *; n; n; m & *
 	>1
 	u; m & @ident; n; m & [
@@ -491,7 +491,7 @@ def jpl_rule26_27
 end
 
 def jpl_rule28
-	cpp off
+	cpp off		# jpl_rule28
 	r; m typedef
 	s \;
 	c *

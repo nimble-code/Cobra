@@ -21,6 +21,7 @@ int all_headers;
 int cplusplus;
 int Ctok;
 int eol;
+int eof;
 int gui;
 int java;
 int Ncore = 1;
@@ -73,6 +74,7 @@ extern Prim	*prim, *plst;
 
 extern void	 set_ranges(Prim *, Prim *);
 extern void	 recycle_token(Prim *, Prim *);
+extern void	 add_eof(int);
 
 static int
 process(int cid)
@@ -86,6 +88,9 @@ process(int cid)
 	} else
 	{	while (c_lex(cid) > 0)
 		{	;
+		}
+		if (eof != 0)
+		{	add_eof(cid);
 		}
 		return sanitycheck(cid);
 	}
@@ -549,6 +554,7 @@ usage(char *s)
 	fprintf(stderr, "\t-configure dir      -- set and remember the name for the cobra rules directory\n");
 	fprintf(stderr, "\t-cpp                -- enable C preprocessing%s\n", no_cpp?"":" (default)");
 	fprintf(stderr, "\t-d and -v -d        -- debug cobra inline program executions\n");
+	fprintf(stderr, "\t-eof                -- treat end-of-file as EOF tokens\n");
 	fprintf(stderr, "\t-eol                -- treat newlines as EOL tokens\n");
 	fprintf(stderr, "\t-e name             -- (or -expr -regex -re) print lines with tokens matching name\n");
 	fprintf(stderr, "\t-e \"token_expr\"     -- print lines matching a token_expr (cf -view)\n");
@@ -1106,6 +1112,10 @@ main(int argc, char *argv[])
 			  {	eol = 1;
 				break;
 			  }
+			  if (strcmp(argv[1], "-eof") == 0)
+			  {	eof = 1;
+				break;
+			  }
 RegEx:			  no_match = 1;		// -e -expr -re or -regex
 			  cobra_texpr = check_negations(argv[2]);
 			  argc--; argv++;
@@ -1354,10 +1364,13 @@ cwe_mode:	no_match = 1;	// for consistency with -f
 	{	fprintf(stderr, "warning: ignoring '%s'\n", preproc);
 	}
 
-	if (cobra_texpr
-	&&  strstr(cobra_texpr, "EOL"))
-	{	eol = 1;
-	}
+	if (cobra_texpr)
+	{	if (strstr(cobra_texpr, "EOL"))
+		{	eol = 1;
+		}
+		if (strstr(cobra_texpr, "EOF"))
+		{	eof = 1;
+	}	}
 
 	umask(022);
 	prep_pre();

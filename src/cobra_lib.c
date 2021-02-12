@@ -59,6 +59,7 @@ static int	re_set[2];
 static int	source;
 static int	nowindow = 1;
 static int	clearbounds;
+
 static regex_t	rex[2];
 
 static Script	*scripts;
@@ -132,9 +133,16 @@ regstart(const int p, char *is)
 {	char *s = is;
 	int n;
 
-	assert(p >= 0 && p < 2);
+	assert(is && p >= 0 && p < 2);
 	assert(re_set[p] == 0);
-
+	while (*s == ' ')
+	{	s++;
+	}
+	n = strlen(s) - 1;
+	while (n > 0 && s[n] == ' ')
+	{	s[n] = '\0';
+		n--;
+	}
 	n = regcomp(&rex[p], s, REG_NOSUB|REG_EXTENDED);
 	if (n != 0)	// compile
 	{	regerror(n, &rex[p], ebuf, sizeof(ebuf));
@@ -3327,6 +3335,16 @@ cleanup(int unused)
 }
 
 // externally visible functions:
+
+void
+fix_eol(void)
+{	// rescan with -eol
+	prim = plst = (Prim *) 0;
+	count = 0;
+	rescan();
+	ctokens();
+//	fct_defs();
+}
 
 void
 set_cnt(int n)

@@ -1,6 +1,6 @@
 
 def check_asm(rn)		# asm.cobra
-	cpp on
+	# cpp on
 	r;
 	m asm \(
 	%{
@@ -34,7 +34,7 @@ def check_braces		# round.cobra
 	# find binary operators in conditions
 	# that may have insufficient parentheses
 	# specifically: a & x == y
-	cpp on
+	# cpp on
 	r
 	%{
 		if (.txt == "(")
@@ -88,7 +88,7 @@ def check_braces		# round.cobra
 end
 
 def check_side_effect			# side_effect.cobra
-	cpp on
+	# cpp on
 	r
 	# report multiple side effects in parenthesized conditions
 	%{
@@ -151,7 +151,7 @@ def check_fct_hdrs
 end
 
 def check_linelength(lnl)	# linelength.cobra
-	cpp off
+	# cpp off
 	r
 	%{
 	# instead of the physical line length,

@@ -878,6 +878,12 @@ line(int cid)	// called also in cobra_prep.c
 }
 
 void
+add_eof(int cid)
+{
+	show2("cpp", "EOF", cid);
+}
+
+void
 t_lex(int cid)
 {	int m, n = 0;
 

@@ -1,7 +1,7 @@
 # see main/*.cobra
 
 def fct_names			# helper function
-	cpp on
+	# cpp on
 	m @ident \(; n
 	w (!.curly)		# not inside a fct
 	j			# jump to end of param list
@@ -10,18 +10,8 @@ def fct_names			# helper function
 	b			# fct name
 end
 
-def p10_rule1a(rn)		# setjmp can be a macro
-	cpp off
-	r
-	m goto
-	m setjmp
-	m longjmp
-	= "=== rn: do not use goto, setjmp, longjmp:"
-	d
-end
-
-def p10_rule1b(rn)
-	cpp on
+def p10_rule1a(rn)
+	# cpp on
 	r
  	fct_names
 	s {			# tag name to {
@@ -32,13 +22,22 @@ def p10_rule1b(rn)
 	d
 end
 
+def p10_rule1b(rn)		# setjmp can be a macro
+	r
+	m goto
+	m setjmp
+	m longjmp
+	= "=== rn: do not use goto, setjmp, longjmp:"
+	d
+end
+
 def p10_rule1(rn)
 	p10_rule1a(rn)
 	p10_rule1b(rn)
 end
 
 def p10_rule2a(rn)
-	cpp on
+	# cpp on
 	#  partial check: the loop condition must contain a comparison
 	r
 	m for \(; n
@@ -79,7 +78,7 @@ def p10_rule2a(rn)
 end
 
 def p10_rule2b(rn)
-	cpp on
+	# cpp on
 	r	# assumes p10_rule2a ran first
 	<1	# upperbound from p10_rule2a
 	n; n \;	# move to increment
@@ -91,7 +90,7 @@ def p10_rule2b(rn)
 end
 
 def p10_rule2c(rn)
-	cpp on
+	# cpp on
 	r	# assumes p10_rule2a ran first
 	<2	# lowerbound from p10_rule2a
 	n; n \;	# move to increment
@@ -109,7 +108,7 @@ def p10_rule2(rn)
 end
 
 def p10_rule3(rn)
-	cpp on
+	# cpp on
 	r
 	fct_names
 	m & /init		# name contains "init"
@@ -129,7 +128,7 @@ def p10_rule3(rn)
 end
 
 def p10_rule4(rn, nr)
-	cpp on
+	# cpp on
 	r
 	fct_names
 	n {
@@ -140,7 +139,7 @@ def p10_rule4(rn, nr)
 end
 
 def p10_rule4_log(rn, nr)
-	cpp on
+	# cpp on
 	r
 	fct_names
 	%{
@@ -170,7 +169,7 @@ def p10_rule4_log(rn, nr)
 end
 
 def p10_rule5(rn, nr)	# assert is often a macro
-	cpp off
+	cpp off		# p10_rule5
 	%{	size1 = 0; size2 = 0; Stop;	%}
 	%{
 		if (.txt == ";")
@@ -197,15 +196,20 @@ def p10_rule5(rn, nr)	# assert is often a macro
 end
 
 def p10_rule6a(rn)
-	cpp on
+	# cpp on
 	r
-	m @ident; m & (!.curly && !.round); m & /^.$
+	m @ident
+	m & (!.curly && !.round)
+	m & /^.$
+	b
+	m no \.
+	n
 	= "=== rn: do not use single-letter global identifiers:"
 	d
 end
 
 def p10_rule6b(rn)
-	cpp on
+	# cpp on
 	r
 	!scope_check -N1 -c rn $FLAGS $ARGS
 	# rn: declare data objects at the smallest possible level of scope:"
@@ -218,7 +222,7 @@ def p10_rule6(rn)
 end
 
 def p10_rule7a(rn)
-	cpp on
+	# cpp on
 	r
 	fcts
 	n {
@@ -236,7 +240,7 @@ def p10_rule7a(rn)
 	w (.round == 0)		# not in call or condition
 	w (.bracket == 0)	# not array index
 	unmark /^[Yy][Yy]	# not yacc related
-	b; m no /=		# return value not asigned
+	b; m no /=		# return value not assigned
 	m no return		# or returned
 	m no @oper		# not part of an expression
 	m no )			# likely cast
@@ -254,7 +258,7 @@ def p10_rule7a(rn)
 end
 
 def p10_rule7b(rn)
-	cpp on
+	# cpp on
 	r
 	fcts
 	n \(
@@ -286,7 +290,6 @@ def p10_rule7(rn)
 end
 
 def p10_rule8a(rn)
-	cpp off
 	r
 	%{	p1 = 0;
 		p2 = 0;
@@ -324,7 +327,6 @@ def p10_rule8a(rn)
 end
 
 def p10_rule8b(rn)
-	cpp off
 	r
 	m @cpp
 	m & /define
@@ -337,12 +339,13 @@ def p10_rule8b(rn)
 end
 
 def p10_rule8(rn)
+	cpp off		# p10_rule8
 	p10_rule8a(rn)
 	p10_rule8b(rn)
 end
 
 def p10_rule9a(rn)
-	cpp on
+	# cpp on
 	r
 	%{
 		if (.txt != "typedef")
@@ -378,7 +381,7 @@ def p10_rule9a(rn)
 end
 
 def p10_rule9b(rn)
-	cpp on
+	# cpp on
 	r
 	m * *; n; n; m & *
 	>1
