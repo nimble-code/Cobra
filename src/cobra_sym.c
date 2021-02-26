@@ -6,8 +6,8 @@
 
 #include "cobra.h"
 
-#define R_MATCH(x)	(strcmp(r->txt, x) == 0)
-#define R_TYPE(x)	(strcmp(r->typ, x) == 0)
+#define R_MATCH(x)	(strcmp(r->txt, (x)) == 0)
+#define R_TYPE(x)	(strcmp(r->typ, (x)) == 0)
 
 // modifiers : long, short, signed, unsigned
 // qualifiers: const, volatile

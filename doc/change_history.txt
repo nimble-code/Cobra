@@ -101,7 +101,7 @@
   - added online tutorials for the all existing capabilities of cobra
     verison 3.1, including the new runtime verification options.
 
-3.2 sep 2020
+3.2/3.3 sep 2020
   - added new find_taint backend module for finding cases of potential
     code injection in code bases.
   - reduced memory use and inproved runtime performance in processing
@@ -128,3 +128,12 @@
   - added compiler directive DEBUG_MEM for generating diagnostic output on memory
     use during script executions.
   - additional small bug fixes.
+
+3.4 feb 2021
+  - further improvements in accuracy of brace pairing in pattern expressions (-pe)
+  - new command-line options -F, -recursive, -eol, -eof
+  - all warning and error messages now go to stderr instead of stdout
+  - added -json and -json+ command line options primarily for output of -pe searches
+  - new interactive query command dp to display selected pattern matches
+  - updated manual pages
+  - small bug fixes

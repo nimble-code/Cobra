@@ -46,6 +46,7 @@ int verbose;
 int with_comments = 1;
 int full_comments;
 int json_format;
+int json_plus;
 
 ArgList		*cl_var;	// -var name=xxx, cobra_lib.c
 pthread_t	*t_id;
@@ -65,8 +66,11 @@ static Pass	*pass_arg;
 static char	*CPP       = "gcc";
 static char	*lang      = "c";
 static char	*preproc   = "";
+static char	*file_list;	// file with filenames to process
 static int	 handle_typedefs = 1;
+static char	*recursive;	// use find to populate file_list
 static int	 textmode;
+static char	 tmpf[32];
 static int	 with_qual = 1;
 static int	 with_type = 1;
 
@@ -128,7 +132,7 @@ set_tmpname(char *s, const char *t, const int n)
 	snprintf(s, n, "/tmp/%s_XXXXXX", t);
 	fd = mkstemp(s);
 	if (fd < 0)
-	{	printf("warning: cannot create tmpfile '%s'\n", t);
+	{	fprintf(stderr, "warning: cannot create tmpfile '%s'\n", t);
 	} else
 	{	close(fd);
 	}
@@ -556,7 +560,7 @@ usage(char *s)
 	fprintf(stderr, "\t-d and -v -d        -- debug cobra inline program executions\n");
 	fprintf(stderr, "\t-eof                -- treat end-of-file as EOF tokens\n");
 	fprintf(stderr, "\t-eol                -- treat newlines as EOL tokens\n");
-	fprintf(stderr, "\t-e name             -- (or -expr -regex -re) print lines with tokens matching name\n");
+	fprintf(stderr, "\t-e name             -- print lines with tokens matching name\n");
 	fprintf(stderr, "\t-e \"token_expr\"     -- print lines matching a token_expr (cf -view)\n");
 	fprintf(stderr, "\t                       use meta-symbols: ( | ) . * + ?\n");
 	fprintf(stderr, "\t                       use ^name for not-matching name\n");
@@ -564,10 +568,12 @@ usage(char *s)
 	fprintf(stderr, "\t                       var-reference: :name\n");
 	fprintf(stderr, "\t                       same as -re, -regex,-expr, see also -pe\n");
 	fprintf(stderr, "\t-f file             -- execute commands from file and stop (cf -view)\n");
+	fprintf(stderr, "\t-F file             -- read files to process from file instead of command line (see also -recursive)\n");
 	fprintf(stderr, "\t-Idir, -Dstr, -Ustr -- preprocessing directives\n");
 	fprintf(stderr, "\t-Java               -- recognize Java keywords\n");
 	fprintf(stderr, "\t-json               -- generate json output for -pattern/-pe matches (only)\n");
-	fprintf(stderr, "\t-lib                -- list available predefined cobra -f checks\n");
+	fprintf(stderr, "\t-json+              -- generate more detailed json output for -pattern/-pe matches\n");
+	fprintf(stderr, "\t-l or -lib          -- list available predefined cobra -f checks\n");
 	fprintf(stderr, "\t-m or -macros       -- parse text of macros (implies -nocpp)\n");
 	fprintf(stderr, "\t-n or -nocpp        -- do not do any C preprocessing%s\n", !no_cpp?"":" (default)");
 	fprintf(stderr, "\t-noqualifiers       -- do not tag qualifiers\n");
@@ -585,6 +591,8 @@ usage(char *s)
 	fprintf(stderr, "\t-preserve           -- preserve temporary files in /tmp\n");
 	fprintf(stderr, "\t-Python             -- recognize Python keywords\n");
 	fprintf(stderr, "\t-quiet              -- do not print script commands executed or nr of matches\n");
+	fprintf(stderr, "\t-recursive \"pattern\" -- use find on pattern to populate a list of files to process (see also -F)\n");
+	fprintf(stderr, "\t                        eg -recursive '*.[ch]' or -recursive '*.java'\n");
 	fprintf(stderr, "\t-regex \"expr\"       -- see -e\n");
 	fprintf(stderr, "\t-runtimes           -- report runtimes of commands executed, if >1s\n");
 	fprintf(stderr, "\t-scrub              -- produce output in scrub-format\n");
@@ -596,7 +604,8 @@ usage(char *s)
 	fprintf(stderr, "\t-version            -- print version number and exit\n");
 	fprintf(stderr, "\t-v                  -- more verbose\n");
 	fprintf(stderr, "\t-view -f file       -- show dot-graph of DFA(s) of inline program(s)\n");
-	fprintf(stderr, "\t-view -e \"token_expr\" -- show dot-graph of NDFA for expr\n");
+	fprintf(stderr, "\t-view -e  \"token_expr\" -- show dot-graph of NDFA for expr\n");
+	fprintf(stderr, "\t-view -pe \"token_expr\" -- show dot-graph of NDFA for pattern expr\n");
 	fprintf(stderr, "\t-V                  -- print version number and exit\n");
 	fprintf(stderr, "\t-var name=value     -- set name in def-script to value (cf. -f)\n");
 	fprintf(stderr, "all arguments starting with -- are passed to standalone backends, e.g. --debug\n");
@@ -637,7 +646,7 @@ one_core(void *arg)
 	cid = *i;
 
 	while ((s = get_work(cid)) != NULL)
-	{	add_file(s, cid, 1);
+	{	(void) add_file(s, cid, 1);
 	}
 
 	if (handle_typedefs)
@@ -709,7 +718,7 @@ par_scan(void)
 
 	ini_par();
 
-	if (verbose>1) printf("parse\n");
+	if (verbose>1) { printf("parse\n"); }
 	for (i = 0; i < Ncore; i++)
 	{	pass_arg[i].who = i;
 		start_timer(i);
@@ -721,9 +730,9 @@ par_scan(void)
 		stop_timer(i, 0, "E");
 	}
 
-	if (verbose>1) printf("renumber\n");
+	if (verbose>1) { printf("renumber\n"); }
 	for (cid = n_s = 0; cid < Ncore; cid++)
-	{	if (verbose>1) printf("%d	%d\n", cid, n_s);
+	{	if (verbose>1) { printf("%d	%d\n", cid, n_s); }
 		pass_arg[cid].start_nr = n_s;
 		n_s += (Px.lex_plst)?Px.lex_plst->seq + 1:0;
 	}
@@ -745,20 +754,70 @@ static void
 seq_scan(int argc, char *argv[])
 {	int i;
 
-	if (verbose>1) printf("parse\n");
+	if (verbose>1)
+	{	printf("parse\n");
+	}
 	start_timer(0);
 	for (i = 1; i < argc; i++)
-	{	add_file(argv[i], 0, 1);
+	{	(void) add_file(argv[i], 0, 1);
 	}
 	stop_timer(0, 0, "G");
-	start_timer(0);
-	if (verbose>1) printf("typedefs\n");
-	if (handle_typedefs)
-	{	typedefs(0);
-	}
-	stop_timer(0, 0, "H");
 }
 
+static char **
+prep_args(const char *f, int *ac)
+{	FILE *fd;
+	char *q, **aa, buf[512];
+	int n, cnt = 0;
+
+	// read file arguments from a file
+	// and make it look like they came from the command line
+	
+	*ac = 0;
+	if ((fd = fopen(f, "r")) == NULL)
+	{	return NULL;
+	}
+	while (fgets(buf, sizeof(buf), fd))
+	{	cnt++;	// count nr of files
+	}
+	fclose(fd);
+
+	aa = (char **) emalloc((cnt+1) * sizeof(char *), 111);
+	aa[0] = progname;
+
+	if ((fd = fopen(f, "r")) == NULL)
+	{	return NULL;
+	}
+	for (n = 1; n <= cnt; n++)
+	{	if (!fgets(buf, sizeof(buf), fd))
+		{	fclose(fd);
+			return NULL;
+		}
+		while ((q = strchr(buf, '\n')) || (q = strchr(buf, '\r')))
+		{	*q = '\0';
+		}
+
+		aa[n] = (char *) emalloc(strlen(buf)+1, 111);
+		strcpy(aa[n], buf);
+	}
+	fclose(fd);
+
+	*ac = cnt+1;
+
+	return aa;
+}
+
+#if 0
+static void
+ddebug(int n, char *v[])
+{	int m;
+	printf("cnt %d:\n", n); fflush(stdout);
+	for (m = 0; m < n; m++)
+	{	printf("%d\t", m); fflush(stdout);
+		printf("%s\n", v[m]); fflush(stdout);
+	}
+}
+#endif
 #if 0
  when using -pattern instead of -e
  meta-symbols: ( | ) + ? are not used
@@ -807,6 +866,8 @@ check_negations(char *p)
 			case '?':
 				*n++ = '\\';
 				*n++ = *p;
+				break;
+			default:
 				break;
 		}	}
 		p++;
@@ -1046,7 +1107,9 @@ int
 main(int argc, char *argv[])
 {	int view = 0;
 
-	progname = argv[0];
+	progname = (char *) emalloc(strlen(argv[0]) + 1, 112);
+	strcpy(progname, argv[0]);
+
 //	autosetcores();	// default nr cores to use
 
 	while (argc > 1 && argv[1][0] == '-')
@@ -1135,6 +1198,10 @@ RegEx:			  no_match = 1;		// -e -expr -re or -regex
 			  }	}
 			  break;
 
+		case 'F': file_list = argv[2];	// file args read from file_list
+			  argc--; argv++;
+			  break;
+
 		case 'g': gui = 1;
 			  break;
 
@@ -1144,6 +1211,10 @@ RegEx:			  no_match = 1;		// -e -expr -re or -regex
 		case 'j':
 			  if (strcmp(argv[1], "-json") == 0)
 			  {	json_format = 1;
+				break;
+			  }
+			  if (strcmp(argv[1], "-json+") == 0)
+			  {	json_format = json_plus = 1;
 				break;
 			  }
 			  return usage(argv[1]);
@@ -1159,7 +1230,7 @@ RegEx:			  no_match = 1;		// -e -expr -re or -regex
 			  if (set_base())
 			  {	list_checkers();
 			  } else
-			  {	printf("error: check tool installation\n");
+			  {	fprintf(stderr, "error: check tool installation\n");
 			  }
 			  return 0;
 
@@ -1188,9 +1259,6 @@ RegEx:			  no_match = 1;		// -e -expr -re or -regex
 			  }
 			  no_cpp = with_comments = 1;	// -nocpp
 			  no_cpp_sticks = 1;
-			  break;
-
-		case 'z': no_headers = 1; // deprecated, backward compatibility
 			  break;
 
 		case 'N': Nthreads(&argv[1][2]);
@@ -1233,6 +1301,12 @@ RegEx:			  no_match = 1;		// -e -expr -re or -regex
 			  if (strcmp(argv[1], "-regex") == 0
 			  ||  strcmp(argv[1], "-re") == 0)
 			  {	goto RegEx;
+			  }
+			  if (strcmp(argv[1], "-recursive") == 0
+			  &&  argv[2][0] != '-')
+			  {	recursive = argv[2]; // populate file_list
+				argc--; argv++;
+				break;
 			  }
 			  return usage(argv[1]);
 
@@ -1302,8 +1376,12 @@ RegEx:			  no_match = 1;		// -e -expr -re or -regex
 		case 'V': printf("%s\n", tool_version);
 			  return 0;
 
+		case 'z': no_headers = 1; // deprecated, backward compatibility
+			  break;
+
 		case '-': // -- arguments are passed to backend, if any
-			  if (strlen(argv[1]) > 2)
+			  if (strlen(argv[1]) > 2
+			  &&  strcmp(progname, "cobra") != 0)
 			  {	int n = strlen(backend) + strlen(&argv[1][2]) + 2;
 				char *z = (char *) emalloc(n*sizeof(char), 33);
 				sprintf(z, "%s%s ", backend, &argv[1][2]);
@@ -1319,7 +1397,7 @@ RegEx:			  no_match = 1;		// -e -expr -re or -regex
 	}
 
 	if (!set_base())
-	{	printf("error: cannot open ~/.cobra : check tool installation\n");
+	{	fprintf(stderr, "error: cannot open ~/.cobra : check tool installation\n");
 	}
 
 	if (strstr(progname, "taint") != NULL) // shouldn't be hardcoded
@@ -1355,7 +1433,7 @@ cwe_mode:	no_match = 1;	// for consistency with -f
 	{	if ((strstr(cobra_target, ".c") != NULL
 		&&   strstr(cobra_target, ".cobra") == NULL)
 		||  strstr(cobra_target, ".h") != NULL)
-		{	printf("error: bad filename suffix for: -f %s\n",
+		{	fprintf(stderr, "error: bad filename suffix for: -f %s\n",
 				cobra_target);
 			cobra_target = (char *) 0;
 	}	}
@@ -1366,10 +1444,16 @@ cwe_mode:	no_match = 1;	// for consistency with -f
 
 	if (cobra_texpr)
 	{	if (strstr(cobra_texpr, "EOL"))
-		{	eol = 1;
+		{	if (verbose)
+			{	fprintf(stderr, "%s: enabling -eol\n", progname);
+			}
+			eol = 1;
 		}
 		if (strstr(cobra_texpr, "EOF"))
-		{	eof = 1;
+		{	if (verbose)
+			{	fprintf(stderr, "%s: enabling -eof\n", progname);
+			}
+			eof = 1;
 	}	}
 
 	umask(022);
@@ -1377,13 +1461,55 @@ cwe_mode:	no_match = 1;	// for consistency with -f
 	ini_timers();
 	ini_lock();
 
+	if (recursive)
+	{	int dfd;
+		char *buf;
+
+		strcpy(tmpf, "/tmp/_f_XXXXXX");
+		if ((dfd = mkstemp(tmpf)) < 0)
+		{	fprintf(stderr, "error: cannot create tmp file for -recursive option\n");
+			return 1;
+		}
+		close(dfd);
+		buf = (char *) emalloc(strlen(recursive) + strlen("find . -type f -name ''") + 1, 113);
+		sprintf(buf, "find . -type f -name '%s' > %s 2>&1", recursive, tmpf);
+		if (verbose)
+		{	printf("writing file_list to %s\n", tmpf);
+		}
+		if (system(buf))
+		{	fprintf(stderr, "error: find command (-recursive option) failed\n");
+			return 1;
+		}
+		file_list = tmpf;
+	}
+
+	if (file_list)	// read filenames from file
+	{	if (argc > 1)
+		{	fprintf(stderr, "%s: error, %d redundant args, starting with '%s'\n",
+				progname, argc - 1, argv[1]);
+			return 1;
+		}
+		argv = prep_args(file_list, &argc);
+		// ddebug(argc, argv);
+		if (!argv || argc <= 1)
+		{	fprintf(stderr, "%s: error reading '%s'\n", progname, file_list);
+			return 1;
+	}	}
+
 	if (Ncore > 1 && argc > 2)	// at least 2 files and cores
 	{	ini_files(argc, argv);
 		par_scan();
 		clr_files();
 	} else
 	{	seq_scan(argc, argv);
-	}
+		if (handle_typedefs)
+		{	if (verbose>1)
+			{	printf("typedefs\n");
+			}
+			start_timer(0);
+			typedefs(0);
+			stop_timer(0, 0, "H");
+	}	}
 
 	if (argc == 1)
 	{	read_stdin = 1;
@@ -1404,7 +1530,7 @@ cwe_mode:	no_match = 1;	// for consistency with -f
 	if (read_stdin)
 	{	if (no_cpp)
 		{	fprintf(stderr, "%s: reading stdin\n", progname);
-			add_file("", 0, 1);	// keep single-core
+			(void) add_file("", 0, 1);	// keep single-core
 			if (stream == 1 && Ctok)
 			{	Prim *rp;
 				do {	rp = plst;
@@ -1426,6 +1552,15 @@ cwe_mode:	no_match = 1;	// for consistency with -f
 	cobra_main();		// cobra and cobra_checkers
 
 	return 0;
+}
+
+void
+clear_file_list(void)
+{
+	if (recursive
+	&&  file_list)
+	{	unlink(file_list);
+	}
 }
 
 char *

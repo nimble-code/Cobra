@@ -118,13 +118,13 @@ static void	mk_fsm(Lextok *, const int);
 static void	mk_lab(Lextok *, Lextok *);
 static void	push_context(Lextok *, Lextok *, int, int);
 static void	tok2txt(Lextok *, FILE *);
-void	what_type(Renum);
+       void	what_type(FILE *, Renum);
 static void	yyerror(const char *);
 
 void	eval_prog(Prim **, Lextok *, Rtype *, const int);
 
 extern void	new_array(char *, int);	// cobra_array.c
-extern void	show_error(int);
+extern void	show_error(FILE *, int);
 extern int	xxparse(void);
 static int	yylex(void);
 
@@ -640,7 +640,7 @@ mk_lab(Lextok *t, Lextok *p)
 				if (p
 				&&  op
 				&&  op->lnr != p->lnr)
-				{	printf("line %d: warning: label '%s' redefined\n",
+				{	fprintf(stderr, "line %d: warning: label '%s' redefined\n",
 						p->lnr, t->s);
 			}	}
 			if (n->pm != (Prim *) p)
@@ -665,7 +665,7 @@ find_label(char *s)
 	{	if (strcmp(n->nm, s) == 0)
 		{	return (Lextok *) n->pm;
 	}	}
-	printf("error: label '%s' undefined\n", s);
+	fprintf(stderr, "error: label '%s' undefined\n", s);
 	return (Lextok *) 0;
 }
 
@@ -714,6 +714,8 @@ fixstr(Lextok *t)
 		{	if (*(s+1) == 't')
 			{	*s++ = ' ';
 				*s = '\t';
+			} else if (*(s+1) == '\\')
+			{	s++;
 			} else if (*(s+1) == 'n')
 			{	if (*(s+2) == '\0')
 				{	*s++ = '\n';
@@ -1134,15 +1136,15 @@ map_var(Prim **ref_p, const char *fnm, Lextok *name, Lextok *expr, const int ix)
 	Cdepth[ix]++;				// restore context
 
 	if (expr->typ == NAME && is_aname(expr->s, ix))
-	{	printf("error: the basename of an associative array (%s) cannot be passed as a parameter\n",
+	{	fprintf(stderr, "error: the basename of an associative array (%s) cannot be passed as a parameter\n",
 			expr->s);
-		show_error(expr->lnr);
+		show_error(stderr, expr->lnr);
 	}
 
 	n = mk_var(name->s, tmp.rtyp, ix);
 
 	if (n->cdepth == 0)
-	{	printf("error: parameter name '%s' clashes with a global variable named '%s'\n",
+	{	fprintf(stderr, "error: parameter name '%s' clashes with a global variable named '%s'\n",
 			n->nm, n->nm);
 	}
 
@@ -1150,7 +1152,7 @@ map_var(Prim **ref_p, const char *fnm, Lextok *name, Lextok *expr, const int ix)
 	{	assert(ix >= 0 && ix < Ncore);
 		printf("level %d, created parameter %s of type: ",
 			Cdepth[ix], name->s);
-		what_type(tmp.rtyp);
+		what_type(stdout, tmp.rtyp);
 		printf(": ");
 	}
 
@@ -1185,7 +1187,7 @@ map_var(Prim **ref_p, const char *fnm, Lextok *name, Lextok *expr, const int ix)
 		}
 		break;
 	default:
-		printf("line %d: error: unknown type for %s\n",
+		fprintf(stderr, "line %d: error: unknown type for %s\n",
 			name->lnr, name->s);
 		break;
 	}
@@ -1198,9 +1200,9 @@ set_actuals(Prim **ref_p, const char *fnm, Lextok *formal, Lextok *actual, const
 
 	if (!formal || !actual)
 	{	if (formal)
-		{	printf("error: %s(): missing parameter(s)\n", fnm); // allow?
+		{	fprintf(stderr, "error: %s(): missing parameter(s)\n", fnm); // allow?
 		} else if (actual)
-		{	printf("error: %s(): too many parameters\n", fnm);
+		{	fprintf(stderr, "error: %s(): too many parameters\n", fnm);
 		}
 		return;
 	}
@@ -1245,7 +1247,7 @@ find_fct(Lextok *t, int ix)
 			break;
 	}	}
 	if (!f)
-	{	printf("line %d: error: no such function '%s'\n",
+	{	fprintf(stderr, "line %d: error: no such function '%s'\n",
 			t->lnr, t->lft->s);
 	}
 }
@@ -1301,7 +1303,7 @@ mk_fsm(Lextok *t, const int ix)
 		{	b = b->nxt;
 		}
 		if (!b)
-		{	printf("error:%d: continue outside while-loop\n", t->lnr);
+		{	fprintf(stderr, "error:%d: continue outside while-loop\n", t->lnr);
 			t->a = new_lex(STOP, 0, 0);
 			break;
 		}
@@ -1314,7 +1316,7 @@ mk_fsm(Lextok *t, const int ix)
 		{	b = b->nxt;
 		}
 		if (!b)
-		{	printf("error:%d: break outside while-loop\n", t->lnr);
+		{	fprintf(stderr, "error:%d: break outside while-loop\n", t->lnr);
 			for (b = block[ix]; b; b = b->nxt)
 			{	printf("\t%d - %2d,%2d\n",
 					b->btyp,
@@ -1437,36 +1439,36 @@ eval_eq(int eq, Rtype *a, Rtype *rv)	// eq=1: EQ, eq=0: NE
 }
 
 void
-what_type(Renum t)
+what_type(FILE *fd, Renum t)
 {
 	switch (t) {
 	case VAL:
-		printf("number");
+		fprintf(fd, "number");
 		break;
 	case STR:
-		printf("string");
+		fprintf(fd, "string");
 		break;
 	case PTR:
-		printf("pointer");
+		fprintf(fd, "pointer");
 		break;
 	case STP:
-		printf("stop");
+		fprintf(fd, "stop");
 		break;
 	case PRCD:
-		printf("proceed");
+		fprintf(fd, "proceed");
 		break;
 	default:
-		printf("-unknown-");
+		fprintf(fd, "-unknown-");
 		break;
 	}
 }
 
 #define Assert(s, e, q)	\
 	if (!(e))	\
-	{	if (Ncore > 1) printf("(%d) ", ix);	\
-		printf("line %d: %s: expected %s, in ", q->lnr, s, #e); \
-		tok2txt(q, stdout); \
-		show_error(q->lnr); \
+	{	if (Ncore > 1) fprintf(stderr, "(%d) ", ix);	\
+		fprintf(stderr, "line %d: %s: expected %s, in ", q->lnr, s, #e); \
+		tok2txt(q, stderr); \
+		show_error(stderr, q->lnr); \
 		rv->rtyp = STP; \
 		sep[ix].T_stop++;	\
 		return;		\
@@ -1486,11 +1488,11 @@ set_var(Lextok *q, Rtype *rv, const int ix)
 
 	if (n->rtyp != rv->rtyp)
 	{	if (sep[ix].Verbose>1)
-		{	printf("\nline %d: warning: type coercion '%s'",
+		{	fprintf(stderr, "\nline %d: warning: type coercion '%s'",
 				q->lnr, q->s);
-			printf(" from "); what_type(n->rtyp);
-			printf(" to "); what_type(rv->rtyp);
-			printf("\n");
+			fprintf(stderr, " from "); what_type(stderr, n->rtyp);
+			fprintf(stderr, " to "); what_type(stderr, rv->rtyp);
+			fprintf(stderr, "\n");
 		}
 		n->rtyp = rv->rtyp;
 	}
@@ -1517,12 +1519,12 @@ set_var(Lextok *q, Rtype *rv, const int ix)
 		return;
 	}
 
-	printf("line %d: error:variable '%s' has type '",
+	fprintf(stderr, "line %d: error: variable '%s' has type '",
 		q->lnr, q->s);
-	what_type(n->rtyp);
-	printf("' not '");
-	what_type(rv->rtyp);
-	printf("'\n");
+	what_type(stderr, n->rtyp);
+	fprintf(stderr, "' not '");
+	what_type(stderr, rv->rtyp);
+	fprintf(stderr, "'\n");
 	sep[ix].T_stop++;
 	rv->rtyp = STP;
 }
@@ -1544,10 +1546,10 @@ get_var(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)
 			}
 			rv->rtyp = n->rtyp;
 		} else
-		{	if (Ncore > 1) printf("(%d) ", ix);
-			printf("line %d: unexpected variable type, in ", q->lnr);
-			tok2txt(q, stdout);
-			show_error(q->lnr);
+		{	if (Ncore > 1) fprintf(stderr, "(%d) ", ix);
+			fprintf(stderr, "line %d: unexpected variable type, in ", q->lnr);
+			tok2txt(q, stderr);
+			show_error(stderr, q->lnr);
 			rv->rtyp = STP;
 			sep[ix].T_stop++;
 		}
@@ -1576,14 +1578,14 @@ substr(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)
 	rv->s = "?";
 
 	if (a.rtyp != STR)
-	{	printf("error: 1st arg of substr is not a string\n");
+	{	fprintf(stderr, "error: 1st arg of substr is not a string\n");
 		rv->rtyp = STP;
 		return;
 	}
 
 	if (b.rtyp != VAL
 	||  c.rtyp != VAL)
-	{	printf("error: 2nd or 3rd arg of substr is not a value\n");
+	{	fprintf(stderr, "error: 2nd or 3rd arg of substr is not a value\n");
 		rv->rtyp = STP;
 		return;
 	}
@@ -1663,7 +1665,7 @@ print_args(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)
 		if (rv->s && strchr(rv->s, '\\'))
 		{ char *s;
 		  for (s = rv->s; *s != '\0'; s++)
-		  {	if (*s != '\\')
+		  {	if (*s != '\\' || *(s+1) == '\\')
 			{	fprintf(tfd, "%c", *s);
 		  }	}
 		} else
@@ -1797,7 +1799,7 @@ plus(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)	// strings or values
 		snprintf(s, n, "%s%s", tmp.s, rv->s);	// plus
 		rv->s = s;
 	} else
-	{	printf("line %d: error: invalid addition attempt\n", q->lnr);
+	{	fprintf(stderr, "line %d: error: invalid addition attempt\n", q->lnr);
 		rv->rtyp = STP;
 		sep[ix].T_stop++;
 	}
@@ -1956,15 +1958,15 @@ do_incr_decr(Prim **ref_p, Lextok *q, Rtype *rv, const int ix, Prim *p)
 		tmp.rtyp = STR;
 
 		if (LHS->core)
-		{	printf("error: invalid incr/decr of %s[%s] ^ expr\n",
+		{	fprintf(stderr, "error: invalid incr/decr of %s[%s] ^ expr\n",
 				LHS->lft->s, tmp.s);
 			rv->rtyp = STP;
-			show_error(q->lnr);
+			show_error(stderr, q->lnr);
 			return;
 		}
 		if (!incr_aname_el(ref_p, LHS->lft, &tmp, q->typ, rv, ix))	// do_incr LHS->lft->s: array name
-		{	printf("error: unexpected array type: expected value\n");
-			show_error(q->lnr);
+		{	fprintf(stderr, "error: unexpected array type: expected value\n");
+			show_error(stderr, q->lnr);
 			rv->rtyp = STP;
 		}
 		return;
@@ -1990,16 +1992,16 @@ do_incr_decr(Prim **ref_p, Lextok *q, Rtype *rv, const int ix, Prim *p)
 				n->v = rv->val;
 				return;
 			}
-			printf("line %d: error: invalid use of ++ or -- with lhs: ",
+			fprintf(stderr, "line %d: error: invalid use of ++ or -- with lhs: ",
 				LHS->lnr);
 			tok2txt(LHS, stdout);
-			printf("	unexpected type: ");
-			what_type(n->rtyp);
-			printf("\n");
+			fprintf(stderr, "	unexpected type: ");
+			what_type(stderr, n->rtyp);
+			fprintf(stderr, "\n");
 		} else
-		{	printf("line %d: error: invalid use of ++ or -- with lhs: ",
+		{	fprintf(stderr, "line %d: error: invalid use of ++ or -- with lhs: ",
 				LHS->lnr);
-			tok2txt(LHS, stdout);
+			tok2txt(LHS, stderr);
 		}
 		rv->rtyp = STP;
 		return;
@@ -2041,12 +2043,12 @@ do_incr_decr(Prim **ref_p, Lextok *q, Rtype *rv, const int ix, Prim *p)
 			{	z->mark = rv->val;
 				return;
 			}
-			printf("line %d: error: incr/decr of invalid ref '%s.%s'\n",
+			fprintf(stderr, "line %d: error: incr/decr of invalid ref '%s.%s'\n",
 				LHS->lnr, LHS->lft->s, LHS->rgt->s);
 		} else
-		{	printf("line %d: error: unexpected type '", LHS->lnr);
-			what_type(rv->rtyp);
-			printf("' in incr/decr '%s.%s'\n",
+		{	fprintf(stderr, "line %d: error: unexpected type '", LHS->lnr);
+			what_type(stderr, rv->rtyp);
+			fprintf(stderr, "' in incr/decr '%s.%s'\n",
 				LHS->lft->s, LHS->rgt->s);
 		}
 		rv->rtyp = STP;
@@ -2072,12 +2074,12 @@ do_assignment(Prim **ref_p, Lextok *q, Rtype *rv, const int ix, Prim *p)
 	assert(ix >= 0 && ix < Ncore);
 
 	if (!RHS)
-	{	printf("%d: error: missing rhs in assignment\n", q->lnr);
+	{	fprintf(stderr, "line %d: error: missing rhs in assignment\n", q->lnr);
 		rv->rtyp = STP;
 		return;
 	}
 	if (!LHS)
-	{	printf("%d: error: missing lhs in assignment", q->lnr);
+	{	fprintf(stderr, "line %d: error: missing lhs in assignment", q->lnr);
 		rv->rtyp = STP;
 		return;
 	}
@@ -2090,10 +2092,10 @@ do_assignment(Prim **ref_p, Lextok *q, Rtype *rv, const int ix, Prim *p)
 		tmp.rtyp = STR;
 
 		if (LHS->core)
-		{	printf("error: invalid assignment to %s[%s] ^ expr\n",
+		{	fprintf(stderr, "error: invalid assignment to %s[%s] ^ expr\n",
 				LHS->lft->s, tmp.s);
 			rv->rtyp = STP;
-			show_error(q->lnr);
+			show_error(stderr, q->lnr);
 			return;
 		}
 
@@ -2161,11 +2163,11 @@ do_assignment(Prim **ref_p, Lextok *q, Rtype *rv, const int ix, Prim *p)
 					}
 					return;
 				}
-				printf("line %d: error: unexpected type '", LHS->lnr);
-				what_type(rv->rtyp);
-				printf("' (%d) in assignment to '%s.%s'\n",
+				fprintf(stderr, "line %d: error: unexpected type '", LHS->lnr);
+				what_type(stderr, rv->rtyp);
+				fprintf(stderr, "' (%d) in assignment to '%s.%s'\n",
 					rv->rtyp, LHS->lft->s, LHS->rgt->s);
-				show_error(LHS->lnr);
+				show_error(stderr, LHS->lnr);
 			} else if (p)
 			{	switch (LHS->rgt->typ) {
 				case TXT:
@@ -2189,10 +2191,10 @@ do_assignment(Prim **ref_p, Lextok *q, Rtype *rv, const int ix, Prim *p)
 		{	Var_nm *n;
 			eval_prog(ref_p, RHS, rv, ix);
 			if (rv->rtyp != PTR)
-			{	printf("line %d: bad rhs in asgn (type %d), saw ", RHS->lnr, rv->rtyp);
-				tok2txt(RHS, stdout);
+			{	fprintf(stderr, "line %d: bad rhs in asgn (type %d), saw ", RHS->lnr, rv->rtyp);
+				tok2txt(RHS, stderr);
 				rv->rtyp = STP;
-				show_error(RHS->lnr);
+				show_error(stderr, RHS->lnr);
 				return;
 			}
 			if (!LHS->lft)	// eg: .bound = ptr;
@@ -2204,10 +2206,10 @@ do_assignment(Prim **ref_p, Lextok *q, Rtype *rv, const int ix, Prim *p)
 				{	n->rtyp = PTR;		// its the q in q.mark
 				}
 				if (n->rtyp != PTR || !n->pm)
-				{	printf("line %d: error: type error in assignment to %s '",
+				{	fprintf(stderr, "line %d: error: type error in assignment to %s '",
 						LHS->lnr, n->nm);
-					what_type(n->rtyp);
-					printf("' in '%s.%s'\n", LHS->lft->s, LHS->rgt->s);
+					what_type(stderr, n->rtyp);
+					fprintf(stderr, "' in '%s.%s'\n", LHS->lft->s, LHS->rgt->s);
 					rv->rtyp = STP;
 					return;
 			}	}
@@ -2235,9 +2237,9 @@ do_assignment(Prim **ref_p, Lextok *q, Rtype *rv, const int ix, Prim *p)
 		&&  LHS->rgt->typ != BRACKET
 		&&  LHS->rgt->typ != LNR
 		&&  LHS->rgt->typ != SEQ)
-		{	printf("line %d: error: bad lhs in asgn, saw: .",LHS->lnr);
-			tok2txt(LHS->rgt, stdout);
-			show_error(LHS->lnr);
+		{	fprintf(stderr, "line %d: error: bad lhs in asgn, saw: .",LHS->lnr);
+			tok2txt(LHS->rgt, stderr);
+			show_error(stderr, LHS->lnr);
 			rv->rtyp = STP;
 			return;
 		}
@@ -2292,17 +2294,17 @@ do_assignment(Prim **ref_p, Lextok *q, Rtype *rv, const int ix, Prim *p)
 			}
 
 			if (n->rtyp != VAL)
-			{	printf("line %d: error: type error in assignment to %s '",
+			{	fprintf(stderr, "line %d: error: type error in assignment to %s '",
 					LHS->lnr, n->nm);
-				what_type(tmp.rtyp);
-				printf("' in '%s.%s'\n", LHS->lft->s, LHS->rgt->s);
+				what_type(stderr, tmp.rtyp);
+				fprintf(stderr, "' in '%s.%s'\n", LHS->lft->s, LHS->rgt->s);
 				rv->rtyp = STP;
 				return;
 			}
 			switch (n->rtyp) {
 			case VAL:
 				n->v = rv->val;
-				// printf("%d: when can this happen? %s.%s\n",
+				// fprintf(stderr, "%d: when can this happen? %s.%s\n",
 				//	LHS->lnr, LHS->lft->s, LHS->rgt->s);
 				break;
 			case STP:
@@ -2311,7 +2313,7 @@ do_assignment(Prim **ref_p, Lextok *q, Rtype *rv, const int ix, Prim *p)
 			case STR:
 			case PTR:	// cant happen, intercepted above
 			default:
-				printf("cannot happen, unknown type in assignment\n");
+				fprintf(stderr, "cannot happen, unknown type in assignment\n");
 				rv->rtyp = STP;
 				break;
 			}
@@ -2452,7 +2454,7 @@ convert2string(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)
 		snprintf(rv->s, 64, "%d", rv->val);	// convert2string
 		break;
 	default:	// STP or PRCD
-		printf("line %d: error: unexpected type of index (%d)\n",
+		fprintf(stderr, "line %d: error: unexpected type of index (%d)\n",
 			q->lnr, rv->rtyp);
 		assert(ix >= 0 && ix < Ncore);
 		sep[ix].T_stop++;
@@ -2505,7 +2507,7 @@ cpush(Prim **ref_p, const char *s, Lextok *formals, Lextok *actuals, Lextok *ra,
 			break;
 	}	}
 	if (Cdepth[ix] >= MAX_STACK)	// protect against infinite recursion
-	{	printf("error: max stackdepth of %d exceeded\n", MAX_STACK);
+	{	fprintf(stderr, "error: max stackdepth of %d exceeded\n", MAX_STACK);
 		sep[ix].T_stop++;
 		return;
 	}
@@ -2541,7 +2543,7 @@ cpop(const char *s, const int ix)
 		rm_aname("", 0, ix);	// all non-array vars now out of scope
 		return c->ra;
 	}
-	printf("error(%d): cannot happen: POP %s fails\n", ix, s?s:"");
+	fprintf(stderr, "error(%d): cannot happen: POP %s fails\n", ix, s?s:"");
 	return 0;
 }
 
@@ -2749,9 +2751,9 @@ do_sum(Prim **ref_p, Lextok *q, Rtype *rv, int ix)
 		return array_sum_el(q->lft->s, s);
 	}
 
-	printf("%d: bad arg for sum, saw: ", q->lnr);
-	tok2txt(q, stdout);
-	show_error(q->lnr);
+	fprintf(stderr, "%d: bad arg for sum, saw: ", q->lnr);
+	tok2txt(q, stderr);
+	show_error(stderr, q->lnr);
 	rv->rtyp = STP;
 
 	return 0;
@@ -2833,7 +2835,7 @@ new_scalar(char *s, int ix)
 	{	printf("global scalar %s\n", s);
 		g->cdepth = 0;
 	} else
-	{	printf("error: global decl of %s failed, cpu %d\n", s, ix);
+	{	fprintf(stderr, "error: global decl of %s failed, cpu %d\n", s, ix);
 	}
 }
 
@@ -3176,24 +3178,24 @@ next:
 		eval_prog(ref_p, q->lft, rv, ix);
 		Assert("assert", rv->rtyp == VAL, q->lft);
 		if (rv->val == 0)
-		{	printf("%s:%d: assertion violated at: ",
+		{	fprintf(stderr, "%s:%d: assertion violated at: ",
 				p->fnm, p->lnr);
 			Prim *z = p;
 			while (z->prv && z->lnr == z->prv->lnr) { z = z->prv; }
 			while (z)
-			{	printf("%s", z->txt);
+			{	fprintf(stderr, "%s", z->txt);
 				z = z->nxt;
 				if (!z || z->lnr != p->lnr)
 				{	break;
 			}	}
-			printf("\n");
+			fprintf(stderr, "\n");
 #ifdef DEBUG
 			dump_tree(q->lft, 0);
 #endif
-			if (0) printf("%d: [seq %d ln %d] EVAL_PROG typ %3d ",
+			if (0) fprintf(stderr, "%d: [seq %d ln %d] EVAL_PROG typ %3d ",
 				ix, p->seq, p->lnr, q->typ);
 
-			show_error(q->lnr);
+			show_error(stderr, q->lnr);
 			unwind_stack(ix);
 			sep[ix].T_stop++; 
 			rv->rtyp = STP;
@@ -3400,7 +3402,7 @@ next:
 	if (sep[ix].P_debug == 2)
 	{	doindent();
 		printf("--end eval_prog rv: '");
-		what_type(rv->rtyp);
+		what_type(stdout, rv->rtyp);
 		printf("' val %d --> str: %s\n",
 			rv->val, (rv->rtyp == STR)?rv->s:"");
 	}
@@ -3728,8 +3730,8 @@ streamable(Lextok *t)
 		case PRV:
 		case JMP:
 		case N_CORE:
-			printf("script is not streamable:\n");
-			show_error(t->lnr);
+			fprintf(stderr, "script contains .jmp or .prv and is therefore not streamable:\n");
+			show_error(stderr, t->lnr);
 			return 0;
 		case CALL:
 			if (!streamable(t->c))
@@ -3757,8 +3759,8 @@ prep_prog(FILE *nfd)
 
 	sep[0].T_stop = 0;
 	if (!xxparse() || sep[0].T_stop)
-	{	printf("[%d]\n", sep[0].T_stop);
-		show_error(p_lnr);
+	{	fprintf(stderr, "[%d]\n", sep[0].T_stop);
+		show_error(stderr, p_lnr);
 		return 0;
 	}
 

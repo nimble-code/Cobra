@@ -250,7 +250,7 @@ print_marked(const int val)
 
 	if (!cobra_target
 	&& (fd = fopen(CobraDot, "a")) == NULL)
-	{	printf("error: cannot create output file '%s'\n", CobraDot);
+	{	fprintf(stderr, "error: cannot create output file '%s'\n", CobraDot);
 		return;
 	}
 
@@ -688,8 +688,8 @@ context(char *s, char *unused)
 		for (g = f->calls; g; g = g->nxt)
 		{	if (strcmp(g->nm, "check_args") == 0
 			||  strcmp(f->nm, "check_args") == 0)
-			printf("ix %d, fct %s, calls %s\n", ix, f->nm, g->nm);
-	}	}
+			{	printf("ix %d, fct %s, calls %s\n", ix, f->nm, g->nm);
+	}	}	}
 }
 
 void
@@ -733,10 +733,31 @@ show_line(FILE *fdo, const char *fnm, int n, int from, int upto, int tag)
 			{	fprintf(fdo, "%c%s:%05d:  ",
 					(ln == tag && upto > from)?'>':' ',
 					fnm, ln);
-			} else
+			} else if (tag >= 0)
 			{	fprintf(fdo, "%c%5d  ",
 					(ln == tag && upto > from)?'>':' ',
 					ln);
+			} else	// tag < 0 -> json output
+			{	char *q, *p = buf;
+				while (*p == ' ' || *p == '\t')
+				{	p++;
+				}
+				while ((q = strchr(p, '\n'))
+				||     (q = strchr(p, '\r')))
+				{	*q = '\0';
+				}
+				// remove escape characters and double quotes
+				for (q = p; *q != '\0'; q++)
+				{	if (*q == '"')
+					{	*q = '\'';
+					} else if (*q == '\\')
+					{	*q = ' ';
+					} else if (*q == '/' && *(q+1) == '/')
+					{	*q = '\0';
+						break;
+				}	}
+				fprintf(fdo, "%s", p);
+				continue;
 			}
 L:			fprintf(fdo, "%s", buf);
 	}	}

@@ -9,16 +9,16 @@
 #define NBUCKETS	128
 
 #define Put(a,b)	\
-	{	if (b>=0 && b<NDEPTH) \
-		{	Px.lex_range[a][b] = Px.lex_plst; \
+	{	if ((b)>=0 && (b)<NDEPTH) \
+		{	Px.lex_range[(a)][(b)] = Px.lex_plst; \
 		}	\
-		b++;	\
+		(b)++;	\
 	}
 #define Lnk(a,b)	\
-	{	if (b > 0) { b--; }	\
-		if (b>=0 && b<NDEPTH && Px.lex_range[a][b]) \
-		{	Px.lex_range[a][b]->jmp = Px.lex_plst; \
-			Px.lex_plst->jmp = Px.lex_range[a][b]; \
+	{	if ((b) > 0) { (b)--; }	\
+		if ((b)>=0 && (b)<NDEPTH && Px.lex_range[(a)][(b)]) \
+		{	Px.lex_range[(a)][(b)]->jmp = Px.lex_plst; \
+			Px.lex_plst->jmp = Px.lex_range[(a)][(b)]; \
 	}	}
 
 typedef struct JumpTbl JumpTbl;
@@ -226,7 +226,7 @@ check_args(char *s, const char *c_base)	// single-core
 		}	}
 
 		if (Nfiles == 0)	// new 12/2019: no args to expand
-		{	printf("error: no $ARGS for '%s'\n", s);
+		{	fprintf(stderr, "error: no $ARGS for '%s'\n", s);
 			return (char *) 0;
 		}
 
@@ -341,9 +341,10 @@ try_fix(Prim *from, Prim *upto)
 		{	continue;
 		}
 		if (p->curly != 0)
-		{	if (0) printf("%s:%d seems wrong: %d\n",
-				p->fnm, p->lnr, p->curly);
-
+		{	if (0)
+			{	printf("%s:%d seems wrong: %d\n",
+					p->fnm, p->lnr, p->curly);
+			}
 			// stub open { ranges in jmpbl
 			while (jmptbl)
 			{	jmptbl->b->jmp = jmptbl->b; // avoid null
@@ -385,8 +386,8 @@ fix_imbalance(void)
 	} while (r > 0 && cnt-- > 0);
 
 	if (cnt <= 0 && r > 0 && !no_display)
-	{	printf("warning: not all {} imbalances were patched\n");
-		printf("         run 'fix' for another pass\n");
+	{	fprintf(stderr, "warning: not all {} imbalances were patched\n");
+		fprintf(stderr, "         run 'fix' for another pass\n");
 	}
 
 	if (verbose && !no_display)
@@ -785,7 +786,7 @@ void
 prep_pre(void)
 {	int cid;
 
-	if (verbose>1) printf("ini_heap()\n");
+	if (verbose>1) { printf("ini_heap()\n"); }
 	ini_heap();
 	ini_par();
 
@@ -884,7 +885,7 @@ post_process(int fromscratch)
 					{	if (Ncore > 1)
 						{	printf("%d: ", cid);
 						}
-						printf("warning: %s unbalanced pairs: {}\n", r->s);
+						fprintf(stderr, "warning: %s unbalanced pairs: {}\n", r->s);
 					}
 					c_imbalance++;
 				}
@@ -892,13 +893,13 @@ post_process(int fromscratch)
 				{	if (Ncore > 1)
 					{	printf("%d: ", cid);
 					}
-					printf("warning: %s unbalanced pairs: ()\n", r->s);
+					fprintf(stderr, "warning: %s unbalanced pairs: ()\n", r->s);
 				}
 				if (r->imbalance & (1<<BRACKET_b))
 				{	if (Ncore > 1)
 					{	printf("%d: ", cid);
 					}
-					printf("warning: %s unbalanced pairs: []\n", r->s);
+					fprintf(stderr, "warning: %s unbalanced pairs: []\n", r->s);
 				}
 		}	}
 		Px.lex_files[j] = 0;
@@ -919,7 +920,7 @@ post_process(int fromscratch)
 	} else
 	{	cur = prim = pre[0].lex_prim;
 		plst = pre[0].lex_plst;
-		if (verbose>1) printf("connect\n");
+		if (verbose>1) { printf("connect\n"); }
 		for (cid = 1; plst && cid < Ncore; cid++)
 		{	if (!Px.lex_prim)
 			{	assert(!Px.lex_plst);

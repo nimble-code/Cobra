@@ -42,7 +42,7 @@ extern void rm_var(const char *s, int one, const int ix);
 extern uint hasher(const char *s);
 extern ulong hash2(const char *s);
 extern char *derive_string(Prim **, Lextok *, const int, const char *);
-extern void what_type(Renum);
+extern void what_type(FILE *, Renum);
 extern void eval_prog(Prim **, Lextok *, Rtype *, const int);
 
 extern int  incr_aname_el(Prim **ref_p, Lextok *p, Rtype *ts, const int tp, Rtype *rv, const int ix);	// get or create

@@ -17,7 +17,7 @@
 #define CONCAT	512	// higher than operator values
 #define OPERAND	513	// higher than others
 
-#define te_regmatch(t, q)	regexec(t, q, 0,0,0)	// t always nonzero
+#define te_regmatch(t, q)	regexec((t), (q), 0,0,0)	// t always nonzero
 
 typedef struct List	List;
 typedef struct Nd_Stack	Nd_Stack;
@@ -136,7 +136,8 @@ static Store	*free_stored;
 static State	*free_state;
 static Rlst	*re_list;
 static char	*glob_te = "";
-static char	json_msg[64];
+static char	json_msg[128];
+static char	bvars[128];
 
 static PrimStack *prim_stack;
 static PrimStack *prim_free;
@@ -218,12 +219,47 @@ list_states(char *tag, int n)
 #endif
 
 static void
+cleaned_up(const char *tp)
+{	const char *p = tp;
+
+	while (p && *p != '\0')
+	{	switch (*p) {
+		case '\\':	// strip, \ or " characters
+			printf(" "); // replace with space
+			break;
+		case '"':
+			printf("\\");	// insert escape
+			// fall thru
+		default:
+			printf("%c", *p);
+			break;
+		}
+		p++;
+	}
+}
+
+static void
 json_match(const char *te, const char *msg, const char *f, int ln)
 {
-	printf("  { \"type\"\t:\t\"%s\",\n", te);
-	printf("    \"message\"\t:\t\"%s\",\n", msg);
+	printf("  { \"type\"\t:\t\"");
+	 cleaned_up(te);
+	printf("\",\n");
+
+	printf("    \"message\"\t:\t\"");
+	 cleaned_up(msg);
+	printf("\",\n");
+
+	if (json_plus)
+	{	if (strlen(bvars) > 0)
+		{	printf("    \"bindings\"\t:\t\"%s\",\n", bvars);
+		}
+		printf("    \"source\"\t:\t\"");
+		show_line(stdout, f, 0, ln, ln, -1);
+		printf("\",\n");
+	}
+
 	printf("    \"file\"\t:\t\"%s\",\n", f);
-	printf("    \"line\"\t:\t%d,\n", ln);
+	printf("    \"line\"\t:\t%d\n", ln);
 	printf("  }");
 }
 
@@ -231,14 +267,14 @@ static void
 te_error(const char *s)
 {
 	if (json_format)
-	{	sprintf(json_msg, "\"error: %s\"", s);
-		json_match(glob_te, json_msg, "", 0);
+	{	memset(bvars, 0, sizeof(bvars));
+		sprintf(json_msg, "\"error: %.110s\"", s);
+		json_match(glob_te, json_msg, "", 0);	// error
 	} else
 	{	fprintf(stderr, "error: %s\n", s);
 	}
 	if (cobra_texpr)	// non-interactive
-	{
-stop_timer(0, 0, "te");
+	{	stop_timer(0, 0, "te");
 		noreturn();
 	}
 	nerrors++;
@@ -1231,12 +1267,21 @@ add_match(Prim *f, Prim *t, Store *bd)
 	matches = m;
 	p_matched++;
 
-	if (stream == 1)	// when streaming, print matches now
+	if (stream == 1)	// when streaming, print matches when found
 	{	Prim *c, *r;
 		if (json_format)
 		{	printf("%s {\n", (nr_json>0)?",":"[");
 			sprintf(json_msg, "lines %d..%d",
 				f?f->lnr:0, t?t->lnr:0);
+			memset(bvars, 0, sizeof(bvars));
+			for (b = bd; b; b = b->nxt)
+			{	if (b->ref
+				&&  strlen(b->ref->txt) + strlen(bvars) + 3 < sizeof(bvars))
+				{	if (bvars[0] != '\0')
+					{	strcat(bvars, ", ");
+					}
+					strcat(bvars, b->ref->txt);
+			}	}
 			json_match(glob_te, json_msg, f?f->fnm:"", f?f->lnr:0);
 			printf("}");
 			nr_json++;
@@ -1410,6 +1455,8 @@ check_level(void)
 	case '(':
 	case '[':
 		push_prim();
+		break;
+	default:
 		break;
 	}
 
@@ -1803,6 +1850,18 @@ display_patterns(const char *te)
 	}
 }
 
+static void
+check_bvar(Prim *c)
+{
+	if ((c->mark & 4)	// bound variable
+	&&  strlen(c->txt) + strlen(bvars) + 3 < sizeof(bvars))
+	{	if (bvars[0] != '\0')
+		{	strcat(bvars, ", ");
+		}
+		strcat(bvars, c->txt);
+	}
+}
+
 void
 json(const char *te)
 {	Prim *sop = (Prim *) 0;
@@ -1820,6 +1879,7 @@ json(const char *te)
 	// if the json argument is a number or a single *, then
 	// the output is verbose for that match (or all, for a *)
 
+	memset(bvars, 0, sizeof(bvars));
 	printf("[\n");
 	for (cur = prim; cur; cur = cur?cur->nxt:0)
 	{	if (cur->mark)
@@ -1836,9 +1896,14 @@ json(const char *te)
 
 		if (cur->bound)	// assume this wasnt set for other reasons...
 		{	sprintf(json_msg, "lines %d..%d", cur->lnr, cur->bound->lnr);
+			while (cur && cur->mark > 0)
+			{	check_bvar(cur);
+				cur = cur->nxt;
+			}
 		} else
 		{	while (cur && cur->mark > 0)
-			{	if (cur->nxt)
+			{	check_bvar(cur);
+				if (cur->nxt)
 				{	cur = cur->nxt;
 				} else
 				{	break;
@@ -2020,7 +2085,8 @@ cobra_te(char *te, int and, int inv)
 							{ if (json_format)
 							  { sprintf(json_msg, "\"re error for . (S%d->S%d)\"",
 								s->seq, t->dest);
-							    json_match(te, json_msg, cur->fnm, cur->lnr);
+							    memset(bvars, 0, sizeof(bvars));
+							    json_match(te, json_msg, cur->fnm, cur->lnr); // error
 							  } else
 							  { printf("%s:%d: re error for . (s%d->s%d) <%p>\n",
 								cur->fnm, cur->lnr,

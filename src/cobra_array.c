@@ -693,10 +693,10 @@ eval_aname(Prim **ref_p, Lextok *q, Rtype *ts, int ix)	// array name, index
 		break;
 	default:
 		if (0)
-		{	printf("line %d: warning: unexpected type for array %s: '",
+		{	fprintf(stderr, "line %d: warning: unexpected type for array %s: '",
 				q->lnr, q->lft->s);
-			what_type(a->typ);
-			printf("'\n");
+			what_type(stderr, a->typ);
+			fprintf(stderr, "'\n");
 		}
 		ts->rtyp = VAL;
 		ts->val  = e->val;
@@ -712,7 +712,7 @@ new_array(char *s, int ix)
 	{	printf("global array %s[]\n", s);
 		a->cdepth = 0;
 	} else
-	{	printf("error: global decl of %s[] failed\n", s);
+	{	fprintf(stderr, "error: global decl of %s[] failed\n", s);
 	}
 }
 

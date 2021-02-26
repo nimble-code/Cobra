@@ -32,6 +32,7 @@ extern int	read_stdin;
 extern char	*pattern(char *);
 extern char	*unquoted(char *);
 extern char	*progname;
+extern void	clear_file_list(void);
 extern void	clear_seen(void);
 extern int	has_stop(void);
 
@@ -196,6 +197,8 @@ apply(const Prim *ref, const Prim *q, const char *s, int unused)
 			} else
 			{	return (q != ref && strcmp(q->txt, ref->txt) == 0);
 		}	}
+		break;
+	default:
 		break;
 	}
 	return (strcmp(q->txt, s) == 0);
@@ -554,6 +557,8 @@ save(const char *s, const char *t)
 			t = s;
 			s = tmp;
 			break;
+		default:
+			break;
 	}	}
 
 	if (!*s || !isdigit((uchar) *s))
@@ -699,6 +704,8 @@ restore(const char *s, const char *t)
 			t = s;
 			s = tmp;
 			break;
+		default:
+			break;
 	}	}
 
 	if (!*s || !isdigit((uchar) *s))
@@ -724,7 +731,7 @@ push_stack(const char *s)
 
 	for (t = stack; t; t = t->nxt)
 	{	if (t->nm == s)
-		{	printf("error: script is recursive %s\n", s);
+		{	fprintf(stderr, "error: script is recursive %s\n", s);
 			return 0;
 	}	}
 	if (free_stack)
@@ -752,7 +759,7 @@ pop_stack(const char *s)
 	int i;
 
 	if (!t || t->nm != s)
-	{	printf("error: stack error %s - %s\n",
+	{	fprintf(stderr, "error: stack error %s - %s\n",
 			s, t?t->nm:"");
 		return 0;
 	}
@@ -863,7 +870,6 @@ void
 fcts(char *unused1, char *unused2)
 {	FList *f;
 	Prim *z;
-	int ix;
 	static int o_caller_info = 0;
 
 	assert(no_cpp == 0 || no_cpp == 1);
@@ -883,12 +889,9 @@ fcts(char *unused1, char *unused2)
 		}
 		flst[no_cpp] = flist;
 	}
-#if 1
-	ix = 0;		// the lists were merged at this point
-#else
-	for (ix = 0; ix < Ncore; ix++)
-#endif
-	for (f = flist[ix]; f; f = f->nxt)
+
+	// the lists were merged at this point
+	for (f = flist[0]; f; f = f->nxt)
 	{	cnt++;
 		if (verbose > 1)
 		{	printf("%3d %s:%d-%d: %s\n",
@@ -978,7 +981,7 @@ parse_args(const char *s)	// comma separated list val nm, str nm
 		s = skipwhite(s);
 		if (*s != '\0')
 		{	if (*s != ',')
-			{	printf("error: expecting ',' saw: '%c'\n", *s);
+			{	fprintf(stderr, "error: expecting ',' saw: '%c'\n", *s);
 				break;
 			}
 			s = skipwhite(s+1);
@@ -1047,7 +1050,7 @@ one_script(FILE *fd, const char *nm, char *buf, const int sz)
 	{	char *d;
 		d = strchr(c, ')');
 		if (d == NULL)
-		{	printf("error: missing ')' in '%s'\n", buf);
+		{	fprintf(stderr, "error: missing ')' in '%s'\n", buf);
 		} else
 		{	*d = '\0';
 			if (d > c+1)	// non-empty list
@@ -1199,7 +1202,7 @@ do_script(char *fnd, char *a, char *b)
 	n = nextarg(n);
 
 	if (NrArgs >= MaxArg && strlen(n) > 0)
-	{	printf("error: max nr of script args is %d (ignoring: '%s')\n",
+	{	fprintf(stderr, "error: max nr of script args is %d (ignoring: '%s')\n",
 			MaxArg, n);
 	}
 
@@ -1213,7 +1216,7 @@ do_script(char *fnd, char *a, char *b)
 			{	x = x->nxt;
 			}
 			if (i != NrArgs)		// was <
-			{	printf("error: '%s' takes %d arguments, saw %d\n",
+			{	fprintf(stderr, "error: '%s' takes %d arguments, saw %d\n",
 					f, i, NrArgs);
 				break;
 			}
@@ -1272,7 +1275,7 @@ try_read(const char *s)
 		{	c = (char *) skipwhite(c+3);
 			n = sscanf(c, "%s %s", a, b);
 			if (n <= 0 || n > 2)
-			{	printf("error: bad format for 'def:' '%s'\n", buf);
+			{	fprintf(stderr, "error: bad format for 'def:' '%s'\n", buf);
 				strcpy(a, "none");
 			}
 			if (!no_match && n > 0)
@@ -1376,7 +1379,7 @@ prep_print(char *s)
 			{	break;
 		}	}
 		if (*(t-1) != '"')
-		{	printf("error: missing closing double-quote\n");
+		{	fprintf(stderr, "error: missing closing double-quote\n");
 			return 0;
 		}
 		*(t-1) = '\0';
@@ -1445,13 +1448,13 @@ load_map(char *s)
 			fd = fopen(a, "r");
 		}
 		if (fd == NULL)
-		{	printf("error: no such file '%s'\n", s);
+		{	fprintf(stderr, "error: no such file '%s'\n", s);
 			return;
 	}	}
 	// every line has two fields: a pattern and a type
 	while (fgets(buf, sizeof(buf), fd))
 	{	if (sscanf(buf, "%s %s", a, b) != 2)
-		{	printf("error: bad map input '%s'\n", buf);
+		{	fprintf(stderr, "error: bad map input '%s'\n", buf);
 			break;
 		}
 		h = 0;
@@ -1509,11 +1512,11 @@ check_qualifiers(char *s)
 	}	}
 
 	if (s && (inside_range || top_only || top_up))
-	{	printf("error: no support for ir or top\n");
+	{	fprintf(stderr, "error: no support for ir or top in this context\n");
 		return NULL;
 	}
 	if (s && and_mode && inverse)
-	{	printf("error: cannot combine & and no\n");
+	{	fprintf(stderr, "error: cannot combine & and no\n");
 		return NULL;
 	}
 
@@ -1726,12 +1729,12 @@ pre_scan(char *bc)	// non-generic commands
 		if ((track_fd = fopen(a, "r")) != NULL)
 		{	fclose(track_fd);
 			track_fd = NULL;
-			printf("warning: '%s' exists\n", a);
-			printf("first do:  !rm %s\n", a);
+			fprintf(stderr, "warning: '%s' exists\n", a);
+			fprintf(stderr, "first do:  !rm %s\n", a);
 			return 1;
 		}
 		if ((track_fd = fopen(a, "w")) == NULL)
-		{	printf("cannot create '%s'\n", a);
+		{	fprintf(stderr, "cannot create '%s'\n", a);
 		}
 		return 1;
 
@@ -1998,11 +2001,12 @@ pre_scan(char *bc)	// non-generic commands
 		break;
 
 	case 'j':	// json [msg]
-		if (strncmp(bc, "json", strlen("json")) == 0)
+		if (strncmp(bc, "json", 4) == 0)
 		{	nr_marks(0);
+			json_plus = (bc[4] == '+');
 			if (cnt > 0)
 			{	if (strlen(bc) > strlen("json "))
-				{	json(bc + strlen("json "));
+				{	json(bc + strlen("json ") + json_plus);
 				} else
 				{	json(" ");
 			}	}
@@ -2056,7 +2060,7 @@ one_command(char *bc)
 	&& (bc[3] == ' ' || bc[3] == '\t'))
 	{	strcpy(s, "/tmp/_c_XXXXXX");
 		if ((dfd = mkstemp(s)) < 0)
-		{	printf("error: cannot create tmp file for script definition\n");
+		{	fprintf(stderr, "error: cannot create tmp file for script definition\n");
 			return 1;
 		}
 		strcat(bc, "\n");
@@ -2090,8 +2094,8 @@ one_command(char *bc)
 	for (i = 0; n > 0 && table[i].cmd; i++)
 	{	if (strncmp(bc, table[i].cmd, n) == 0)
 		{	if (n < table[i].n)
-			{	printf("error: ambiguous, need");
-				printf(" at least %d chars\n",
+			{	fprintf(stderr, "error: ambiguous, need");
+				fprintf(stderr, " at least %d chars\n",
 					table[i].n);
 				break;
 			}
@@ -2237,7 +2241,7 @@ list(char *s, char *t)
 	{	if (strchr(s, '-'))
 		{	// range option pending
 		//	if (sscanf(s, "%d-%d", &from, &upto) != 2)
-		//	{	printf("error: bad arg '%s'\n", s);
+		//	{	fprintf(stderr, "error: bad arg '%s'\n", s);
 		//		return;
 		//	}
 		} else
@@ -2252,7 +2256,7 @@ list(char *s, char *t)
 		}
 		tlnr = atoi(t);
 		if (!raw && !source)
-		{	printf("error: usage list [n]\n");
+		{	fprintf(stderr, "error: usage list [n]\n");
 			return;
 	}	}
 
@@ -2418,7 +2422,7 @@ static void
 undo(char *s, char *t)
 {
 	if (*s || *t)
-	{	printf("warning: undo takes no arguments\n");
+	{	fprintf(stderr, "warning: undo takes no arguments\n");
 	}
 	run_threads(undo_range, 6);
 	undo_matches();
@@ -2525,11 +2529,11 @@ static void
 contains(char *s, char *t)	// 1, assume a range is selected
 {
 	if (inside_range)
-	{	printf("error: c[ontains]: unsupported qualifier\n");
+	{	fprintf(stderr, "error: c[ontains]: unsupported qualifier\n");
 		return;
 	}
 	if (!*s)
-	{	printf("invalid query -- missing pattern\n");
+	{	fprintf(stderr, "error: invalid query -- missing pattern\n");
 		return;
 	}
 	global_s = preamble(s, 0);
@@ -2574,7 +2578,7 @@ static void
 extend(char *s, char *t)
 {
 	if (inverse || top_only || top_up || inside_range || and_mode)
-	{	printf("error: e[xtend] does not support qualifiers\n");
+	{	fprintf(stderr, "error: e[xtend] does not support qualifiers\n");
 		return;
 	}
 	if (!*s)
@@ -2628,11 +2632,11 @@ static void
 stretch(char *s, char *t)
 {
 	if (inverse || inside_range || and_mode)
-	{	printf("error: s[tretch]: unsupported qualifier\n");
+	{	fprintf(stderr, "error: s[tretch]: unsupported qualifier\n");
 		return;
 	}
 	if (!*s)
-	{	printf("invalid query - s[tretch] (missing arg)\n");
+	{	fprintf(stderr, "invalid query - s[tretch] (missing arg)\n");
 		return;
 	}
 	global_s = preamble(s, 0);
@@ -2736,22 +2740,22 @@ static void
 mark(char *s, char *t)
 {
 	if (top_only || top_up)
-	{	printf("error: m[ark] does not support qualifiers top or up\n");
+	{	fprintf(stderr, "error: m[ark] does not support qualifiers top or up\n");
 		return;
 	}
 
 	if (inverse)
 	{	if (inside_range)
-		{	printf("error: m[ark]: cannot combine 'not' and 'ir'\n");
+		{	fprintf(stderr, "error: m[ark]: cannot combine 'not' and 'ir'\n");
 			return;
 		}
 		if (and_mode)
-		{	printf("error: m[ark]: cannot combine 'not' and '&'\n");
+		{	fprintf(stderr, "error: m[ark]: cannot combine 'not' and '&'\n");
 			return;
 	}	}
 
 	if (!*s)
-	{	printf("invalid query - mark '%s' - '%s'\n", s, t);
+	{	fprintf(stderr, "invalid query - mark '%s' - '%s'\n", s, t);
 		return;
 	}
 	global_s = preamble(s, 0);
@@ -2807,11 +2811,11 @@ static void
 inspect(char *fnm, char *lnr)
 {
 	if (inverse || inside_range || and_mode)
-	{	printf("error: i[nspect] does not take qualifiers\n");
+	{	fprintf(stderr, "error: i[nspect] does not take qualifiers\n");
 		return;
 	}
 	if (!*fnm || !*lnr)
-	{	printf("invalid query -- i[nspect] fnm lnr\n");
+	{	fprintf(stderr, "invalid query -- i[nspect] fnm lnr\n");
 		return;
 	}
 	global_s = preamble(fnm, 0);
@@ -2898,7 +2902,7 @@ static void
 next(char *s, char *t)
 {
 	if (inverse || top_only || top_up || inside_range || and_mode)
-	{	printf("error: n[ext] does not support qualifiers\n");
+	{	fprintf(stderr, "error: n[ext] does not support qualifiers\n");
 		return;
 	}
 	global_s = preamble(s, 0);
@@ -2945,7 +2949,7 @@ static void
 back(char *s, char *t)
 {
 	if (inverse || top_only || top_up || inside_range || and_mode)
-	{	printf("error: b[ack] does not support qualifiers\n");
+	{	fprintf(stderr, "error: b[ack] does not support qualifiers\n");
 		return;
 	}
 	global_s = preamble(s, 0);
@@ -3125,11 +3129,11 @@ eval(char *s, char *unused)
 	char *oy = yytext;
 
 	if (inverse || top_only || top_up || inside_range)
-	{	printf("error: w[ith]/eval does not support qualifiers\n");
+	{	fprintf(stderr, "error: w[ith]/eval does not support qualifiers\n");
 		return;	// only an implicit &
 	}
 	if (!*s)
-	{	printf("error: w[ith]/eval missing argument\n");
+	{	fprintf(stderr, "error: w[ith]/eval missing argument\n");
 		return;
 	}
 	b_cmd = yytext = s;
@@ -3138,7 +3142,7 @@ eval(char *s, char *unused)
 		{	cnt = -(do_eval(0) + 1); // once
 			// always < 0
 		} else if (strstr(s, "size"))
-		{	printf("error: dot equation contains size()\n");
+		{	fprintf(stderr, "error: dot equation contains size()\n");
 			// would be quadratic
 		} else
 		{	run_bup_threads(eval_range); // calls regstop
@@ -3162,7 +3166,7 @@ with_eval(char *s)
 	{	int ln = strlen(s)-1;
 		assert(ln < MAXYYTEXT-2);
 		if (s[ln] != ')')
-		{	printf("error: missing ) at end of '%s'\n", s);
+		{	fprintf(stderr, "error: missing ) at end of '%s'\n", s);
 			return;
 		}
 		s[ln++] = ' ';
@@ -3319,6 +3323,7 @@ done(void)
 	{	unlink(CobraProg);
 		unlink(CobraDot);
 		unlink(FsmDot);
+		clear_file_list();
 	}
 	if (track_fd != NULL)
 	{	fclose(track_fd);
@@ -3353,16 +3358,16 @@ set_cnt(int n)
 }
 
 void
-show_error(int p_lnr)
+show_error(FILE *fd, int p_lnr)
 {	char buf[MAXYYTEXT];
 	int lns = 0;
 
 	assert(prog_fd);
-	
+
 	rewind(prog_fd);
 	while (fgets(buf, sizeof(buf), prog_fd))
 	{	lns++;
-		printf("%c%2d %s",
+		fprintf(stderr, "%c%2d %s",
 			(lns==p_lnr)?'>':' ',
 			lns, buf);
 	}
@@ -3559,6 +3564,8 @@ erase:				if (n > 0)
 					continue; // ignore
 				case 68:	// left arrow
 					goto erase;
+				default:
+					break;
 				}
 				if (h_ptr
 				&&  strlen(h_ptr->s) < sizeof(buf))
@@ -3626,7 +3633,7 @@ xchange(char *s)
 	if (no_cpp && no_cpp_sticks)
 	{	static int warned;
 		if (!warned)
-		{	printf("error: cpp was disabled on the command-line\n");
+		{	fprintf(stderr, "error: cpp was disabled on the command-line\n");
 			warned=1;
 		}
 		return;

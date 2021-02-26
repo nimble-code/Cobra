@@ -10,9 +10,9 @@
 
 #define Expect(x) { \
 	cur = cur->nxt; \
-	if (strcmp(cur->txt, x) != 0) \
+	if (strcmp(cur->txt, (x)) != 0) \
 	{	printf("%s:%d: expected '%s', saw '%s'\n", \
-			cobra_bfnm(), cobra_lnr()-1, x, \
+			cobra_bfnm(), cobra_lnr()-1, (x), \
 			cobra_txt()); \
 		rval = 0; \
 		break;	\

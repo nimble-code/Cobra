@@ -185,6 +185,7 @@ extern int top_only;
 extern int top_up;
 extern int global_n;
 extern int json_format;
+extern int json_plus;
 
 extern Prim *cur;
 extern Prim *plst;

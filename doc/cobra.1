@@ -14,10 +14,11 @@ cobra \- interactive code browser and analyzer
 .BI [ files ]
 .SH DESCRIPTION
 \*C supports the examination and exploration of sets
-of source files that have been preprocessed into lexical tokens.
-The tool supports queries expressed interactively in direct
-query commands, and it can handle more detailed queries with
-inline programs written in a special scripting language.
+of source files that are preprocessed into lexical tokens.
+The tool supports queries expressed interactively; it can
+perform pattern matches using standard or simplifed forms of
+regular expressions, and it can handle detailed queries
+specified with inline programs written in a scripting language.
 .br
 By default the tool recognizes C keywords and typenames.
 With command-line
@@ -25,7 +26,7 @@ options it can also recognize C++, Java, Ada or Python code.
 The tool can be retargeted for additional languages, or
 other types of input not related to programming, by defining
 maps of the types of tokens that must be recognized.
-The query command and scripting language
+The query command-, pattern matching, and scripting languages
 are documented in online reference manuals.
 .SH OPTIONS
 .TP
@@ -40,24 +41,29 @@ See also \f3\-noheaderfiles\f1.
 .B \-C++
 Recognize C++ keywords.
 .TP
-.BI "\-c \f2'commands'\f1"
-Execute query \f2commands\f1, and then stop.
+.BI "\-c \f2'query commands'\f1"
+Execute the \f2query commands\f1, and then stop.
 Individual query commands are separated by semi-colons.
 For example:
 .br
 .in +5
-	cobra \-c \f2'm /regex; p' *.c\f1
+$ cobra \-c \f2'm /regex; p' *.c\f1
 .in -5
 .br
 can be used to find tokens matching a regular expression.
 .br
 Implies \f3\-quiet\f1.
-See also \f3\-e\f1.
+See also \f3\-e\f1 and \f3-pe\f1..
 
 .TP
 .B \-comments
 Do not truncate C-style comments after the first newline
-(which, without this option, is the default).
+(which is the default).
+
+.TP
+.B \-configure dir
+Set and remember the location of the cobra rules directory.
+(Stored in a file named \f2.cobra\f1 in the users home directory.)
 
 .TP
 .B \-cpp
@@ -78,13 +84,17 @@ See also \f3\-cpp\f1, \f3\-U\f1 and \f3\-I\f1.
 
 .TP
 .B \-eol
-Treat newlines as explicit EOL tokens. (By default all white space is ignored.)
+Treat newlines as explicit EOL tokens. (By default all white space is otherwise ignored.)
 
 .TP
-.BI "\-expr \f2'token_expression'\f1
-(Alternatively: \f3-e\f1, see also \f3-pattern\f1) Report (sequences of) lines matching a token expression.
+.B \-eof
+Treat the end of each input file as an explicit EOF token.
+
+.TP
+.BI "\-e \f2'token_expression'\f1
+(Alternatively: \f3-expr\f1) Report patterns in the code matching a token expression.
 Meta-symbols that can be used in token expressions, with the usual meaning, are:
-(, |, ), ., *, +, ?.
+( | ) . * + ?.
 .br
 Sets of tokens can also be written as ranges enclosed in square brackets, e.g.:
 \f2[ appel pear ]\f1, to indicate a required match of any token in the range
@@ -94,51 +104,135 @@ with a ^ symbol, e.g.:
 \f2^appel\f1 (to indicate a required match any token except the one negated) or
 \f2^[appel pear]\f1 (to match any token not named in the range).
 .br
-See also \f3-pattern\f1, for a simplified version of this option.
-.br
 Tokens can be bound to a variable name with a name-binding operation \f2name:pattern\f1,
 e.g. \f2name:@ident\f1,
 and later referenced with a name-reference \f2:name\f1.
 .br
 When preceded by option \f3\-view\f1, a graph of the non-deterministic
 finite state automaton that is generated from the token expression is displayed with
-\f2dot\f1 (which is assumed to be installed).
+\f2dot\f1 or \f2dotty\f1 (which are assumed to be available).
 .br
-Implies also option \f3\-quiet\f1.
+Implies \f3\-quiet\f1.
+.br
+See also \f3-pe\f1, for a simplified version of this option that is often more convenient
+for specifying source code patterns.
+
 .TP
 .BI "-f \f2file\f1"
 Execute the commands stored in the named \f2file\f1, and then stop.
 .br
-Implies also option \f3\-quiet\f1.
+Implies \f3\-quiet\f1.
+
+.TP
+.BI "-F \f2file_list\f1"
+Read files to process from a file named \f2file_list\f1 instead of
+from command arguments.
+So the following three alternatives have the same effect
+(assuming for this example that there are no additional .[ch] files in subdirectories):
+.br
+.in +5
+$ cobra *.[ch]
+.br
+$ find . -type f -name '*.ch' > files;  cobra `cat files`
+.br
+$ cobra -F files
+.br
+$ cobra -recursive '*.[ch]'
+.in -5
+.br
+See also -recursive.
+
 .\" .TP
 .\" .B \-g
 .\" Reserved for future gui support.
+
 .TP
 .B \-help
 (or any other unrecognized option like \f3\-?\f1 or \f3\-\-\f1)
 print a summary of command line arguments.
+
 .TP
 .B \-Idir
-Pass directive to the C preprocessor.
+Passed as a directive to the C preprocessor, if used.
 See also \f3\-cpp\f1, \f3\-D\f1 and \f3\-U\f1.
+
 .TP
 .B \-Java
 Recognize Java keywords.
+
+.TP
+.B \-json
+Generate json output for -pe pattern matches (only).
+(Can also be used inline as an interactive query command \f2json\f1.)
+
+.TP
+.B \-json+
+Generate more detailed json output for -pe pattern matches (only).
+The extra fields give variable name bindings, if any, and the first line
+of the source code pattern that is matched.
+
 .TP
 .B \-lib
 List all prefefined \*C query sets that can be invoked by name
 with the \f3\-f\f1 option, without or without the filename suffix \f2.cobra\f1.
 This option can be abbreviated to \f3\-l\f1.
+
 .TP
 .B \-macros
 Parse the text of preprocessing macros,
-instead than classifying each complete macro definition
+classifying each complete macro definition
 as a single lexical token of type \f2cpp\f1.
 The use of this option implies that no C preprocessing is used
-(which is the default), cf. \f3\-cpp\f1, \f3\-nocpp\f1.
-This option can be abbreviated to \f3\-m\f1.
+(the default), cf. \f3\-cpp\f1, \f3\-nocpp\f1.
+.br
+As an example, this is how the tokenization changes when the \f2-macros\f1 option is used,
+using a short inline program to print each token with some of its attributes:
+.br
+.in +5
+$ cat /tmp/macro
+.br
+#define A(x)    foo(x) \\
+.br
+                goo()
+.br
+$ cobra -c '%{ print .lnr " " .seq " " .typ " " .txt "\\n"; %}' /tmp/macro
+.br
+1 0 cpp #define
+.br
+1 1 ident A
+.br
+1 2  (
+.br
+1 3 ident x
+.br
+1 4  )
+.br
+1 5 ident foo
+.br
+1 6  (
+.br
+1 7 ident x
+.br
+1 8  )
+.br
+2 9 ident goo
+.br
+2 10  (
+.br
+2 11  )
+.br
+3 12 cpp EOL
+.br
+$ cobra -macros -c '%{ print .lnr " " .seq " " .typ " " .txt "\\n"; %}' /tmp/macro
+.br
+3 0 cpp # define A(x)   foo(x)          goo()
+.in -5
+.br
+That is, with the \f2-macros\f1 option the complete macro definition is parsed as a single token
+of type \f2cpp\f1, and there is no separate \f2EOL\f1 token.
 .br
 Can be abbreviated to \f3\-m\f1.
+
 .TP
 .B \-nocpp
 Do not invoke the C preprocessor (the default),
@@ -147,9 +241,11 @@ with <tt>cpp on</tt> commands (e.g., in scripts).
 See also \f3\-cpp\f1.
 .br
 Can be abbreviated to \f3\-n\f1.
+
 .TP
 .B \-noqualifiers
 Do not tag C qualifiers separately (e.g., const, volatile).
+
 .TP
 .B \-noheaderfiles
 Do not process any files with names ending in \f3.h\f1.
@@ -164,20 +260,25 @@ See also \f3\-stream\f1 and \f3\-stream_margin\f1.
 .B \-notypedefs
 Do not process C typedef definitions. By default the typedefs are
 parsed and the resulting user-defined types are categorized as \f2@type\f1.
+
 .TP
 .B \-notypes
 Do not tag any predefined C type names (e.g., int, short, char)
+
 .TP
 .B \-Nn
 Use \f2n\f1 parallel threads to process queries.
 .\" On Linux systems with at least four cores, the default setting
 .\" that is used will be \f3\-N4\f1, unless an explicit \f2Nn\f1 argument is used.
+
 .TP
-.BI "\-pattern \f2'token_expression'\f1
+.BI "\-pattern \f2'token-pattern'\f1
 (Alternatively \f3-pat\f1) Behaves like \f3-expr\f1 but with a
-spimlified token expression format that requires fewer escape symbols.
-In a pattern expression the characters '(', '|', ')', '+', and '?' are always
-interpreted as regular characters and never as meta-symbols.
+spimlified format that requires fewer escape symbols.
+In a token pattern the characters '(', '|', ')', '+', and '?' are
+interpreted as regular characters and not as meta-symbols.
+The meta-ness of these symbols can now be restored by preceding them with
+a backslash (i.e., the opposite semantics from the standard token expression).
 .br
 The characters '*' and ']' are interpreted as
 regular characters only if they are \f3preceded\f1 by a space,
@@ -197,9 +298,19 @@ The complete set of escape rules for pattern expressions is as follows:
 	'.' is '.' iff preceded by '\\', else it matches any character
 .br
 	'^' is '^' iff preceded by '\\', else it indicates negation.
+.br
+Can be abbreviated to \f2-pe\f1.
+
 .TP
 .B \-preserve
-Preserve the temporary files created in \f2/tmp/cobra_*\f1.
+Preserve the temporary files created in \f2/tmp\f1.
+Normally these files are removed when the tool quits, but
+it is possible that when the tool dies for other reasons 
+(e.g., when the \f2-view\f1 option is used) that
+some of the temporary files linger. It may be wise to check
+the contents of \f2/tmp\f1 from time to time and remove
+accumulated files named \f2/tmp/cobra_*\f1 and \f2/tmp/_f_*\f1.
+
 .TP
 .B \-Python
 Recognize Python keywords.
@@ -209,12 +320,21 @@ Quiet mode.
 Produces no intermediate output on matches and run-times.
 
 .TP
+.B \-recursive 'pattern'
+Recursively collect files with names matching 'pattern,' to process.
+This uses the \f2find\f1 tool to perform the collection, which is
+assumed installed.
+.br
+For an example, see under option \f2-F\f1.
+
+.TP
 .B \-regex "expr"
-See \f3\-e\f1.
+Same as \f3\-e\f1.
 
 .TP
 .B \-runtimes
 Report the runtime of all commands executed, if it exceeds one second.
+
 .TP
 .B \-scrub
 Produce output in the format expected by the \f2scrub\f1 tool.
@@ -235,14 +355,17 @@ that is retained in the sliding input window.
 .B \-terse
 Suppress the display of detailed matches, showin only number of matches.
 (Most useful in combination with \f3\-f\f1, \f3\-expr\f1, or \f3\-commands\f1.
+
 .TP
 .B \-text
 Suppress the default categorization of tokens for a source programming
 language (the default is C). This increases performance when processing
 other types of input, especially in applications of runtime verification.
+
 .TP
 .B \-tok
 Produce a tokenized version of the source files and then stop.
+
 .TP
 .B \-Ustr
 Pass directive to the C preprocessor.
@@ -251,35 +374,41 @@ See also \f3\-cpp\f1, \f3\-D\f1 and \f3\-I\f1.
 .TP
 .B \-V
 Print current \*C version number and stop.
-Also \f3\-version\f1.
+Same as \f3\-version\f1.
 
 .TP
 .B \-v
-Verbose mode.
+Verbose mode. Multiple uses of \f2-v\f1 increase the verbosity.
 
+.TP
 .B \-version
 Print the Cobra version number and exit.
-See also \f3\-V\f1.
+Same as \f3\-V\f1.
 
 .TP
 .B \-view
 Must be followed by one of \f3\-expr\f1, \f3\-pattern\f1, or \f3\-f\f1.
 .br
-When combined with \f3\-expr\f1 or \f3\-pattern\f1, displays a dot-graph
-of the NDFA of the token expression.
+When combined with \f3\-e\f1 or \f3\-pe\f1 (or equivalents),
+displays a dot-graph of the NDFA of the token expression.
 .br
 When combined with \f3\-f file\f1 and the file contains a single inline
 program, displays a dot-graph of the DFA of that program.
 .br
 The \f3\-view\f1 option implies \f3\-preserve\f1.
+.br
+A useful way to debug pattern matching is to first display the statemachine
+that is used, with \f2-view\f1 and then run the pattern matching algorithm
+in verbose mode (\f2-v\f1) to see state changes on each new token scanned.
 
 .TP
 .BI "\-var name=value"
 Set \f2name\f1 to \f2value\f1 in user-defined parameterized scripts.
 .PP
-All arguments starting with a double hyphen are passed to
+Arguments starting with a double hyphen are passed to
 the standalone backend processor, if one was defined.
-If no backend is used (i.e., the Cobra default backend is used),
+If no backend is used (i.e., the Cobra default engine is used
+and the command name is \f2cobra\f1),
 these arguments are silently ignored.
 
 .SH EXAMPLES

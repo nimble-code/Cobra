@@ -265,7 +265,7 @@ do_unlock(const int ix)
 	{	return;
 	}
 	if (lock_held != ix)
-	{	printf("error: lock violation: held by %d, unlock by %d\n",
+	{	fprintf(stderr, "error: lock violation: held by %d, unlock by %d\n",
 			lock_held, ix);
 	}
 	lock_held = -1;
@@ -337,26 +337,13 @@ stop_timer(int cid, int always, const char *s)
 	if (runtimes)
 	{	assert(cid >= 0 && cid < 2*(Ncore+1));
 		do_lock(cid);
-#if 0
-		stop_time[cid]  = clock();
-		delta_time[cid] = ((double) (stop_time[cid] - start_time[cid])) / ((double) CLOCKS_PER_SEC);
-#else
 		gettimeofday(&(stop_time[cid]), NULL);
 		delta_time[cid] =  (double) (stop_time[cid].tv_sec  - start_time[cid].tv_sec);		// seconds
 		delta_time[cid] += ((double) (stop_time[cid].tv_usec - start_time[cid].tv_usec))/1000000.0; // microseconds
-#endif
-#if 0
-		if (always
-		||  delta_time[cid] > 0.1)
-#endif
 		{	if (Ncore > 1)
 			{	printf("%d: ", cid);
 			}
-#if 1
 			printf("(%.3g sec)\n", delta_time[cid]);
-#else
-			printf("(%.3g sec) <<%s>>\n", delta_time[cid], s);
-#endif
 		}
 		do_unlock(cid);
 	}

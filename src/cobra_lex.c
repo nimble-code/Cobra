@@ -231,7 +231,7 @@ top_triple(int cid, int restore)
 {
 	if (!Px.triples)
 	{	if (verbose)
-		{	printf("warning: top_triple error\n");
+		{	fprintf(stderr, "warning: top_triple error\n");
 		}
 		return 0;
 	} else if (restore)
@@ -382,7 +382,7 @@ setlineno(const char *s, int cid)
 
 	if (strlen(s) > sizeof(b)
 	||  sscanf(s, "# %d \"%s\"", &Px.lex_lineno, b) != 2)
-	{	printf("%s:%d: error: setlino '%s'\n",
+	{	fprintf(stderr, "%s:%d: error: setlino '%s'\n",
 			Px.lex_fname, Px.lex_lineno, s);
 		return;
 	}
@@ -491,7 +491,7 @@ char_or_str(int which, int cid)
 		} else if (n == '\n')
 		{	// error: strings or chars should not contain newlines
 			if (verbose)
-			{	printf("%s:%d: error: unterminated string or character constant\n",
+			{	fprintf(stderr, "%s:%d: error: unterminated string or character constant\n",
 					Px.lex_fname, Px.lex_lineno);
 			}
 			Px.lex_lineno++;
@@ -828,7 +828,7 @@ skip_white(int cid)
 
 static void
 dodirective(int cid)
-{	int n, i, noname=0;
+{	int lastn, n, i, noname=0;
 
 	// only called for parse macros option, which implies -nocpp
 
@@ -846,8 +846,13 @@ dodirective(int cid)
 
 	for (i = 2; n != EOF && n != '\n'; i++)
 	{	Px.lex_yytext[i] = n;
+		lastn = n;
 		n = nextchar(cid);
-	}
+		if (lastn == '\\'
+		&&  n == '\n')
+		{	i--;
+			n = nextchar(cid);
+	}	}
 	Px.lex_yytext[i] = '\0';
 
 	if (noname)
