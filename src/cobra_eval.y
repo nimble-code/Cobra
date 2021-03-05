@@ -17,11 +17,11 @@ static Lextok	*p_tree;
 static int	 last_tok;
 static void	 yyerror(const char *);
 static int	 yylex(void);
-static int	 evaluate(const Prim *, const Lextok *);
 static int	 parse_error;
 
 extern YYSTYPE	 yylval;
 extern char	*b_cmd;
+extern int	 evaluate(const Prim *, const Lextok *);
 extern int	 yyparse(void);
 %}
 
@@ -285,12 +285,14 @@ dot_match(const Prim *q, Lextok *lft, Lextok *rgt)
 {	char *a = lft->s;
 	char *b = rgt->s;
 	char *compare_with = 0;
-
+printf("here\n");
 	if (lft->typ == '.')
 	{	if (strcmp(lft->s, "fnm") == 0)
 		{	a = q->fnm;
 		} else if (strcmp(lft->s, "txt") == 0)
 		{	a = q->txt;
+		} else if (strcmp(lft->s, "fct") == 0)
+		{	a = fct_which(q);
 		}
 	} else if (lft->typ == REGEX)
 	{	compare_with = b;
@@ -313,13 +315,13 @@ dot_match(const Prim *q, Lextok *lft, Lextok *rgt)
 	if (!a || !b)
 	{	return -1;
 	}
-
+printf("cmp '%s' <-> '%s'\n", a, b);
 	return strcmp(a, b);
 }
 
 #define binop(op)	(evaluate(q, n->lft) op evaluate(q, n->rgt))
 
-static int
+int	// also called in cobra_te.c
 evaluate(const Prim *q, const Lextok *n)
 {	int rval = 0;
 
@@ -390,13 +392,15 @@ yylex(void)
 
 // externally visible function:
 
-int
+Lextok *
 prep_eval(void)
-{	int rval;
+{	Lextok *rval = NULL;
 
 	parse_error = 0;
 	iscan = 0;
-	rval = yyparse();
+	if (yyparse())
+	{	rval = p_tree;
+	}
 	iscan = 0;
 	return rval;
 }

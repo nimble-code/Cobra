@@ -121,7 +121,6 @@ extern int convert_matches(int);
 extern int do_eval(const Prim *);
 extern int exec_prog(Prim **, int);
 extern int nr_marks(const int);
-extern int prep_eval(void);
 extern int prep_prog(FILE *);
 extern int regex_match(const int, const char *);
 extern int restore(const char *, const char *);
@@ -162,8 +161,9 @@ extern void *save_range(void *);
 extern void *restore_range(void *);
 extern void *fct_defs_range(void *);
 
-extern FList *find_match_str(char *);
+extern FList   *find_match_str(char *);
 extern ArgList *cl_var;
+extern Lextok  *prep_eval(void);
 
 extern char  CobraDot[64];
 extern char  FsmDot[64];

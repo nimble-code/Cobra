@@ -137,3 +137,11 @@
   - new interactive query command dp to display selected pattern matches
   - updated manual pages
   - small bug fixes
+
+3.4 march 5 2021
+  - fixed bug in display of search results for option pe
+  - fixed bug in fcts command when -m flag is used (parse macros)
+  - added support of comparisons with .fct in expressions;
+  - added the ability to define additional constraints, as general expressions
+    on token attributes attached to states) in pattern-expression matching expressions
+   (option pe) - to be documented

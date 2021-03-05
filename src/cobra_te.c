@@ -115,6 +115,7 @@ struct Store {
 };
 
 extern int	eol, eof;
+extern int	evaluate(const Prim *, const Lextok *);
 extern void	set_cnt(int);
 
 static List	*curstates[3]; // 2 is initial
@@ -370,12 +371,11 @@ show_fsm(void)
 	fprintf(fd, "digraph re {\n");
 	fprintf(fd, "\tnode [margin=0 fontsize=8];\n");
 	fprintf(fd, "\tstart [shape=plaintext];\n");
-	fprintf(fd, "\taccept [shape=doublecircle];\n");
+	fprintf(fd, "\taccept [shape=doublecircle label=\"accept (%d)\"];\n", Seq+1);
 	fprintf(fd, "\tstart -> N%d;\n", nd_stack->seq);
 	show_state(fd, nd_stack);
 	fprintf(fd, "}\n");
 	fclose(fd);
-
 	if (preserve
 	&& !json_format)
 	{	printf("wrote '%s'\n", CobraDot);
@@ -1605,10 +1605,10 @@ matches2marks(void)
 	{	p = m->from;
 		p->bound = m->upto;
 		if (p)
-		{	p->mark |= 2;	// start of pattern
-			if (!p->mark)
+		{	if (!p->mark)
 			{	cnt++;
 			}
+			p->mark |= 2;	// start of pattern
 			for (; p; p = p->nxt)
 			{	if (!p->mark)
 				{	cnt++;
@@ -1862,6 +1862,108 @@ check_bvar(Prim *c)
 	}
 }
 
+extern char *b_cmd;
+extern char *yytext;
+
+static Lextok *
+parse_constraint(char *c)
+{	char *ob = b_cmd;
+	char *oy = yytext;
+	Lextok *rv = NULL;
+
+	b_cmd = yytext = c;
+
+	rv = prep_eval();
+
+	b_cmd  = ob;
+	yytext = oy;
+
+	return rv;
+}
+
+#define MAX_CONSTRAINT	256
+Lextok *constraints[MAX_CONSTRAINT];
+
+static void
+store_constraint(int n, Lextok *p)
+{
+	// when in state n, make sure the constraint holds:
+	// evaluate(cur, p); // to evaluate expression for current token
+
+	if (n < 0 || n >= MAX_CONSTRAINT)	// the state nr
+	{	fprintf(stderr, "error: constraint %d out of range (max %d)\n",
+			n, MAX_CONSTRAINT);
+		return;
+	}
+	constraints[n] = p;
+}
+
+static char *
+get_constraints(char *t)
+{	char *s, *r, *v, *c, *d;
+	int nr, nest;
+	Lextok *p;
+
+	if (!t)
+	{	return t;
+	}
+
+	for (s = t; *s != '\0'; s++)
+	{	if (*s == '@'
+		&& isdigit((int) *(s+1)))
+		{	break;
+	}	}
+	if (*s == '\0')
+	{	return t;	// no constraints
+	}
+
+	v = r = (char *) emalloc(strlen(t)+1, 110);
+	for (s = t; *s != '\0'; s++)
+	{	if (*s != '@'
+		||  !isdigit((int) *(s+1)))
+		{	*v++ = *s;
+		} else
+		{	s++;
+			nr = atoi(s);
+			while (isdigit((int) *s) || isblank((int) *s))
+			{	s++;
+			}
+			if (*s == '\\')
+			{	s++;
+			}
+			if (*s != '(' || !strchr(s, ')'))
+			{	fprintf(stderr, "error: missing '(...)' after @%d, saw '%c'\n", nr, *s);
+				r = NULL;
+				break;
+			}
+			c = d = (char *) emalloc(strlen(s)+1, 110);
+			nest = 0;
+			while (*s != '\0' && (*s != ')' || nest > 1))
+			{	if (*s == '(')
+				{	nest++;
+				} else if (*s == ')')
+				{	nest--;
+				}
+				*d++ = *s++;
+			}
+			if (*(d-1) == '\\')
+			{	*(d-1) = ')';
+			} else
+			{	*d++ = ')';
+			}
+			*d = '\0';
+			fflush(stdout);
+			*(d-1) = '\0';	// omit ()
+			p = parse_constraint(c+1);
+			if (verbose)
+			{	printf("constraint %d = '%s' -- parses: %p\n", nr, c+1, (void *) p);
+			}
+			store_constraint(nr, p);
+	}	}
+
+	return r;	
+}
+
 void
 json(const char *te)
 {	Prim *sop = (Prim *) 0;
@@ -1949,11 +2051,13 @@ cobra_te(char *te, int and, int inv)
 
 	memset(&dummy, 0, sizeof(Trans));
 								
+	te = get_constraints(te);
 	if (!te)
 	{	return;
 	}
-	glob_te = te;
+
 	start_timer(0);
+	glob_te = te;
 
 	p = te;
 	for (p = te; *p != '\0'; p++)
@@ -1969,9 +2073,14 @@ cobra_te(char *te, int and, int inv)
 	}	}
 	anychange = 0;
 	if (!eol && strstr(te, "EOL"))
-	{	anychange = 1;
-		eol = 1;
-	}
+	{	char *q1 = strstr(te, "define");
+		char *q2 = strstr(te, "EOL");
+		// with nocpp, there is already an EOL at the end
+		// of every #define macro
+		if (!no_cpp || (!q1 || q1 > q2))
+		{	anychange = 1;
+			eol = 1;
+	}	}
 	if (!eof && strstr(te, "EOF"))
 	{	anychange = 1;
 		eof = 1;
@@ -2067,6 +2176,16 @@ cobra_te(char *te, int and, int inv)
 
 			for (c = curstates[current]; c; c = c->nxt)
 			{	s = c->s;
+
+				if (s->seq < MAX_CONSTRAINT
+				&&  constraints[s->seq])
+				{	if (!evaluate(q_now, constraints[s->seq]))
+					{	if (verbose)
+						{	printf("S%d: constraint does not hold\n", s->seq);
+						}
+						continue;
+				}	}
+
 				for (t = s->trans; t; t = t->nxt)
 				{	if (verbose)
 					{	printf("\tcheck %d->%d	%s, pat: '%s',  %s,  %s\t:: nxt S%d\n",
@@ -2396,8 +2515,8 @@ cobra_te(char *te, int and, int inv)
 						anychange = 1;
 						if (is_accepting(s->bindings, t->dest))
 						{	if (verbose)
-							{	printf("\t\tgoto L (%d -> %d)\n",
-									s->seq, t->dest);
+							{	printf("\t\tgoto L (%d -> %d) anychange: %d\n",
+									s->seq, t->dest, anychange);
 							}
 							// we found a match at the current token
 							// so even though there may be others, we

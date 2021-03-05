@@ -121,8 +121,8 @@ fct_defs_range(void *arg)
 	upto = tokrange[*i]->upto;
 
 	for (r = from; r && r->seq <= upto->seq; r = r->nxt)
-	{	if (strcmp(r->typ, "cpp") == 0)
-		{	while (strcmp(r->txt, "EOL") != 0)
+	{	if (strcmp(r->typ, "cpp") == 0 && !parse_macros)
+		{	while (r && r->nxt && strcmp(r->txt, "EOL") != 0)
 			{	r = r->nxt;
 			}
 			continue;	// skip over preprocessing stuff
