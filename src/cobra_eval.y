@@ -285,7 +285,7 @@ dot_match(const Prim *q, Lextok *lft, Lextok *rgt)
 {	char *a = lft->s;
 	char *b = rgt->s;
 	char *compare_with = 0;
-printf("here\n");
+
 	if (lft->typ == '.')
 	{	if (strcmp(lft->s, "fnm") == 0)
 		{	a = q->fnm;
@@ -315,7 +315,7 @@ printf("here\n");
 	if (!a || !b)
 	{	return -1;
 	}
-printf("cmp '%s' <-> '%s'\n", a, b);
+
 	return strcmp(a, b);
 }
 
