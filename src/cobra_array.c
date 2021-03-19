@@ -768,7 +768,8 @@ wrap_stats(void)
 	}
 }
 #else
-void wrap_stats(void)
+void
+wrap_stats(void)
 {
 	// do nothing
 }

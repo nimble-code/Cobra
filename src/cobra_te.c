@@ -25,7 +25,6 @@ typedef struct Node	Node;
 typedef struct Op_Stack	Op_Stack;
 typedef struct Range	Range;
 typedef struct State	State;
-typedef struct Store	Store;
 typedef struct Trans	Trans;
 typedef struct Rlst	Rlst;
 typedef struct PrimStack PrimStack;
@@ -107,16 +106,10 @@ struct List {
 	List	*nxt;
 };
 
-struct Store {
-	char	*name;
-	char	*text;
-	Prim	*ref;	// last place where bound ref was found
-	Store	*nxt;
-};
-
-extern int	eol, eof;
-extern int	evaluate(const Prim *, const Lextok *);
-extern void	set_cnt(int);
+Store	*e_bindings;	// shared with cobra_eval.y
+extern int	 eol, eof;
+extern int	 evaluate(const Prim *, const Lextok *);
+extern void	 set_cnt(int);
 
 static List	*curstates[3]; // 2 is initial
 static List	*freelist;
@@ -1076,6 +1069,17 @@ get_store(Store *n)
 
 // Execution
 
+char *
+bound_value(const char *s)
+{	Store*b;
+
+	for (b = e_bindings; b; b = b->nxt)
+	{	if (strcmp(s, b->name) == 0)
+		{	return b->text;
+	}	}
+	return "";
+}
+
 static void
 leave_state(int src, int into)
 {	List *c, *lc = NULL;
@@ -1359,15 +1363,17 @@ recall(State *s, Trans *t, char *text)
 			{	b->ref = q_now;
 				if (verbose)
 				{	printf(">> matching var %s : %s\n", name, text);
-					printf(">> removing other bindings:\t");
+					printf(">> other bindings:\t");
 					for (c = s->bindings; c; c = c->nxt)
 					{	if (c != b)
 						{	printf("%s :: %s ", c->name, c->text);
 					}	}
 					printf("\n");
 				}
+#if 0
 				b->nxt = 0;
 				s->bindings = b;
+#endif
 				return 1;
 		}	}
 		return 0;
@@ -1721,12 +1727,16 @@ static void
 show_curstate(int rx)
 {	List *c;
 	PrimStack *p;
+	Store *b;
 
 	// verbose mode
 	printf("%d/%d %d :: %s :: %s :: ", cur->lnr, q_now->lnr, rx, cur->txt, q_now->txt);
 	for (c = curstates[current]; c; c = c->nxt)
 	{	State *s = c->s;
 		printf("S%d%s | ", s->seq, s->accept?"*":"");
+		for (b = s->bindings; b; b = b->nxt)
+		{	printf("<%s::%s> ", b->name, b->text);
+		}
 	}
 	for (p = prim_stack; p; p = p->nxt)
 	{	printf("%s... ", p->t?p->t->txt:"?...");
@@ -1955,11 +1965,19 @@ get_constraints(char *t)
 			fflush(stdout);
 			*(d-1) = '\0';	// omit ()
 			p = parse_constraint(c+1);
-			if (verbose)
-			{	printf("constraint %d = '%s' -- parses: %p\n", nr, c+1, (void *) p);
-			}
-			store_constraint(nr, p);
-	}	}
+			if (p)
+			{	store_constraint(nr, p);
+				if (verbose)
+				{	printf("constraint %d = '%s' -- parses: %p\n",
+						nr, c+1, (void *) p);
+				}
+			} else
+			{	if (verbose)
+				{	fprintf(stderr, "constraint %d (%s) fails to parse\n", nr, c+1);
+				}
+				r = NULL;
+				break;
+	}	}	}
 
 	return r;	
 }
@@ -1967,6 +1985,7 @@ get_constraints(char *t)
 void
 json(const char *te)
 {	Prim *sop = (Prim *) 0;
+	Prim *q;
 	int seen = 0;
 
 	// usage:
@@ -1996,21 +2015,22 @@ json(const char *te)
 		// start of match
 		sop = cur;
 
-		if (cur->bound)	// assume this wasnt set for other reasons...
-		{	sprintf(json_msg, "lines %d..%d", cur->lnr, cur->bound->lnr);
-			while (cur && cur->mark > 0)
-			{	check_bvar(cur);
-				cur = cur->nxt;
+		q = cur;
+		if (q->bound)	// assume this wasnt set for other reasons...
+		{	sprintf(json_msg, "lines %d..%d", q->lnr, q->bound->lnr);
+			while (q && q->mark > 0)
+			{	check_bvar(q);
+				q = q->nxt;
 			}
 		} else
-		{	while (cur && cur->mark > 0)
-			{	check_bvar(cur);
-				if (cur->nxt)
-				{	cur = cur->nxt;
+		{	while (q && q->mark > 0)
+			{	check_bvar(q);
+				if (q->nxt)
+				{	q = q->nxt;
 				} else
 				{	break;
 			}	}
-			sprintf(json_msg, "lines %d..%d", sop->lnr, cur?cur->lnr:0);
+			sprintf(json_msg, "lines %d..%d", sop->lnr, q?q->lnr:0);
 		}
 		json_match(te, json_msg, sop?sop->fnm:"", sop?sop->lnr:0);
 		seen |= 4;
@@ -2179,7 +2199,10 @@ cobra_te(char *te, int and, int inv)
 
 				if (s->seq < MAX_CONSTRAINT
 				&&  constraints[s->seq])
-				{	if (!evaluate(q_now, constraints[s->seq]))
+				{	// setup bindings env for cobra_eval.y
+					// in case the constraint contains bound vars
+					e_bindings = s->bindings;
+					if (!evaluate(q_now, constraints[s->seq]))
 					{	if (verbose)
 						{	printf("S%d: constraint does not hold\n", s->seq);
 						}

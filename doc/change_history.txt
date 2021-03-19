@@ -144,4 +144,13 @@
   - added support of comparisons with .fct in expressions;
   - added the ability to define additional constraints, as general expressions
     on token attributes attached to states) in pattern-expression matching expressions
-   (option pe) - to be documented
+    (option pe) - to be documented
+
+3.4 march 19 2021
+  - changed working of command-line argument -comments to enable the inclusion
+    of comments as tokens.  the full comment text is always included in the token
+    (each comment forms a single token).  by default now comments are not included
+    in the token stream. clearly, enabling preprocessing (-cpp) will void this option
+    because the preprocessor will remove comments.
+  - several other improvements and fixes in pattern expression matching
+  - updated manual pages and tutoral pages with the changes

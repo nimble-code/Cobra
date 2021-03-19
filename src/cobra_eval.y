@@ -34,6 +34,7 @@ extern int	 yyparse(void);
 %left	'+' '-'
 %left	'*' '/' '%'
 %right	'.' '~' '!' UMIN SIZE
+%right	':'
 
 %%
 form	: expr EOE	{ p_tree = $1; return 1; }
@@ -61,6 +62,7 @@ expr    : '(' expr ')'	{ $$ = $2; }
 	| '-' expr %prec UMIN	{ $1->rgt = $2; $$ = $1; }
 	| '~' expr %prec UMIN	{ $1->rgt = $2; $$ = $1; }
 	| '.' NAME %prec UMIN	{ $1->s = $2->s; $$ = $1; }
+	| ':' NAME		{ $1->rgt = $2; $$ = $1; /* pe expression */ }
 	;
 %%
 static int iscan;
@@ -113,6 +115,7 @@ eval_lex(void)
 	case '+': case '-':
 	case '%': case '.':
 	case '(': case ')':
+	case ':':	// possible pe expression
 		return b_cmd[iscan++];
 	case '\\':
 		iscan++;
@@ -296,6 +299,8 @@ dot_match(const Prim *q, Lextok *lft, Lextok *rgt)
 		}
 	} else if (lft->typ == REGEX)
 	{	compare_with = b;
+	} else if (lft->typ == ':')
+	{	a = bound_value(lft->rgt->s);
 	}
 
 	if (rgt->typ == '.')
@@ -306,6 +311,8 @@ dot_match(const Prim *q, Lextok *lft, Lextok *rgt)
 		}
 	} else if (rgt->typ == REGEX)
 	{	compare_with = a;
+	} else if (rgt->typ == ':')
+	{	b = bound_value(rgt->rgt->s);
 	}
 
 	if (compare_with)
@@ -340,7 +347,16 @@ evaluate(const Prim *q, const Lextok *n)
 		case '%':  rval = binop(%); break;
 		case  OR:  rval = binop(||); break;
 		case AND:  rval = binop(&&); break;
-		case  EQ:  
+		case  EQ:
+			   if (n->rgt->typ == ':'
+			   ||  n->lft->typ == ':')
+			   {	if (e_bindings)
+			   	{	rval = (dot_match(q, n->lft, n->rgt) == 0);
+				} else
+				{	rval = 0; // no match if bound var undefined
+			   	}
+				break;
+			   }
 			   if (n->rgt->typ == NAME
 			   ||  n->rgt->typ == REGEX
 			   ||  n->lft->typ == NAME
@@ -351,6 +367,15 @@ evaluate(const Prim *q, const Lextok *n)
 			   }
 			   break;
 		case  NE:
+			   if (n->rgt->typ == ':'
+			   ||  n->lft->typ == ':')
+			   {	if (e_bindings)
+			   	{	rval = (dot_match(q, n->lft, n->rgt) != 0);
+				} else
+				{	rval = 0; // no match if bound var undefined
+			   	}
+				break;
+			   }
 			   if (n->rgt->typ == NAME
 			   ||  n->rgt->typ == REGEX
 			   ||  n->lft->typ == NAME
@@ -367,8 +392,9 @@ evaluate(const Prim *q, const Lextok *n)
 		case '.':  rval = lookup(q, n->s); break;
 		case NR:   rval = n->val; break;
 		case SIZE: rval = nr_marks(n->rgt->val); break;
-		default:   printf("expr: unknown type %d\n",
-				n->typ);
+		case ':':  fprintf(stderr, "invalid use of ':'\n");
+			   break;
+		default:   fprintf(stderr, "expr: unknown type %d\n", n->typ);
 			   break;
 	}	}
 	return rval;

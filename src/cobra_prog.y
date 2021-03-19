@@ -111,6 +111,7 @@ static Var_nm	*check_var(const char *, const int);
 #endif
 
 static Lextok	*add_return(Lextok *);
+static void	check_cmnt(Lextok *);
 static void	handle_global(Lextok *);
 static void	add_fct(Lextok *);
 static void	fixstr(Lextok *);
@@ -317,7 +318,7 @@ expr	:'(' expr ')'		{ $$ = $2; }
 	| RE_MATCH '(' p_lhs ',' STRING ')' { $1->lft = $3; $1->rgt = $5; $$ = $1; }
 	| RE_MATCH '(' STRING ')' { $1->lft = 0; $1->rgt = $3; $$ = $1; }
 	| NAME '(' actuals ')'  { $$ = new_lex(CALL, $1, $3); }
-	| '@' NAME		{ $1->rgt = $2; $$ = $1; }
+	| '@' NAME		{ $1->rgt = $2; $$ = $1; check_cmnt($2); }
 	| '@' TYP		{ $1->rgt = $2; $$ = $1; }
 	| '#' NAME		{ $1->rgt = $2; $$ = $1; }
 	| b_name '@' expr	{ $1->core = $3; $$ = $1; /* qualified name */ }
@@ -543,6 +544,19 @@ hash2(const char *s)
 		{	h ^= ((h << 8) ^ (h >> (24))) + *s++;
 		}
 		return ((h << 7) ^ (h >> (25))) ^ t;
+	}
+}
+
+static void
+check_cmnt(Lextok *p)
+{	static int warned = 0;
+
+	if (p && p->s
+	&& strcmp(p->s, "cmnt") == 0
+	&& with_comments == 0
+	&& !warned)
+	{	warned = 1;
+		fprintf(stderr, "error: @cmnt requires commandline option -comments\n");
 	}
 }
 

@@ -2434,6 +2434,13 @@ preamble(char *s, int n)
 	if (*s == '/')
 	{	(void) regstart(n, s+1);
 	}
+	if (strcmp(s, "@cmnt") == 0
+	&&  with_comments == 0)
+	{	static int warned = 0;
+		if (!warned)
+		{	warned = 1;
+			fprintf(stderr, "error: @cmnt requires command-line option -comments\n");
+	}	}
 	return s;
 }
 
@@ -3279,7 +3286,7 @@ help(char *s, char *unused)	// 1
 	printf("    @type      (int, char, float, double, void)\n");
 	printf("    @ident (identifier), @chr, @str (string), @key (C keyword), @oper (operator)\n");
 	printf("    @const_int, @const_hex, @const_oct, const_flt,\n");
-	printf("    @cmnt (when using command-line option -c)\n");
+	printf("    @cmnt (when using command-line option -comments)\n");
 	printf("  struct, union, and enum are categorized as @key (i.e., keywords)\n");
 	printf("  commands can be separated by newlines or semi-colons\n");
 
@@ -3639,8 +3646,7 @@ xchange(char *s)
 		return;
 	}
 
-	with_comments = 1 - with_comments;
-	no_cpp        = 1 - no_cpp;
+	no_cpp = 1 - no_cpp;
 
 	if (!no_match)
 	{	printf("preprocessing: %s\n",

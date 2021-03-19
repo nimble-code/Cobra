@@ -43,8 +43,7 @@ int stream_margin_set;
 int runtimes;
 int scrub;
 int verbose;
-int with_comments = 1;
-int full_comments;
+int with_comments;
 int json_format;
 int json_plus;
 
@@ -107,7 +106,7 @@ add_preproc(const char *s)	// before parsing
 	if (strlen(preproc) == 0)
 	{	preproc = (char *) emalloc(strlen(s) + 1, 16);
 		strcpy(preproc, s);
-		no_cpp = with_comments = 0;
+		no_cpp = 0;
 	} else
 	{	char *op = preproc; // emalloc uses sbrk
 		int    n = strlen(op) + strlen(s) + 2;
@@ -554,7 +553,7 @@ usage(char *s)
 	fprintf(stderr, "\t-C++                -- recognize C++ keywords\n");
 	fprintf(stderr, "\t-c \"commands\"       -- execute commands and stop (cf -e, -f)\n");
 	fprintf(stderr, "\t-c \"m /regex; p\"     -- find tokens matching a regular expr\n");
-	fprintf(stderr, "\t-comments           -- do not truncate c-style comments at first newline\n");
+	fprintf(stderr, "\t-comments           -- include comments as tokens (unless -cpp is also used)\n");
 	fprintf(stderr, "\t-configure dir      -- set and remember the name for the cobra rules directory\n");
 	fprintf(stderr, "\t-cpp                -- enable C preprocessing%s\n", no_cpp?"":" (default)");
 	fprintf(stderr, "\t-d and -v -d        -- debug cobra inline program executions\n");
@@ -1124,7 +1123,7 @@ main(int argc, char *argv[])
 		case 'a':
 			  if (strcmp(argv[1], "-allheaderfiles") == 0)
 			  {	all_headers = 1;
-			  	no_cpp = with_comments = 0;
+			  	no_cpp = 0;
 				break;
 			  }
 			  return usage(argv[1]);
@@ -1139,11 +1138,17 @@ main(int argc, char *argv[])
 			  return usage(argv[1]);
 
 		case 'c': if (strcmp(argv[1], "-cpp") == 0)
-			  {	no_cpp = with_comments = 0;
+			  {	no_cpp = 0;
+				if (with_comments)
+				{	fprintf(stderr, "warning: -cpp overrides -comments\n");
+				}
 				break;
 			  }
 			  if (strcmp(argv[1], "-comments") == 0)
-			  {	full_comments = 1;
+			  {	with_comments = 1;
+				if (no_cpp == 0)
+				{	fprintf(stderr, "warning: -cpp overrides -comments\n");
+				}
 				break;
 			  }
 			  if (strcmp(argv[1], "-configure") == 0)
@@ -1257,8 +1262,8 @@ RegEx:			  no_match = 1;		// -e -expr -re or -regex
 			  {	handle_typedefs = 0;
 			  	break;
 			  }
-			  no_cpp = with_comments = 1;	// -nocpp
-			  no_cpp_sticks = 1;
+			  // -nocpp
+			  no_cpp = no_cpp_sticks = 1;
 			  break;
 
 		case 'N': Nthreads(&argv[1][2]);

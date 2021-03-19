@@ -41,7 +41,6 @@ static	Files	*files[NHASH];
 static	Files	*frr = (Files *) 0;
 static	int	 nfh = -1;
 
-extern	int	 full_comments;
 extern	int	 read_stdin;
 extern	int	 stream;
 
@@ -741,8 +740,7 @@ process_line(char *buf, int cid)
 	}
 
 	if ((n = strchr(buf, '\n')) != NULL)
-	{	if (strncmp(buf, "cmnt", 4) != 0
-		||  full_comments == 0)
+	{	if (strncmp(buf, "cmnt", 4) != 0)
 		{	*n = '\0';
 	}	}
 

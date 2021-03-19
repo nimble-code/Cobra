@@ -19,8 +19,16 @@ typedef struct Lextok	Lextok;
 typedef struct Match	Match;
 typedef struct Qual	Qual;
 typedef struct Script	Script;
+typedef struct Store	Store;
 
 typedef Lextok *Lexptr;
+
+struct Store {
+	char	*name;
+	char	*text;
+	Prim	*ref;	// last place where bound var was seen
+	Store	*nxt;
+};
 
 struct Lextok {
 	int	typ;
@@ -112,6 +120,8 @@ extern char *cobra_txt(void);
 extern char *cobra_typ(void);
 extern char *fct_which(const Prim *);
 
+extern char *bound_value(const char *);
+
 extern int add_stream(Prim *);
 extern int cobra_lnr(void);
 extern int cobra_nxt(void);
@@ -161,9 +171,10 @@ extern void *save_range(void *);
 extern void *restore_range(void *);
 extern void *fct_defs_range(void *);
 
-extern FList   *find_match_str(char *);
-extern ArgList *cl_var;
-extern Lextok  *prep_eval(void);
+extern FList	*find_match_str(char *);
+extern ArgList	*cl_var;
+extern Lextok	*prep_eval(void);
+extern Store	*e_bindings;
 
 extern char  CobraDot[64];
 extern char  FsmDot[64];
