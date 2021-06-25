@@ -2022,10 +2022,13 @@ pattern_full(int which, int N, int M)
 		{	show_line(fd, cur->fnm, 0, lst, cur->bound->lnr, bv);
 		}
 		
-		if (which != 0)
+		if (which != 0
+		&&  N < 0
+		&&  M < 0)
 		{	break;
 	}	}
-	if (which == 0)
+	if (which == 0
+	||  M < 0)
 	{	fprintf(fd, "%d of %d patterns printed\n", hits, total);
 	}
 }
