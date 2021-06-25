@@ -156,7 +156,7 @@
   - updated manual pages and tutoral pages with the changes
 
 3.5 june 25 2021
-  - bug fixes in pattern matching code (option -te), especially
+  - bug fixes in pattern matching code (option -pe), especially
     when using choices in pattern expressions
   - bug fix in the input streaming mode
   - corrected implementation of the ft command (find-type)
