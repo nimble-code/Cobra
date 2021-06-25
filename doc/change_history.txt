@@ -154,3 +154,22 @@
     because the preprocessor will remove comments.
   - several other improvements and fixes in pattern expression matching
   - updated manual pages and tutoral pages with the changes
+
+3.5 june 25 2021
+  - bug fixes in pattern matching code (option -te), especially
+    when using choices in pattern expressions
+  - bug fix in the input streaming mode
+  - corrected implementation of the ft command (find-type)
+  - new command: 'symbols' that tries to quickly link variables
+    to the most likely location of their declaration
+    with manpage (http://spinroot.com/cobra/commands/symbols.html)
+  - modified working of reset command, to preserve link
+    information set in the new symbols command
+  - added token category @const as a shorthand for:
+    @const_int, @const_hex, @const_oct, const_flt
+    which are still supported
+  - small fix in the find_taint command (better precision
+    in reporting suspicious uses of gets())
+  - extension of pattern expressions to allow positional
+    parameters and the application of general constraints
+    at different points in an expression
