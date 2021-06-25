@@ -466,66 +466,6 @@ static struct Keywords ops[] = {	// for tok2txt only
 	{ 0, 0}
 };
 
-#if 1
- #if defined(__GNUC__) && defined(__i386__)
-	#define get16bits(d) (*((const uint16_t *) (d)))
- #else
-	#define get16bits(d) ((((uint32_t)(((const uint8_t *)(d))[1])) << 8) \
-                              +(uint32_t)(((const uint8_t *)(d))[0]) )
- #endif
-uint
-hasher(const char *s)
-{	int len = strlen(s);
-	uint32_t h = len, tmp;
-	int rem;
-
-	rem = len & 3;
-	len >>= 2;
-
-	for ( ; len > 0; len--)
-	{	h  += get16bits(s);
-        	tmp = (get16bits(s+2) << 11) ^ h;
-        	h   = (h << 16) ^ tmp;
-        	s  += 2*sizeof(uint16_t);
-		h  += h >> 11;
-	}
-	switch (rem) {
-	case 3: h += get16bits(s);
-		h ^= h << 16;
-		h ^= s[sizeof(uint16_t)] << 18;
-		h += h >> 11;
-		break;
-	case 2: h += get16bits(s);
-		h ^= h << 11;
-		h += h >> 17;
-		break;
-	case 1: h += *s;
-		h ^= h << 10;
-		h += h >> 1;
-		break;
-	}
-	h ^= h << 3;
-	h += h >> 5;
-	h ^= h << 4;
-	h += h >> 17;
-	h ^= h << 25;
-	h += h >> 6;
-
-	return h;	// caller adds &H_MASK
-}
-#else
-uint
-hasher(const char *s)
-{	unsigned int h = 0x88888EEFL;
-	const char t = *s;
- 
-	while (*s != '\0')
-	{	h ^= ((h << 4) ^ (h >> 28)) + *s++;
-	}
-	return (uint) (t ^ (h ^ (h>>(H_BITS))));
-}
-#endif
-
 ulong
 hash2(const char *s)
 {

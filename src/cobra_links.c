@@ -43,8 +43,10 @@ static int seen_switch_links;
 static int seen_break_links;
 static int seen_symbols;
 
-static Lnrs *store_var(TrackVar **, Prim *, int, int);
-static ThreadLocal_links *thr;
+static  Lnrs *store_var(TrackVar **, Prim *, int, int);
+static  ThreadLocal_links *thr;
+
+FILE	*track_fd;
 
 static Prim *
 skip_cond(Prim *mycur)
@@ -686,21 +688,16 @@ likely_decl(Prim *x)	// x points to the first token after a typename
 
 	// scan ahead to first ';'
 	while (x && x->txt[0] != ';')
-	{
-//printf(" [[%s]]\n", x->txt);
-		if (strcmp(x->typ, "type") == 0	// saw another typename
+	{	if (strcmp(x->typ, "type") == 0	// saw another typename
 		||  x->txt[0] == '.'
 		||  x->txt[0] == '{')		// likely a struct/union
-		{
-//printf("	nope\n");
-			return 0;
+		{	return 0;
 		}
 		if (strcmp(x->txt, "=") == 0)	// initializer
 		{	break;			// so its not a struct or typedef
 		}		
 		x = x->nxt;
 	}
-//printf("	yup\n");
 	return 1;
 }
 
@@ -778,7 +775,7 @@ v_new(Prim *v, Prim *n, int who)
 	} else
 	{	p = (V_ref *) emalloc(sizeof(V_ref), 159);
 	}
-//printf("%s:%d:  TXT '%s' -- loc/type '%s' <<%d>>\n", n->fnm, n->lnr, v->txt, n->txt, who);
+
 	p->nm  = v;
 	p->loc = n;
 	return p;
@@ -884,7 +881,10 @@ possible_typedef(Prim *p, int level)
 		||  strcmp(q->typ, "ident") != 0)
 		{	break;
 		}
-// printf("%s:%d: ident '%s' is likely of type '%s'\n",	p->fnm, p->lnr, q->txt, p->txt);
+		if (0)
+		{	printf("%s:%d: ident '%s' is likely of type '%s'\n",
+				p->fnm, p->lnr, q->txt, p->txt);
+		}
 		add_scope(q, p, level, 1);
 		break;
 	}
@@ -898,14 +898,13 @@ find_decl(Prim *p, int level)
 	int n;
 	FILE *fd = (track_fd) ? track_fd : stdout;
 
-// if the immediately preceding token is a typename, it's easy
+	// if the immediately preceding token is a typename, it's easy
 	if (0 && p->prv
 	&&  strcmp(p->prv->typ, "type"))
 	{	p->bound = p->prv;
 		return 1;
 	}
 
-// printf("%s:%d: check this '%s'\n", p->fnm, p->lnr, p->txt);
 	x = p->nxt;
 	if (x->txt[0] == '('		// fct def or call
 	||  x->txt[0] == ':')		// labelname
@@ -983,6 +982,66 @@ not_prototype(Prim *p)	// not in a formal param list of prototype decl
 
 // externally visible functions
 
+#if 1
+ #if defined(__GNUC__) && defined(__i386__)
+	#define get16bits(d) (*((const uint16_t *) (d)))
+ #else
+	#define get16bits(d) ((((uint32_t)(((const uint8_t *)(d))[1])) << 8) \
+                              +(uint32_t)(((const uint8_t *)(d))[0]) )
+ #endif
+uint
+hasher(const char *s)
+{	int len = strlen(s);
+	uint32_t h = len, tmp;
+	int rem;
+
+	rem = len & 3;
+	len >>= 2;
+
+	for ( ; len > 0; len--)
+	{	h  += get16bits(s);
+        	tmp = (get16bits(s+2) << 11) ^ h;
+        	h   = (h << 16) ^ tmp;
+        	s  += 2*sizeof(uint16_t);
+		h  += h >> 11;
+	}
+	switch (rem) {
+	case 3: h += get16bits(s);
+		h ^= h << 16;
+		h ^= s[sizeof(uint16_t)] << 18;
+		h += h >> 11;
+		break;
+	case 2: h += get16bits(s);
+		h ^= h << 11;
+		h += h >> 17;
+		break;
+	case 1: h += *s;
+		h ^= h << 10;
+		h += h >> 1;
+		break;
+	}
+	h ^= h << 3;
+	h += h >> 5;
+	h ^= h << 4;
+	h += h >> 17;
+	h ^= h << 25;
+	h += h >> 6;
+
+	return h;	// caller adds &H_MASK
+}
+#else
+uint
+hasher(const char *s)
+{	unsigned int h = 0x88888EEFL;
+	const char t = *s;
+ 
+	while (*s != '\0')
+	{	h ^= ((h << 4) ^ (h >> 28)) + *s++;
+	}
+	return (uint) (t ^ (h ^ (h>>(H_BITS))));
+}
+#endif
+
 void
 var_links(char *unused1, char *unused2)
 {	int h, level = 0;
@@ -1007,9 +1066,6 @@ var_links(char *unused1, char *unused2)
 
 	for (cur = prim; cur; cur = cur?cur->nxt:0)
 	{
-// if (cur->prv && cur->fnm != cur->prv->fnm)
-// {	printf("%s\n", cur->fnm);
-// }
 		switch (cur->txt[0]) {
 		case '{':	// scope level
 			level = cur->curly + 1;
@@ -1036,7 +1092,6 @@ var_links(char *unused1, char *unused2)
 			continue;
 		}
 
-//printf("%s:%d: A '%s' (%s :: %d)\n", cur->fnm, cur->lnr, cur->txt, cur->typ, cur->bracket);
 		if ((strcmp(cur->typ, "type") == 0	// mine declarations
 		||   strcmp(cur->typ, "modifier") == 0)
 		&&  cur->bracket == 0)
@@ -1044,7 +1099,6 @@ var_links(char *unused1, char *unused2)
 			&&  strcmp(cur->nxt->typ, "type") == 0)	// eg unsigned int
 			{	cur = cur->nxt;
 			}
-//printf("	A '%s' (%d :: %d)\n", cur->txt, cur->round, cur->curly);
 			if (cur->round == 1
 			&&  cur->curly == 0)		// possible param decl
 			{	if (cur->nxt
@@ -1061,7 +1115,6 @@ var_links(char *unused1, char *unused2)
 				}
 				continue;
 			}
-//printf("%s:%d: B '%s' (%d :: %d)\n", cur->fnm, cur->lnr, cur->txt, likely_decl(cur), likely_decl(cur->nxt));
 			if (cur->round == 0
 			&&  likely_decl(cur->nxt))		// local or global decl
 			{	// tag all identifiers between here and the first semi-colon
@@ -1070,7 +1123,6 @@ X:				x = cur;
 				while (cur && cur->txt[0] != ';')
 				{	if (strcmp(cur->txt, "=") == 0)	// initializer, skip ahead
 					{	cur = cur->nxt;
-//printf("%s:%d: Scan Ahead Past %s\n", cur->fnm, cur->lnr, cur->txt);
 						while (cur
 						&& cur->txt[0] != ','
 						&& cur->txt[0] != ';')
@@ -1093,16 +1145,9 @@ X:				x = cur;
 					if (strcmp(cur->typ, "type") == 0)
 					{	if (cur->seq != x->seq)
 						{	// walked into new decl
-//printf("%s:%d: BMP => %s\n", cur->fnm, cur->lnr, cur->txt);
 							goto X;
-						} else
-						{
-//printf("%s:%d: NO_BMP => %s\n", cur->fnm, cur->lnr, cur->txt);
-						}
-					}
-//printf("%s:%d: After '=' check, now at %s -- [%s :: %s :: %d :: %d]\n",
-//	cur->fnm, cur->lnr, cur->txt,
-//	cur->typ, cur->nxt->txt, not_prototype(cur), cur->round);
+					}	}
+
 					if (cur
 					&&  strcmp(cur->typ, "ident") == 0
 					&&  cur->nxt
@@ -1112,7 +1157,6 @@ X:				x = cur;
 					}
 					cur = cur?cur->nxt:0;
 				}
-//printf("%s:%d: Continue at %s\n", cur->fnm, cur->lnr, cur->txt);
 				continue;
 		}	}
 

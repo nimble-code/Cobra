@@ -7,7 +7,6 @@
 #include "cobra.h"
 #include <regex.h>
 
-FILE		*track_fd;
 char		*b_cmd;
 char		CobraDot[64];
 char		FsmDot[64];
