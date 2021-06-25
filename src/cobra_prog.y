@@ -130,6 +130,7 @@ extern int	xxparse(void);
 static int	yylex(void);
 
 extern int	stream;
+extern int	stream_override;
 %}
 
 %token	NR STRING NAME IF IF2 ELSE WHILE FOR IN PRINT ARG SKIP GOTO
@@ -2588,7 +2589,13 @@ ref_at_type(Prim *p, const char *s)
 	if (strcmp(s, "up") == 0)
 	{	return top_up;
 	}
-	return (strcmp(p?p->typ:"", s) == 0);
+	if (!p)
+	{	return 0;
+	}
+	if (strcmp(s, "const") == 0)
+	{	return (strncmp(p->typ, "const", 5) == 0);
+	}
+	return (strcmp(p->typ, s) == 0);
 }
 
 static int
@@ -2697,8 +2704,12 @@ re_matches(Prim **ref_p, Lextok *t, int ix)
 	if (isre)
 	{	rv = prog_regmatch(v, s);
 	} else
-	{	rv = (strcmp(v, s) == 0);
-	}
+	{	if (!istxt
+		&&  strcmp(v, "const") == 0)
+		{	rv = (strncmp(v, "const", 5) == 0);
+		} else
+		{	rv = (strcmp(v, s) == 0);
+	}	}
 
 	do_unlock(ix);
 
@@ -3732,7 +3743,9 @@ exec_prog(Prim **q, int ix)
 static int
 streamable(Lextok *t)
 {
-	if (t && !(t->visit & 4))
+	if (!stream_override
+	&&  t
+	&&  !(t->visit & 4))
 	{	t->visit |= 4;
 		switch (t->typ) {
 #if 0

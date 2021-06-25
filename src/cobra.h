@@ -164,6 +164,7 @@ extern void set_tmpname(char *, const char *, const int);
 extern void show_line(FILE *, const char *, int, int, int, int);
 extern void stop_threads(void);
 extern void undo_matches(void);
+extern void var_links(char *, char *);
 
 extern void *clear_range(void *);
 extern void *nr_marks_range(void *);

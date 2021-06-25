@@ -11,11 +11,12 @@
 // regular expressions into NDFA
 // CACM 11:6, June 1968, pp. 419-422.
 
-#define NEW_M	  0
-#define OLD_M	  1
+#define NEW_M	  	0
+#define OLD_M	  	1
 
-#define CONCAT	512	// higher than operator values
-#define OPERAND	513	// higher than others
+#define CONCAT		512	// higher than operator values
+#define OPERAND		513	// higher than others
+#define MAX_CONSTRAINT	256
 
 #define te_regmatch(t, q)	regexec((t), (q), 0,0,0)	// t always nonzero
 
@@ -65,6 +66,7 @@ struct Nd_Stack {	// CNODE
 	int	  seq;
 	int	  visited;
 	Node	 *n;	// NNODE
+	int	  cond;	// constraint
 	Nd_Stack *lft;	// CNODE
 	Nd_Stack *rgt;	// CNODE
 	Nd_Stack *nxt;	// stack
@@ -79,6 +81,7 @@ struct Range {
 struct Trans {
 	int	 match;	 // require match or no match
 	int	 dest;	 // next state
+	int	 cond;	 // constraint
 	char	*pat;	 // !pat: if !match: epsilon else '.'
 	char	*saveas; // variable binding
 	char	*recall; // bound variable reference
@@ -106,9 +109,15 @@ struct List {
 	List	*nxt;
 };
 
+Lextok	*constraints[MAX_CONSTRAINT];
+
 Store	*e_bindings;	// shared with cobra_eval.y
+
+extern char	*b_cmd;
+extern char	*yytext;
 extern int	 eol, eof;
 extern int	 evaluate(const Prim *, const Lextok *);
+extern void	 fix_eol(void);
 extern void	 set_cnt(int);
 
 static List	*curstates[3]; // 2 is initial
@@ -144,13 +153,16 @@ static int	ncalls;
 static int	nerrors;
 static int	p_matched;
 static int	nr_json;
+static int	has_positions;
 
-static void	clr_matches(int);
-static void	free_list(int);
-static void	mk_active(Store *, Store *, int, int);
-static void	mk_states(int);
-static void	mk_trans(int n, int match, char *pat, int dest);
-static void	show_state(FILE *, Nd_Stack *);
+static Nd_Stack *clone_nd_stack(Nd_Stack *);
+static int	 check_constraints(Nd_Stack *);
+static void	 clr_matches(int);
+static void	 free_list(int);
+static void	 mk_active(Store *, Store *, int, int);
+static void	 mk_states(int);
+static void	 mk_trans(int n, int match, char *pat, int dest, int cond);
+static void	 show_state(FILE *, Nd_Stack *);
 
 static void
 reinit_te(void)
@@ -351,6 +363,90 @@ show_state(FILE *fd, Nd_Stack *now)
 		show_transition(fd, now, now->lft);
 		show_transition(fd, now, now->rgt);
 	}
+}
+
+static int
+merge_constraint(Nd_Stack *from, Nd_Stack *to)
+{	int rv = 1;
+
+	if (!to)
+	{	return rv;
+	}
+
+	if (to->n	// NNODE
+	&&  to->n->tok)
+	{	if (strlen(to->n->tok) == 0)	// skip epsilon
+		{	return merge_constraint(from, to->n->succ);
+		}
+
+		if (*(to->n->tok) == '<'
+		&&  isdigit((int) *(to->n->tok + 1)))	// constraint position parameter
+		{	from->cond = atoi(to->n->tok + 1);
+			if (verbose)
+			{	printf("S%d -> S%d (-> S%d) :: %s -- attach constraint <%d>\n",
+					from->seq, to->seq,
+					to->n->succ?to->n->succ->seq:-1,
+					to->n->tok, from->cond);
+			}
+			if (from->cond < 0
+			||  from->cond > MAX_CONSTRAINT
+			||  !constraints[from->cond]
+			||  !to->n->succ)
+			{	fprintf(stderr, "error: undefined constraint %d %s %s\n",
+					from->cond,
+					(to->n->succ)?"":"(bad position for <n>)",
+					(from->n)?"":"(.*)");
+				if (!to->n->succ)
+				{	fprintf(stderr, "error: cannot handle the <%d> that follows '%s'\n",
+						from->cond, from->n?from->n->tok:"?");
+				}
+				from->cond = 0;
+				return 0;	// the only error return
+			}
+			// skip state defining constraint position, unless debugging
+			if (verbose == 2)
+			{	goto db;	// preserve the original automaton (for debug only)
+			}
+			if (from->n)
+			{	from->n->succ = to->n->succ;
+			} else	// handle case where the position is bound to .* <p>
+			{	if (from->rgt && from->rgt->seq == to->seq)
+				{	from->rgt = to->n->succ;		// skip over <.> itself
+					if (from->lft)
+					{	from->lft->cond = from->cond;	// attach constraint to the . part
+					}
+				} else	// unexpected
+				{	fprintf(stderr, "warning: state %d has no node associated with it\n",
+						from->seq);
+					fprintf(stderr, "lft: %d, rgt: %d -- to: %d\n",
+						from->lft?from->lft->seq:-1,
+						from->rgt?from->rgt->seq:-1,
+						to->seq);
+			}	}
+db:			to = to->n->succ;
+	}	}
+
+	return check_constraints(to);	// from -> to
+}
+
+static int
+check_constraints(Nd_Stack *now)
+{	// merge constraints at given positions into
+	// the immediately preceding state
+	int rv = 1;
+
+	if (!now || (now->visited&8))
+	{	return rv;
+	}
+	now->visited |= 8;
+
+	if (now->n)
+	{	rv = merge_constraint(now, now->n->succ);
+	} else
+	{	rv = merge_constraint(now, now->lft)
+		&&   merge_constraint(now, now->rgt);
+	}
+	return rv;
 }
 
 static void
@@ -639,12 +735,19 @@ reverse_polish(char *s)
 }
 
 static Nd_Stack *
-mk_el(Node *n)
+mk_el(Node *n, char *caller)
 {	Nd_Stack *t;
 
 	t = (Nd_Stack *) emalloc(sizeof(Nd_Stack), 94);
 	t->seq = Seq++;
 	t->n = n;
+	if (verbose)
+	{	printf("---mk_el %d -- tok '%s' typ %d (%s)\n",
+			t->seq,
+			t->n?t->n->tok:"---",
+			t->n?t->n->type:0,
+			caller);
+	}
 	return t;
 
 }
@@ -654,13 +757,22 @@ push(Nd_Stack *t)
 {
 	t->nxt = nd_stack;
 	nd_stack = t;
+
+	if (verbose)
+	{	printf("\tpush (%s)	<seq %d succ %d, r %d, l %d>\n",
+			t->n?t->n->tok:"---",
+			t->seq,
+			t->n && t->n->succ ? t->n->succ->seq : 0,
+			t->rgt?t->rgt->seq:0,
+			t->lft?t->lft->seq:0);
+	}
 }
 
 static void
 push_node(Node *n)
 {	Nd_Stack *t;
 
-	t = mk_el(n);
+	t = mk_el(n, "push_node");
 	push(t);
 }
 
@@ -675,6 +787,11 @@ pop(void)
 	nd_stack = nd_stack->nxt;
 	t->nxt = NULL;
 
+	if (verbose && t->n)
+	{	printf("\tpop (%s) <seq %d succ %d>\n",
+			t->n->tok, t->seq, t->n->succ?t->n->succ->seq:0);
+	}
+
 	return t;
 }
 
@@ -682,46 +799,117 @@ static void
 push_or(Nd_Stack *a, Nd_Stack *b)
 {	Nd_Stack *t;
 
-	t = mk_el(0);
+	t = mk_el(NULL, "push_or");
 	t->lft = a;
 	t->rgt = b;
 	push(t);
 }
 
 static void
-loop_back(Nd_Stack *a, Nd_Stack *t)
+clear_visit(Nd_Stack *t)
+{
+	if (t)
+	{	if (verbose)
+		{	printf("---clear-visit %d\n", t->seq);
+		}
+		t->visited = 0;
+		clear_visit(t->lft);
+		clear_visit(t->rgt);
+	}
+}
+
+static void
+loop_back(Nd_Stack *a, Nd_Stack *t, int caller)
 {
 	assert(a != NULL);
 
+	if (verbose)
+	{	printf("---connect %d (succ %d) -> %d (succ %d) <caller %d>\n",
+			a->seq,
+			a->n && a->n->succ?a->n->succ->seq:0,
+			t?t->seq:0,
+			t->n && t->n->succ?t->n->succ->seq:0,
+			caller);
+	}
 	if (a->visited&2)
-	{	return;
+	{	if (verbose)
+		{	printf("!	%d previously visited!\n", a->seq);
+		}
+		return;
 	}
 	a->visited |= 2;
 
 	if (a->n)	// NNODE
 	{	if (!a->n->succ)
 		{	a->n->succ = t;
+			if (verbose)
+			{	printf("=\t%d successor is now %d\n",
+					a->seq, t->seq);
+			}
 		} else
-		{	loop_back(a->n->succ, t);
-		}
+		{	int z = a->seq;
+			if (verbose)
+			{	printf(">\t%d has successor %d, find tail\n",
+					z, a->n->succ->seq);
+			}
+			while (a && a->n && a->n->succ)
+			{	a = a->n->succ;
+				if (a->seq == z)
+				{	fprintf(stderr, "error: loopback cycle on S%d\n", z);
+					return;
+			}	}
+			if (!a || !a->n)	// Cnode
+			{	if (a && !a->rgt)
+				{	a->rgt = t;
+					if (verbose)
+					{	printf("Cnode	-- %d attached to rgt of %d\n",
+							t?t->seq:-1, a->seq);
+					}
+				} else if (verbose)
+				{	printf("\tCnode (%p) S%d should connect to S%d (l %p, r %p)\n",
+						(void *) a, a?a->seq:-1, t->seq,
+						(void *) a->lft, (void *) a->rgt);
+				}
+				goto L;
+			}
+			a->n->succ = t;
+			if (verbose)
+			{	printf("=\t%d successor is now %d\n",
+					a->seq, t->seq);
+				printf("<\n");
+		}	}
 	} else	// CNODE
-	{	assert(a->lft != NULL);
-		loop_back(a->lft, t);
+	{
+L:		assert(a->lft != NULL);
+		if (verbose)
+		{	printf("Cnode -- loopback lft\n");
+		}
+		loop_back(a->lft, t, 2);
+		if (verbose)
+		{	printf("Cnode -- return from loopback lft\n");
+		}
 		if (!a->rgt)
 		{	a->rgt = t;
+			if (verbose)
+			{	printf("Cnode	-- %d attached to rgt of %d\n",
+					t?t->seq:-1, a->seq);
+			}
 		} else
-		{	loop_back(a->rgt, t);
-	}	}
-}
-
-static void
-clear_visit(Nd_Stack *t)
-{
-	if (t)
-	{	t->visited = 0;
-		clear_visit(t->lft);
-		clear_visit(t->rgt);
-	}
+		{	if (a->rgt->seq == t->seq)
+			{	if (verbose)
+				{	printf("Cnode -- %d rgt already set correctly to %d\n",
+						a->seq, t->seq);
+				}
+				return;
+			}
+			if (verbose)
+			{	printf("Cnode	-- %d rgt already set to %d, loopback rgt\n",
+					a->seq, a->rgt->seq);
+			}
+			loop_back(a->rgt, t, 3);
+			if (verbose)
+			{	printf("\tCnode -- return from loopback rgt\n");
+	}	}	}
 }
 
 static void
@@ -730,8 +918,8 @@ push_star(Nd_Stack *a)
 
 	clear_visit(a);
 
-	t = mk_el(NULL);
-	loop_back(a, t);
+	t = mk_el(NULL, "push_star");
+	loop_back(a, t, 4);
 	t->lft = a;
 	t->rgt = NULL;	// continuation
 
@@ -742,7 +930,7 @@ static Nd_Stack *
 epsilon(void)
 {	Nd_Stack *t;
 
-	t = mk_el((Node *) emalloc(sizeof(Node), 95));
+	t = mk_el((Node *) emalloc(sizeof(Node), 95), "epsilon");
 	t->n->type = add_token("epsilon");
 	t->n->tok  = "";
 	return t;
@@ -777,9 +965,9 @@ again:	if (t->n)	// NNODE
 		}
 		dst = t->n->succ?t->n->succ->seq:Seq+1;
 		if (strcmp(s, ".") == 0)
-		{	mk_trans(src, 1, 0, dst);
+		{	mk_trans(src, 1, 0, dst, t->cond);
 		} else
-		{	mk_trans(src, match, s, dst);
+		{	mk_trans(src, match, s, dst, t->cond);
 		}
 
 		to_expand(t->n->succ);
@@ -789,7 +977,7 @@ again:	if (t->n)	// NNODE
 		{	t = t->rgt;	// remove tail-recursion
 			goto again;	// was: prep_transitions(t->rgt, src);
 		} else	// accept
-		{	mk_trans(src, 0, 0, Seq+1);
+		{	mk_trans(src, 0, 0, Seq+1, t->cond);
 	}	}
 #ifdef PROTECT
 	t_depth--;
@@ -844,7 +1032,7 @@ clone_node(Node *t)
 	e = (Node *) emalloc(sizeof(Node), 96);
 	e->type = t->type;
 	e->tok  = t->tok;
-//	e->succ = t->succ;
+	e->succ = clone_nd_stack(t->succ);	// 6/11/2021
 	// not e->nxt
 	return e;
 }
@@ -856,7 +1044,9 @@ clone_nd_stack(Nd_Stack *t)
 	if (!t)
 	{	return (Nd_Stack *) 0;
 	}
-
+	if (verbose)
+	{	printf("---clone stack (creating seq %d)\n", Seq);
+	}
 	n = (Nd_Stack *) emalloc(sizeof(Nd_Stack), 97);
 	n->seq = Seq++;
 	n->n   = clone_node(t->n);
@@ -881,6 +1071,21 @@ thompson(char *s)
 	for (re = rev_pol; re; re = re_nxt)
 	{	re_nxt = re->nxt;
 		re->nxt = NULL;
+		if (verbose)
+		{	switch (re->type) {
+			case '*':
+			case '+':
+			case '?':
+			case '|':
+				printf("<'%c'>\n", re->type);
+				break;
+			case 512:
+				printf("<'CONCAT'>\n");
+				break;
+			default:
+		//		printf("<'%s'>\n", re->tok);
+				break;
+		}	}
 		switch (re->type) {
 		case '|':
 			a = pop();
@@ -897,7 +1102,7 @@ thompson(char *s)
 			push_star(b);
 			b = pop();		// a*
 			clear_visit(a);
-			loop_back(a, b);	// a.a*
+			loop_back(a, b, 5);	// a.a*
 			push(a);
 			break;
 		case '?':
@@ -908,7 +1113,8 @@ thompson(char *s)
 			a = pop();
 			b = pop();
 			clear_visit(b);
-			loop_back(b, a);
+			loop_back(b, a, 6);
+
 			push(b);
 			break;
 		default:	// operands
@@ -992,7 +1198,7 @@ range(char *s)
 }
 
 static void
-mk_trans(int src, int match, char *pat, int dest)	// called from main.c
+mk_trans(int src, int match, char *pat, int dest,int cond)	// called from main.c
 {	Trans *t;
 	char *b, *g;
 
@@ -1027,6 +1233,7 @@ mk_trans(int src, int match, char *pat, int dest)	// called from main.c
 	{	t->t = te_regstart(pat+1);
 	}
 
+	t->cond = cond;
 	t->match = match;
 	t->pat   = pat;
 	t->dest  = dest;
@@ -1872,9 +2079,6 @@ check_bvar(Prim *c)
 	}
 }
 
-extern char *b_cmd;
-extern char *yytext;
-
 static Lextok *
 parse_constraint(char *c)
 {	char *ob = b_cmd;
@@ -1891,13 +2095,10 @@ parse_constraint(char *c)
 	return rv;
 }
 
-#define MAX_CONSTRAINT	256
-Lextok *constraints[MAX_CONSTRAINT];
-
 static void
 store_constraint(int n, Lextok *p)
 {
-	// when in state n, make sure the constraint holds:
+	// when in state n (or at position n), make sure the constraint holds:
 	// evaluate(cur, p); // to evaluate expression for current token
 
 	if (n < 0 || n >= MAX_CONSTRAINT)	// the state nr
@@ -1905,7 +2106,33 @@ store_constraint(int n, Lextok *p)
 			n, MAX_CONSTRAINT);
 		return;
 	}
+	if (constraints[n]
+	&&  p != constraints[n])
+	{	fprintf(stderr, "warning: constraint %d redefined\n", n);
+	}
 	constraints[n] = p;
+}
+
+static int
+get_positions(char *t)	// formula includes position parameters
+{	int n;
+
+	// stop looking when a constraint @n is seen
+	while (*t != '\0')
+	{	if ((*t == '<' || *t == '@')
+		&& isdigit((int) *(t+1)))
+		{	n = atoi(t+1);
+			if (n >= MAX_CONSTRAINT
+			||  n < 0)
+			{	printf("error: bad position or constraint nr %d\n", n);
+				return -1;
+			}
+			break;
+		}
+		t++;
+	}
+
+	return (*t == '<');
 }
 
 static char *
@@ -1913,10 +2140,6 @@ get_constraints(char *t)
 {	char *s, *r, *v, *c, *d;
 	int nr, nest;
 	Lextok *p;
-
-	if (!t)
-	{	return t;
-	}
 
 	for (s = t; *s != '\0'; s++)
 	{	if (*s == '@'
@@ -2054,10 +2277,8 @@ json(const char *te)
 	printf("\n]\n");
 }
 
-extern void fix_eol(void);
-
 void
-cobra_te(char *te, int and, int inv)
+cobra_te(char *te, int and, int inv)	// fct is too long...
 {	List	*c;
 	Trans	*t;
 	State	*s;
@@ -2070,11 +2291,17 @@ cobra_te(char *te, int and, int inv)
 	Trans	dummy;
 
 	memset(&dummy, 0, sizeof(Trans));
-								
-	te = get_constraints(te);
+
 	if (!te)
 	{	return;
 	}
+
+	has_positions = get_positions(te);
+	if (has_positions < 0)
+	{	return;
+	}
+
+	te = get_constraints(te);
 
 	start_timer(0);
 	glob_te = te;
@@ -2116,7 +2343,6 @@ cobra_te(char *te, int and, int inv)
 	{	reinit_te();
 		nerrors = 0;
 	}
-//	printf("in: \"%s\"\n", te);
 
 	thompson(te);
 	if (!nd_stack || nerrors > 0)
@@ -2138,6 +2364,12 @@ cobra_te(char *te, int and, int inv)
 		}
 		assert(!nd_stack->nxt);
 	}
+
+	if (has_positions)
+	{	// merge constraints into the right states
+		if (!check_constraints(nd_stack))
+		{	return;	// reported an error
+	}	}
 
 	if (p_debug)
 	{	printf("in: \"%s\"\n", te);
@@ -2197,7 +2429,8 @@ cobra_te(char *te, int and, int inv)
 			for (c = curstates[current]; c; c = c->nxt)
 			{	s = c->s;
 
-				if (s->seq < MAX_CONSTRAINT
+				if (!has_positions
+				&&  s->seq < MAX_CONSTRAINT
 				&&  constraints[s->seq])
 				{	// setup bindings env for cobra_eval.y
 					// in case the constraint contains bound vars
@@ -2211,14 +2444,36 @@ cobra_te(char *te, int and, int inv)
 
 				for (t = s->trans; t; t = t->nxt)
 				{	if (verbose)
-					{	printf("\tcheck %d->%d	%s, pat: '%s',  %s,  %s\t:: nxt S%d\n",
+					{	printf("\tcheck %d->%d	%s, pat: '%s',  %s,  %s\t:: nxt S%d",
 							s->seq, t->dest,
 							t->match?"match":"-nomatch-",
 							t->pat?t->pat:" -nopat- ",
 							t->recall?"recall":"-norecall-",
 							t->or?"or":"no_or",
 							(c->nxt && c->nxt->s)?c->nxt->s->seq:-1);
-					}
+
+						if (t->cond)
+						{	printf(" <constraint %d>\n", t->cond);
+						} else
+						{	printf("\n");
+					}	}
+
+					if (has_positions
+					&&  t->cond)
+					{	if (!evaluate(q_now, constraints[t->cond]))
+						{	if (verbose)
+							{	printf("\tconstraint %d fails (S%d -> S%d)\n",
+									t->cond, s->seq, t->dest);
+							}
+							continue;
+						} else if (verbose)
+						{	printf("\t%s:%d: constraint %d holds (%d) (S%d -> S%d)\n",
+								q_now->fnm, q_now->lnr,
+								t->cond,
+								(q_now->jmp?q_now->jmp->lnr:0) - q_now->lnr,
+								s->seq, t->dest);
+					}	}
+
 					if (!t->pat)	// epsilon move, eg .*
 					{	if (!t->match) // can this happen?
 						{	if (q_now->prv)
@@ -2368,8 +2623,13 @@ cobra_te(char *te, int and, int inv)
 								} else if (*p == '\\')
 								{	tmx = strcmp(m, p+1);
 								} else
-								{	tmx = strcmp(m, p);
-								}
+								{	if (*(r->pat) == '@'
+									&&  strcmp(p, "const") == 0)
+									{	tmx = strncmp(m, "const", 5);
+									} else
+									{	tmx = strcmp(m, p);
+								}	}
+
 								if (tmx == 0)
 								{	if (verbose)
 									{	printf("regex matches -> accept\n");
@@ -2400,7 +2660,9 @@ cobra_te(char *te, int and, int inv)
 							{	if (*(r->pat) == '@')
 								{	m = tp_desc(q_now->typ);
 									p = r->pat+1;
-									if (strcmp(m, p) == 0)
+									if (strcmp(m, p) == 0
+									||  (strcmp(p, "const") == 0
+									&&   strncmp(m, "const", 5) == 0))
 									{	break;
 									}
 								} else
@@ -2488,8 +2750,12 @@ cobra_te(char *te, int and, int inv)
 					} else if (*p == '\\')
 					{	tmx = strcmp(m, p+1);
 					} else
-					{	tmx = strcmp(m, p);
-					}
+					{	if (*(t->pat) == '@'
+						&&  strcmp(p, "const") == 0)
+						{	tmx = strncmp(m, "const", 5);
+						} else
+						{	tmx = strcmp(m, p);
+					}	}
 					if (t->match != (tmx != 0))
 					{	if (*(m+1) == '\0')
 						{	// if it was a } ) or ] then rx could be non-zero

@@ -110,6 +110,7 @@ static Commands table[] = {
   { "list",	list,     "[n]      print a numbered list of marked tokens", 		1 },
   { "display",	display,  "[n [n2]] display all or a specific marked item from list", 	1 },
   { "pre",	prep,  	  "[n [n2]] like display, but show preprocessed code", 		1 },
+  { "symbols",	var_links, "        link identifiers to likely place of declaration",   2 },
   { "undo",	undo,	  "         undo effect of last operation on marks and ranges", 1 },
   { "ff",	findfunction,	  "s        find the source text for function s",       2 },
   { "ft",	findtype,	  "s        find the source text for struct s",		2 },
@@ -188,6 +189,9 @@ apply(const Prim *ref, const Prim *q, const char *s, int unused)
 		break;
 
 	case '@':
+		if (strcmp(s+1, "const") == 0)
+		{	return (strncmp(q->typ, "const", 5) == 0);
+		}
 		return (strcmp(q->typ, ++s) == 0);
 
 	case '$':	// $$ = ref->txt
@@ -593,34 +597,12 @@ clear_range(void *arg)	// folds in backup(0)
 	}
 	for (q = tokrange[*i]->from; q && q->seq <= tokrange[*i]->upto->seq; q = q->nxt)
 	{	q->mset[0] = (short) q->mark;
-		q->mark  = 0;
+		q->mark = 0;
 
-		if (clearbounds == 0)
-		{	switch (q->txt[0]) {
-			case 'b':
-			case 'c':
-			case 'd':
-			case 'e':
-			case 'g':
-			case 'i':
-			case 's':
-				if (strcmp(q->txt, "goto") == 0
-				||  strcmp(q->txt, "if") == 0
-				||  strcmp(q->txt, "else") == 0
-				||  strcmp(q->txt, "case") == 0
-				||  strcmp(q->txt, "default") == 0
-				||  strcmp(q->txt, "switch") == 0
-				||  strcmp(q->txt, "break") == 0)
-				{	continue;
-				}
-				// fall thru
-			default:
-				break;
-		}	}
-
-		q->mbnd[0] = q->bound;
-		q->bound = 0;
-	}
+		if (clearbounds)
+		{	q->mbnd[0] = q->bound;
+			q->bound = 0;
+	}	}
 	return NULL;
 }
 
@@ -786,7 +768,9 @@ findtype_range(void *arg)
 	upto = tokrange[*i]->upto;
 
 	for (r = from; r && r->seq <= upto->seq; r = r->nxt)
-	{	if (strcmp(r->txt, "struct") != 0
+	{	if (r->round > 0
+		||  r->bracket > 0
+		||  strcmp(r->txt, "struct") != 0
 		||  strcmp(r->nxt->txt, s) != 0)
 		{	continue;
 		}
@@ -3285,7 +3269,7 @@ help(char *s, char *unused)	// 1
 	printf("    @storage   (static, extern, register, auto)\n");
 	printf("    @type      (int, char, float, double, void)\n");
 	printf("    @ident (identifier), @chr, @str (string), @key (C keyword), @oper (operator)\n");
-	printf("    @const_int, @const_hex, @const_oct, const_flt,\n");
+	printf("    @const (or more specific: @const_int, @const_hex, @const_oct, const_flt),\n");
 	printf("    @cmnt (when using command-line option -comments)\n");
 	printf("  struct, union, and enum are categorized as @key (i.e., keywords)\n");
 	printf("  commands can be separated by newlines or semi-colons\n");

@@ -892,10 +892,11 @@ void
 t_lex(int cid)
 {	int m, n = 0;
 
+	n = nextchar(cid);
 	while (n != EOF)
-	{	n = nextchar(cid);
-		if (isspace(n))
-		{	continue;
+	{	if (isspace(n))
+		{	n = nextchar(cid);
+			continue;
 		}
 
 		strcpy(Px.lex_yytext, "");
@@ -920,6 +921,7 @@ t_lex(int cid)
 		} else
 		{	basic_prim(Px.lex_yytext, cid);
 		}
+		n = nextchar(cid);
 	}
 }
 

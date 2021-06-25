@@ -40,9 +40,11 @@ int stream;
 int stream_lim = 100000;
 int stream_margin = 100;
 int stream_margin_set;
+int stream_override;
 int runtimes;
 int scrub;
 int verbose;
+int view;
 int with_comments;
 int json_format;
 int json_plus;
@@ -178,6 +180,7 @@ add_file(char *f, int cid, int slno)
 			{	break;
 			}
 		}
+		fclose(tfd);	// gh: was missing, added 6/18/2021
 		if (stream == 1)
 		{	static int warned = 0;
 			if (verbose > 1)
@@ -204,7 +207,9 @@ add_file(char *f, int cid, int slno)
 
 	if (no_cpp)
 	{	if ((Px.lex_yyin = open(f, O_RDONLY)) < 0)
-		{	fprintf(stderr, "cannot open file '%s'\n", f);
+		{	if (!view)
+			{  fprintf(stderr, "cannot open file '%s'\n", f);
+			}
 			return 0;
 		}
 	} else
@@ -597,6 +602,7 @@ usage(char *s)
 	fprintf(stderr, "\t-scrub              -- produce output in scrub-format\n");
 	fprintf(stderr, "\t-stream N           -- set stdin stream buffer-limit to N  (default %d)\n", stream_lim);
 	fprintf(stderr, "\t-stream_margin N    -- set stdin window margin to N tokens (default %d)\n", stream_margin);
+	fprintf(stderr, "\t-stream_override    -- override warning about a non-streamable script\n");
 	fprintf(stderr, "\t-terse              -- disable output from d, l, and p commands, implies -quiet\n");
 	fprintf(stderr, "\t-text               -- no token types, just text-strings and symbols\n");
 	fprintf(stderr, "\t-tok                -- only tokenize the input\n");
@@ -843,6 +849,7 @@ ddebug(int n, char *v[])
 char *
 check_negations(char *p)
 {	char *m, *n;
+
 	// check that in a regular expression negations of
 	// meta-symbols ( | ) . * + ? don't occur
 
@@ -863,10 +870,11 @@ check_negations(char *p)
 			case '*':
 			case '+':
 			case '?':
-				*n++ = '\\';
+				*n++ = '\\';	// insert escape
 				*n++ = *p;
 				break;
 			default:
+				p--;		// undo lookahead
 				break;
 		}	}
 		p++;
@@ -1104,8 +1112,7 @@ F:		fprintf(stderr, "cobra: configuration failed\n");
 
 int
 main(int argc, char *argv[])
-{	int view = 0;
-
+{
 	progname = (char *) emalloc(strlen(argv[0]) + 1, 112);
 	strcpy(progname, argv[0]);
 
@@ -1334,6 +1341,9 @@ RegEx:			  no_match = 1;		// -e -expr -re or -regex
 					printf("cobra: stream margin: %d lines\n", stream_margin);
 					break;
 			  	}
+			  } else if (strcmp(argv[1], "-stream_override") == 0)
+			  {	stream_override++;
+				break;
 			  }
 			  return usage(argv[1]);
 

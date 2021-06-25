@@ -262,13 +262,17 @@ step1_find_sources(void)	// external sources of potentially malicious data
 		} else if (strcmp(cur->txt, "fscanf") == 0)	// mark args below
 		{	isfd = 1;
 		} else if (strcmp(cur->txt, "gets") == 0)	// warn right away
-		{	isfd = 0;
+		{	q = cur->nxt;
+			if (q && q->txt[0] != '(')		// not a fct call
+			{	continue;
+			}
+			isfd = 0;
 			if (verbose || !no_match || !no_display)	// no -terse argument
 			{	printf(" %3d: %s:%d: warning: unbounded call to gets()\n",
 					++warnings, cur->fnm, cur->lnr);
 			}
 			ngets++;
-			q = move_to(cur->nxt, "(");
+		//	q = move_to(cur->nxt, "(");
 			if (!q)
 			{	continue;
 			}
@@ -284,7 +288,11 @@ step1_find_sources(void)	// external sources of potentially malicious data
 		} else if (strcmp(cur->txt, "fgets") == 0
 		       ||  strcmp(cur->txt, "getline") == 0
 		       ||  strcmp(cur->txt, "getdelim") == 0)	// mark first arg
-		{	q = move_to(cur->nxt, "(");
+		{	q = cur->nxt;
+			if (q && q->txt[0] != '(')	// not a fct call
+			{	continue;
+			}
+		//	q = move_to(cur->nxt, "(");
 			if (!q)
 			{	continue;
 			}

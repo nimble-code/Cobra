@@ -4,7 +4,7 @@
 # see License file in this directory
 #
 # Version 2 and 3:
-# (c) 2017-2020 Gerard Holzmann, Nimble Research
+# (c) 2017-2021 Gerard Holzmann, Nimble Research
 # same licensing
 
 MAN?=/usr/share/man/man1

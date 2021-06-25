@@ -41,6 +41,7 @@ static int seen_goto_links;
 static int seen_else_links;
 static int seen_switch_links;
 static int seen_break_links;
+static int seen_symbols;
 
 static Lnrs *store_var(TrackVar **, Prim *, int, int);
 static ThreadLocal_links *thr;
@@ -651,7 +652,486 @@ break_links(void)
 	run_threads(break_links_run, 13);
 }
 
-// the only two externally visible functions
+// functions for linking variables to most likely place
+// of declaration, using a minimal scan of type information
+
+typedef struct V_ref V_ref;
+struct V_ref {
+	Prim  *nm;	// char  *txt;
+	Prim  *loc;	// type
+	V_ref *nxt;
+};
+
+#define HT_SZ		512
+#define MAXSCOPE	128
+#define LOCALS		0
+#define GLOBALS		1
+#define PARAMS		2
+#define MISSED		3
+
+static int counts[MISSED+1];
+static V_ref *ref_free;
+static V_ref ***scope;	// V_ref *scope[MAXSCOPE][HT_SZ]
+static V_ref *params;
+extern uint hasher(const char *);
+
+static int
+likely_decl(Prim *x)	// x points to the first token after a typename
+{
+	if (x
+	&&  (x->txt[0] == ','
+	||   x->txt[0] == '='))
+	{	return 0;
+	}
+
+	// scan ahead to first ';'
+	while (x && x->txt[0] != ';')
+	{
+//printf(" [[%s]]\n", x->txt);
+		if (strcmp(x->typ, "type") == 0	// saw another typename
+		||  x->txt[0] == '.'
+		||  x->txt[0] == '{')		// likely a struct/union
+		{
+//printf("	nope\n");
+			return 0;
+		}
+		if (strcmp(x->txt, "=") == 0)	// initializer
+		{	break;			// so its not a struct or typedef
+		}		
+		x = x->nxt;
+	}
+//printf("	yup\n");
+	return 1;
+}
+
+static int
+is_it_static(Prim *p)	// assumed to point at type in a global declaration
+{
+	if (p->round == 0)	// ie not a parameter
+	{	while (p && p->txt[0] != ';' && p->curly == 0)
+		{	if (strcmp(p->txt, "static") == 0)
+			{	return 1;
+			}
+			p = p->prv;
+	}	}
+	return 0;
+}
+
+static int
+find_in_list(Prim *v, V_ref *lst, char *s, int n)
+{	V_ref *d;
+	FILE *fd = (track_fd) ? track_fd : stdout;
+
+	for (d = lst; d; d = d->nxt)
+	{	if (strcmp(v->txt, d->nm->txt) == 0)
+		{	if (strcmp(v->fnm, d->loc->fnm) != 0
+			&&  is_it_static(d->loc))
+			{	if (0)
+				{  fprintf(fd, "XXX %s:%d: '%s'\t%sdeclared at %s:%d (level %d) as %s\n",
+					v->fnm, v->lnr, v->txt, s,
+					d->loc->fnm, d->loc->lnr, n, d->loc->txt);
+				}
+				continue;	// not a match
+			}
+			if (v != d->nm)
+			{	if (verbose)
+				{  fprintf(fd, "%s:%d: '%s'\t%sdeclared at %s:%d (level %d) as %s",
+					v->fnm, v->lnr, v->txt, s,
+					d->loc->fnm, d->loc->lnr, n, d->loc->txt);
+				   if (strcmp(v->fnm, d->loc->fnm) != 0)
+				   {	fprintf(fd, "  (extern)");
+				   }
+				   fprintf(fd, "\n");
+			}	 }
+			v->bound = d->loc;	// bind var to location of declaration
+			return 1;
+	}	}
+	return 0;
+}
+
+static V_ref *
+v_recycle(V_ref *p)
+{	V_ref *q;
+
+	if (!p)
+	{	return NULL;
+	}
+	for (q = p; q; q = q->nxt)
+	{	q->nm  = NULL;
+		q->loc = NULL;
+		if (!q->nxt)
+		{	q->nxt = ref_free;
+			break;
+	}	}
+	ref_free = p;
+	return NULL;
+}
+
+static V_ref *
+v_new(Prim *v, Prim *n, int who)
+{	V_ref *p;
+
+	if (ref_free)
+	{	p = ref_free;
+		ref_free = p->nxt;
+		p->nxt = 0;
+	} else
+	{	p = (V_ref *) emalloc(sizeof(V_ref), 159);
+	}
+//printf("%s:%d:  TXT '%s' -- loc/type '%s' <<%d>>\n", n->fnm, n->lnr, v->txt, n->txt, who);
+	p->nm  = v;
+	p->loc = n;
+	return p;
+}
+
+static int
+all_uppercase(Prim *p)
+{	char *s = p->txt;
+	int n;
+
+	// not a likely macro, and not in a headerfile
+	n = strlen(s);
+	if (n > 2
+	&&  s[n-1] == 'h'
+	&&  s[n-2] == '.')
+	{	return 1;	// headerfile
+	}
+
+	while (*s != '\0')
+	{	if (islower((int) *s++))
+		{	return 0;
+	}	}
+
+	return 1;	// all-upper
+}
+
+static void
+add_scope(Prim *q, Prim *p, int level, int who)	// q is associated with type p
+{	V_ref *y;
+	uint h;
+	FILE *fd = (track_fd) ? track_fd : stdout;
+
+	if (all_uppercase(q))
+	{	return;	// likely macro
+	}
+
+	if (level == 0
+	&&  p->round == 1)
+	{	y = v_new(q, p, who);
+		y->nxt = params;
+		params = y;
+		if (verbose)
+		{	fprintf(fd, "+Param '%s' '%s' (%d)\n", q->txt, p->txt, who);
+		}
+	} else if (p->round == 0)
+	{	y = v_new(q, p, who);
+		h = hasher(q->txt) & (HT_SZ - 1);
+		y->nxt = scope[level][h];
+		scope[level][h] = y;
+		if (verbose)
+		{	fprintf(fd, "%s:%d: +Scope[%d] '%s' '%s' (%d::%d %d::%d::%d)\n",
+				q->fnm, q->lnr, level,
+				q->txt, p->txt,
+				p->curly, q->curly,
+				p->round, q->round,
+				who);
+	}	}
+
+	if (q->bound
+	&&  strcmp(q->bound->txt, "unsigned") != 0
+	&&  strcmp(q->bound->txt, "signed") != 0
+	&&  strcmp(q->bound->txt, p->txt) != 0)
+	{	if (strcmp(p->typ, "type") != 0
+		&&  strcmp(q->bound->typ, "void") != 0)
+		{	return;
+		}
+		if (verbose)
+		{	fprintf(fd, "%s:%d: bound on '%s' reassigned from '%s' (%s) to '%s' (%s)\n",
+				q->fnm, q->lnr, q->txt, q->bound->txt,
+				q->bound->typ, p->txt, p->typ);
+	}	}
+
+	q->bound = p;
+}
+
+static void
+possible_typedef(Prim *p, int level)
+{	Prim *q = p;
+
+	// saw an ident, and can't find a declaration
+	// this could be Typedefedname [*]* varname [,;]
+
+	if (p->prv
+	&&  (p->prv->txt[0] == '*'
+	||   p->prv->txt[0] == ','))
+	{	return; // not a typename
+	}
+	if (p->nxt
+	&&  (p->nxt->txt[0] == ','
+	||   p->nxt->txt[0] == '('
+	||   p->nxt->txt[0] == ')'
+	||   p->nxt->txt[1] == '='))
+	{	return;
+	}
+
+	for (q = q->nxt; q; q = q->nxt)
+	{	// the only acceptable tokens
+		if (q->txt[0] == '*'
+		||  q->txt[0] == ',')
+		{	continue;
+		}
+		if (q->txt[0] == ';'
+		||  strcmp(q->typ, "ident") != 0)
+		{	break;
+		}
+// printf("%s:%d: ident '%s' is likely of type '%s'\n",	p->fnm, p->lnr, q->txt, p->txt);
+		add_scope(q, p, level, 1);
+		break;
+	}
+	
+}
+
+static int
+find_decl(Prim *p, int level)
+{	Prim *x;
+	uint h;
+	int n;
+	FILE *fd = (track_fd) ? track_fd : stdout;
+
+// if the immediately preceding token is a typename, it's easy
+	if (0 && p->prv
+	&&  strcmp(p->prv->typ, "type"))
+	{	p->bound = p->prv;
+		return 1;
+	}
+
+// printf("%s:%d: check this '%s'\n", p->fnm, p->lnr, p->txt);
+	x = p->nxt;
+	if (x->txt[0] == '('		// fct def or call
+	||  x->txt[0] == ':')		// labelname
+	{	return 1;
+	}
+	x = p->prv;
+	if (x->txt[0] == '.'
+	|| strcmp(x->txt, "goto") == 0		// labelname
+	|| strcmp(x->txt, "->") == 0)		// struct field
+	{	return 1;
+	}
+	if (p->round > 0
+	&&  p->prv
+	&&  strcmp(p->prv->typ, "type") == 0)
+	{	return 1; // in parameter list
+	}
+
+	if (find_in_list(p, params, "param ", level))
+	{	counts[PARAMS]++;
+		return 1;
+	}
+
+	// not a param, could be local or global
+
+	for (n = level; n >= 0; n--)
+	{	// printf("\tcheck if '%s' is in Scope[%d]:\n", p->txt, n);
+		h = hasher(p->txt) & (HT_SZ - 1);
+		if (find_in_list(p, scope[n][h], "", level))
+		{	if (n > 0)
+			{	counts[LOCALS]++;
+			} else
+			{	counts[GLOBALS]++;
+			}
+			return 1;
+	}	}
+
+	if (!p->bound				// set for identifiers in declarations
+	&&  strcmp(p->txt, "stdin") != 0
+	&&  strcmp(p->txt, "stdout") != 0
+	&&  strcmp(p->txt, "stderr") != 0
+	&&  strstr(p->txt, "_t") == 0		// should be: names that end in _t
+	&&  !all_uppercase(p))
+	{	n = strlen(p->txt);
+		if (n > 2
+		&&  strcmp(&(p->txt[n-2]), "_t") == 0)
+		{	return 0;
+		}
+		if (verbose)
+		{  fprintf(fd, "%s:%d: '%s'\t, declaration not found (level %d::%d)\n",
+			p->fnm, p->lnr, p->txt, level, p->curly);
+		}
+		counts[MISSED]++;
+	}
+	return 0;
+}
+
+static int
+not_prototype(Prim *p)	// not in a formal param list of prototype decl
+{	// look at first char after param list
+	// if '{' it's a fct,
+	// if ';' it's a prototype
+
+	if (p->round == 0)
+	{	return 1;
+	}
+
+	while (p && p->round > 0)
+	{	p = p->nxt;
+	}
+	if (p && p->nxt && p->nxt->txt[0] == ';')
+	{	return 0;
+	}
+	return 1;
+}
+
+// externally visible functions
+
+void
+var_links(char *unused1, char *unused2)
+{	int h, level = 0;
+	Prim *x;
+
+	start_timer(0);
+
+	if (seen_symbols)
+	{	goto done;
+	}
+
+	if (!scope)
+	{	scope = (V_ref ***) emalloc(sizeof(V_ref **) * MAXSCOPE, 115);
+		for (h = 0; h < MAXSCOPE; h++)
+		{	scope[h] = (V_ref **) emalloc(sizeof(V_ref *) * HT_SZ, 116);
+		}
+	} else
+	{	for (h = 0; h < MAXSCOPE; h++)
+		{	memset(scope[h], 0, sizeof(V_ref *) * HT_SZ);
+	}	}
+	memset(counts, 0, sizeof(counts));
+
+	for (cur = prim; cur; cur = cur?cur->nxt:0)
+	{
+// if (cur->prv && cur->fnm != cur->prv->fnm)
+// {	printf("%s\n", cur->fnm);
+// }
+		switch (cur->txt[0]) {
+		case '{':	// scope level
+			level = cur->curly + 1;
+			if (level >= MAXSCOPE)
+			{	fprintf(stderr, "%s:%d: error: scope to deeply nested (max %d)\n",
+					cur->fnm, cur->lnr, MAXSCOPE);
+				stop_timer(0, 0, "V1");
+				return;
+			}
+			for (h = 0; h < HT_SZ; h++)
+			{	scope[level][h] = v_recycle(scope[level][h]);
+			}
+			continue;
+		case '}':
+			level = cur->curly;
+			if (level < 0)
+			{	fprintf(stdout, "%s:%d: error: bad nesting\n",
+					cur->fnm, cur->lnr);
+				level = 0;
+			}
+			if (level == 0)	// end of fct body
+			{	params = v_recycle(params);
+			}
+			continue;
+		}
+
+//printf("%s:%d: A '%s' (%s :: %d)\n", cur->fnm, cur->lnr, cur->txt, cur->typ, cur->bracket);
+		if ((strcmp(cur->typ, "type") == 0	// mine declarations
+		||   strcmp(cur->typ, "modifier") == 0)
+		&&  cur->bracket == 0)
+		{	if (strcmp(cur->typ, "modifier") == 0
+			&&  strcmp(cur->nxt->typ, "type") == 0)	// eg unsigned int
+			{	cur = cur->nxt;
+			}
+//printf("	A '%s' (%d :: %d)\n", cur->txt, cur->round, cur->curly);
+			if (cur->round == 1
+			&&  cur->curly == 0)		// possible param decl
+			{	if (cur->nxt
+				&&  (cur->nxt->txt[0] == ','
+				||   cur->nxt->txt[0] == '='))
+				{	continue;
+				}
+				x = cur;
+				while (x && x->round >= 1 && x->txt[0] != ',')
+				{	if (strcmp(x->typ, "ident") == 0)
+					{	add_scope(x, cur, level, 2);
+					}
+					x = x->nxt;
+				}
+				continue;
+			}
+//printf("%s:%d: B '%s' (%d :: %d)\n", cur->fnm, cur->lnr, cur->txt, likely_decl(cur), likely_decl(cur->nxt));
+			if (cur->round == 0
+			&&  likely_decl(cur->nxt))		// local or global decl
+			{	// tag all identifiers between here and the first semi-colon
+				// with typename (x) and add to current scope
+X:				x = cur;
+				while (cur && cur->txt[0] != ';')
+				{	if (strcmp(cur->txt, "=") == 0)	// initializer, skip ahead
+					{	cur = cur->nxt;
+//printf("%s:%d: Scan Ahead Past %s\n", cur->fnm, cur->lnr, cur->txt);
+						while (cur
+						&& cur->txt[0] != ','
+						&& cur->txt[0] != ';')
+						{	if (strcmp(cur->typ, "ident") == 0)
+							{	(void) find_decl(cur, level);
+							}
+							switch (cur->txt[0]) {
+							case '{':
+								level = cur->curly + 1;
+								break;
+							case '}':
+								level = cur->curly;
+								break;
+							}
+							cur = cur->nxt;
+						}
+						if (cur->txt[0] == ';')
+						{	continue;
+					}	}
+					if (strcmp(cur->typ, "type") == 0)
+					{	if (cur->seq != x->seq)
+						{	// walked into new decl
+//printf("%s:%d: BMP => %s\n", cur->fnm, cur->lnr, cur->txt);
+							goto X;
+						} else
+						{
+//printf("%s:%d: NO_BMP => %s\n", cur->fnm, cur->lnr, cur->txt);
+						}
+					}
+//printf("%s:%d: After '=' check, now at %s -- [%s :: %s :: %d :: %d]\n",
+//	cur->fnm, cur->lnr, cur->txt,
+//	cur->typ, cur->nxt->txt, not_prototype(cur), cur->round);
+					if (cur
+					&&  strcmp(cur->typ, "ident") == 0
+					&&  cur->nxt
+					&&  cur->nxt->txt[0] != '('
+					&&  not_prototype(cur))
+					{	add_scope(cur, x, level, 3);
+					}
+					cur = cur?cur->nxt:0;
+				}
+//printf("%s:%d: Continue at %s\n", cur->fnm, cur->lnr, cur->txt);
+				continue;
+		}	}
+
+		if (strcmp(cur->typ, "ident") == 0)	// try to determine type and point of decl
+		{	// look in params and in scope levels
+			if (!find_decl(cur, level))
+			{	// common issue: typedef's that aren't in the current .c file
+				// look for @ident * @ident [,;] as likely typedef'ed declarations
+				possible_typedef(cur, level);
+			}
+		}
+	}
+done:	if (!no_match)
+	{	printf("symbols: linked %d params, %d locals, %d globals, %d unknown\n",
+			counts[PARAMS], counts[LOCALS], counts[GLOBALS], counts[MISSED]);
+	}
+	seen_symbols = 1;
+	stop_timer(0, 1, "V2");
+}
 
 void
 clear_seen(void)
@@ -660,6 +1140,11 @@ clear_seen(void)
 	seen_else_links = 0;
 	seen_switch_links = 0;
 	seen_break_links = 0;
+	seen_symbols = 0;
+	counts[PARAMS] = 0;
+	counts[LOCALS] = 0;
+	counts[GLOBALS] = 0;
+	counts[MISSED] = 0;
 }
 
 void
