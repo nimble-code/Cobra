@@ -2550,6 +2550,9 @@ extend_range(void *arg)
 		r->mark = 0;
 		q = r;
 		r = r->nxt;
+		if (!r)
+		{	break;
+		}
 		if (r_apply(r, r, s, 0))
 		{	if (*t && !r_apply(r, r->nxt, t, 1))
 			{	continue;
