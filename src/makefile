@@ -48,6 +48,7 @@ app:	c.ar $(APP)/c_api.h
 man:
 	cp ../doc/cobra.1 $(MAN)
 	cp ../doc/cwe.1   $(MAN)
+	cp ../doc/find_taint.1 $(MAN)
 
 c.ar:	$(AR)
 	ar -r c.ar $(AR)

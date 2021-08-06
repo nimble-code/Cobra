@@ -1411,6 +1411,13 @@ RegEx:			  no_match = 1;		// -e -expr -re or -regex
 		argc--;
 	}
 
+	if (strstr(backend, "help") != NULL)
+	{	// means progname != cobra
+		// let the backend show the usage rules
+		cobra_main();
+		return 0;
+	}
+
 	if (!set_base())
 	{	fprintf(stderr, "error: cannot open ~/.cobra : check tool installation\n");
 	}

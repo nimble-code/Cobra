@@ -1,5 +1,5 @@
 #include "c_api.h"
-#include "taint.h"
+#include "find_taint.h"
 
 typedef struct ThreadLocal_taint {
 	Tainted *tainted_param[TPSZ];
@@ -75,19 +75,6 @@ param_is_tainted(Prim *p, const int pos, Prim *nm, const int cid)
 	}
 
 	s = p->txt;
-	if (strstr(s, "scanf") != NULL
-	||  strstr(s, "printf")  != NULL
-	||  strcmp(s, "fopen") == 0
-	||  strcmp(s, "memcpy") == 0
-	||  strcmp(s, "strcpy") == 0
-	||  strcmp(s, "strcat") == 0
-	||  strcmp(s, "strncpy") == 0
-	||  strcmp(s, "strncat") == 0
-	||  strcmp(s, "strcmp") == 0
-	||  strcmp(s, "gets") == 0
-	||  strcmp(s, "main") == 0)	// not called directly
-	{	return;			// no source to search for these
-	}
 	p->bound = nm->bound?nm->bound:nm;
 
 	h = t_hash(s)&(TPSZ-1);

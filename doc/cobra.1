@@ -351,6 +351,10 @@ This is the number of tokens before the current token being processed
 that is retained in the sliding input window.
 
 .TP
+.B \-stream_override
+Override warning about non-streamable script.
+
+.TP
 .B \-terse
 Suppress the display of detailed matches, showin only number of matches.
 (Most useful in combination with \f3\-f\f1, \f3\-expr\f1, or \f3\-commands\f1.
@@ -405,7 +409,7 @@ in verbose mode (\f2-v\f1) to see state changes on each new token scanned.
 Set \f2name\f1 to \f2value\f1 in user-defined parameterized scripts.
 .PP
 Arguments starting with a double hyphen are passed to
-the standalone backend processor, if one was defined.
+the standalone backend processor, if one was defined, e.g. \f2find_taint --help\f1.
 If no backend is used (i.e., the Cobra default engine is used
 and the command name is \f2cobra\f1),
 these arguments are silently ignored.

@@ -1,0 +1,198 @@
+.ds C find_taint
+.\" nroff -man find_taint.1
+.TH FIND_TAINT 1
+.SH NAME
+find__taint \- find vulnerabilities in C code due to potentially tainted external data
+.SH SYNOPSIS
+.br
+.B find_taint
+.BI [ options ]
+.BI [ files ]
+.SH DESCRIPTION
+
+.SH OPTIONS
+The program accepts most standard options of the Cobra front-end,
+for instance for setting the number of cores to use or
+to enable preprocessing. Native Cobra options
+are always preceded by a single hyphen.
+.PP
+The \f3find_taint\f1 tool (which is written as a back-end to Cobra)
+recognizes (only) option flags preceded by a \f2double hyphen\f1.
+.PP
+
+.TP
+.B \-\-cfg=file
+.br
+Where \f3file\f1 is the name of a user-defined configurations file that will
+replace the default version in from the Cobra configs directory.
+If the filename contains no forward \f3/\f1 symbols, it is assumed to
+be located in that same configs directory (see under FILES below).
+If it contains one or more \f3/\f1 symbols, the name is assumed to be a full pathname
+of the new configurations file. For the required format of the file, see the EXAMPLES
+section below.
+
+.TP
+.B \-\-exit
+.br
+Immediately exits the program after the startup phase in the front end is completed.
+(Mostly for debugging and performance measurements.)
+
+.TP
+.B \-\-help
+.br
+Prints an overview of the currently supported options and then exits.
+
+.TP
+.B \-\-limit\f2N
+.br
+Where \f2N\f1 is a number that is used to limit the maximal distance
+from a function call to the location of the function definition to \f2N\f1 thousand tokens.
+(This turns out to be of limited value, since this distance cannot safely be predicted
+in large code archives, and can depend on the order in which files are processed.)
+
+.TP
+.B \-\-sanity
+.br
+Start with a check for missing links in the input token-stream.
+
+.TP
+.B \-\-sequential
+.br
+Disable parallel processing in find_taint itself. If the use of
+multiple cores was defined on the command line, it is only used for
+reading in the files and possible preprocessing, but the backend
+will execute sequentially. This is mostly for allowing performance
+measurements.
+
+
+.SH EXAMPLES
+To check which options are available, no filenames are required:
+.RS
+$ find_taint --help
+.RE
+.PP
+Standard use, without options, would for instance be:
+.RS
+$ find_taint *.c
+.RE
+.PP
+When defining a different configurations file, located in the current
+directory where the command is executed:
+.RS
+$ find_taint --cfg=file.txt
+.RE
+The format of the file consists of header taglines and identifier names,
+possibly followed by location parameters to define the number of the
+arguments that can be the source (\f3from\f1) or the target (\f3into\f1)
+of potentially tainted data.
+.PP
+There are five possible taglines for the headers:
+.RS
+# Taint Sources
+# Importers
+# Propagators
+# Ignore
+# Targets
+.RE
+.PP
+All lines that start with a sharp symbol (\f3#\f1) in the first column
+are considered comments.
+.PP
+The category \f3Taint sources\f1 identifies variables that can contain external data.
+By default this is any variable named \f3argv\f1, but this can also
+be limited to a specific function where the name must occur, such as \f3main\f1.
+.RS
+# Taint Sources
+	argv	main
+.RE
+.PP
+Omitting the 2nd column, here with \f3main\f1, is interpreted to mean that
+the name is considered to hold potentially tainted data in \f2any\f1 context.
+.PP
+The category \f3Importers\f1 lists function calls that can import potentially tainted
+external data and assign it to variables, especially string variables (buffers).
+The target of the import (\f3into\f1) is given in the second column.
+The default definition of this category is:
+.RS
+# Importers             into
+        gets            1
+        fgets           1
+        getline         1
+        getdelim        1
+# processing is predefined for these two
+# args ignored, comment out to disable
+        scanf
+        fscanf
+.RE
+.PP
+The two last functions of this type listed are from the standard libraries and
+their processing is predefined, unless the corresponding names
+(\f2scanf\f1 and/or \f2fscanf\f1) are commented out, with a sharp symbol at
+the start of these lines, in the configurations file.
+.PP
+The category \f3Propagators\f1 identifies functions that can propagate
+potentially tainted data to other variables. Two columns are given for each
+such function, the first (\f3from\f1) with the source and the second (\f3into\f1)
+with the target of that propagation.
+.RS
+# Propagators           from    into
+        memcpy          2       1
+        strcat          2       1
+        strncat         2       1
+        strcpy          2       1
+        strncpy         2       1
+# processing is predefined for these three
+# args ignored, can comment out to disable
+        sscanf
+        sprintf
+        snprintf
+.RE
+.PP
+In this category the final three library functions have processing predefined
+in the code, so no source and target are given. Their handling can be removed by
+commenting them out with a sharp symbol (\f3#\f1) in the first column.
+.PP
+The category \f3Ignore\f1 lists function or macro names that can have no effect
+on the propagation of potentially tainted data. In the default configurations file
+this list includes the macro name \f2sizeof\f1 and the function name \f2main\f1
+(because \f2main\f1 itself cannot be called within the program).
+.RS
+# Ignore (have no effect on taint propagation)
+        sizeof
+        main
+.RE
+.PP
+The final category \f3Targets\f1 lists function names that have especially
+vulnerable arguments that should be immune to tainting. This applies, for instance,
+to the \f2fopen\f1 call, where the name of the files to be opened should not
+be taintable.
+.RS
+# Targets (other than local buffers)
+        fopen           1
+        freopen         1
+        open            1
+        creat           1
+        openat          2
+        openat2         2
+.RE
+.PP
+In addition, by default (and not changeable in the configuration file),
+and outside the reach of the configurations file, the
+objects that are potentially vulnerable targets includes especially function-local
+buffers or arrays, since these are always located on the stack with the potential
+for code injection attacks.
+
+.SH FILES
+A default configurations file is located in \f2$COBRA/configs/taint_cfg.txt\f1,
+where \f2$COBRA\f1 is the installation directory.
+(If you forgot, on a Unix/Linux system type: \f2'which cobra'\f1 to find it,
+and replace the trailing \f2bin/cobra\f1 with \f2configs\f1.
+If that directory doesn't exist, download the latest version of Cobra.
+This version of \f3find_taint\f1 assumes Cobra verison 3.5 or later.)
+
+.SH AUTHOR
+Gerard Holzmann, gholzmann@acm.org
+.sp
+.SH SEE ALSO
+\f3cobra\f1, \f3cwe\f1
+.br

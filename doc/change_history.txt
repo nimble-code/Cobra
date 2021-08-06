@@ -173,3 +173,11 @@
   - extension of pattern expressions to allow positional
     parameters and the application of general constraints
     at different points in an expression
+
+-- august 6 2021
+  - new version of src_app/find_taint that now reads a
+    user-definable configuration file -- added a manual
+    page for this new backend tool as well.
+    the new version is faster (though that wasn't the
+    objective) and reports more things; it also has more
+    easily understandable code (the main objective)
