@@ -1,0 +1,39 @@
+# Taint Sources
+# can add an optional fct-name as arg here
+	argv
+
+# Importers		into
+	gets		1
+	fgets		1
+	getline		1
+	getdelim	1
+# processing is predefined for these two
+# args ignored, comment out to disable
+	scanf
+	fscanf
+
+# Propagators		from	into
+	memcpy		2	1
+	strcat		2	1
+	strncat		2	1
+	strcpy		2	1
+	strncpy		2	1
+# processing is predefined for these three
+# args ignored, can comment out to disable
+	sscanf
+	sprintf
+	snprintf
+
+# Ignore (have no effect on taint propagation)
+	sizeof
+	main
+
+# Targets (other than local buffers)
+	fopen		1
+	freopen		1
+	open		1
+	creat		1
+	openat		2
+	openat2		2
+
+# no source (dont look for): all names listed above
