@@ -17,6 +17,7 @@ typedef struct Function	Function;
 typedef struct History	History;
 typedef struct Lextok	Lextok;
 typedef struct Match	Match;
+typedef struct Named	Named;	// named sets of matches
 typedef struct Qual	Qual;
 typedef struct Script	Script;
 typedef struct Store	Store;
@@ -102,6 +103,12 @@ struct Match {
 	Match	*nxt;
 };
 
+struct Named {
+	char	*nm;
+	Match	*m;
+	Named	*nxt;
+};
+
 struct Function {
 	Lextok	 *nm;
 	Lextok   *formal;
@@ -127,7 +134,6 @@ extern int cobra_lnr(void);
 extern int cobra_nxt(void);
 extern int cobra_prv(void);
 extern int cobra_rewind(void);
-extern int convert_matches(int);
 extern int do_eval(const Prim *);
 extern int exec_prog(Prim **, int);
 extern int nr_marks(const int);
@@ -142,6 +148,7 @@ extern void cobra_range(Prim *, Prim *);
 extern void cobra_tag(Prim *);
 extern void cobra_te(char *, int, int);
 extern void context(char *, char *);
+extern void convert_set(const char *);
 extern void display(char *, char *);
 extern void display_patterns(const char *);
 extern void dogrep(const char *);
@@ -152,11 +159,16 @@ extern void findfunction(char *, char *);
 extern void fix_imbalance(void);
 extern void json(const char *);
 extern void list_checkers(void);
+extern void patterns_create(void);
+extern void patterns_list(char *);
+extern void patterns_delete(void);
 extern void noreturn(void);
 extern void re_enable(void);
 extern void rescan(void);
 extern void run_bup_threads(void *(*f)(void*));
 extern void run_threads(void *(*f)(void*), int);
+extern void setname(char *);
+extern void set_operation(char *);
 extern void set_ranges(Prim *, Prim *);
 extern void set_regex(char *);
 extern void set_links(void);

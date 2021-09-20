@@ -1471,6 +1471,28 @@ starts_with_qualifier(const char *s)
 }
 
 static char *
+check_for_setname(char *s)
+{	char *t = s;
+
+	// there's no leading whitespace
+	// check if the first item is a name followed by a colon
+
+	if (isalpha((uchar) *t))
+	{	do {
+			t++;
+		} while (isalpha((uchar) *t));
+		if (*t == ':')
+		{	*t++ = '\0';
+			setname(s);
+			return t;
+	}	}
+
+	setname("");
+	return s;
+}
+		
+
+static char *
 check_qualifiers(char *s)
 {	int i, n;
 
@@ -1486,6 +1508,10 @@ check_qualifiers(char *s)
 		{	return s;
 	}	}
 
+
+	s = check_for_setname(s);
+
+	//  no, and, &, but not: ir, top, up
 	for (i = 0; s && qual[i].s; i++)
 	{	n = strlen(qual[i].s);
 		if (strncmp(s, qual[i].s, n) == 0
@@ -1602,7 +1628,7 @@ pre_scan(char *bc)	// non-generic commands
 		}
 		return 1;
 
-	case 's':	// save / setlinks
+	case 's':	// save, setlinks, stream
 		if (strncmp(bc, "save", strlen("save")) == 0)
 		{	bc += strlen("save") - 1;
 			while (isspace((uchar) *bc))
@@ -1725,14 +1751,67 @@ pre_scan(char *bc)	// non-generic commands
 		if (strncmp(bc, "pat", 3) == 0)
 		{	// printf("pattern expression: '%s'\n", bc+3);
 			a = check_qualifiers(bc+3);
-			cobra_te(pattern(a), and_mode, inverse);
+			if (a)
+			{	cobra_te(pattern(a), and_mode, inverse);
+			}
 			return 1;
 		}
 		if (strncmp(bc, "pe",  2) == 0)
 		{	// printf("pattern expression: '%s'\n", bc+2);
 			a = check_qualifiers(bc+2);
-			cobra_te(pattern(a), and_mode, inverse);
+			if (a)
+			{	cobra_te(pattern(a), and_mode, inverse);
+			}
 			return 1;
+		}
+		if (strncmp(bc, "ps", 2) == 0)	// pattern set
+		{	a = nextarg(bc);
+			if (strncmp(a, "create", 6) == 0)		// ps create setname
+			{	b = nextarg(a);
+				if (*b != '\0')
+				{	setname(b);
+					patterns_create();
+					setname("");
+					return 1;
+				}
+				printf("usage: ps create name\n");
+				break;
+			} else if (strncmp(a, "delete", 6) == 0)	// ps delete name
+			{	b = nextarg(a);
+				if (*b != '\0')
+				{	setname(b);
+					patterns_delete();
+					setname("");
+					return 1;
+				} 
+				printf("usage: ps delete name\n");
+				break;
+			} else if (strncmp(a, "list", 4) == 0)		// ps list [name]
+			{	patterns_list(nextarg(a));
+				return 1;
+			} else if (strncmp(a, "convert", 7) == 0)	// ps convert name
+			{	convert_set(nextarg(a));
+				return 1;
+			} else if (*a != '\0')	// eg ps C = A & B
+			{	b = a;
+				while (!isspace((uchar) *b))
+				{	b++;
+				}
+				*b++ = '\0';
+				setname(a);
+				while (isspace((uchar) *b))
+				{	b++;
+				}
+				if (*b == '=')
+				{	set_operation(nextarg(b));
+				} else
+				{	printf("usage: ps name = name [& | ^] name\n");
+				}
+				setname("");
+				return 1;
+			}
+			printf("usage: ps [create delete list [name]]\n");
+			break;
 		}
 		break;
 
@@ -3224,12 +3303,14 @@ help(char *s, char *unused)	// 1
 	printf("  %8s  %c %s\n", "ff", ' ',		"f         find function f");
 	printf("  %8s  %c %s\n", "ft", ' ',		"t         mark the defintion of structure type t");
 	printf("  %8s  %c %s\n", "json", ' ',		"[msg]     print results of a pattern search (pe) in json format");
+	printf("  %8s  %c %s\n", "m2p",  ' ',           "name      store the current marks as a pattern set named 'name'");
 	printf("  %8s  %c %s\n", "ncore", ' ',		"n         set the number of cores to use to n");
 	printf("  %8s  %c %s\n", "quiet", ' ',		"on|off    more/less verbose in script executions");
 	printf("  %8s  %c %s\n", "save", ' ',		"n         alternative syntax for: >n");
 	printf("  %8s  %c %s\n", "re", ' ',             "expr      match a token expression (cf commandline option -e expr)");
-	printf("  %8s  %c %s\n", "pat", ' ',            "pattern   match a pattern (cf commandline option -pe expr)");
-	printf("  %8s  %c %s\n", "pe", ' ',             "pattern   same as pat or pattern (pattern expression)");
+	printf("  %8s  %c %s\n", "pat", ' ',            "[Name:] pattern   match a pattern (optionally stored in set 'Name')");
+	printf("  %8s  %c %s\n", "pe", ' ',             "[Name:] pattern   same as pat or pattern (pe=pattern expression)");
+	printf("  %8s  %c %s\n", "pe", ' ',             "A: B [+-&] C pe set union, difference, or intersection of B and C, stored in A");
 	printf("  %8s  %c %s\n", "restore", ' ',	"n         alternative syntax for: <n");
 	printf("  %8s  %c %s\n", "setlinks", ' ',	"          set .bound field for if/else/switch/case/break stmnts");
 	printf("  %8s  %c %s\n", "stream"  , ' ',	"[mode=text] [limit=N] [margin=N] when streaming input from stdin");

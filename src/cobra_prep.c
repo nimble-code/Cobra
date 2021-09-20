@@ -988,9 +988,9 @@ pattern(char *p)
 
 #if 0
 
-#ifndef NMax
- #define NMax 4	// likely optimal current speedup
-#endif
+ #ifndef NMax
+  #define NMax 4	// likely optimal current speedup
+ #endif
 
 static void
 autosetcores(void)
@@ -1115,8 +1115,6 @@ main(int argc, char *argv[])
 {
 	progname = (char *) emalloc(strlen(argv[0]) + 1, 112);
 	strcpy(progname, argv[0]);
-
-//	autosetcores();	// default nr cores to use
 
 	while (argc > 1 && argv[1][0] == '-')
 	{	switch (argv[1][1]) {
