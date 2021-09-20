@@ -181,3 +181,13 @@
     the new version is faster (though that wasn't the
     objective) and reports more things; it also has more
     easily understandable code (the main objective)
+
+3.6 september 10 2021
+  - added pattern sets: with the -pe (or -pat) command
+    you can now specify a named set to save the matching
+    patterns in.  you can display individual matches by
+    using the set name in the 'dp' command, and you can
+    perform set operations, or create, delte, or convert
+    a pattern set into basic markings with the new 'ps'
+    (short for 'pattern set') command.
+    added manual pages and explanations for the changes.
