@@ -909,6 +909,10 @@ pattern(char *p)
 	// check if the pattern is quoted:
 	// e.g. when typed inline, and remove quotes
 
+	while (isspace((uchar) *p))
+	{	p++;
+	}
+
 	len = strlen(p);
 	if ((*p == '\'' || *p == '\"')
 	&&   p[len-1] == *p)
