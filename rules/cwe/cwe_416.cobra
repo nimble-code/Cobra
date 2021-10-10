@@ -21,7 +21,7 @@ fcts
 	function clear_marks(from, upto)
 	{	canstop  = 0;
 		tt = from;
-		while (tt.seq <= upto.seq)
+		while (tt.seq != 0 && tt.seq <= upto.seq)
 		{	if (tt.mark == 57)
 			{	tt.mark = 0;
 			}
@@ -232,7 +232,6 @@ N:
 	if (.mark == 0)		# for each function
 	{	Next;
 	}
-	# print "function " .txt "\n";
 
 	skipto("{");
 	start = .;	# start of fct body
@@ -240,6 +239,7 @@ N:
 
 	while (.seq < limit.seq)
 	{
+# print .seq " " limit.seq " " .txt "\n";
 		if (.txt != "free")
 		{	. = .nxt;
 			continue;
