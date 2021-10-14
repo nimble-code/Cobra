@@ -2440,6 +2440,23 @@ store_constraint(int n, Lextok *p)
 }
 
 static int
+is_brace(const char t)
+{
+	switch (t) {
+	case '{':
+	case '}':
+	case '(':
+	case ')':
+	case '[':
+	case ']':
+		return 1;
+	default:
+		break;
+	}
+	return 0;
+}
+
+static int
 get_positions(char *t)	// formula includes position parameters
 {	int n;
 
@@ -2447,7 +2464,12 @@ get_positions(char *t)	// formula includes position parameters
 	while (*t != '\0')
 	{	if ((*t == '<' || *t == '@')
 		&& isdigit((int) *(t+1)))
-		{	n = atoi(t+1);
+		{	if (*t == '@'
+			&&  is_brace(*(t-1)))
+			{	t++;
+				continue; // not a constraint marker
+			}
+			n = atoi(t+1);
 			if (n >= MAX_CONSTRAINT
 			||  n < 0)
 			{	printf("error: bad position or constraint nr %d\n", n);
@@ -2469,7 +2491,8 @@ get_constraints(char *t)
 
 	for (s = t; *s != '\0'; s++)
 	{	if (*s == '@'
-		&& isdigit((int) *(s+1)))
+		&& isdigit((int) *(s+1))
+		&& !is_brace(*(s-1)))
 		{	break;
 	}	}
 	if (*s == '\0')
@@ -2479,6 +2502,7 @@ get_constraints(char *t)
 	v = r = (char *) emalloc(strlen(t)+1, 110);
 	for (s = t; *s != '\0'; s++)
 	{	if (*s != '@'
+		||  is_brace(*(s-1))
 		||  !isdigit((int) *(s+1)))
 		{	*v++ = *s;
 		} else
