@@ -1570,8 +1570,8 @@ is_accepting(Store *b, int s)
 	{	add_match(cur, q_now, b);
 
 		if (verbose)
-		{	printf("%s:%d..%d: matches\n",
-				cur->fnm, cur->lnr, q_now->lnr);
+		{	printf("%s:%d..%d: matches (state %d)\n",
+				cur->fnm, cur->lnr, q_now->lnr, s);
 		}
 
 		free_list(1 - current);		// remove next states
@@ -1727,7 +1727,7 @@ push_prim(void)
 {	PrimStack *n;
 	List *c;
 	int d;
-//printf("DDDDD\n");
+//printf("%s:%d: DDDDD\n", q_now->fnm, q_now->lnr);
 	n      = get_prim();
 	n->nxt = prim_stack;
 	prim_stack = n;
@@ -1756,7 +1756,7 @@ pop_prim(void)
 	if (!n)
 	{	return;
 	}
-//printf("UUUU\n");
+//printf("%s:%d: UUUU\n", q_now->fnm, q_now->lnr);
 	prim_stack = n->nxt;
 	n->nxt = prim_free;
 	prim_free = n;
@@ -1777,11 +1777,10 @@ pop_prim(void)
  #else
 				n->nxt = prim_free;
 				prim_free = n;
- //printf("XYXYX\n");
  #endif
 				snapshot[d]->n -= 1;
- //printf("Pop_prim %s <<< %d\n", n->t->txt, d);
-			} else
+//printf("Pop_prim %s <<< %d\n", n->t->txt, d);
+			} else if (0)	// happens after accept and restart
 			{	printf("Bad Pop, state %d\n", d);
 	}	}	}
 #endif
