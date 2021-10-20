@@ -88,7 +88,7 @@ fcts	# mark function definitions
 					Files[.fnm]++;
 				} else
 				{	lock();
-					print "cwe_134: " .fnm ":" .lnr ": ";
+					print .fnm ":" .lnr ": cwe_134: ";
 					print "source of memcpy is untrusted parameter\n";
 					# the ultimate source could be a user-input
 					unlock();
