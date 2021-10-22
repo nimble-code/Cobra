@@ -61,7 +61,7 @@ cwe468_report(void)
 			if (no_display)
 			{	w_cnt++;
 			} else
-			{	printf("%s:%d: cwe_468, risky cast using pointer arithmetic\n",
+			{	printf("%s:%d: cwe_468: risky cast using pointer arithmetic\n",
 					mycur->fnm, mycur->lnr);
 	}	}	}
 

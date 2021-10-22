@@ -313,7 +313,7 @@ cwe416_report(void)
 		{	if (no_display)
 			{	w_cnt++;
 			} else if (mycur->bound)
-			{	printf("%s:%d: cwe_416, use after free of %s?\n",
+			{	printf("%s:%d: cwe_416: use after free of %s?\n",
 					mycur->fnm, mycur->lnr, mycur->bound->txt);
 				mycur->bound = 0;
 			}

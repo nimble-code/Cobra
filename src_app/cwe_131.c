@@ -210,7 +210,7 @@ cwe131_report(void)
 
 		for (mycur = prim; mycur; mycur = mycur->nxt)
 		{	if (mycur->mark == 131)
-			{	printf("%s:%d: cwe_131, missing sizeof() in memory allocation?\n",
+			{	printf("%s:%d: cwe_131: missing sizeof() in memory allocation?\n",
 					mycur->fnm, mycur->lnr);
 				mycur->mark = 0;
 			} else if (mycur->mark == 1310)
@@ -218,11 +218,11 @@ cwe131_report(void)
 				Prim *b = mycur->bound;
 				Prim *nmm = mycur->jmp;
 
-				printf("%s:%d:  cwe_131, out of bound array indexing error on %s?\n",
+				printf("%s:%d:  cwe_131: out of bound array indexing error on %s?\n",
 					q->fnm, q->lnr, nmm?nmm->txt:"-");
 				if (b
 				&&  strcmp(b->txt, "malloc") != 0)
-				{	printf("%s:%d:  cwe_131, array %s was allocated at %s:%d\n",
+				{	printf("%s:%d:  cwe_131: array %s was allocated at %s:%d\n",
 						q->fnm, q->lnr, b->txt, b->fnm, b->lnr);
 				}
 				mycur->mark  = 0;

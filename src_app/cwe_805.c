@@ -185,13 +185,13 @@ cwe805_report(void)
 
 	for (mycur = prim; mycur; mycur = mycur->nxt)
 	{	if (mycur->mark == 805)
-		{	printf("%s:%d: cwe_805, suspicious sizeof in strncpy, ",
+		{	printf("%s:%d: cwe_805: suspicious sizeof in strncpy, ",
 				mycur->fnm, mycur->lnr);
 			printf("strncat, or memcpy for other var than %s\n",
 				mycur->txt);
 			mycur->mark = 0;
 		} else if (mycur->mark == 8050)
-		{	printf("%s:%d: cwe_805, fct '%s' may ",
+		{	printf("%s:%d: cwe_805: fct '%s' may ",
 				mycur->fnm, mycur->lnr, mycur->txt);
 			printf("return a zero or negative value\n");
 			mycur->mark = 0;
@@ -215,12 +215,12 @@ cwe805_0(void)
 		}
 
 		if (cnt1 > 0)
-		{	printf("cwe_805, %d warnings: suspicious ", cnt1);
+		{	printf("cwe_805: %d warnings: suspicious ", cnt1);
 			printf("sizeof in strncpy, strncat, or memcpy\n");
 		}
 
 		if (cnt2 > 0)
-		{	printf("cwe_805, %d warnings: fct may return zero ", cnt2);
+		{	printf("cwe_805: %d warnings: fct may return zero ", cnt2);
 			printf("or negative value (used in array index)\n");
 		}
 	} else
