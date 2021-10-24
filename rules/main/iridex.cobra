@@ -74,7 +74,7 @@ ncore 1
 # rules requiring cpp off
 
 # rule 01 -- conform to language standard
-	cpp off
+	# cpp off
 	r; m @cpp; m & /pragma
 	= "=== IR01: do not stray outside the language definition (no pragmas):"
 	d
@@ -97,7 +97,7 @@ ncore 1
 	# at least one binary and at least one arithmetic
 	# or boolean operator
 
-	cpp off
+	# cpp off
 	r
 	m /ASSERT \(
 	m /Assert \(

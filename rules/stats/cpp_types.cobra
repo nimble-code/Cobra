@@ -13,5 +13,5 @@ def cpp_types
 	        u; m & /define.*\#\#; = "tokenpaste	:"
 	r; m @cpp; m & /undef; = "undef	:"
 end
-cpp off
+# cpp off
 cpp_types

@@ -14,5 +14,5 @@ def stmnt_types
 	r; m switch;	= "switch	:"
 	r; m while;	= "while	:"
 end
-cpp off
+# cpp off
 stmnt_types

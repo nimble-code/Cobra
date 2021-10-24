@@ -1,6 +1,6 @@
 # check 13 of the misra 2004 rules with a cobra inline program
 
-cpp off
+# cpp off
 %{
 	if (.fnm != incode.fnm)
 	{	incode = none;
@@ -74,4 +74,4 @@ cpp off
 	{	print .fnm ":" .lnr ": R4.2: using trigraph\n";
 	}
 %}
-cpp on
+# cpp on

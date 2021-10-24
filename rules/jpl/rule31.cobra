@@ -1,4 +1,4 @@
-cpp off
+# cpp off
 %{	# include directives should not be preceded by code"
 
 	if (.fnm != incode.fnm)

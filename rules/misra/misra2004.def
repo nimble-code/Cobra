@@ -1,7 +1,7 @@
 . basic.def
 
 def m04_rule2.1
-	cpp on
+	# cpp on
 	r; m asm; b {; s asm; c \;
 	>1
 	r; m asm; n \;; s }; c \;
@@ -11,14 +11,14 @@ def m04_rule2.1
 end
 
 def m04_rule2.2
-	cpp off
+	# cpp off
 	r; m \//
 	= "=== R2.2: (Required) Source code shall only use /* ... */ style comments:"
 	d
 end
 
 def m04_rule2.3
-	cpp off
+	# cpp off
 	r
 	m /^/\*.*/\*
 	m /^//.*/\*
@@ -27,7 +27,7 @@ def m04_rule2.3
 end
 
 def m04_rule2.4
-	cpp off
+	# cpp off
 	r; m //\*.*\;.*\*/		# stmnt separator in C comment
 	m //\*[^\*]*\;			# avoid /* ... */ ...;
 	m //\*[^/]*\;			# ditto
@@ -37,14 +37,14 @@ def m04_rule2.4
 end
 
 def m04_rule3.4
-	cpp off
+	# cpp off
 	r; m @cpp; m & /pragma
 	= "=== R3.4: (Required) All uses of the \#pragma directive shall be documented and explained:"
 	d
 end
 
 def m04_rule4.1
-	cpp on
+	# cpp on
 	r
 	m \\\ /^['\"?abfnrtvxX0-9]		# undefined escape
 	m \\\ /^[0-9][0-9][0-9]$		# octal escape
@@ -53,14 +53,14 @@ def m04_rule4.1
 end
 
 def m04_rule4.2
-	cpp on
+	# cpp on
 	r; m ? ?; n; e /^[=\(\)/'<>!\-]		# use of trigraphs
 	= "=== R4.2: (Required) Trigraphs shall not be used:"
 	d
 end
 
 def m04_rule5.1
-	cpp on
+	# cpp on
 	r
 	m @ident; m & (.len > 31)
 	= "=== R5.1: (Required) Identifiers (internal and external) shall not rely on the significance of more than 31 characters:"
@@ -68,14 +68,14 @@ def m04_rule5.1
 end
 
 def m04_rule6.3
-	cpp on
+	# cpp on
 	r; m char; m int; m short; m long; m float; m double
 	= "=== R6.3: (Advisory) typedefs that indicate size and signedness should be used in place of the basic types:"
 	d
 end
 
 def m04_rule6.4
-	cpp on
+	# cpp on
 	r; m ?; s :	# find p ? r : s
 	n :; b		# move mark to the ident before the :
 	>1		# save
@@ -89,7 +89,7 @@ def m04_rule6.4
 end
 
 def m04_rule6.5
-	cpp on
+	# cpp on
 	r; m ?; s :	# find p ? r : s
 	n :; b		# move mark to the ident before the :
 	>1		# save
@@ -104,7 +104,7 @@ def m04_rule6.5
 end
 
 def m04_rule7.1
-	cpp on
+	# cpp on
 	r
 	m /^0[0-9]			# octal constant
 	m \\\ /^[0-9][0-9][0-9]$	# octal escape
@@ -113,7 +113,7 @@ def m04_rule7.1
 end
 
 def m04_rule8.6
-	cpp on
+	# cpp on
 	r; m extern; m & (.curly > 0)	# partial check
 	= "=== R8.6: (Required) Functions shall be declared at file scope:"
 	d
@@ -133,7 +133,7 @@ def m04_rule8.10
 end
 
 def m04_rule9.3
-	cpp on
+	# cpp on
 	r; m enum; n; m & {; c =; s =; c ,		# nameless enum, no comma before the first =
 	>1
 	r; m enum; n; n; m & {; c =; s =; c ,		# named enum
@@ -143,14 +143,14 @@ def m04_rule9.3
 end
 
 def m04_rule12.3
-	cpp on
+	# cpp on
 	r; m sizeof; n; c /[-=\+\(]
 	= "=== R12.3: (Required) The sizeof operator shall not be used on expressions that contain side effects:"
 	d
 end
 
 def m04_rule12.4
-	cpp on
+	# cpp on
 	r; m \&&; s top ); c no \;; c /[-+][-+]	# not in for-loop; pre or post increments
 	>1
 	r; m \||; s top ); c no \;; c /[-+][-+]
@@ -172,7 +172,7 @@ def m04_rule12.4
 end
 
 def m04_rule12.10
-	cpp on
+	# cpp on
 	r; m @type; s \;; c ,; m ,	# commas in declarations
 	>1
 	r; m ,
@@ -183,7 +183,7 @@ def m04_rule12.10
 end
 
 def m04_rule13.1
-	cpp on
+	# cpp on
 	r; m if;    n; c /[-+][-+]		# pre or post increments
 	>1
 	r; m if;    n; c /[^=<>!]=			# assignments
@@ -205,7 +205,7 @@ def m04_rule13.1
 end
 
 def m04_rule13.3
-	cpp on
+	# cpp on
 	r; m [!=]=; b; m & .
 	>1
 	r; m [!=]=; n; m & .
@@ -215,20 +215,20 @@ def m04_rule13.3
 end
 
 def m04_rule13.6
-	cpp on
+	# cpp on
 	check_for
 	= "=== R13.6: (Required) Numeric vars used in a for loop for iteration counting shall not be modified in the loop-body:"
 end
 
 def m04_rule14.4
-	cpp on
+	# cpp on
 	r; m goto
 	= "=== R14.4: (Required) The goto stmnt shall not be used:"
 	d
 end
 
 def m04_rule14.5
-	cpp on
+	# cpp on
 	r; m continue
 	= "=== R14.5: (Required) The continue stmnt shall not be used:"
 	d
@@ -236,7 +236,7 @@ def m04_rule14.5
 end
 
 def m04_rule14.6
-	cpp on
+	# cpp on
 	r; m switch \(; n; j; e {; n; n; s top }
 	m ir break	# marks break stmnts inside switch
 	>1		# save these
@@ -251,7 +251,7 @@ def m04_rule14.6
 end
 
 def m04_rule14.7
-	cpp on
+	# cpp on
 	r; m @ident \(
 	m & (!.curly)
 	n; j; e {; n
@@ -266,7 +266,7 @@ def m04_rule14.7
 end
 
 def m04_rule14.8
-	cpp on
+	# cpp on
 	r; m switch \(; n; j; n; unmark {
 	>1
 	r; m while; b; unmark }; n
@@ -284,7 +284,7 @@ def m04_rule14.8
 end
 
 def m04_rule14.9
-	cpp on
+	# cpp on
 	r; m if;    n; j; n; unmark {; b
 	>1
 	r; m else;  n;       unmark {; unmark if; b
@@ -294,14 +294,14 @@ def m04_rule14.9
 end
 
 def m04_rule14.10
-	cpp on
+	# cpp on
 	check_ifelseif
 	= "=== R14:.10 (Required) All if... else if constructs shall be terminated with an else clause:"
 	d
 end
 
 def m04_rule15.2
-	cpp on
+	# cpp on
 	r; m case; s case; c \;; c no switch; c no break
 	>1
 	r; m case; s default; c \;; c no switch; c no break
@@ -314,7 +314,7 @@ def m04_rule15.2
 end
 
 def m04_rule15.3
-	cpp on
+	# cpp on
 	r; m switch; n; j; n; c top no default
 	b; j; b
 	= "=== R15.3: (Required) The final clause of a switch stmnt shall be the default clause:"
@@ -322,7 +322,7 @@ def m04_rule15.3
 end
 
 def m04_rule15.4
-	cpp on
+	# cpp on
 	r; m switch; n {; c top no case
 	>1
 	r; m switch; n {; c case
@@ -333,14 +333,14 @@ def m04_rule15.4
 end
 
 def m04_rule15.5
-	cpp on
+	# cpp on
 	r; m switch; n {; c top no case
 	= "=== R15.5: (Required) Every switch stmnt shall have at least one case clause:"
 	d
 end
 
 def m04_rule16.1
-	cpp on
+	# cpp on
 	r; m ...
 	b;b
 	unmark catch	# C++ catch(...)
@@ -350,7 +350,7 @@ def m04_rule16.1
 end
 
 def m04_rule16.2
-	cpp on
+	# cpp on
 	r; m @ident \(; n; j; ex {; j; b	# all fct declarations
 	s top }			# set range to fct body (stretch command)
 	m ir $$			# match of fct name inside the range
@@ -360,14 +360,14 @@ def m04_rule16.2
 end
 
 def m04_rule16.5
-	cpp on
+	# cpp on
 	r; m @ident \(; n; j; e {; j; e )
 	= "=== R16.5: (Required) Functions with no parameters shall be declared with parameter type void:"
 	d
 end
 
 def m04_rule16.8
-	cpp on
+	# cpp on
 	r; m @ident \(; m & (!.curly); j; extend {; j; b; b; mark no void; n {
 	c no return	# should match zero ranges
 	>1
@@ -381,7 +381,7 @@ def m04_rule16.8
 end
 
 def m04_rule17.5
-	cpp on
+	# cpp on
 	r; m * *; n; n; m & *
 	>1
 	r; m * *; n; n; m & @ident; n; m & [
@@ -391,7 +391,7 @@ def m04_rule17.5
 end
 
 def m04_rule18.4
-	cpp on
+	# cpp on
 	r; m union
 	= "=== R18.4: (Required) Unions shall not be used:"
 	d
@@ -404,21 +404,21 @@ def m04_rule19.1
 end
 
 def m04_rule19.2
-	cpp off
+	# cpp off
 	r; m @cpp; m & /include.*[<"].*['\,\*].*[>"]
 	= "=== R19.2: (Advisory) Non-standard characters should not occur in header file names in \#include directives:"
 	d
 end
 
 def m04_rule19.3
-	cpp off
+	# cpp off
 	r; m @cpp; m & /include; m no /\<; m no /"
 	= "=== R19.3: (Required) The \#include directive shall be followed by either a <filename> or filename sequence:"
 	d
 end
 
 def m04_rule19.5
-	cpp off
+	# cpp off
 	r; m @cpp; m & /undef;  m & (.curly > 0)
 	>1
 	r; m @cpp; m & /define; m & (.curly > 0)
@@ -429,21 +429,21 @@ def m04_rule19.5
 end
 
 def m04_rule19.6
-	cpp off
+	# cpp off
 	r; m @cpp; m & /undef
 	= "=== R19.6: (Required) \#undef shall not be used:"
 	d
 end
 
 def m04_rule19.12
-	cpp off
+	# cpp off
 	r; m @cpp; m & /\#[^\#]+\#
 	= "=== R19:.12 (Required) There shall be at most one occurrence of the \# or \#\# preprocessor operators in a single macro definition:"
 	d
 end
 
 def m04_rule19.13
-	cpp off
+	# cpp off
 	r; m @cpp; m & /\#\#
 	= "=== R19:.13 (Advisory) The \# and \#\# preprocessor operators should not be used:"
 	d
@@ -453,63 +453,63 @@ def m04_rule19.13
 end
 
 def m04_rule20.4
-	cpp on
+	# cpp on
 	r; m /alloc; m free
 	= "=== R20.4: (Required) Dynamic heap memory allocation shall not be used:"
 	d
 end
 
 def m04_rule20.5
-	cpp on
+	# cpp on
 	r; m errno
 	= "=== R20.5: (Required) The error indicator errno shall not be used:"
 	d
 end
 
 def m04_rule20.6
-	cpp off
+	# cpp off
 	r; m offsetof
 	= "=== R20.6: (Required) The macro offsetof in <stddef.h> shall not be used:"
 	d
 end
 
 def m04_rule20.7
-	cpp off
+	# cpp off
 	r; m setjmp; m longjmp
 	= "=== R20.7: (Required) The setjmp macro and the longjmp fct shall not be used:"
 	d
 end
 
 def m04_rule20.8
-	cpp off
+	# cpp off
 	r; m @cpp; m & /signal.h
 	= "=== R20.8: (Required) The signal handling facilities of <signal.h> shall not be used:"
 	d
 end
 
 def m04_rule20.9
-	cpp off
+	# cpp off
 	r; m @cpp; m & /stdio.h
 	= "=== R20.9: (Required) <stdio.h> shall not be used in production code:"
 	d
 end
 
 def m04_rule20.10
-	cpp on
+	# cpp on
 	r; m atof; m atoi; m atol
 	= "=== R20:.10 (Required) The library fcts atof, atoi and atol from library <stdlib.h> shall not be used:"
 	d
 end
 
 def m04_rule20.11
-	cpp on
+	# cpp on
 	r; m abort; m exit; m getenv; m system
 	= "=== R20:.11 (Required) The library fcts abort, exit, getenv and system from library <stdlib.h> shall not be used:"
 	d
 end
 
 def m04_rule20.12
-	cpp off
+	# cpp off
 	r; m @cpp; m & /time.h
 	= "=== R20:.12 (Required) The time handling fcts of <time.h> shall not be used:"
 	d

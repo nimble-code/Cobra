@@ -1,7 +1,7 @@
 ## multi-core safe
 
 ## print the number of parameters per function
-cpp on
+# cpp on
 r
 fcts
 def fct_params(detail)

@@ -1,5 +1,5 @@
 def ident_length
-	cpp on
+	# cpp on
 	r; m @ident
 	w (.len == 1);     = " 1 char	:"
 	u; w (.len == 2);  = " 2 char	:"

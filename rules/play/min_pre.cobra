@@ -1,7 +1,7 @@
 ## remove parts of the sequence between #if 0 and #endif
 
 r
-cpp off
+# cpp off
 %{
 	if (@cpp && .txt == "#if")
 	{	q = .nxt;
@@ -49,4 +49,4 @@ cpp off
 		print .fnm ":" s.lnr "-" r.lnr " stripped\n";
 	}
 %}
-cpp on
+# cpp on

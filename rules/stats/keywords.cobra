@@ -1,5 +1,5 @@
 def keywords
-	cpp on
+	# cpp on
 	r; m auto;	= "auto	:"
 	r; m break;	= "break	:"
 	r; m case;	= "case	:"

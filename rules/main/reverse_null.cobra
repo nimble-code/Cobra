@@ -1,6 +1,6 @@
 def reverse_null
 fcts
-cpp off
+# cpp off
 
 # null tests
 r

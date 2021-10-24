@@ -12,7 +12,7 @@ def fcts		# helper function
 end
 
 def jpl_rule1
-	cpp off		# jpl_rule1 :: cpp off must come before 'r'
+	# cpp off		# jpl_rule1 :: cpp off must come before 'r'
 	r; m @cpp; m & /pragma
 
 	#  do not turn cpp back on
@@ -176,7 +176,7 @@ def jpl_rule9b
 end
 
 def jpl_rule11
-	cpp off			# jpl_rule11
+	# cpp off			# jpl_rule11
 	r; m goto
 	n; unmark /^yy		# not for yacc generated code
 	b;
@@ -312,7 +312,7 @@ def jpl_rule15
 end
 
 def jpl_rule16(nr)
-	cpp off		# jpl_rule16
+	# cpp off		# jpl_rule16
 	r
 	m \;		# all statements
 	>1		# save in set 1
@@ -335,7 +335,7 @@ def jpl_rule17
 end
 
 def jpl_rule19a
-	cpp off		# jpl_rule19a
+	# cpp off		# jpl_rule19a
 	r
 	m /ASSERT \(
 	m /Assert \(
@@ -372,13 +372,13 @@ def jpl_rule19b
 end
 
 def jpl_rule20a
-	cpp off		# jpl_rule20a
+	# cpp off		# jpl_rule20a
 	r; m @cpp; m & /if; m no /endif
 	n; unmark /^yy; unmark /^YY; unmark 0; unmark 1
 end
 
 def jpl_rule20b
-	cpp off		# jpl_rule20b
+	# cpp off		# jpl_rule20b
 	r
 	%{
 		if (!@cpp || .txt != "#define")
@@ -424,18 +424,18 @@ def jpl_rule20b
 end
 
 def jpl_rule20c
-	cpp off		# jpl_rule20c
+	# cpp off		# jpl_rule20c
 	r; m @cpp; m & /define[^/]*\#
 end
 
 def jpl_rule21
-	cpp off		# jpl_rule21
+	# cpp off		# jpl_rule21
 	r; m @cpp; m & /define
 	m & (.curly>0)
 end
 
 def jpl_rule22
-	cpp off		# jpl_rule22
+	# cpp off		# jpl_rule22
 	r; m @cpp; m & /undef
 end
 
@@ -491,7 +491,7 @@ def jpl_rule26_27
 end
 
 def jpl_rule28
-	cpp off		# jpl_rule28
+	# cpp off		# jpl_rule28
 	r; m typedef
 	s \;
 	c *

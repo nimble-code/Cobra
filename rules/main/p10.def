@@ -169,7 +169,7 @@ def p10_rule4_log(rn, nr)
 end
 
 def p10_rule5(rn, nr)	# assert is often a macro
-	cpp off		# p10_rule5
+	# cpp off		# p10_rule5
 	%{	size1 = 0; size2 = 0; Stop;	%}
 	%{
 		if (.txt == ";")
@@ -339,7 +339,7 @@ def p10_rule8b(rn)
 end
 
 def p10_rule8(rn)
-	cpp off		# p10_rule8
+	# cpp off		# p10_rule8
 	p10_rule8a(rn)
 	p10_rule8b(rn)
 end

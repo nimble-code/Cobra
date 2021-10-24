@@ -26,7 +26,7 @@ def datatypes
 	r; m void; 	= "void	 :"
 	r; m volatile; 	= "volatile	 :"
 end
-cpp off
+# cpp off
 track start _cobra_tmp_
 datatypes
 track stop

@@ -250,7 +250,7 @@ def check_ifelseif	# ifelseif.cobra
 end
 
 def check_macro_args	# macro_args-m.cobra
-	cpp off		# check_macro_args
+	# cpp off		# check_macro_args
 	r
 	# check if all macro arguments are enclosed in parentheses
 	# cf. jpl_rule20b -- which checks if the macro body is a syntactic unit
@@ -291,7 +291,7 @@ def check_macro_args	# macro_args-m.cobra
 end
 
 def check_param_count	# param_count_check.cobra
-	cpp off		# check_param_count
+	# cpp off		# check_param_count
 	r
 	## nr of parameters of function calls matches prototype
 	

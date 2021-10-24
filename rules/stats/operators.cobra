@@ -1,6 +1,6 @@
 
 def operators
-	cpp on
+	# cpp on
 	r; m +; = "+	:"
 	r; m -; = "-	:"
 	r; m *; = "*	:"

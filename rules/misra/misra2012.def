@@ -1,14 +1,14 @@
 . basic.def
 
 def m12rule1.2
-	cpp off
+	# cpp off
 	r; m @cpp; m & /pragma
 	= "=== R1.2: (Advisory) Language extensions should not be used:"
 	d
 end
 
 def m12rule2.6
-	cpp on
+	# cpp on
 	r; m ?; s :	# find p ? r : s
 	n :; b		# move mark to the ident before the :
 	>1		# save
@@ -35,7 +35,7 @@ def m12rule2.6
 end
 
 def m12rule2.7
-	cpp on
+	# cpp on
 	r; m @ident \(
 	n; j; e {; j	# remains: fct declarations, at the (
 	m ir @ident	# mark all parameter names (and typedef names
@@ -50,7 +50,7 @@ def m12rule2.7
 end
 
 def m12rule3.1
-	cpp off
+	# cpp off
 	r; m @cmnt; m & //\*.*/\*
 	>1
 	r; m @cmnt; m & //\*.*//
@@ -66,7 +66,7 @@ def m12rule3.1
 end
 
 def m12rule3.2
-	cpp off
+	# cpp off
 	r
 	m @cmnt; m & ///.*\\$
 	= "=== R3.2: (Required) Line-splicing shall not be used in // comments:"
@@ -74,7 +74,7 @@ def m12rule3.2
 end
 
 def m12rule4.1
-	cpp on
+	# cpp on
 	r; m \\\ /^['\"?abfnrtvxX0-9]		# undefined escape
 	>1
 	r; m \\\ /^[0-9][0-9][0-9]$		# octal escape
@@ -87,14 +87,14 @@ def m12rule4.1
 end
 
 def m12rule4.2
-	cpp on
+	# cpp on
 	r; m ? ?; n; e /^[=\(\)/'<>!\-]		# use of trigraphs
 	= "=== R4.2: (Advisory) Trigraphs should not be used:"
 	d
 end
 
 def m12rule4.3
-	cpp on
+	# cpp on
 	r; m asm; b {; s asm; c \;
 	>1
 	r; m asm; n \;; s }; c \;
@@ -104,7 +104,7 @@ def m12rule4.3
 end
 
 def m12rule4.4
-	cpp off
+	# cpp off
 	r
 	m //\*.*\;.*\*/			# ; in C comment
 	m //\*[^\*]*\;			# avoid /* ... */ ...;
@@ -115,21 +115,21 @@ def m12rule4.4
 end
 
 def m12rule4.6
-	cpp on
+	# cpp on
 	r; m char; m int; m short; m long; m float; m double
 	= "=== Dir4.6: (Advisory) typedefs that indicate size and signedness should be used in place of the basic numerical types:"
 	d
 end
 
 def m12rule4.12
-	cpp on
+	# cpp on
 	r; m /alloc; m free
 	= "=== Dir4.12: (Required) Dynamic memory allocation shall not be used:"
 	d
 end
 
 def m12rule6.2
-	cpp on
+	# cpp on
 	r; m ?; s :	# find p ? r : s
 	n :; b		# move mark to the ident before the :
 	>1		# save
@@ -147,14 +147,14 @@ def m12rule6.2
 end
 
 def m12rule7.1
-	cpp on
+	# cpp on
 	r; m \\\ /^[0-9][0-9][0-9]$		# octal escape
 	= "=== R7.1: (Required) Octal constants shall not be used:"
 	d
 end
 
 def m12rule7.3
-	cpp on
+	# cpp on
 	r; m /^[0-9]+l$
 	= "=== R7.3: (Required) The lowercase character l shall not be used in a literal suffix:"
 	d
@@ -167,21 +167,21 @@ def m12rule8.9
 end
 
 def m12rule8.11
-	cpp on
+	# cpp on
 	r; m extern; s \; c [; n [; e ]
 	= "=== R8.11: (Required) When an array with external linkage is declared, its size should be explicitly specified:"
 	d
 end
 
 def m12rule8.14
-	cpp on
+	# cpp on
 	r; m restrict
 	= "=== R8.14: (Required) The restrict type qualifier shall not be used:"
 	d
 end
 
 def m12rule12.3
-	cpp on
+	# cpp on
 	r; m @type; s \;; c ,; m ,	# commas in declarations
 	>1
 	r; m ,
@@ -192,7 +192,7 @@ def m12rule12.3
 end
 
 def m12rule13.4
-	cpp on
+	# cpp on
 	r; m if;    n; c /[-+][-+]		# pre or post increments
 	>1
 	r; m if;    n; c /[^=<>!]=			# assignments
@@ -214,7 +214,7 @@ def m12rule13.4
 end
 
 def m12rule13.5
-	cpp on
+	# cpp on
 	r; m \&&; s top ); c no \;; c /[-+][-+]	# not in for-loop; pre or post increments
 	>1
 	r; m \||; s top ); c no \;; c /[-+][-+]
@@ -236,7 +236,7 @@ def m12rule13.5
 end
 
 def m12rule13.6
-	cpp on
+	# cpp on
 	r; m sizeof; n
 #	c /[-=\+\(]		# xxx false match on: sizeof( (array) )
 	%{
@@ -269,14 +269,14 @@ def m12rule13.6
 end
 
 def m12rule15.1
-	cpp on
+	# cpp on
 	r; m goto
 	= "=== R15.1: (Advisory) The goto stmnt should not be used:"
 	d
 end
 
 def m12rule15.2
-	cpp on
+	# cpp on
 	r; m goto; n	# names of labels used in gotos
 	>1		# all labelnames
 	s $$ :		# forward to labelname followed by colon
@@ -290,7 +290,7 @@ def m12rule15.2
 end
 
 def m12rule15.4
-	cpp on
+	# cpp on
 	r; m switch \(
 	n; j; e {; n	## ; n; s top }
 	m ir break	# marks break stmnts inside switch
@@ -322,7 +322,7 @@ def m12rule15.4
 end
 
 def m12rule15.5
-	cpp on
+	# cpp on
 	r; m @ident \(
 	m & (!.curly(
 	n; j; e {; n
@@ -337,7 +337,7 @@ def m12rule15.5
 end
 
 def m12rule15.6
-	cpp on
+	# cpp on
 	r; m switch \(; n; j; n; unmark {
 	>1
 	r; m while; b; unmark }
@@ -355,13 +355,13 @@ def m12rule15.6
 end
 
 def m12rule15.7
-	cpp on
+	# cpp on
 	check_ifelseif
 	= "=== R15.7: (Required) All if ... else if constructs shall be terminated with an else stmnt:"
 end
 
 def m12rule16.3
-	cpp on
+	# cpp on
 	r; m case; s top case; c \;; c no switch; c no break
 	>1
 	r; m case; s top default; c \;; c no switch; c no break
@@ -375,7 +375,7 @@ def m12rule16.3
 end
 
 def m12rule16.4
-	cpp on
+	# cpp on
 	r; m switch
 	n {
 	c top no default
@@ -385,21 +385,21 @@ def m12rule16.4
 end
 
 def m12rule16.6
-	cpp on
+	# cpp on
 	r; m switch; n {; c no case
 	= "=== R16.6: (Required) Every switch stmnt shall have at least two switch-clauses:"
 	d
 end
 
 def m12rule17.1
-	cpp off
+	# cpp off
 	r; m @cpp; m & /stdarg.h
 	= "=== R17.1: (Required) The features of <stdarg.h> shall not be used:"
 	d
 end
 
 def m12rule17.2
-	cpp on
+	# cpp on
 	r; m @ident \(; n; j; ex {; j; b	# all fct declarations
 	s top }			# set range to fct body (stretch command)
 	m ir $$			# match of fct name inside the range
@@ -409,7 +409,7 @@ def m12rule17.2
 end
 
 def m12rule17.4
-	cpp on
+	# cpp on
 	r; m @ident \(; n; j; extend {; j; b; b; mark no void; n {
 	c no return	# should match zero ranges
 	u		# undo
@@ -421,7 +421,7 @@ def m12rule17.4
 end
 
 def m12rule17.6
-	cpp on
+	# cpp on
 	r; m @ident \(; n; j; e {; j
 	c [
 	n [
@@ -431,7 +431,7 @@ def m12rule17.6
 end
 
 def m12rule17.8
-	cpp on
+	# cpp on
 	r; m @ident \(; n; j; e {; j
 	m ir @ident
 	s $$
@@ -450,7 +450,7 @@ def m12rule17.8
 end
 
 def m12rule18.5
-	cpp on
+	# cpp on
 	r; m * *; n; n; m & *
 	>1
 	r; m * *; n; n; m & @ident; n; m & [
@@ -460,7 +460,7 @@ def m12rule18.5
 end
 
 def m12rule18.7
-	cpp on
+	# cpp on
 	r; m @ident [
 	n; e ]		# name []
 	n; e /^\;,$	# ]
@@ -474,7 +474,7 @@ def m12rule18.7
 end
 
 def m12rule19.2
-	cpp on
+	# cpp on
 	r; m union
 	= "=== R19.2: (Advisory) The union keyword should not be used:"
 	d
@@ -487,96 +487,96 @@ def m12rule20.1
 end
 
 def m12rule20.2
-	cpp off
+	# cpp off
 	r; m @cpp; m & /include.*['"\\\*]
 	= "=== R20.2: (Required) Single or double quote or \ characters and the /* or // character sequences shall not occur in a header file name:"
 	d
 end
 
 def m12rule20.3
-	cpp off
+	# cpp off
 	r; m @cpp; m & /include; m no /\<; m no /:"
 	= "=== R20.3: (Advisory): (Required) The \#include directive shall be followed by either a <filename> or 'filename' sequence:"
 	d
 end
 
 def m12rule20.5
-	cpp off
+	# cpp off
 	r; m @cpp; m & /undef
 	= "=== R20.5: (Advisory) \#undef should not be used:"
 	d
 end
 
 def m12rule20.10
-	cpp off
+	# cpp off
 	r; m @cpp; m & /define.*\#
 	= "=== R20.10: (Advisory) The \# and \#\# preprocessor operators should not be used:"
 	d
 end
 
 def m12rule21.3
-	cpp on
+	# cpp on
 	r; m /alloc; m free
 	= "=== R21.3: (Required) The memory allocation and deallocation fcts of <stdlib.h> shall not be used:"
 	d
 end
 
 def m12rule21.4
-	cpp off
+	# cpp off
 	r; m @cpp; m & /setjmp.h
 	= "=== R21.4: (Required) The standard header file <setjmp.h> shall not be used:"
 	d
 end
 
 def m12rule21.5
-	cpp off
+	# cpp off
 	r; m @cpp; m & /signal.h
 	= "=== R21.5: (Required) The standard header file <signal.h> shall not be used:"
 	d
 end
 
 def m12rule21.6
-	cpp off
+	# cpp off
 	r; m @cpp; m & /stdio.h
 	= "=== R21.6: (Required) The Standard Library input/output fcts shall not be used:"
 	d
 end
 
 def m12rule21.7
-	cpp on
+	# cpp on
 	r; m atof; m atoi; m atol
 	= "=== R21.7: (Required) The atof, atoi, atol and atoll fcts of <stdlib.h> shall not be used:"
 	d
 end
 
 def m12rule21.8
-	cpp on
+	# cpp on
 	r; m abort; m exit; m getenv; m system
 	= "=== R21.8: (Required) The library fcts abort, exit, getenv and system of <stdlib.h> shall not be used:"
 	d
 end
 
 def m12rule21.9
-	cpp on
+	# cpp on
 	r; m bsearch; m qsort
 	= "=== R21.9: (Required) The library fcts bsearch and qsort of <stdlib.h> shall not be used:"
 	d
 end
 
 def m12rule21.10
-	cpp off
+	# cpp off
 	r; m @cpp; m & /time.h
 	= "=== R21.10: (Required) The standard library time and date fcts shall not be used:"
 	d
 end
 def m12rule21.11
-	cpp off
+	# cpp off
 	r; m @cpp; m & /tgmath.h
 	= "=== R21.11: (Required) The standard header file <tgmath.h> shall not be used:"
 	d
 end
 def m12rule21.12
-	cpp off
+	# cpp off
 	r; m @cpp; m & /fenv.h
 	= "=== R21.12: (Advisory) The exception handling features of <fenv.h> should not be used:"
 	d

@@ -2,7 +2,7 @@
 # multi-core safe
 
 def nr_cases
-cpp on
+# cpp on
 r
 %{
 	if (.curly > 0 && #switch)	# all cpu in parallel

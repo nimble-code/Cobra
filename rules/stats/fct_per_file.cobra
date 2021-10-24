@@ -2,7 +2,7 @@
 
 ## print the number of functions per file
 
-cpp off
+# cpp off
 r
 fcts
 

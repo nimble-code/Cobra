@@ -1,7 +1,7 @@
 ## multi-core safe
 
 ## longest and shortest fct name and body lengths
-cpp on
+# cpp on
 r
 fcts
 = "number of functions:	"

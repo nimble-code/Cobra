@@ -1,6 +1,6 @@
 
 def getstats
-	cpp on
+	# cpp on
 	r; fcts
 	>1
 #	w .len<8
