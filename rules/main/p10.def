@@ -122,6 +122,8 @@ def p10_rule3(rn)
 
 	r
 	m /alloc; m free	# all calls
+	m & (.curly>0)		# not prototype decls
+	n; m & (; b		# fct calls
 	<^1			# but not those in set 1
 	= "=== rn: do not use dynamic memory allocation after initialization:"
 	d

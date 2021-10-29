@@ -148,8 +148,9 @@ def jpl_rule5
 	n; j; n			# move to {
 	m ir /.			# mark all stmnts in these fcts
 	>1
-	r; m /alloc; m free(	# all memory alloction calls
+	r; m /alloc; m free	# all memory alloction calls
 	m & (.curly>0)		# not prototype decls
+	n; m & (; b		# fct calls proper
 	unmark /allocated
 	m sbrk
 	<^1			# but not those in fcts ending in _init
