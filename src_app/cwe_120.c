@@ -152,10 +152,10 @@ cwe120_check_gen(const int which, const char *v, const char *w)
 		{	printf("cwe_120_1: %d warnings: %s performs no bounds checking, (use %s)\n", w_cnt, v, w);
 		} else
 		{	char *buf;
-			int len = strlen(v)+strlen(w)+strlen("cwe_120_1,  performs no bounds checking, (use )");
+			int len = strlen(v)+strlen(w)+strlen("cwe_120_1:  performs no bounds checking, (use )");
 
 			buf = (char *) emalloc( (len+1)*sizeof(char) );
-			sprintf(buf, "cwe_120_1, %s performs no bounds checking, (use %s)", v, w);
+			sprintf(buf, "cwe_120_1: %s performs no bounds checking, (use %s)", v, w);
 
 			for (i = 0; i < Ncore; i++)
 			{	switch (which) {
@@ -371,7 +371,7 @@ report_120_2(void)
 	{	w_cnt += size_fct(thr[i].Snprintf);
 	}
 	if (w_cnt > 0)
-	{	buf = "cwe_120_2, snprintf  :: missing width limit on %%s";
+	{	buf = "cwe_120_2: snprintf  :: missing width limit on %%s";
 
 		if (no_display)
 		{	printf("cwe_120_2: %d warnings: %s\n", w_cnt, buf);
@@ -384,7 +384,7 @@ report_120_2(void)
 	{	w_cnt += size_fct(thr[i].Scanf);
 	}
 	if (w_cnt > 0)
-	{	buf = "cwe_120_2, scanf  :: missing width limit on %%s";
+	{	buf = "cwe_120_2: scanf  :: missing width limit on %%s";
 
 		if (no_display)
 		{	printf("cwe_120_2: %d warnings: %s\n", w_cnt, buf);

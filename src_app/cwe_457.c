@@ -424,7 +424,7 @@ report_457(void)
 	while (cobra_nxt())
 	{	if (cur->mset[2] == 457)
 		{	if (!no_display)
-			{	printf("%s:%d: cwe_457, uninitialized var %s?\n",
+			{	printf("%s:%d: cwe_457: uninitialized var %s?\n",
 					cur->fnm, cur->lnr, cur->txt);
 			}
 			cur->mset[2] = 0;
