@@ -203,6 +203,13 @@ def jpl_rule13a
 	# !echo "=== no global single character identifiers
 	r
 	m @ident; m & (!.curly && !.round); m & /^.$
+	%{	# not in compiler directives
+		if (@cpp)
+		{	while (. != END && .txt != "EOL")
+			{	.mark = 0;
+				. = .nxt;
+		}	}
+	%}
 end
 
 def jpl_rule14a
