@@ -343,8 +343,24 @@ evaluate(const Prim *q, const Lextok *n)
 			   }
 			   break;
 		case '*':  rval = binop(*); break;
-		case '/':  rval = binop(/); break;
-		case '%':  rval = binop(%); break;
+		case '/':
+			   rval = evaluate(q, n->rgt);
+			   if (rval == 0)
+			   {	// division by zero
+				fprintf(stderr, "error: divsion by zero\n");
+			   } else
+			   {	rval = (evaluate(q, n->lft) / rval);
+			   }
+			   break;
+		case '%':
+			   rval = evaluate(q, n->rgt);
+			   if (rval == 0)
+			   {	// division by zero
+				fprintf(stderr, "error: modulo of zero\n");
+			   } else
+			   {	rval = (evaluate(q, n->lft) % rval);
+			   }
+			   break;
 		case  OR:  rval = binop(||); break;
 		case AND:  rval = binop(&&); break;
 		case  EQ:
