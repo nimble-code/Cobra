@@ -11,6 +11,19 @@ int cwe805;
 int cwe416;
 int cwe457;
 
+// the following shouldn't be necessary here
+// because they are defined in c.ar
+// but on the mac, scope_check doesn't compile
+// without these; they are otherwise not used here
+// (same issue as in scope_check.c)
+
+int json_format;
+int json_plus;
+int stream;
+char *cobra_texpr;
+
+// end of redundancies
+
 #define A	1
 #define B	2
 #define C	4

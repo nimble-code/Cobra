@@ -47,6 +47,18 @@ struct MyRange {
 
 TokRange	**tokrange;	// for cobra_prep.c
 
+// the following shouldn't be necessary here
+// because they are defined in c.ar
+// but on the mac, scope_check doesn't compile
+// without these; they are otherwise not used here
+
+int json_format;
+int json_plus;
+int stream;
+char *cobra_texpr;
+
+// end of redundancies
+
 int
 hash_s(char *v)
 {	unsigned int h = 0x88888EEFL;
