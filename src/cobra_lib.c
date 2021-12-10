@@ -1790,7 +1790,7 @@ pre_scan(char *bc)	// non-generic commands
 			{	patterns_list(nextarg(a));
 				return 1;
 			} else if (strncmp(a, "convert", 7) == 0)	// ps convert name
-			{	convert_set(nextarg(a));
+			{	cnt = json_convert(nextarg(a));
 				return 1;
 			} else if (*a != '\0')	// eg ps C = A & B
 			{	b = a;
@@ -2574,8 +2574,10 @@ contains_range(void *arg)
 					{	local_cnt++;
 						q->mark = -1;	// hide from test at loop-start
 					}
-					break;
-		}	}	}
+					if (!and_mode)
+					{	break;
+		}	}	}	}
+
 		if (( found && !inverse)
 		||  (!found &&  inverse))
 		{	if (!and_mode || inverse)
@@ -3426,7 +3428,7 @@ fix_eol(void)
 }
 
 void
-set_cnt(int n)
+set_cnt(const int n)
 {
 	cnt = n;
 }

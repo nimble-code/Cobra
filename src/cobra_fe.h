@@ -7,7 +7,7 @@
 #ifndef COBRA_FE
 #define COBRA_FE
 
-#define tool_version	"Version 3.6 - 11 September 2021"
+#define tool_version	"Version 3.7 - 9 December 2021"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -36,6 +36,9 @@
  #define MaxArg	8
 #endif
 
+#define NEW_M	  	0
+#define OLD_M	  	1
+
 #define NAHASH		512
 #define MAXYYTEXT	2048
 
@@ -44,11 +47,20 @@ typedef struct Files	Files;
 typedef struct Stack	Stack;
 typedef struct Typedef Typedef;
 typedef unsigned char	uchar;
+typedef struct Match	Match;
+typedef struct Named	Named;	// named sets of matches
+typedef struct Bound	Bound;
+typedef struct Store	Store;
 
 struct ArgList {
 	char	*s;	// actual param
 	char	*nm;	// formal param
 	ArgList	*nxt;
+};
+
+struct Bound {
+	Prim	*ref;
+	Bound	*nxt;
 };
 
 struct Files {
@@ -59,11 +71,32 @@ struct Files {
 	Files	*nxt;
 };
 
+struct Match {
+	Prim	*from;
+	Prim	*upto;
+	Bound	*bind;
+	Match	*nxt;
+};
+
+struct Named {
+	char	*nm;
+	Prim	*cloned;
+	Match	*m;
+	Named	*nxt;
+};
+
 struct Stack {
 	const char *nm;
 	int	 na;		// NrArgs
 	char	*sa[MaxArg];	// ScriptArg
 	Stack	*nxt;
+};
+
+struct Store {
+	char	*name;
+	char	*text;
+	Prim	*ref;		// last place where bound var was seen
+	Store	*nxt;
 };
 
 struct Typedef {
@@ -73,7 +106,13 @@ struct Typedef {
 };
 
 extern char	*C_BASE;
+extern char	*glob_te;
+extern char	*scrub_caption;
+extern char	*cobra_texpr;
 extern pthread_t *t_id;
+extern Named	*namedset;
+extern Match	*free_match;
+extern Bound	*free_bound;
 
 extern int	ada;
 extern int	all_headers;
@@ -90,25 +129,43 @@ extern int	no_display;
 extern int	no_headers;
 extern int	no_match;
 extern int	parse_macros;
+extern int	p_matched;
 extern int	p_debug;
 extern int	preserve;
 extern int	python;
 extern int	scrub;
+extern int	stream;
 extern int	stream_lim;
 extern int	stream_margin;
 extern int	verbose;
 extern int	with_comments;
 
+extern int	json_format;
+extern int	json_plus;
+extern int	nr_json;
+extern char	json_msg[128];
+extern void	json_match(const char *, const char *, const char *, int);
+extern void	new_named_set(const char *);
+extern Match	*findset(const char *, int, int);
+
 extern int	add_file(char *, int, int);
 extern int	c_lex(int);
+extern int	do_markups(const char *);
+extern int	json_convert(const char *);
 extern int	listfiles(int, const char *);
+extern int	matches2marks(int);
 extern int	mkstemp(char *);
 extern int	sanitycheck(int);
 
 extern size_t	*hmalloc(size_t, const int, const int);
 
+extern void	add_match(Prim *f, Prim *t, Store *bd);
+extern void	add_pattern(const char *, Prim *, Prim *);
 extern void	basic_prim(const char *s, int cid);
+extern void	clear_matches(void);
+extern void	clr_matches(int);
 extern void	cobra_main(void);
+extern void	del_pattern(const char *, Prim *, Prim *);
 extern void	do_lock(int);
 extern void	do_unlock(int);
 extern void	efree(void *);
@@ -123,6 +180,7 @@ extern void	memusage(void);
 extern void	post_process(int);
 extern void	prep_pre(void);
 extern void	remember(const char *, int, int);
+extern void	show_line(FILE *, const char *, int, int, int, int);
 extern void	start_timer(int);
 extern void	stop_timer(int, int, const char *);
 extern void	t_lex(int);	// text only mode

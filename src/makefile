@@ -13,9 +13,10 @@ APP=../src_app
 OS=cobra_prim.o cobra_prep.o cobra_heap.o \
    cobra_lib.o cobra_eval.o cobra_fcg.o cobra_lex.o \
    cobra_prog.o cobra_sym.o cobra_cfg.o cobra_te.o \
-   cobra_links.o cobra_array.o cobra_list.o
+   cobra_links.o cobra_array.o cobra_list.o cobra_json.o
 
-AR=cobra_lex.o cobra_prep.o cobra_prim.o cobra_heap.o cobra_links.o
+AR=cobra_lex.o cobra_prep.o cobra_prim.o \
+   cobra_heap.o cobra_links.o cobra_json.o
 
 			# gprof: make F="-g -pg"
 			# coverage: make F="-fprofile-arcs -ftest-coverage"

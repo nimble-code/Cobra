@@ -191,3 +191,28 @@
     a pattern set into basic markings with the new 'ps'
     (short for 'pattern set') command.
     added manual pages and explanations for the changes.
+
+3.7 december 10 2021
+  - added support for named pattern sets in the scripting
+    language (routines: add_pattern(), del_pattern() )
+  - fixed a bug in the working of the contains & command
+    which now correctly matches what the manual page says
+  - add 5 routines to the c_api.h API header file, with
+    matching support from the front-end.  backend-checkers
+    can now use routines
+	add_pattern(set_name, from_token, upto_token)
+	del_pattern(set_name, from_token, upto_token)
+	json(msg)
+	  // to emit marked tokens in json format
+	json_convert(set_name)
+	  // to convert the matched
+	  // patterns from a set into
+	  // markings, where json() can see them
+	json_match(msg, detail, file, linenr)
+	  // to generate a json-formatted output msg
+   - extended the backend tool src_app/find_taint*
+     to support two new options: --json and --json+
+     which cause output to be produced in JSON format
+     in terse (--json) or more verbose (--json+) form.
+   - the backend tool cwe will be modified as well
+     in a future update

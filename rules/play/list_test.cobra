@@ -1,12 +1,12 @@
 # requries cobra version 3.2 (sept 2020) or later
 # test the list functions:
-#	 1 list_add_top
-#	 2 list_add_bot
-#	 3 list_del_top
-#	 4 list_del_bot
-#	 5 list_get_top
-#	 6 list_get_bot
-#	 7 list_new_tok
+#	 1 list_add_top	(synonym: list_push)
+#	 2 list_add_bot	(synonym: list_append)
+#	 3 list_del_top	(synonym: list_pop)
+#	 4 list_del_bot	(synonym: list_chop)
+#	 5 list_get_top	(synonym: list_top)
+#	 6 list_get_bot	(synonym: list_bot)
+#	 7 list_new_tok (synonym: list_tok)
 #	 8 list_rel_tok
 #	 9 list_rel
 #	10 list_len

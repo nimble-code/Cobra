@@ -7,7 +7,6 @@
 #include "cobra.h"
 
 FList **flist;
-char *scrub_caption = "";
 extern int no_caller_info;
 
 static int path = 1;	// testing
@@ -690,77 +689,4 @@ context(char *s, char *unused)
 			||  strcmp(f->nm, "check_args") == 0)
 			{	printf("ix %d, fct %s, calls %s\n", ix, f->nm, g->nm);
 	}	}	}
-}
-
-void
-show_line(FILE *fdo, const char *fnm, int n, int from, int upto, int tag)
-{	FILE *fdi;
-	char buf[MAXYYTEXT];
-	int ln = 0;
-	static int wcnt = 1;
-
-	if (scrub && strlen(scrub_caption) > 0)
-	{	fprintf(fdo, "cobra%05d <Med> :%s:%d: %s\n",
-			wcnt++, fnm, tag, scrub_caption);
-		if (upto == from)
-		{	return;
-	}	}
-
-	if ((fdi = fopen(fnm, "r")) == NULL)
-	{	printf("cannot open '%s'\n", fnm);
-		return;
-	}
-
-	while (fgets(buf, sizeof(buf), fdi) && ++ln <= upto)
-	{	if (ln >= from)
-		{	if (scrub)
-			{	if (buf[0] == '\n' || buf[0] == '\r')
-				{	continue;
-				}
-				if (strlen(scrub_caption) > 0)
-				{	fprintf(fdo, "\t");
-				} else
-				{	fprintf(fdo, "cobra%05d <Med> :%s:%d: ",
-						wcnt++, fnm, ln);
-				}
-				fprintf(fdo, "%c", (ln == tag && upto > from)?'>':' ');
-				goto L;
-			}
-			if (n > 0 && !cobra_texpr)
-			{	fprintf(fdo, "%3d: ", n);
-			}
-			if (gui)
-			{	fprintf(fdo, "%c%s:%05d:  ",
-					(ln == tag && upto > from)?'>':' ',
-					fnm, ln);
-			} else if (tag >= 0)
-			{	fprintf(fdo, "%c%5d  ",
-					(ln == tag && upto > from)?'>':' ',
-					ln);
-			} else	// tag < 0 -> json output
-			{	char *q, *p = buf;
-				while (*p == ' ' || *p == '\t')
-				{	p++;
-				}
-				while ((q = strchr(p, '\n'))
-				||     (q = strchr(p, '\r')))
-				{	*q = '\0';
-				}
-				// remove escape characters and double quotes
-				for (q = p; *q != '\0'; q++)
-				{	if (*q == '"')
-					{	*q = '\'';
-					} else if (*q == '\\')
-					{	*q = ' ';
-					} else if (*q == '/' && *(q+1) == '/')
-					{	*q = '\0';
-						break;
-				}	}
-				fprintf(fdo, "%s", p);
-				continue;
-			}
-L:			fprintf(fdo, "%s", buf);
-	}	}
-
-	fclose(fdi);
 }

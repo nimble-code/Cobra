@@ -215,7 +215,7 @@ set_multi(void)
 		{	tokrange[i]->upto = x->prv;
 		}
 		if (0)
-		{	printf("%d: from %d .. %d -- %d - %d\n", i,
+		{	fprintf(stderr, "%d: from %d .. %d -- %d - %d\n", i,
 				tokrange[i]->from->seq,
 				tokrange[i]->upto->seq,
 				a->seq, b->seq);

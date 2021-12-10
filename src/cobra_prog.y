@@ -127,6 +127,7 @@ void	eval_prog(Prim **, Lextok *, Rtype *, const int);
 extern void	new_array(char *, int);	// cobra_array.c
 extern void	show_error(FILE *, int);
 extern int	xxparse(void);
+extern Prim	*cp_pset(char *, int);	// cobra_te.c
 static int	yylex(void);
 
 extern int	stream;
@@ -140,6 +141,7 @@ extern int	stream_override;
 %token	TXT TYP NEWTOK SUBSTR STRLEN SET_RANGES CPU N_CORE SUM
 %token	A_UNIFY LOCK UNLOCK ASSERT TERSE TRUE FALSE VERBOSE
 %token	FCTS MARKS SAVE RESTORE RESET
+%token  ADD_PATTERN DEL_PATTERN CP_PSET
 %token	ADD_TOP ADD_BOT POP_TOP POP_BOT TOP BOT
 %token	OBTAIN_EL RELEASE_EL UNLIST LLENGTH GLOBAL
 
@@ -231,6 +233,17 @@ b_stmnt	: p_lhs '=' expr { $2->lft = $1; $2->rgt = $3; $$ = $2; }
 	| A_UNIFY '(' NAME ',' nr_or_cpu ')' { $1->lft = $5; $1->rgt = $3; $$ = $1; }
 	| A_UNIFY '(' nr_or_cpu ')'	{ $1->lft = $3; $1->rgt = 0; $$ = $1; }
 
+	| ADD_PATTERN '(' NAME ',' t_ref ',' t_ref ')'	{
+				$1->lft = $3;
+				$1->rgt = new_lex(0, $5, $7);
+				$$ = $1;
+			}
+	| DEL_PATTERN '(' NAME ',' t_ref ',' t_ref ')'	{
+				$1->lft = $3;
+				$1->rgt = new_lex(0, $5, $7);
+				$$ = $1;
+			}
+
 	| RELEASE_EL '(' expr ')'	{ $1->lft = $3; $$ = $1;}
 	| POP_TOP '(' NAME ')'		{ $1->lft = $3; $$ = $1;}
 	| POP_BOT '(' NAME ')'		{ $1->lft = $3; $$ = $1;}
@@ -244,6 +257,10 @@ b_stmnt	: p_lhs '=' expr { $2->lft = $1; $2->rgt = $3; $$ = $2; }
 	| CONTINUE
 	| NEXT_T
 	| STOP
+	;
+t_ref	: NAME
+	| p_ref
+	| '.'
 	;
 nr_or_cpu: NR
 	| CPU
@@ -302,6 +319,7 @@ expr	:'(' expr ')'		{ $$ = $2; }
 	| '~' expr %prec UMIN	{ $1->rgt = $2; $$ = $1; }
 	| '^' expr %prec UMIN	{ $1->rgt = $2; $$ = $1; }
 	| STRING		{ fixstr($1); $$ = $1; }
+	| CP_PSET '(' NAME ')'	{ $$->lft = $3; $$ = $1; }
 	| SUBSTR '(' expr ',' expr ',' expr ')' {
 				  $1->lft = $3;
 				  $1->rgt = new_lex(0, $5, $7);
@@ -370,6 +388,8 @@ static FILE *pfd;
 static struct Keywords {
 	char *s; int t;
 } key[] = {
+	{ "a_unify",	A_UNIFY },
+	{ "add_pattern", ADD_PATTERN },
 	{ "assert",	ASSERT },
 	{ "Begin",	BEGIN },
 	{ "bound",	BOUND },
@@ -379,6 +399,7 @@ static struct Keywords {
 	{ "core",	CPU },
 	{ "cpu",	CPU },
 	{ "curly",	CURLY },
+	{ "del_pattern", DEL_PATTERN },
 	{ "else",	ELSE },
 	{ "End",	END },
 	{ "false",	FALSE },
@@ -415,8 +436,11 @@ static struct Keywords {
 	{ "newtok",	NEWTOK },
 	{ "Next",	NEXT_T },
 	{ "nxt",	NXT },
+	{ "p_start",	JMP },
+	{ "p_end",	BOUND },
 	{ "print",	PRINT },
 	{ "prv",	PRV },
+	{ "pset",	CP_PSET },
 	{ "range",	RANGE },
 	{ "reset",	RESET },
 	{ "restore",	RESTORE },
@@ -431,14 +455,13 @@ static struct Keywords {
 	{ "strlen",	STRLEN },
 	{ "substr",	SUBSTR },
 	{ "sum",	SUM },
+	{ "terse",	TERSE },
 	{ "true",	TRUE },
 	{ "txt",	TXT },
 	{ "type",	TYP },
 	{ "typ",	TYP },
-	{ "a_unify",	A_UNIFY },
 	{ "unlock",	UNLOCK },
 	{ "unset",	UNSET },
-	{ "terse",	TERSE },
 	{ "verbose",	VERBOSE },
 	{ "while",	WHILE },
 	{ 0, 0 }
@@ -2835,6 +2858,43 @@ handle_global(Lextok *t)
 	}
 }
 
+static void
+bad_ref(const Var_nm *n, const Rtype *rv, const Lextok *from)
+{
+	if (!n)
+	{	fprintf(stderr, "error: '%s' not found\n", from->s);
+	} else if (rv->rtyp != PTR)
+	{	fprintf(stderr, "error: '%s' bad token ref\n", from->s);
+	}
+}
+
+static Prim *
+handle_arg(Prim **ref_p, Lextok *from, Rtype *rv, const int ix)
+{	Var_nm *n;
+
+	if (!from)
+	{	fprintf(stderr, "error: add/del_pattern (internal error)\n");
+		return NULL;
+	}
+
+	if (from->typ == '.')
+	{	return *ref_p;
+	}
+
+	if (from->typ != NAME)
+	{	fprintf(stderr, "error: bad add/del_pattern command\n");
+		return NULL;
+	}
+
+	n = get_var(ref_p, from, rv, ix);
+	if (!n || rv->rtyp != PTR || !n->pm)
+	{	bad_ref(n, rv, from);
+		return NULL;
+	}
+
+	return n->pm;
+}
+
 void
 eval_prog(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)
 {	Prim  *p;
@@ -3139,6 +3199,46 @@ next:
 	case GOTO:
 		break;
 
+	case ADD_PATTERN:	// name q->lft, from q->rgt->lft, upto q->rgt->rgt
+	case DEL_PATTERN:
+		if (q->lft
+		&&  q->rgt
+		&&  q->rgt->lft
+		&&  q->rgt->rgt)
+		{	Prim *f, *u;
+
+			f = handle_arg(ref_p, q->rgt->lft, rv, ix); // from
+			u = handle_arg(ref_p, q->rgt->rgt, rv, ix); // upto
+
+			if (f && u)
+			{	printf("%s_pattern to set '%s' from %s:%d upto %s:%d\n",
+					(q->typ == ADD_PATTERN) ? "add" : "del",
+					q->lft->s, f->fnm, f->lnr, u->fnm, u->lnr);
+				if (q->typ == ADD_PATTERN)
+				{	add_pattern(q->lft->s, f, u);
+				} else
+				{	del_pattern(q->lft->s, f, u);
+			}	}
+			break;
+		}
+		// error case
+		show_error(stderr, q->lnr);
+		unwind_stack(ix);
+		sep[ix].T_stop++; 
+		rv->rtyp = STP;
+		break;
+	case CP_PSET:
+		rv->ptr = cp_pset(q->lft->s, ix);
+		if (!rv->ptr)
+		{	show_error(stderr, q->lnr);
+			unwind_stack(ix);
+			sep[ix].T_stop++; 
+			rv->rtyp = STP;
+		} else
+		{	rv->rtyp = PTR;
+		}
+		break;
+
 	case ASSERT:
 		eval_prog(ref_p, q->lft, rv, ix);
 		Assert("assert", rv->rtyp == VAL, q->lft);
@@ -3323,6 +3423,8 @@ next:
 	{	switch (q->typ) {
 		case ';':
 		case '=':
+		case ADD_PATTERN:
+		case DEL_PATTERN:
 		case ASSERT:
 		case INCR:
 		case DECR:

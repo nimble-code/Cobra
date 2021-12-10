@@ -9,27 +9,16 @@
 
 #include "cobra_fe.h"	// shared with front-end
 
-typedef struct Bound	Bound;
 typedef struct Cmd	Cmd;
 typedef struct Commands	Commands;
 typedef struct FList	FList;
 typedef struct Function	Function;
 typedef struct History	History;
 typedef struct Lextok	Lextok;
-typedef struct Match	Match;
-typedef struct Named	Named;	// named sets of matches
 typedef struct Qual	Qual;
 typedef struct Script	Script;
-typedef struct Store	Store;
 
 typedef Lextok *Lexptr;
-
-struct Store {
-	char	*name;
-	char	*text;
-	Prim	*ref;	// last place where bound var was seen
-	Store	*nxt;
-};
 
 struct Lextok {
 	int	typ;
@@ -91,24 +80,6 @@ struct Commands {
 	int   n; // nr chars needed to disambiguate
 };
 
-struct Bound {
-	Prim	*ref;
-	Bound	*nxt;
-};
-
-struct Match {
-	Prim	*from;
-	Prim	*upto;
-	Bound	*bind;
-	Match	*nxt;
-};
-
-struct Named {
-	char	*nm;
-	Match	*m;
-	Named	*nxt;
-};
-
 struct Function {
 	Lextok	 *nm;
 	Lextok   *formal;
@@ -143,12 +114,10 @@ extern int restore(const char *, const char *);
 extern int save(const char *, const char *);
 
 extern void cfg(char *from_f, char *to_f);
-extern void clear_matches(void);
 extern void cobra_range(Prim *, Prim *);
 extern void cobra_tag(Prim *);
 extern void cobra_te(char *, int, int);
 extern void context(char *, char *);
-extern void convert_set(const char *);
 extern void display(char *, char *);
 extern void display_patterns(const char *);
 extern void dogrep(const char *);
@@ -168,12 +137,12 @@ extern void rescan(void);
 extern void run_bup_threads(void *(*f)(void*));
 extern void run_threads(void *(*f)(void*), int);
 extern void setname(char *);
+extern void set_cnt(const int);
 extern void set_operation(char *);
 extern void set_ranges(Prim *, Prim *);
 extern void set_regex(char *);
 extern void set_links(void);
 extern void set_tmpname(char *, const char *, const int);
-extern void show_line(FILE *, const char *, int, int, int, int);
 extern void stop_threads(void);
 extern void undo_matches(void);
 extern void var_links(char *, char *);
@@ -194,9 +163,7 @@ extern char  FsmDot[64];
 extern char  ShowDot[128];
 extern char  ShowFsm[128];
 extern char *cobra_target;
-extern char *cobra_texpr;
 extern char *cobra_commands;
-extern char *scrub_caption;
 extern char *yytext;
 extern char *global_t;
 

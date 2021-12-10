@@ -30,26 +30,27 @@ flag_problems(void)
 }
 
 static void
-show_configs(void)
+show_configs(FILE *fd)
 {	ConfigDefs *x;
 	int i;
 
-	printf("#  propagators format:\n");
-	printf("#	fct_name\tsource\tdest\n");
-	printf("#  importers format:\n");
-	printf("#	fct_name\tsource of tainted data\n");
-	printf("#  targets format:\n");
-	printf("#	fct_name\tvulnerable arg\n");
+	fprintf(fd, "taint_config: configuration data read:\n");
+	fprintf(fd, "#  propagators format:\n");
+	fprintf(fd, "#	fct_name\tsource\tdest\n");
+	fprintf(fd, "#  importers format:\n");
+	fprintf(fd, "#	fct_name\tsource of tainted data\n");
+	fprintf(fd, "#  targets format:\n");
+	fprintf(fd, "#	fct_name\tvulnerable arg\n");
 	for (i = 0; i < NONE; i++)
-	{	printf("%s\n", configmap[i].heading);
+	{	fprintf(fd, "%s\n", configmap[i].heading);
 		for (x = configged[i]; x; x = x->nxt)
-		{	printf("\t%s", x->nm);
+		{	fprintf(fd, "\t%s", x->nm);
 			if (x->from)
-			{	printf("\t%d", x->from);
+			{	fprintf(fd, "\t%d", x->from);
 				if (x->into)
-				{	printf("\t%d", x->into);
+				{	fprintf(fd, "\t%d", x->into);
 			}	}
-			printf("\n");
+			fprintf(fd, "\n");
 	}	}
 }
 
@@ -66,7 +67,7 @@ new_config(const char *nm, int curtype, int from, int into)
 	configged[curtype] = x;
 
 	if (verbose)
-	{	printf("'%s' add '%s'\n", configmap[curtype].heading, nm);
+	{	fprintf(stderr, "'%s' add '%s'\n", configmap[curtype].heading, nm);
 	}
 
 	return x;
@@ -77,7 +78,7 @@ markit(Prim *q, int m)
 {
 	q->mark |= ExternalSource;
 	if (verbose > 1)
-	{	printf("%s:%d: marked gets arg '%s' (+%d)\n",
+	{	fprintf(stderr, "%s:%d: marked gets arg '%s' (+%d)\n",
 			q->fnm, q->lnr, q->txt, m);
 	}
 }
@@ -100,7 +101,7 @@ mark_str_args(Prim *q, Prim *r, int m)	// q is the format string, r is bound on 
 			q->mark |= m;
 			cnt++;
 			if (verbose > 1)
-			{	printf("%s:%d: marked scanf arg '%s' (+%d)\n",
+			{	fprintf(stderr, "%s:%d: marked scanf arg '%s' (+%d)\n",
 					q->fnm, q->lnr, q->txt, m);
 			}
 			// fall thru
@@ -171,7 +172,7 @@ handle_taintsources(Prim *p)
 		{	p->mark |= ExternalSource;
 			cnt++;
 			if (verbose > 1)
-			{	printf("%s:%d: marked '%s' (+%d)\n",
+			{	fprintf(stderr, "%s:%d: marked '%s' (+%d)\n",
 					p->fnm, p->lnr, p->txt, ExternalSource);
 			}
 			continue;
@@ -230,8 +231,10 @@ handle_importers(Prim *p)
 				cnt++;
 				if (strcmp(p->txt, "gets") == 0)
 				{	ngets++;
-					if (verbose || !no_match || !no_display) // ie no -terse argument
-					{	printf(" %3d: %s:%d: warning: unbounded call to gets()\n",
+					if (verbose
+					|| !no_match
+					|| !no_display) // ie no -terse argument
+					{	fprintf(stderr, " %3d: %s:%d: warning: unbounded call to gets()\n",
 							++warnings, p->fnm, p->lnr);
 	}	}	}	}	}
 
@@ -401,8 +404,7 @@ taint_configs(void)
 	taint_init();	// initialize thread data structures
 
 	if (verbose)
-	{	printf("taint_config: configuration data read:\n");
-		show_configs();
+	{	show_configs(stderr);
 	}
 
 	return flag_problems();

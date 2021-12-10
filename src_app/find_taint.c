@@ -42,13 +42,13 @@ char *Cfg;	// user-defined configuration file, can be set with --cfg=newfilenae
 // utility functions
 
 static void
-what_mark(const char *prefix, enum Tags t)
+what_mark(FILE *fd, const char *prefix, enum Tags t)
 {	int i, j;
 	int cnt = 0;
 
 	for (i = j = 1; j < Stop; i++, j *= 2)
 	{	if (t & j)
-		{	printf("%s%s", cnt ? ", " : prefix, marks[i]);
+		{	fprintf(fd, "%s%s", cnt ? ", " : prefix, marks[i]);
 			cnt++;
 	}	}
 }
@@ -140,7 +140,7 @@ check_var(Prim *r, Prim *x, int cid)	// mark later uses of r->txt within scope, 
 	int level = x?x->curly:0;
 
 	if (0)
-	{	printf("%d: check_var %s - forward scan <%d> ((%d::%s))\n",
+	{	fprintf(stderr, "%d: check_var %s - forward scan <%d> ((%d::%s))\n",
 			r->lnr, r->txt, r->mark, x->lnr, x->txt);
 	}
 
@@ -162,7 +162,7 @@ check_var(Prim *r, Prim *x, int cid)	// mark later uses of r->txt within scope, 
 			r->bound = w; // point to place where an external source was tagged
 			if (verbose > 1)
 			{	do_lock(cid);
-				printf("%d: %s:%d: marked new occurrence of %s (+%d -> %d)\n",
+				fprintf(stderr, "%d: %s:%d: marked new occurrence of %s (+%d -> %d)\n",
 					cid, r->fnm, r->lnr, r->txt, DerivedFromExternal, r->mark);
 				do_unlock(cid);
 		}	}
@@ -171,11 +171,11 @@ check_var(Prim *r, Prim *x, int cid)	// mark later uses of r->txt within scope, 
 }
 
 static void
-trace_back(const char *prefix, const Prim *p, const int a)
+trace_back(FILE *fd, const char *prefix, const Prim *p, const int a)
 {	Prim *e, *f = (Prim *) 0;
 	int cnt=10, first=1;
 
-	if (!p)
+	if (!p || json_format)
 	{	return;
 	}
 	for (e = p->mbnd[a]; cnt > 0 && e; cnt--, e = e->mbnd[a])
@@ -183,28 +183,32 @@ trace_back(const char *prefix, const Prim *p, const int a)
 		&& (e->mset[a] != Target || verbose))
 		{	if (first)
 			{	first = 0;
-				printf("%s\n", prefix);
+				fprintf(fd, "%s\n", prefix);				// n
 			}
-			printf("\t\t>%s:%d: %s (", e->fnm, e->lnr, e->txt);
-			what_mark("", e->mset[a]);
-			what_mark("\t", e->mset[(a==3)?1:3]);	// 1->3, 3->1
-			printf(")\n");
+			fprintf(fd, "\t\t>%s:%d: %s (", e->fnm, e->lnr, e->txt);	// n
+			what_mark(fd, "", e->mset[a]);
+			what_mark(fd, "\t", e->mset[(a==3)?1:3]);	// 1->3, 3->1
+			fprintf(fd, ")\n");						// n
 			if (!f) { f = e; } // remember the first
 	}	}
 }
 
 static void
-add_details(Prim *p, const int a, Prim *q, const int b)
+add_details(FILE *fd, Prim *p, const int a, Prim *q, const int b)
 {	//   prv		 nxt
+
+	if (json_format)
+	{	return;
+	}
 	if (p->mset[a])
-	{	what_mark("\tT:", p->mset[a]);
+	{	what_mark(fd, "\tT:", p->mset[a]);
 	}
 	if (q->mset[b])
-	{	what_mark("\tE:", q->mset[b]);
+	{	what_mark(fd, "\tE:", q->mset[b]);
 	}
-	printf("\n");
-	trace_back("\t  (taints)", p, a);
-	trace_back("\t  (external)", q, b);
+	fprintf(fd, "\n");								// n
+	trace_back(fd, "\t  (taints)", p, a);
+	trace_back(fd, "\t  (external)", q, b);
 }
 
 // the main steps
@@ -218,7 +222,7 @@ find_sources(void)	// external sources of potentially malicious data
 		cnt += handle_importers(cur);
 	}
 	if (verbose && cnt > 0)
-	{	printf("marked %d vars as potential external taint source%s (+%d)\n",
+	{	fprintf(stderr, "marked %d vars as potential external taint source%s (+%d)\n",
 			cnt, cnt>1?"s":"", ExternalSource);
 	}
 	return cnt;
@@ -255,7 +259,7 @@ pre_scope_range(Prim *from, Prim *upto, int cid)	// propagate external source ma
 			{	q->mark |= DerivedFromExternal;
 				if (verbose > 1)
 				{	do_lock(cid);
-					printf("\t%s:%d: prescope propagated %s (+%d)\n",
+					fprintf(stderr, "\t%s:%d: prescope propagated %s (+%d)\n",
 						q->fnm, q->lnr, q->txt, DerivedFromExternal);
 					do_unlock(cid);
 				}
@@ -265,7 +269,7 @@ pre_scope_range(Prim *from, Prim *upto, int cid)	// propagate external source ma
 	tokrange[cid]->param = cnt;
 	if (verbose > 1)
 	{	do_lock(cid);
-		printf("%d: pre_scope returns %d\n", cid, cnt);
+		fprintf(stderr, "%d: pre_scope returns %d\n", cid, cnt);
 		do_unlock(cid);
 	}
 }
@@ -289,7 +293,7 @@ pre_scope(void)
 
 	cnt = run_threads(pre_scope_run);
 	if (verbose > 1)
-	{	printf("pre_scope returns %d\n", cnt);
+	{	fprintf(stderr, "pre_scope returns %d\n", cnt);
 	}
 	return cnt;
 }
@@ -353,7 +357,7 @@ check_scope_range(Prim *from, Prim *upto, int cid)	// ExternalSource|DerivedFrom
 		// q->txt is the name of the variable, matching mycur->txt
 		if (verbose > 1)
 		{	do_lock(cid);
-			printf("%d: %s:%d: %s likely declared here (level %d::%d)\n",
+			fprintf(stderr, "%d: %s:%d: %s likely declared here (level %d::%d)\n",
 				cid, q->fnm, q->lnr, mycur->txt, q->curly, q->round);
 			do_unlock(cid);
 		}
@@ -367,7 +371,7 @@ check_scope_range(Prim *from, Prim *upto, int cid)	// ExternalSource|DerivedFrom
 		{	if (q->round != 1)	// nope, means we dont know
 			{	if (verbose>1)
 				{	do_lock(cid);
-					printf("%d: %s:%d: '%s' untracked global (declared at %s:%d)\n",
+					fprintf(stderr, "%d: %s:%d: '%s' untracked global (declared at %s:%d)\n",
 						cid, mycur->fnm, mycur->lnr, mycur->txt, q->fnm, q->lnr);
 					do_unlock(cid);
 				}
@@ -393,7 +397,7 @@ check_scope_range(Prim *from, Prim *upto, int cid)	// ExternalSource|DerivedFrom
 
 		if (0)
 		{	do_lock(cid);
-			printf("%d: check_var %s:%d '%s' level %d <<%d %d>>\n",
+			fprintf(stderr, "%d: check_var %s:%d '%s' level %d <<%d %d>>\n",
 				cid, mycur->fnm, mycur->lnr, mycur->txt, q->nxt->curly,
 				mycur->seq, q->nxt->seq);
 			do_unlock(cid);
@@ -566,7 +570,7 @@ prop_iterate(void)	// PropViaFct
 	cnt += prop_returns();	// parallel -- use of tainted returns from fct calls
 
 	if (verbose)
-	{	printf("prop_iterate (%d) returns %d\n", PropViaFct, cnt);
+	{	fprintf(stderr, "prop_iterate (%d) returns %d\n", PropViaFct, cnt);
 	}
 
 	return cnt;
@@ -602,13 +606,21 @@ handle_targets(Prim *q)
 		p = pick_arg(p, r, x->from);
 
 		if (p->mark & (ExternalSource | DerivedFromExternal))
-		{	if (verbose || !no_display || !no_match)	// no -terse argument was given
+		{	if (verbose
+			|| !no_display
+			|| !no_match)	// no -terse argument was given
 			{	cnt++;
-				printf(" %3d: %s:%d: warning: contents of '%s' in fopen() possibly tainted",
-					++warnings, p->fnm, p->lnr, p->txt);
-				what_mark(": ", p->mark);
-				printf("\n");
-			}
+				warnings++;
+				if (json_format)
+				{	sprintf(json_msg, "contents of '%s' in fopen() possibly tainted",
+						p->txt);
+					json_match("find_taint", json_msg, p->fnm, p->lnr);
+				} else
+				{	printf(" %3d: %s:%d: warning: ", warnings, p->fnm, p->lnr); // n
+					printf("contents of '%s' in fopen() possibly tainted", p->txt); // n
+					what_mark(stdout, ": ", p->mark);
+					printf("\n");	// n
+			}	}
 			nfopen++;
 	}	}
 
@@ -653,16 +665,23 @@ percent_n_check(const char *a, Prim *q, int nr_commas)	// for *printf family
 		switch (*qtr) {
 		case 'n':
 			if (0)
-			{	printf("%d\tsaw %%n, nr %d nr_commas %d correction %d (%s)\n",
+			{	fprintf(stderr, "%d\tsaw %%n, nr %d nr_commas %d correction %d (%s)\n",
 					q->lnr, nr, nr_commas, correction, a);
 			}
 			// the nr-th format conversion is %n
 			// check if its that the one that was marked
 			if (nr == nr_commas - correction)
-			{	printf(" %3d: %s:%d: warning: %s() ",
-					++warnings, q->fnm, q->lnr, q->txt);
-				printf("uses '%%n' with corruptable arg '%s'\n", a);
-			}
+			{	warnings++;
+				if (json_format)
+				{	sprintf(json_msg, "%s() uses '%%n' with corruptable arg '%s'",
+						q->txt, a);
+					json_match("find_taint", json_msg, q->fnm, q->lnr);
+				} else
+				{	printf(" %3d: %s:%d: warning: %s() ",	// n
+						warnings, q->fnm, q->lnr, q->txt);
+					printf("uses '%%n' with corruptable arg '%s'\n", // n
+						a);
+			}	}
 			break;
 		case '%':	// ignore %%
 			nr--;
@@ -720,11 +739,11 @@ propagate_mark(Prim *into, Prim *from)
 	{	cnt++;
 		into->mark |= m;
 		if (verbose > 1)
-		{	printf("%s:%d: marked propagator arg '%s' (+%d)\n",
+		{	fprintf(stderr, "%s:%d: marked propagator arg '%s' (+%d)\n",
 				into->fnm, into->lnr, into->txt, m);
 		}
 	} else if (from->mark)
-	{	printf("%s:%d: propagate: '%s' unhandled case (%d)\n",
+	{	fprintf(stderr, "%s:%d: propagate: '%s' unhandled case (%d)\n",
 			from->fnm, from->lnr, from->txt, from->mark);
 	}
 
@@ -823,7 +842,7 @@ check_uses(const int v)	// used as args of: memcpy, strcpy, sprintf, or fopen
 		}
 		// not marked with v before
 		if (verbose > 1)
-		{	printf("%s:%d: Check Uses, mark %d, txt %s round: %d\n",
+		{	fprintf(stderr, "%s:%d: Check Uses, mark %d, txt %s round: %d\n",
 				cur->fnm, cur->lnr, v, cur->txt, cur->round);
 		}
 
@@ -838,7 +857,7 @@ check_uses(const int v)	// used as args of: memcpy, strcpy, sprintf, or fopen
 		}
 		q = q->prv;	// fct name
 		if (verbose > 1)
-		{	printf("\t\tfctname? '%s' round %d nrcommas %d (v=%d cm %d)\n",
+		{	fprintf(stderr, "\t\tfctname? '%s' round %d nrcommas %d (v=%d cm %d)\n",
 				q->txt, q->round, nr_commas, v, cur->mark);
 		}
 
@@ -857,7 +876,7 @@ check_uses(const int v)	// used as args of: memcpy, strcpy, sprintf, or fopen
 	}	}
 
 	if (verbose)
-	{	printf("%d of the potential targets used in suspicious calls (+%d)\n",
+	{	fprintf(stderr, "%d of the potential targets used in suspicious calls (+%d)\n",
 			cnt, v);
 	}
 }
@@ -913,7 +932,7 @@ find_taintable(void)
 			cur->mark |= Alloca;
 			cnt++;
 			if (verbose > 1)
-			{	printf("possibly taintable (alloca): %s:%d: %s\n",
+			{	fprintf(stderr, "possibly taintable (alloca): %s:%d: %s\n",
 					cur->fnm, cur->lnr, cur->txt);
 			}
 			cur = q;	// restore
@@ -944,7 +963,7 @@ findmore:
 				if (MATCH("["))		// arrays are vulnerable
 				{	r->mark |= Target;
 					if (verbose > 1)
-					{	printf("possibly taintable: %s:%d: %s\n",
+					{	fprintf(stderr, "possibly taintable: %s:%d: %s\n",
 							r->fnm, r->lnr, r->txt);
 					}
 					cnt++;
@@ -955,10 +974,54 @@ findmore:
 	}	}
 
 	if (verbose && cnt > 0)
-	{	printf("found %d potentially taintable sources (marked with %d)\n", cnt, Target);
+	{	fprintf(stderr, "found %d potentially taintable sources (marked with %d)\n",
+			cnt, Target);
 	}
 
 	return cnt;
+}
+
+static char *
+multi_line_from_file(FILE *fd, int cid)
+{	char *buf;
+	char f[2];
+	int c, n = 0;
+
+	fseek(fd, 0L, SEEK_SET);
+
+	while ((c = fgetc(fd)) != EOF)
+	{	n++;
+		if (c == '\n' || c == '\r')
+		{	 n += 3;
+	}	}
+	if (!n)
+	{	return " ";
+	}
+
+	n += strlen(json_msg) + 5;
+	buf = (char *) hmalloc(n * sizeof(char), cid);
+	if (!buf)
+	{	return " ";
+	}
+	f[1] = '\0';
+	fseek(fd, 0L, SEEK_SET);
+	strcpy(buf, json_msg);
+	strcat(buf, "<nl>");
+	while ((c = fgetc(fd)) != EOF)
+	{	if (c == '\n' || c == '\r')
+		{	strcat(buf, "<nl>");
+		} else
+		{	f[0] = c;
+			strcat(buf, f);
+	}	}
+	return buf;
+}
+
+static void
+error_overflow(void)
+{
+	fprintf(stderr, "%s:%d: find_taint: internal error, nbuf too small\n",
+		cur->fnm, cur->lnr);
 }
 
 static int
@@ -1009,18 +1072,43 @@ find_taints(void)		// completes Step 1 from taint_track.cobra script
 						} while (r->seq != cur->nxt->seq);
 
 						if (noprint == 0)			// not gets()
-						{	if (!banner)
-							{	printf("=== Potentially dangerous assignments:\n");
+						{	if (!banner && !json_format)
+							{	printf("=== Potentially dangerous assignments:\n"); // n
 								banner = 1;
 							}
-							printf("%s", lbuf);	// print warning
-							if (r->txt[0] == ','
-							||  r->txt[0] == '[')
-							{	printf("...");
+							if (json_format)
+							{	char nbuf[4096];
+								sprintf(nbuf, "potentially dangerous: %s", lbuf);
+								if (r->txt[0] == ','
+								||  r->txt[0] == '[')
+								{	strcat(nbuf, "... ");
+								}
+								// XXX additional detail for json_plus (multi-line)
+								if (json_plus)
+								{	FILE *fd;
+									fd = tmpfile();
+									if (fd)
+									{	char *str;
+										add_details(fd, cur, 1, cur, 3);
+										str = multi_line_from_file(fd, 0);
+										fclose(fd);
+										if (strlen(nbuf)+strlen(str)+1 < sizeof(nbuf))
+										{	strcat(nbuf, str);
+										} else
+										{	error_overflow();
+								}	}	}
+
+								json_match("find_taint", nbuf, cur->fnm, cur->lnr);
+							} else
+							{	printf("%s", lbuf);	// n
+								if (r->txt[0] == ','
+								||  r->txt[0] == '[')
+								{	printf("..."); // n
+								}
+								cur->mset[1] |= UseOfTaint; // for add_details XXX
+								cur->mbnd[1] = cur->bound;
+								add_details(stdout, cur, 1, cur, 3);
 							}
-							cur->mset[1] |= UseOfTaint; // for add_details XXX
-							cur->mbnd[1] = cur->bound;
-							add_details(cur, 1, cur, 3);
 						} else
 						{	warnings--;		// no warning issued, undo increment
 						}
@@ -1033,13 +1121,13 @@ find_taints(void)		// completes Step 1 from taint_track.cobra script
 					}
 					if (!cur->bound)
 					{	cur->bound = q;	// remember origin
-					} // else printf("1 does this happen?\n");
+					} // else fprintf(stderr, "1 does this happen?\n");
 				} else
 				{	break;	// already searched from here for q->txt
 				}
 
 				if (verbose > 1)
-				{	printf("%s:%d: marked place where %s is used (+%d -> %d [%d::%d])\n",
+				{	fprintf(stderr, "%s:%d: marked place where %s is used (+%d -> %d [%d::%d])\n",
 						cur->fnm, cur->lnr, q->txt, UseOfTaint,
 						cur->mark, cur->mset[1], cur->mset[3]);
 				}
@@ -1068,11 +1156,11 @@ find_taints(void)		// completes Step 1 from taint_track.cobra script
 						}
 						if (!r->bound)
 						{	r->bound = q;	// remember origin
-						} // else printf("2 does this happen?\n");
+						} // else fprintf(stderr, "2 does this happen?\n");
 
 						cnt++;
 						if (verbose > 1)
-						{	printf("%s:%d '%s' tainted by asignment from taintable '%s'\n",
+						{	fprintf(stderr, "%s:%d '%s' tainted by asignment from taintable '%s'\n",
 								r->fnm, r->lnr, r->txt, s->prv->txt);
 				}	}	}
 			// doesnt catch less likely assignments, like ptr = offset + buf
@@ -1083,22 +1171,19 @@ find_taints(void)		// completes Step 1 from taint_track.cobra script
 	}	}
 
 	if (verbose && cnt > 0)
-	{	printf("found %d propagated marks (%d)\n", cnt, UseOfTaint);
+	{	fprintf(stderr, "found %d propagated marks (%d)\n", cnt, UseOfTaint);
 	}
 	return cnt;
 }
 
 static void
-issue_warning(Prim *q, const int a, const int b)
+add_markings(FILE *fd, Prim *q, const int a, const int b)
 {	int none = 1;
 	Prim *p;
 
-	if (!banner)
-	{	printf("=== Potentially dangerous assignments:\n");
-		banner = 1;
-	}
-	printf(" %3d: %s:%d: in call to '%s'", ++warnings, cur->fnm, cur->lnr, cur->txt);
-	printf(" marked arguments:");
+	fprintf(fd, " %3d: %s:%d: in call to '%s'",	// n
+		warnings, cur->fnm, cur->lnr, cur->txt);
+	fprintf(fd, " marked arguments:");		// n
 	for (p = q->nxt; p && p->round > cur->round; p = p->nxt)
 	{	if (strcmp(p->txt, ",") == 0)
 		{	continue;
@@ -1107,19 +1192,45 @@ issue_warning(Prim *q, const int a, const int b)
 		{	continue; // skip this arg
 		}
 		if (none)
-		{	printf("\n");
+		{	fprintf(fd, "\n");	// n
 			none = 0;
 		}
-		printf("\t%s", p->txt);
-		add_details(p, a, p, b);
+		fprintf(fd, "\t%s", p->txt);	// n
+		add_details(fd, p, a, p, b);
 	}
 	if (none)
-	{	printf("\n");
+	{	fprintf(fd, "\n");		// n
 	}
 }
 
 static void
-check_contamination(const int a, const int b)
+issue_warning(Prim *q, const int a, const int b, const int cid)
+{	FILE *fd = NULL;
+	char *str = json_msg;
+
+	warnings++;
+	if (json_format)
+	{	sprintf(json_msg, "potentially dangerous asgn in call to '%s'", cur->txt);
+		if (json_plus)
+		{	// XXX additional detail for json_plus (multi-line)
+			fd = tmpfile();
+			if (fd)
+			{	add_markings(fd, q, a, b);
+				str = multi_line_from_file(fd, cid);
+				fclose(fd);
+		}	}
+		json_match("find_taint", str, cur->fnm, cur->lnr);
+	} else
+	{	if (!banner)
+		{	printf("=== Potentially dangerous assignments:\n"); // n
+			banner = 1;
+		}
+		add_markings(stdout, q, a, b);
+	}
+}
+
+static void
+check_contamination(const int a, const int b, const int cid)
 {	Prim *p, *q;
 	int cnt, nrcommas, nrdots, level;
 
@@ -1163,22 +1274,25 @@ check_contamination(const int a, const int b)
 			}	}	}
 		} while (cnt < 3 && p && p->nxt && p->round > cur->round); // arg list
 		if (cnt == 3)
-		{	issue_warning(q, a, b); // q is start of arg list
+		{	issue_warning(q, a, b, cid); // q is start of arg list
 		}
 	}
 }
 
 static void
-usage(void)
+usage(FILE *fd)
 {
-	printf("find_taint %s: unrecognized -- option(s): '%s'\n", tool_version, backend);
-	printf("valid options are:\n");
-	printf("	--sanity        start with a check for missing links in the input token-stream\n");
-	printf("	--sequential    disable parallel processing in backend (overruling -N settings)\n");
-	printf("	--limitN        with N a number, limit distance from fct call to fct def to Nk tokens\n");
-	printf("	--cfg=file      with file the name of a new configs file (in configs dir, or full path)\n");
-	printf("	--help          print this message\n");
-	printf("	--exit          immediately exit after startup phase in front end is completed\n");
+	fprintf(fd, "find_taint %s: unrecognized -- option(s): '%s'\n", tool_version, backend);
+	fprintf(fd, "valid options are:\n");
+	fprintf(fd, "	--json          generate the basic results in json format (has less detail)\n");
+	fprintf(fd, "	--json+         like --json, but includes more detail\n");
+	fprintf(fd, "	--sanity        start with a check for missing links in the input token-stream\n");
+	fprintf(fd, "	--sequential    disable parallel processing in backend (overruling -N settings)\n");
+	fprintf(fd, "	--limitN        with N a number, limit distance from fct call to fct def to Nk tokens\n");
+	fprintf(fd, "	--cfg=file      with file the name of a new configs file (in configs dir, or full path)\n");
+	fprintf(fd, "	--help          print this message\n");
+	fprintf(fd, "	--exit          immediately exit after startup phase in front end is completed\n");
+	fprintf(fd, "all diagnostic and error output is written to stderr (also when json format is used)\n");
 }
 
 static void
@@ -1195,28 +1309,28 @@ sanity_check(void)
 			{	if (cur->jmp == 0)
 				{	B[i]++;
 					if (i==5)
-					{	printf("missing link on '%s': %s:%d\n",
+					{	fprintf(stderr, "missing link on '%s': %s:%d\n",
 							t_links[i], cur->fnm, cur->lnr);
 					}
 				} else if (strcmp(cur->fnm, cur->jmp->fnm) != 0)
 				{	L[i]++;
-					printf("cross-file link on '%s': %s:%d -> %s:%d (seq: %d -> %d\n",
+					fprintf(stderr, "cross-file link on '%s': %s:%d -> %s:%d (seq: %d -> %d\n",
 						t_links[i],
 						cur->fnm, cur->lnr,
 						cur->jmp->fnm, cur->jmp->lnr,
 						cur->seq, cur->jmp->seq);
 	}	}	}	}
 
-	printf("%d tokens\n", cnt);
-	printf("tokens without link:\n");
+	fprintf(stderr, "%d tokens\n", cnt);
+	fprintf(stderr, "tokens without link:\n");
 	for (i = 0; i < 6; i++)
-	{	printf("\t'%s'=%d", t_links[i], B[i]);
+	{	fprintf(stderr, "\t'%s'=%d", t_links[i], B[i]);
 	}
-	printf("\ncross-file links:\n");
+	fprintf(stderr, "\ncross-file links:\n");
 	for (i = 0; i < 6; i++)
-	{	printf("\t'%s'=%d", t_links[i], L[i]);
+	{	fprintf(stderr, "\t'%s'=%d", t_links[i], L[i]);
 	}
-	printf("\n");
+	fprintf(stderr, "\n");
 }
 
 static int
@@ -1232,16 +1346,24 @@ valid_args(void)
 	{	arg = &arg[5];
 		if (isdigit((int) *arg))
 		{	setlimit = atoi(arg);
-			printf("limiting distance from fct call to fct def to %d,000 tokens\n", setlimit);
+			fprintf(stderr, "limiting distance from fct call to fct def to %d,000 tokens\n",
+				setlimit);
 			valid++;
 	}	}
 	if (strstr(backend, "sequential") != NULL)
 	{	Ncore = 1;	// option --sequential, overrides -N from front-end
-		printf("disabled parallel processing in backend\n");
+		fprintf(stderr, "disabled parallel processing in backend\n");
 		valid++;
 	}
 	if (strstr(backend, "sanity") != NULL)
 	{	sanity_check();
+		valid++;
+	}
+	if (strstr(backend, "json") != NULL)
+	{	json_format = 1;
+		if (strstr(backend, "json+") != NULL)
+		{	json_plus = 1;
+		}
 		valid++;
 	}
 	if ((arg = strstr(backend, "cfg=")) != NULL)
@@ -1253,7 +1375,7 @@ valid_args(void)
 	}
 
 	if (!valid)	// not a great test
-	{	usage();
+	{	usage(stderr);
 	}
 
 	return valid;
@@ -1266,11 +1388,18 @@ phase_zero(void)
 	{	return 0;
 	}
 
+	if (json_format)
+	{	printf("[\n");
+	}
+
 	set_multi();		// cwe_util.c
 	ini_timers();		// front-end
 
 	if (!taint_configs())	// read user-defined configs, if any
-	{	return 0;
+	{	if (json_format)
+		{	printf("\n]\n");
+		}
+		return 0;
 	}
 
 	mark_fcts();	// prep: executes sequentially
@@ -1284,17 +1413,17 @@ phase_one(void)
 {	int cnt = 0, any = 0;
 
 	if (verbose > 1)
-	{	printf("\n=====Phase1 -- mark external sources\n");
+	{	fprintf(stderr, "\n=====Phase1 -- mark external sources\n");
 	}
 
 	cnt = find_sources();	// check most common types, mark as ExternalSource
 
 	if (!cnt)
-	{	printf("find_taint: no sources of external input found\n");
+	{	fprintf(stderr, "find_taint: no sources of external input found\n");
 		if (!p_debug)
 		{	return 0;
 		} else
-		{	printf("find_taint: debug mode, continuing scan anyway\n");
+		{	fprintf(stderr, "find_taint: debug mode, continuing scan anyway\n");
 	}	}
 
 	// mark derived external sources
@@ -1319,14 +1448,14 @@ phase_two(void)
 {	int cnt = 0;
 
 	if (verbose > 1)
-	{	printf("\n=====Phase2 -- mark taintable targets\n");
+	{	fprintf(stderr, "\n=====Phase2 -- mark taintable targets\n");
 	}
 
 	// fixed size buffers declared on stack, marked Target
 	// stack variables assigned with alloca; marked Alloca
 
 	if (!find_taintable())
-	{	printf("find_taint: no taintable targets found\n");
+	{	fprintf(stderr, "find_taint: no taintable targets found\n");
 		return 0;
 	}
 
@@ -1357,27 +1486,27 @@ phase_two(void)
 }
 
 static void
-phase_three(void)
+phase_three(const int cid)
 {
 	if (verbose > 1)
-	{	printf("\n=====Phase3 -- check overlap\n");
+	{	fprintf(stderr, "\n=====Phase3 -- check overlap\n");
 	}
 
-	check_contamination(1, 3);	// assignment of Sources to Targets | not parallel
+	check_contamination(1, 3, cid);	// assignment of Sources to Targets | not parallel
 
 	if (verbose || !no_display || !no_match)	// not terse
 	{	warnings -= (ngets + nfopen + ngets_bad);
 	}
 	if (ngets)
-	{	printf("%3d calls to gets() noted, %d writing to taintable objects\n", ngets, ngets_bad);
+	{	fprintf(stderr, "%3d calls to gets() noted, %d writing to taintable objects\n", ngets, ngets_bad);
 		// the ngets_bad are reported separately as well, and add to the count in 'warnings'
 	}
 	if (nfopen)
-	{	printf("%3d uses of potentially tainted arguments in calls to fopen()\n", nfopen);
+	{	fprintf(stderr, "%3d uses of potentially tainted arguments in calls to fopen()\n", nfopen);
 	}
 	if (warnings)
-	{	printf("%3d %staint warnings\n", warnings, (ngets+nfopen>0)?"other ":"");
-		printf("%3d total warnings\n", warnings+ngets+nfopen+ngets_bad);
+	{	fprintf(stderr, "%3d %staint warnings\n", warnings, (ngets+nfopen>0)?"other ":"");
+		fprintf(stderr, "%3d total warnings\n", warnings+ngets+nfopen+ngets_bad);
 	}
 }
 
@@ -1388,23 +1517,23 @@ show_bindings(const char *s, const Prim *a, const Prim *b, int cid)
 {
 	do_lock(cid);
 	if (a)
-	{	printf("Bind <%s>\t%s:%d: %s (%d)\tto ", s,
+	{	fprintf(stderr, "Bind <%s>\t%s:%d: %s (%d)\tto ", s,
 			a->fnm, a->lnr, a->txt, a->mark);
 	}
 
 	if (b)
-	{	printf("%s:%d: %s ::",
+	{	fprintf(stderr, "%s:%d: %s ::",
 			b->fnm, b->lnr, b->txt);
-		what_mark(" ", b->mark);
-		printf("\n");
+		what_mark(stderr, " ", b->mark);
+		fprintf(stderr, "\n");
 	} else
-	{	printf("--\n");
+	{	fprintf(stderr, "--\n");
 	}
 
 	if (a
 	&&  a->bound
 	&&  a->bound != b)
-	{	printf("\t\t[already bound to %s:%d: %s]\n",
+	{	fprintf(stderr, "\t\t[already bound to %s:%d: %s]\n",
 			a->bound->fnm, a->bound->lnr, a->bound->txt);
 	}
 	do_unlock(cid);
@@ -1426,7 +1555,10 @@ cobra_main(void)
 	// 	 3. parameters to function calls (leading back to 1 and 2)
 
 	if (!phase_one() && !ngets)	// find potentially dangerous external sources
-	{	return;
+	{	if (json_format)
+		{	printf("\n]\n");
+		}
+		return;
 	}
 
 	save_set(3);		// uses of VulnerableTarget, eg in memcpy, strcpy, sprintf
@@ -1441,7 +1573,10 @@ cobra_main(void)
 	//	pointers to those targets (in assignments and fct calls)
 
 	if (!phase_two())
-	{	printf("find_taint: no vulnerable targets found\n");
+	{	fprintf(stderr, "find_taint: no vulnerable targets found\n");
+		if (json_format)
+		{	printf("\n]\n");
+		}
 		return;	// no targets found
 	}
 
@@ -1452,5 +1587,9 @@ cobra_main(void)
 	// 	meaning that an external source can be used in
 	// 	a dangerous operation on a stack-based buffer
 
-	phase_three();
+	phase_three(0);	// not parallel uet
+
+	if (json_format)
+	{	printf("\n]\n");
+	}
 }

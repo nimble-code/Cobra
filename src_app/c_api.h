@@ -9,7 +9,7 @@
 
 // should really be a copy of cobra_fe.h
 
-#define tool_version	"Version 3.5 - 29 July 2021"
+#define tool_version	"Version 3.7 - 9 December 2021"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -56,6 +56,13 @@ extern Prim *prim;
 extern char *cobra_commands;
 extern char *cobra_target;
 extern char *cobra_texpr;
+extern char  json_msg[128];
+
+extern int   json_convert(const char *);
+extern void  json(const char *);
+extern void  json_match(const char *, const char *, const char *, int);
+extern void  add_pattern(const char *, Prim *, Prim *);
+extern void  del_pattern(const char *, Prim *, Prim *);
 
 extern char *cobra_bfnm(void);
 extern char *cobra_fnm(void);
@@ -88,6 +95,8 @@ extern int ada;
 extern int count;
 extern int cplusplus;
 extern int java;
+extern int json_format;
+extern int json_plus;
 extern int Ncore;
 extern int Nfiles;
 extern int no_cpp;

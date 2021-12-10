@@ -47,7 +47,7 @@ TaintedReturn(const char *s, const int cid)
 
 	if (verbose)
 	{	do_lock(cid);
-		printf("\tTaintedReturn %s\n", s);
+		fprintf(stderr, "\tTaintedReturn %s\n", s);
 		do_unlock(cid);
 	}
 }
@@ -108,7 +108,7 @@ param_is_tainted(Prim *p, const int pos, Prim *nm, const int cid)
 
 	if (verbose)
 	{	do_lock(cid);
-		printf("%s:%d:\tparam_is_tainted %s( param %d = %s )\n",
+		fprintf(stderr, "%s:%d:\tparam_is_tainted %s( param %d = %s )\n",
 			p->fnm, p->lnr, s, pos, nm->txt);
 		do_unlock(cid);
 	}
@@ -131,7 +131,7 @@ is_param_tainted(Prim *mycur, const int setlimit, const int cid)
 
 	if (verbose > 1)
 	{	do_lock(cid);
-		printf("%d: %s:%d: check fct body of %s() for possibly bad params\n",
+		fprintf(stderr, "%d: %s:%d: check fct body of %s() for possibly bad params\n",
 			cid, mycur->fnm, mycur->lnr, mycur->txt);
 		do_unlock(cid);
 	}
@@ -174,9 +174,10 @@ is_param_tainted(Prim *mycur, const int setlimit, const int cid)
 			best_t = t;
 	}	}
 
-	if (0 && bestmatch > 0)
+	if (0
+	&&  bestmatch > 0)
 	{	do_lock(cid);
-		printf("%d: %d	BM %s -> <%s> -> %s\n",
+		fprintf(stderr, "%d: %d	BM %s -> <%s> -> %s\n",
 			cid, bestmatch, mycur->fnm, mycur->txt, best_t->src->fnm);
 		do_unlock(cid);
 	}
@@ -187,7 +188,7 @@ is_param_tainted(Prim *mycur, const int setlimit, const int cid)
 		t->handled = 1;
 		if (verbose)
 		{	do_lock(cid);
-			printf("%d: %s:%d:	checking fct %s()==%s() for use of tainted param nr %d -- %s\n",
+			fprintf(stderr, "%d: %s:%d:\tchecking fct %s()==%s() for use of tainted param nr %d -- %s\n",
 				cid, mycur->fnm, mycur->lnr, mycur->txt, t->fnm, t->pos, ocur->txt);
 			do_unlock(cid);
 		}
@@ -206,7 +207,7 @@ more:
 			{			// check the fct body for uses of this param
 				if (verbose > 1)
 				{	do_lock(cid);
-					printf("%d: cnt %d :: param check: %s (param pos %d = %s)\n",
+					fprintf(stderr, "%d: cnt %d :: param check: %s (param pos %d = %s)\n",
 						cid, pos, t->fnm, t->pos, mycur->txt);
 					do_unlock(cid);
 				}
@@ -233,7 +234,7 @@ more:
 						cnt++;
 						if (verbose > 1)
 						{	do_lock(cid);
-							printf("%d: %s:%d: use of marked param %s -> +%d\n",
+							fprintf(stderr, "%d: %s:%d: use of marked param %s -> +%d\n",
 								cid, r->fnm, r->lnr, mycur->txt, PropViaFct);
 							do_unlock(cid);
 					}	}
@@ -249,7 +250,7 @@ more:
 
 	if (verbose && cnt > 0)
 	{	do_lock(cid);
-		printf("%d: found %d uses of marked params (adding mark %d)\n",
+		fprintf(stderr, "%d: found %d uses of marked params (adding mark %d)\n",
 			cid, cnt, PropViaFct);
 		do_unlock(cid);
 	}
@@ -284,7 +285,7 @@ search_returns(Prim *mycur, const int cid)
 
 	if (verbose && cnt > 0)
 	{	do_lock(cid);
-		printf("search returns of %s\n", nm);
+		fprintf(stderr, "search returns of %s\n", nm);
 		do_unlock(cid);
 	}
 }
