@@ -268,6 +268,11 @@ del_pattern(const char *s, Prim *from, Prim *upto)
 void
 json_match(const char *te, const char *msg, const char *f, int ln)
 {
+	if (!te
+	||  !msg
+	||  !f)
+	{	return;
+	}
 	printf("  { \"type\"\t:\t\"");
 	 cleaned_up(te);
 	printf("\",\n");

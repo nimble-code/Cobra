@@ -194,7 +194,7 @@
 
 3.7 december 10 2021
   - added support for named pattern sets in the scripting
-    language (routines: add_pattern(), del_pattern() )
+    language (routines: pset(), add_pattern(), del_pattern() )
   - fixed a bug in the working of the contains & command
     which now correctly matches what the manual page says
   - add 5 routines to the c_api.h API header file, with
