@@ -1548,7 +1548,7 @@ cwe_mode:	no_match = 1;	// for consistency with -f
 			return 1;
 	}	}
 
-	if (read_stdin)
+	if (read_stdin && !view)
 	{	if (no_cpp)
 		{	fprintf(stderr, "%s: reading stdin\n", progname);
 			(void) add_file("", 0, 1);	// keep single-core
