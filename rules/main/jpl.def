@@ -238,58 +238,62 @@ def jpl_rule14c
 	m @ident \(; m & (!.curly); n; j; n; m & {; b; j; b; b; m & /[\;}]
 end
 
+def jpl_context
+	# pointing at non-void fct call
+	# common check for 14d, 14e, 14f, and 14g
+	b			# token preceding the fct name
+	mark no /^[-+*/%!=]*=$	# not following assignment or boolean op
+	mark no return		# not in a return stmnt
+	mark no /^[-+*/%?:)!]$	# not following a cast
+	n			# back to fct name
+	m & (!.round)		# not in a condition
+	n			# next check the token after the call
+	m & \(			# start of par list
+	j			# end of par list
+	n			# token following call
+	mark no /^[-+*/%!=]*=$	# not assignment or boolean op
+	b			# back to end of par list
+	j			# back to start of par list
+	b			# back to fct name	
+end
+
 def jpl_rule14d
 	# cpp on
 	r
 	m @ident \(; m & (!.curly); n; j; e {
-	j; b; b; mark no void; n	# all non-void fcts
-	>1
+	j; b; b
+	mark no void; n		# mark all non-void fcts
+	>1			# save in set 1
 	n $$ \(			# forward to a use (do multiple times?)
 	m & (.curly)		# inside a fct
-	b
-	mark no /^[-+*/%]*=$	# not following assignment
-	mark no return		# not in a return stmnt
-	mark no /^[-+*/%?:)!]$	# not following a cast
-	n; m & (!.round)	# not in a condition
+	jpl_context
 end
 
 def jpl_rule14e
 	# cpp on
 	r
-	<1			# all non-void fcts
-	n $$ \(; n $$ \(
+	<1			# non-void fcts
+	n $$ \(; n $$ \(	# two calls forward from def
 	m & (.curly)		# inside a fct
-	b
-	mark no /^[-+*/%]*=$	# not following assignment
-	mark no return		# not in a return stmnt
-	mark no /^[-+*/%?:)!]$	# not following a cast
-	n; m & (!.round)	# not in a condition
+	jpl_context
 end
 
 def jpl_rule14f
 	# cpp on
 	r
-	<1			# all non-void fcts
+	<1			# non-void fcts
 	b $$ \(			# backward to a use (do multiple times?)
 	m & (.curly)		# inside a fct
-	b
-	mark no /^[-+*/%]*=$	# not following assignment
-	mark no return		# not in a return stmnt
-	mark no /^[-+*/%?:)!]$	# not following a cast
-	n; m & (!.round)	# not in a condition
+	jpl_context
 end
 
 def jpl_rule14g
 	# cpp on
 	r
-	<1			# all non-void fcts
+	<1			# non-void fcts
 	b $$ \(			# backward to a use (do multiple times?)
 	m & (.curly)		# inside a fct
-	b
-	mark no /^[-+*/%]*=$	# not following assignment
-	mark no return		# not in a return stmnt
-	mark no /^[-+*/%?:)!]$	# not following a cast
-	n; m & (!.round)	# not in a condition
+	jpl_context
 end
 
 def jpl_rule14h
