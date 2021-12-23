@@ -29,7 +29,11 @@ b; b
 %}
 
 m * @ident
-b; unmark @type; unmark @qualifier; unmark /_t$; n
+b; 
+unmark @type;
+unmark ,	# likely in declarations list
+unmark @qualifier;
+unmark /_t$; n
 n
 m @ident ->
 m & (.curly > 0)
