@@ -69,6 +69,14 @@ fcts
 			{	. = .nxt;
 				continue;
 			}
+
+			r = q.jmp;
+			r = r.nxt;
+			if (r.txt == "{")
+			{	. = .nxt;	# not a fct call
+				continue;
+			}
+
 			q = .prv;
 			if (q.txt == "."
 			||  q.txt == "::"
