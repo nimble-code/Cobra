@@ -143,7 +143,7 @@ extern int	with_comments;
 extern int	json_format;
 extern int	json_plus;
 extern int	nr_json;
-extern char	json_msg[128];
+extern char	json_msg[512];
 extern void	json_match(const char *, const char *, const char *, int);
 extern void	new_named_set(const char *);
 extern Match	*findset(const char *, int, int);

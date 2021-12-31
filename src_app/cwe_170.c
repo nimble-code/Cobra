@@ -167,25 +167,43 @@ cwe170_run(void *arg)
 
 static void
 cwe170_report(void)
-{	Prim *mycur;
+{	Prim *mycur = prim;
 	int w_cnt = 0;
+	int at_least_one = 0;
 
-	for (mycur = prim; mycur; mycur = mycur->nxt)
+	if (json_format && !no_display)
+	{	for (; mycur; mycur = mycur->nxt)
+		{	if (mycur->mark == 170
+			&&  mycur->bound)
+			{	at_least_one = 1;
+				printf("[\n");
+				break;
+	}	}	}
+
+	for (; mycur; mycur = mycur->nxt)
 	{	if (mycur->mark == 170
 		&&  mycur->bound)
 		{	if (no_display)
 			{	w_cnt++;
 			} else
-			{	printf("%s:%d: cwe_170: '%s' in strncpy may not be null terminated\n",
-					mycur->fnm, mycur->lnr, mycur->bound->txt);
-			}
+			{	sprintf(json_msg, "'%s' in strncpy may not be null terminated",
+					mycur->bound->txt);
+				if (json_format)
+				{	json_match("cwe_170", json_msg, mycur->fnm, mycur->lnr);
+				} else
+				{	printf("%s:%d: cwe_170: %s\n",
+						mycur->fnm, mycur->lnr, json_msg);
+			}	}
 			mycur->mark = 0;
 			mycur->bound = NULL;
 	}	}
 
 	if (no_display && w_cnt > 0)
-	{	printf("cwe_170: %d warnings: destination in strncpy may not be null terminated\n",
+	{	fprintf(stderr, "cwe_170: %d warnings: destination in strncpy may not be null terminated\n",
 			w_cnt);
+	}
+	if (at_least_one)	// implies json_format
+	{	printf("\n]\n");
 	}
 }
 

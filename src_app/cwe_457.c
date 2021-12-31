@@ -51,7 +51,6 @@ N:
 	{	my->depth--;
 		return;
 	}
-// printf("%d-%d [%s] check %s -- sawgoto %d\n", from->lnr, upto->lnr, from->txt, nm, my->sawgoto);
 	from->mark = 57;
 
 	if (strcmp(from->typ, "cpp") == 0)
@@ -127,7 +126,6 @@ N:
 			if (strcmp(b4->txt, "for") != 0
 			&&  strcmp(b4->typ, "type") != 0)
 			{	from->mset[2] = 457; // avoid stepping on from->mark
-// printf(">>>	mark (%s) %d\n", nm, from->lnr);
 				my->canstop = 2;
 				my->depth--;
 				return;
@@ -158,7 +156,6 @@ N:
 	{	from = from->bound;
 		upto = my->olimit;
 		my->sawgoto = 1;	// doesnt handle nested switch statements with gotos
-// printf("	Saw Goto\n");
 		goto N;
 	}
 
@@ -175,9 +172,7 @@ N:
 		{	my->depth--;
 			return;
 		}
-// printf("%d <condition %s>\n", from->lnr, nm);
 		dfs_457(nm, my->v[my->depth], vv, cpu_id);
-// printf("%d >condition %s<\n", from->lnr, nm);
 		if (my->canstop)
 		{	my->depth--;
 			return;
@@ -190,14 +185,10 @@ N:
 		rr = tt->prv;
 		if (strcmp(rr->txt, "else") == 0)
 		{
-// printf("%d -> %d <else %s>\n", from->lnr, from->bound->lnr, nm);
 			dfs_457(nm, from->bound, upto, cpu_id);	// else path, to end
-// printf(">else %s<\n", nm);
 			if (my->canstop == 0)		// no asgn and no err
 			{
-// printf("%d -- %d <then %s>\n", from->lnr, from->bound->lnr, nm);
 				dfs_457(nm, from, from->bound, cpu_id);	// then path
-// printf(">then %s<\n", nm);
 				// up to from->bound because after else didnt have the var
 			} else
 			{	if (my->canstop == 1)	// saw asgn on else branch, but no error yet
@@ -218,10 +209,8 @@ N:
 					} else
 					{	zz = yy->nxt;	// then stmnt
 					}
-// printf("<then2 %s>\n", nm);
 					dfs_457(nm, yy, zz, cpu_id);	// then path
-// printf(">then2 %s<\n", nm);
-				// up to from->bound because after else didnt have the var
+					// up to from->bound because after else didnt have the var
 					if (my->canstop == 0)	// no asgn and no error
 					{	rr = my->r[my->depth];
 						rr = rr->bound;
@@ -230,15 +219,11 @@ N:
 							return;
 						}
 						rr = my->r[my->depth];
-// printf("<after else %s>\n", nm);
 						dfs_457(nm, rr->bound, upto, cpu_id);	// after else
-// printf(">after else %s<\n", nm);
 			}	}	}
 		} else
 		{
-// printf("%d [%s] %s <else-less then %s>\n", from->lnr, from->txt, from->bound->txt, nm);
 			dfs_457(nm, from->bound, upto, cpu_id);		// then part, no else, to end
-// printf(">else-less then %s<\n", nm);
 		}
 		my->depth--;
 		return;		// checked all if paths up to end
@@ -248,9 +233,7 @@ N:
 	{	// check the condition first
 		my->v[my->depth] = from->nxt;		// the opening brace
 		vv = from->nxt;
-// printf("Switch cond\n");
 		dfs_457(nm, vv, vv->jmp, cpu_id);	// check switch expression
-// printf("cond Switch\n");
 		if (my->canstop)
 		{	my->depth--;
 			return;
@@ -259,9 +242,7 @@ N:
 		tt = from->bound;
 		if (tt)
 		{
-// printf("Skip switch (no default\n");
 			dfs_457(nm, tt, upto, cpu_id);	// skip switch
-// printf("Skipped\n");
 			if (my->canstop)
 			{	my->depth--;
 				return;
@@ -289,9 +270,7 @@ assert(tt);
 		{	while (strcmp(from->txt, ":") != 0)
 			{	from = from->nxt;
 			}
-// printf("Case\n");
 			dfs_457(nm, from, tt, cpu_id);	// from here to the next case
-// printf("esaC%d\n", my->canstop);
 			// ignoring break and continue for now
 			if (my->canstop == 2)	// reported error on this path
 			{	my->depth--;
@@ -305,14 +284,12 @@ assert(tt);
 				{	ww = ww->nxt;
 				}
 				ww = ww->nxt;
-// But, dont do this if the last case contained a goto....
-// printf("aSuE (%d)\n", my->sawgoto);
+				// But, dont do this if the last case contained a goto....
 				if (my->sawgoto == 0)
 				{	dfs_457(nm, ww, upto, cpu_id);	// from after switch up to end
 				} else
 				{	my->sawgoto = 0;
 				}
-// printf("EuSa\n");
 				if (my->canstop == 2)
 				{	my->depth--;
 					return;
@@ -419,19 +396,32 @@ cwe457_range(Prim *from, Prim *upto, int cpu_id)
 void
 report_457(void)
 {	int cnt = 0;
+	int first_one = 1;
 
 	cur = prim;
 	while (cobra_nxt())
 	{	if (cur->mset[2] == 457)
 		{	if (!no_display)
-			{	printf("%s:%d: cwe_457: uninitialized var %s?\n",
-					cur->fnm, cur->lnr, cur->txt);
-			}
+			{	if (json_format && first_one)
+				{	first_one = 0;
+					printf("[\n");
+				}
+				sprintf(json_msg, "uninitialized var %s?", cur->txt);
+				if (json_format)
+				{	json_match("cwe_457", json_msg, cur->fnm, cur->lnr);
+				} else
+				{	printf("%s:%d: cwe_457: %s\n",
+						cur->fnm, cur->lnr, json_msg);
+			}	}
 			cur->mset[2] = 0;
 			cnt++;
 	}	}
 	if (no_display && cnt > 0)
-	{	printf("cwe_457: %d warnings: potentially uninitialized variable\n", cnt);
+	{	fprintf(stderr, "cwe_457: %d warnings: potentially uninitialized variable\n",
+			cnt);
+	}
+	if (!first_one)
+	{	printf("\n]\n");
 	}
 }
 

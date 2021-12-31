@@ -12,7 +12,7 @@ int	 nr_json;
 int	 p_matched;
 int	 stream;
 char	 bvars[128];
-char	 json_msg[128];
+char	 json_msg[512];
 char	*glob_te = ""; // optional type field in json output
 char	*scrub_caption = "";
 char	*cobra_texpr;		// -e xxx

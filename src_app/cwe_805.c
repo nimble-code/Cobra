@@ -181,21 +181,44 @@ cwe805_run(void *arg)
 
 void
 cwe805_report(void)
-{	Prim *mycur;
+{	Prim *mycur = prim;
+	int at_least_one = 0;
 
-	for (mycur = prim; mycur; mycur = mycur->nxt)
+	if (json_format && !no_display)
+	{	for (; mycur; mycur = mycur->nxt)
+		{	if (mycur->mark == 805
+			|| mycur->mark == 8050)
+			{	at_least_one = 1;
+				printf("[\n");
+				break;
+	}	}	}
+
+	for (; mycur; mycur = mycur->nxt)
 	{	if (mycur->mark == 805)
-		{	printf("%s:%d: cwe_805: suspicious sizeof in strncpy, ",
-				mycur->fnm, mycur->lnr);
-			printf("strncat, or memcpy for other var than %s\n",
+		{	sprintf(json_msg,
+			"suspicious sizeof in strncpy, strncat, or memcpy for other var than %s",
 				mycur->txt);
+			if (json_format)
+			{	json_match("cwe_805", json_msg, mycur->fnm, mycur->lnr);
+			} else
+			{	printf("%s:%d: cwe_805: %s\n",
+					mycur->fnm, mycur->lnr, json_msg);
+			}
 			mycur->mark = 0;
 		} else if (mycur->mark == 8050)
-		{	printf("%s:%d: cwe_805: fct '%s' may ",
-				mycur->fnm, mycur->lnr, mycur->txt);
-			printf("return a zero or negative value\n");
+		{	sprintf(json_msg, "fct '%s' may return a zero or negative value",
+				mycur->txt);
+			if (json_format)
+			{	json_match("cwe_805", json_msg, mycur->fnm, mycur->lnr);
+			} else
+			{	printf("%s:%d: cwe_805: %s\n",
+					mycur->fnm, mycur->lnr, json_msg);
+			}
 			mycur->mark = 0;
 	}	}
+	if (at_least_one)	// implies json_format
+	{	printf("\n]\n");
+	}
 }
 
 void
@@ -215,13 +238,13 @@ cwe805_0(void)
 		}
 
 		if (cnt1 > 0)
-		{	printf("cwe_805: %d warnings: suspicious ", cnt1);
-			printf("sizeof in strncpy, strncat, or memcpy\n");
+		{	fprintf(stderr, "cwe_805: %d warnings: suspicious ", cnt1);
+			fprintf(stderr, "sizeof in strncpy, strncat, or memcpy\n");
 		}
 
 		if (cnt2 > 0)
-		{	printf("cwe_805: %d warnings: fct may return zero ", cnt2);
-			printf("or negative value (used in array index)\n");
+		{	fprintf(stderr, "cwe_805: %d warnings: fct may return zero ", cnt2);
+			fprintf(stderr, "or negative value (used in array index)\n");
 		}
 	} else
 	{	cwe805_report();

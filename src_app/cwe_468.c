@@ -52,21 +52,39 @@ cwe468_run(void *arg)
 
 void
 cwe468_report(void)
-{	Prim *mycur;
+{	Prim *mycur = prim;
 	int w_cnt = 0;
+	int at_least_one = 0;
 
-	for (mycur = prim; mycur; mycur = mycur->nxt)
+	if (json_format && !no_display)
+	{	for (; mycur; mycur = mycur->nxt)
+		{	if (mycur->mark == 468)
+			{	at_least_one = 1;
+				printf("[\n");
+				break;
+	}	}	}
+
+	for (; mycur; mycur = mycur->nxt)
 	{	if (mycur->mark == 468)
 		{	mycur->mark = 0;
 			if (no_display)
 			{	w_cnt++;
 			} else
-			{	printf("%s:%d: cwe_468: risky cast using pointer arithmetic\n",
-					mycur->fnm, mycur->lnr);
-	}	}	}
+			{	sprintf(json_msg, "'%s': risky cast using pointer arithmetic",
+					mycur->txt);
+				if (json_format)
+				{	json_match("cwe_468", json_msg, mycur->fnm, mycur->lnr);
+				} else
+				{	printf("%s:%d: cwe_468: %s\n",
+						mycur->fnm, mycur->lnr, json_msg);
+	}	}	}	}
 
 	if (no_display && w_cnt > 0)
-	{	printf("cwe_468: %d warnings: risky cast using pointer arithmetic\n", w_cnt);
+	{	fprintf(stderr, "cwe_468: %d warnings: risky cast using pointer arithmetic\n",
+			w_cnt);
+	}
+	if (at_least_one)	// implies json_format
+	{	printf("\n]\n");
 	}
 }
 

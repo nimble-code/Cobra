@@ -56,7 +56,7 @@ extern Prim *prim;
 extern char *cobra_commands;
 extern char *cobra_target;
 extern char *cobra_texpr;
-extern char  json_msg[128];
+extern char  json_msg[512];
 
 extern int   json_convert(const char *);
 extern void  json(const char *);

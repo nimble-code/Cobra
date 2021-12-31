@@ -67,7 +67,6 @@ cwe119_1_range(Prim *from, Prim *upto, int cid)	// multiple array index incremen
 				while (mycur->seq < eob->seq)
 				{	if (mytype("ident"))
 					{	store_var(&(thr[cid].ixvar), mycur, 0, 0);
-//printf("%d: %s used\n", mycur->lnr, mycur->txt);
 					}
 					mycur_nxt();
 				}
@@ -78,25 +77,21 @@ cwe119_1_range(Prim *from, Prim *upto, int cid)	// multiple array index incremen
 						if (mymatch("++")
 						||  mymatch("--"))
 						{	store_var(&(thr[cid].modified), t, 0, 0);
-//printf("%d: %s modified 1\n", t->lnr, t->txt);
 						}
 					mycur = t->nxt;
 						if (mymatch("++")
 						||  mymatch("--"))
 						{	store_var(&(thr[cid].modified), t, 0, 0);
-//printf("%d: %s modified 2\n", t->lnr, t->txt);
 						}
 					mycur = t;
 					if (t->round > 0 && t->bracket == 0)
 					{	store_var(&(thr[cid].tested), t, 0, 0);
-//printf("%d: %s tested\n", t->lnr, t->txt);
 				}	}
 			}
 			mycur_nxt();
 		}
 		// at end of each loop, check and mark
 		cwe119_check_1(cid);
-//printf("%d: zap\n", mycur?mycur->lnr:0);
 	}
 	thr[cid].ixvar    = 0;
 	thr[cid].modified = 0;
@@ -413,19 +408,35 @@ cwe119_3_run(void *arg)
 
 static void
 report_119_1(void)
-{	Prim *mycur;
+{	Prim *mycur = prim;
 	int w_cnt = 0;
+	int at_least_one = 0;
 
-	for (mycur = prim; mycur; mycur = mycur->nxt)
+	if (json_format && !no_display)
+	{	for (; mycur; mycur = mycur->nxt)
+		{	if (mycur->mark == 1191
+			&&  mycur->bound
+			&&  mycur->jmp)
+			{	at_least_one = 1;
+				printf("[\n");
+				break;
+	}	}	}
+
+	for (; mycur; mycur = mycur->nxt)
 	{	if (mycur->mark == 1191)
 		{	if (no_display)
 			{	w_cnt++;
 			} else if (mycur->bound && mycur->jmp)
-			{	printf("%s:%d: cwe_119_1: ", mycur->fnm, mycur->lnr);
-				printf("array-index variable '%s' modified ", mycur->txt);
-				printf("multiple times in loop ");
-				printf("ln %d-%d\n", mycur->bound->lnr, mycur->jmp->lnr);
-			}
+			{	const char *caption = " modified multiple times in loop ";
+				sprintf(json_msg, "array-index variable '%s'%sln %d-%d",
+					mycur->txt, caption,
+					mycur->bound->lnr, mycur->jmp->lnr);
+				if (json_format)
+				{	json_match("cwe_119_1", json_msg, mycur->fnm, mycur->lnr);
+				} else
+				{	printf("%s:%d: cwe_119_1: %s\n",
+						mycur->fnm, mycur->lnr, json_msg);
+			}	}
 			mycur->bound = 0;
 			mycur->jmp = 0;
 			mycur->mark = 0;
@@ -433,18 +444,30 @@ report_119_1(void)
 
 	if (no_display
 	&&  w_cnt > 0)
-	{	printf("cwe_119_1: %d warnings: array-index variable ", w_cnt);
-		printf("modified multiple times in loop\n");
+	{	fprintf(stderr, "cwe_119_1: %d warnings: array-index variable ", w_cnt);
+		fprintf(stderr, "modified multiple times in loop\n");
+	}
+	if (at_least_one)	// implies json_format
+	{	printf("\n]\n");
 	}
 }
 
 static void
 report_119_2(void)
-{	Prim *mycur;
+{	Prim *mycur = prim;
 	int w_cnt = 0;
 	int lastone = 0;	// limit nr of reports for single issue
+	int at_least_one = 0;
 
-	for (mycur = prim; mycur; mycur = mycur->nxt)
+	if (json_format && !no_display)
+	{	for (; mycur; mycur = mycur->nxt)
+		{	if (mycur->mark == 1192)
+			{	at_least_one = 1;
+				printf("[\n");
+				break;
+	}	}	}
+
+	for (; mycur; mycur = mycur->nxt)
 	{	if (mycur->mark == 1192)
 		{	if (no_display)	// terse
 			{	if (!mycur->bound || mycur->bound->lnr != lastone)
@@ -454,9 +477,15 @@ report_119_2(void)
 				{	lastone = mycur->bound->lnr;
 				}
 			} else if (mycur->bound && mycur->bound->lnr != lastone)
-			{	printf("%s:%d: cwe_119_2: ", mycur->fnm, mycur->lnr);
-				printf("array-index variable '%s' ", mycur->txt);
-				printf("has unchecked min/max value (cf lnr %d)\n", mycur->bound->lnr);
+			{	const char *caption = "has unchecked min/max value (cf lnr";
+				sprintf(json_msg, "array-index variable '%s' %s %d)",
+					mycur->txt, caption, mycur->bound->lnr);
+				if (json_format)
+				{	json_match("cwe_119_2", json_msg, mycur->fnm, mycur->lnr);
+				} else
+				{	printf("%s:%d: cwe_119_2: %s\n",
+						mycur->fnm, mycur->lnr, json_msg);
+				}
 				lastone = mycur->bound->lnr;
 				mycur->bound = 0;
 			}
@@ -465,26 +494,42 @@ report_119_2(void)
 
 	if (no_display
 	&&  w_cnt > 0)
-	{	printf("cwe_119_2: %d warnings: ", w_cnt);
-		printf("array-index variable has unchecked min/max value\n");
+	{	fprintf(stderr, "cwe_119_2: %d warnings: ", w_cnt);
+		fprintf(stderr, "array-index variable has unchecked min/max value\n");
+	}
+	if (at_least_one)	// implies json_format
+	{	printf("\n]\n");
 	}
 }
 
 static void
 report_119_3(void)
-{	Prim *mycur, *w;
+{	Prim *mycur = prim, *w;
 	int w_cnt = 0;
+	int at_least_one = 0;
 
-	for (mycur = prim; mycur; mycur = mycur->nxt)
+	if (json_format && !no_display)
+	{	for (; mycur; mycur = mycur->nxt)
+		{	if (mycur->mark == 1193)
+			{	at_least_one = 1;
+				printf("[\n");
+				break;
+	}	}	}
+
+	for (; mycur; mycur = mycur->nxt)
 	{	if (mycur->mark == 1193)
 		{	w_cnt++;
 			if (!mycur->bound)
 			{	if (!no_display)
-				{	printf("%s:%d: cwe_119_3: min/max unchecked parameter ",
-						mycur->fnm, mycur->lnr);
-					printf("value '%s' used in array index\n",
-						mycur->txt);
-				}
+				{	const char *caption = "min/max unchecked parameter value";
+					sprintf(json_msg, "%s '%s' used in array index",
+						caption, mycur->txt);
+					if (json_format)
+					{	json_match("cwe_119_3", json_msg, mycur->fnm, mycur->lnr);
+					} else
+					{	printf("%s:%d: cwe_119_3: %s\n",
+							mycur->fnm, mycur->lnr, json_msg);
+				}	}
 			} else
 			for (w = mycur->bound; w; w = w->nxt)
 			{	if (w->jmp)	// ptr to param declaration
@@ -495,11 +540,15 @@ report_119_3(void)
 					w->jmp->mark = 11930; // one warning per param
 				}
 				if (!no_display)
-				{	printf("%s:%d: cwe_119_3: min/max unchecked parameter ",
-						mycur->fnm, mycur->lnr);
-					printf("value '%s' used in array index (cf lnr %d)\n",
-						mycur->txt, w->lnr);
-			}	}
+				{	const char *caption = "min/max unchecked parameter value";
+					sprintf(json_msg, "%s '%s' used in array index (cf lnr %d)",
+						caption, mycur->txt, w->lnr);
+					if (json_format)
+					{	json_match("cwe_119_3", json_msg, mycur->fnm, mycur->lnr);
+					} else
+					{	printf("%s:%d: cwe_119_3: %s\n",
+							mycur->fnm, mycur->lnr, json_msg);
+			}	}	}
 			mycur->mark  = 0;
 			mycur->bound = 0;
 	}	}
@@ -511,7 +560,11 @@ report_119_3(void)
 
 	if (no_display
 	&&  w_cnt > 0)
-	{	printf("cwe_119_3: %d warnings: unchecked parameter value used in array-index\n", w_cnt);
+	{	fprintf(stderr, "cwe_119_3: %d warnings: unchecked parameter value used in array-index\n",
+			w_cnt);
+	}
+	if (at_least_one)	// implies json_format
+	{	printf("\n]\n");
 	}
 }
 

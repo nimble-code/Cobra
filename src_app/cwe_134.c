@@ -134,17 +134,29 @@ cwe134_run(void *arg)
 
 static void
 cwe134_report(void)
-{	Prim *mycur;
+{	Prim *mycur = prim;
 	int w_cnt = 0;
+	int at_least_one = 0;
 
-	for (mycur = prim; mycur; mycur = mycur->nxt)
-	{	switch (mycur->mark) {
+	if (json_format && !no_display)
+	{	for (; mycur; mycur = mycur->nxt)
+		{	if (mycur->mark == 134
+			||  mycur->mark == 1340
+			||  mycur->mark == 1344)
+			{	at_least_one = 1;
+				printf("[\n");
+				break;
+	}	}	}
+
+	for (; mycur; mycur = mycur->nxt)
+	{	strcpy(json_msg, "");
+		switch (mycur->mark) {
 		case 134:
 			if (no_display)
 			{	w_cnt++;
 			} else
-			{	printf("%s:%d: cwe_134: untrusted format string '%s'\n",
-					mycur->fnm, mycur->lnr, mycur->txt);
+			{	sprintf(json_msg, "untrusted format string '%s'",
+					mycur->txt);
 			}
 			mycur->mark = 0;
 			break;
@@ -152,9 +164,9 @@ cwe134_report(void)
 			if (no_display)
 			{	w_cnt++;
 			} else
-			{	printf("%s:%d: cwe_134: source of memcpy is untrusted parameter %s\n",
-					mycur->fnm, mycur->lnr, mycur->bound?mycur->bound->txt:"");
-				// the ultimate source could be a user-input
+			{	sprintf(json_msg, "source of memcpy is untrusted parameter %s",
+					mycur->bound?mycur->bound->txt:"");
+				// ultimate source could be a user-input
 			}
 			mycur->mark = 0;
 			mycur->bound = 0;
@@ -165,10 +177,20 @@ cwe134_report(void)
 		default:	// 0 or 1
 			// leave as is
 			break;
-	}	}
+		}
+		if (strlen(json_msg) > 0)
+		{	if (json_format)
+			{	json_match("cwe_134", json_msg, mycur->fnm, mycur->lnr);
+			} else
+			{	printf("%s:%d: cwe_134: %s\n",
+					mycur->fnm, mycur->lnr, json_msg);
+	}	}	}
 
 	if (no_display && w_cnt > 0)
-	{	printf("cwe_134: %d warnings: untrusted pointer argument\n", w_cnt);
+	{	fprintf(stderr, "cwe_134: %d warnings: untrusted pointer argument\n", w_cnt);
+	}
+	if (at_least_one)
+	{	printf("\n]\n");
 	}
 }
 

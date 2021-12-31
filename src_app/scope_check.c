@@ -47,18 +47,6 @@ struct MyRange {
 
 TokRange	**tokrange;	// for cobra_prep.c
 
-// the following shouldn't be necessary here
-// because they are defined in c.ar
-// but on the mac, scope_check doesn't compile
-// without these; they are otherwise not used here
-
-int json_format;
-int json_plus;
-int stream;
-char *cobra_texpr;
-
-// end of redundancies
-
 int
 hash_s(char *v)
 {	unsigned int h = 0x88888EEFL;
@@ -308,6 +296,19 @@ cobra_main(void)
 	struct tms start_tm, stop_tm;
 	double delta_time;
 
+	if (strlen(backend) > 0)
+	{	if (strstr(backend, "json") != NULL)
+		{	json_format = 1;
+		} else
+		{	fprintf(stderr, "scope_check: unrecognized option '%s'\n", backend);
+			exit(1);
+	}	}
+
+	if (json_format)	// can also be set in front-end
+	{	fprintf(stderr, "error: scope_check does not support json-format output\n");
+		exit(1);
+	}
+
 	if (!prim)
 	{	fprintf(stderr, "scope_check: no tokens\n");
 		return;
@@ -410,11 +411,12 @@ cobra_main(void)
 	delta_time = ((double) (start_time -stop_time))
 		   / ((double) sysconf(_SC_CLK_TCK));
 
-	if (!no_match
-	&&  !no_display
-	&&  delta_time > 1.0)
+	if (runtimes
+	&&  !no_match
+	&&  !no_display)
 	{	printf("    (%.3g sec)\n", delta_time);
 	}
+	json_match(0, 0, 0, 0);	// force linkage to cobra_json.o
 
 	// for all Linux 2.4.1 sources (8,301 files, 3.7 Mlines, 2.6 M NCS)
 	// scope_check -n -z -N? `cat c_files`

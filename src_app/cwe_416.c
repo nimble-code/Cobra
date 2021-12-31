@@ -102,11 +102,8 @@ N:
 	}
 
 	if (strcmp(from->txt, "goto") == 0)	// follow goto
-	{
-//printf("%d goto-> ", from->lnr);
-		from = from->bound;
+	{	from = from->bound;
 		upto = thr[cid].olimit;
-//printf("%d\n", from->lnr);
 		goto N;
 	}
 
@@ -305,16 +302,31 @@ cwe416_range(Prim *from, Prim *upto, int cid)
 
 static void
 cwe416_report(void)
-{	Prim *mycur;
+{	Prim *mycur = prim;
 	int w_cnt = 0;
+	int at_least_one = 0;
 
-	for (mycur = prim; mycur; mycur = mycur->nxt)
+	if (json_format && !no_display)
+	{	for (; mycur; mycur = mycur->nxt)
+		{	if (mycur->mark == 416)
+			{	at_least_one = 1;
+				printf("[\n");
+				break;
+	}	}	}
+
+	for (; mycur; mycur = mycur->nxt)
 	{	if (mycur->mark == 416)
 		{	if (no_display)
 			{	w_cnt++;
 			} else if (mycur->bound)
-			{	printf("%s:%d: cwe_416: use after free of %s?\n",
-					mycur->fnm, mycur->lnr, mycur->bound->txt);
+			{	sprintf(json_msg, "use after free of %s?",
+					mycur->bound->txt);
+				if (json_format)
+				{	json_match("cwe_416", json_msg, mycur->fnm, mycur->lnr);
+				} else
+				{	printf("%s:%d: cwe_416: %s?\n",
+						mycur->fnm, mycur->lnr, json_msg);
+				}
 				mycur->bound = 0;
 			}
 			mycur->mark = 0;
@@ -323,7 +335,11 @@ cwe416_report(void)
 		{	mycur->mark = 0;
 	}	}
 	if (no_display && w_cnt > 0)
-	{	printf("cwe_416: %d warnings: potential heap memory use after free\n", w_cnt);
+	{	fprintf(stderr, "cwe_416: %d warnings: potential heap memory use after free\n",
+			w_cnt);
+	}
+	if (at_least_one)	// implies json_format
+	{	printf("\n]\n");
 	}
 }
 

@@ -132,7 +132,10 @@ cwe131_range(Prim *from, Prim *upto, int cid)
 		q = mycur->nxt;		// one token after malloc (...)
 
 		if (!limit)
-		{	// printf("%s:%d: assertion violated: no limit\n", mycur->fnm, mycur->lnr);
+		{	if (0)
+			{	fprintf(stderr, "%s:%d: assertion violated: no limit\n",
+					mycur->fnm, mycur->lnr);
+			}
 			continue;
 		}
 
@@ -197,38 +200,74 @@ cwe131_report(void)
 		}
 
 		if (cnt1 > 0)
-		{	printf("cwe_131: %d warnings: missing sizeof() in memory allocation?\n",
+		{	fprintf(stderr, "cwe_131: %d warnings: missing sizeof() in memory allocation?\n",
 				cnt1);
 		}
 
 		if (cnt2 > 0)
-		{	printf("cwe_131: %d warnings: potential out of bound array indexing\n",
+		{	fprintf(stderr, "cwe_131: %d warnings: potential out of bound array indexing\n",
 				cnt2);
 		}
 	} else
-	{	Prim *mycur;
+	{	Prim *mycur = prim;
+		int at_least_one = 0;
 
-		for (mycur = prim; mycur; mycur = mycur->nxt)
+		if (json_format)
+		{	for (; mycur; mycur = mycur->nxt)
+			{	if (mycur->mark == 131
+				||  mycur->mark == 1310)
+				{	at_least_one = 1;
+					printf("[\n");
+					break;
+		}	}	}
+
+		for (; mycur; mycur = mycur->nxt)
 		{	if (mycur->mark == 131)
-			{	printf("%s:%d: cwe_131: missing sizeof() in memory allocation?\n",
-					mycur->fnm, mycur->lnr);
+			{	sprintf(json_msg, "missing sizeof() in memory allocation?");
+
+				printf("%s:%d: cwe_131: %s\n",
+					mycur->fnm, mycur->lnr, json_msg);
+
 				mycur->mark = 0;
 			} else if (mycur->mark == 1310)
 			{	Prim *q = mycur;
 				Prim *b = mycur->bound;
 				Prim *nmm = mycur->jmp;
+				char ample[512];
+				char more[1024];
 
-				printf("%s:%d:  cwe_131: out of bound array indexing error on %s?\n",
-					q->fnm, q->lnr, nmm?nmm->txt:"-");
-				if (b
-				&&  strcmp(b->txt, "malloc") != 0)
-				{	printf("%s:%d:  cwe_131: array %s was allocated at %s:%d\n",
-						q->fnm, q->lnr, b->txt, b->fnm, b->lnr);
-				}
+				sprintf(ample, "out of bound array indexing error on %s?",
+					nmm?nmm->txt:"-");
+
+				if (json_format)
+				{	if (json_plus
+					&&  b
+					&&  strcmp(b->txt, "malloc") != 0)
+					{	strncpy(json_msg, ample, sizeof(json_msg));
+						json_msg[sizeof(json_msg)-1] = '\0';
+						sprintf(more, "%s<nl>array %s was allocated at %s:%d",
+							json_msg,
+							b->txt, b->fnm, b->lnr);
+					} else
+					{	strcpy(more, ample);
+					}
+					json_match("cwe_131", more, q->fnm, q->lnr);
+				} else
+				{	printf("%s:%d:  cwe_131: %s\n",
+						q->fnm, q->lnr, ample);
+					if (b
+					&&  strcmp(b->txt, "malloc") != 0)
+					{	printf("%s:%d:  cwe_131: array %s was allocated at %s:%d\n",
+							q->fnm, q->lnr, b->txt, b->fnm, b->lnr);
+				}	}
+
 				mycur->mark  = 0;
 				mycur->bound = NULL;
 				mycur->jmp   = NULL;
-	}	}	}
+		}	}
+		if (at_least_one)
+		{	printf("\n]\n");
+	}	}
 }
 
 void

@@ -216,19 +216,34 @@ cwe197_range(Prim *from, Prim *upto, int cid)
 
 static void
 cwe197_report(void)
-{	Prim *mycur;
+{	Prim *mycur = prim;
 	int w_cnt = 0, b_cnt = 0;
+	int at_least_one = 0;
 
-	for (mycur = prim; mycur; mycur = mycur->nxt)
+	if (json_format && !no_display)
+	{	for (; mycur; mycur = mycur->nxt)
+		{	if (mycur->mark == 1970
+			|| (mycur->mark == 197
+			&&  mycur->bound
+			&&  mycur->jmp))
+			{	at_least_one = 1;
+				printf("[\n");
+				break;
+	}	}	}
+
+	for (; mycur; mycur = mycur->nxt)
 	{	if (mycur->mark == 1970)
 		{	if (no_display)
 			{	b_cnt++;
 			} else
-			{	printf("%s:%d: cwe_197b, potential loss of information ",
-					mycur->fnm, mycur->lnr);
-				printf("potential loss of information in cast of %s\n",
+			{	sprintf(json_msg, "potential loss of information in cast of %s",
 					mycur->txt);
-			}
+				if (json_format)
+				{	json_match("cwe_197b", json_msg, mycur->fnm, mycur->lnr);
+				} else
+				{	printf("%s:%d: cwe_197b, %s",
+						mycur->fnm, mycur->lnr, json_msg);
+			}	}
 			mycur->mark = 0;
 		} else
 		if (mycur->mark == 197
@@ -238,13 +253,20 @@ cwe197_report(void)
 			{	w_cnt++;
 			} else
 			{	Prim *dst, *x;
+				const char *caption = "potential loss of information in assignment from";
 				dst = mycur->bound;
 				x   = mycur->jmp;
-				printf("%s:%d: cwe_197a, potential loss of information ",
-					mycur->fnm, mycur->lnr);
-				printf("in assignment from '%s' to '%s' type: %s set at %s:%d\n",
+
+				sprintf(json_msg, "%s '%s' to '%s' type: %s set at %s:%d",
+					caption,
 					mycur->txt, dst->txt, x->txt, x->fnm, x->lnr);
-			}
+
+				if (json_format)
+				{	json_match("cwe_197a", json_msg, mycur->fnm, mycur->lnr);
+				} else
+				{	printf("%s:%d: cwe_197a, %s\n",
+						mycur->fnm, mycur->lnr, json_msg);
+			}	}
 			mycur->mark  = 0;
 			mycur->bound = NULL;
 			mycur->jmp   = NULL;
@@ -252,13 +274,16 @@ cwe197_report(void)
 
 	if (no_display)
 	{	if (w_cnt > 0)
-		{	printf("cwe_197a: %d warnings: potential loss of information in assignment\n",
+		{	fprintf(stderr, "cwe_197a: %d warnings: potential loss of information in assignment\n",
 				w_cnt);
 		}
 		if (b_cnt > 0)
-		{	printf("cwe_197b: %d warnings: potential loss of information in cast\n",
+		{	fprintf(stderr, "cwe_197b: %d warnings: potential loss of information in cast\n",
 				b_cnt);
 	}	}
+	if (at_least_one)	// implies json_format
+	{	printf("\n]\n");
+	}
 }
 
 static void *

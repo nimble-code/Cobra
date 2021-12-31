@@ -23,6 +23,7 @@ struct Results120 {
 
 static ThreadLocal120 *thr;
 static Results120 **results;
+static int at_least_one;
 
 extern TokRange **tokrange;	// cwe_util.c
 
@@ -119,13 +120,36 @@ cwe120_1_range(Prim *from, Prim *upto, int cid)
 }
 
 static void
+cwe120_start(void)
+{
+	if (json_format
+	&& !no_display
+	&& !at_least_one)
+	{	at_least_one = 1;
+		printf("[\n");
+	}
+}
+
+static void
+cwe120_stop(void)
+{
+	if (at_least_one)	// implies json_format
+	{	printf("\n]\n");
+		at_least_one = 0;
+	}
+}
+
+static void
 cwe120_check_list(TrackVar *p, const char *s)
 {	Lnrs *q;
 
 	while (p)
 	{	for (q = p->lst; q; q = q->nxt)
-		{	printf("%s:%d: %s\n", q->nv->fnm, q->nv->lnr, s);
-		}
+		{	if (json_format)
+			{	json_match("cwe_120", s, q->nv->fnm, q->nv->lnr);
+			} else
+			{	printf("%s:%d: %s\n", q->nv->fnm, q->nv->lnr, s);
+		}	}
 		p = p->nxt;
 	}
 }
@@ -149,7 +173,8 @@ cwe120_check_gen(const int which, const char *v, const char *w)
 	}
 	if (w_cnt > 0)
 	{	if (no_display)
-		{	printf("cwe_120_1: %d warnings: %s performs no bounds checking, (use %s)\n", w_cnt, v, w);
+		{	fprintf(stderr, "cwe_120_1: %d warnings: %s performs no bounds checking, (use %s)\n",
+				w_cnt, v, w);
 		} else
 		{	char *buf;
 			int len = strlen(v)+strlen(w)+strlen("cwe_120_1:  performs no bounds checking, (use )");
@@ -374,7 +399,7 @@ report_120_2(void)
 	{	buf = "cwe_120_2: snprintf  :: missing width limit on %%s";
 
 		if (no_display)
-		{	printf("cwe_120_2: %d warnings: %s\n", w_cnt, buf);
+		{	fprintf(stderr, "cwe_120_2: %d warnings: %s\n", w_cnt, buf);
 		} else
 		{	for (i = 0; i < Ncore; i++)
 			{	cwe120_check_list(thr[i].Snprintf, buf);
@@ -387,7 +412,7 @@ report_120_2(void)
 	{	buf = "cwe_120_2: scanf  :: missing width limit on %%s";
 
 		if (no_display)
-		{	printf("cwe_120_2: %d warnings: %s\n", w_cnt, buf);
+		{	fprintf(stderr, "cwe_120_2: %d warnings: %s\n", w_cnt, buf);
 		} else
 		{	for (i = 0; i < Ncore; i++)
 			{	cwe120_check_list(thr[i].Scanf, buf);
@@ -405,40 +430,49 @@ report_120_3(void)
 			{	w_cnt++;
 				continue;
 			}
-			printf("%s:%d: cwe_120_3 %s :: buffer overrun, ",
-				r->mycur->fnm, r->mycur->lnr, r->fc->txt);
-			printf("%s is size %d but %s is size %d\n",
-				r->dst->txt, r->dsc, r->src->txt, r->ssc);
-		}
+			sprintf(json_msg, "%s :: buffer overrun, %s is size %d but %s is size %d",
+				r->fc->txt, r->dst->txt, r->dsc, r->src->txt, r->ssc);
+			if (json_format)
+			{	json_match("cwe_120_3", json_msg, r->mycur->fnm, r->mycur->lnr);
+			} else
+			{	printf("%s:%d: cwe_120_3 %s\n",
+					r->mycur->fnm, r->mycur->lnr, json_msg);
+		}	}
 		results[i] = 0;
 	}
 
 	if (no_display
 	&&  w_cnt > 0)
-	{	printf("cwe_120_3: %d warnings: potential buffer overrun\n", w_cnt);
+	{	fprintf(stderr, "cwe_120_3: %d warnings: potential buffer overrun\n", w_cnt);
 	}
 }
 
 void
 cwe120_1(void)
 {
+	cwe120_start();
 	cwe120_init();			// single_core
 	run_threads(cwe120_1_run);	// multi-core
 	report_120_1();			// single-core
+	cwe120_stop();
 }
 
 void
 cwe120_2(void)
 {
+	cwe120_start();
 	cwe120_init();			// single_core
 	run_threads(cwe120_2_run);	// multi-core
 	report_120_2();			// single-core
+	cwe120_stop();
 }
 
 void
 cwe120_3(void)
 {
+	cwe120_start();
 	cwe120_init();			// single_core
 	run_threads(cwe120_3_run);	// multi-core
 	report_120_3();			// single core:
+	cwe120_stop();
 }

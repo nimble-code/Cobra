@@ -216,3 +216,11 @@
      in terse (--json) or more verbose (--json+) form.
    - the backend tool cwe will be modified as well
      in a future update
+
+update december 30 2021
+   - updated interface from cobra to backend checkers
+     to support json output format
+   - cwe and find_taint updated to recognize the new
+     options --json and --json+ to generate output in
+     json format
+   - improved argument handling for cwe and find_taint

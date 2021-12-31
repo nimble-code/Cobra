@@ -118,7 +118,7 @@ Store	*e_bindings;	// shared with cobra_eval.y
 extern Match	*matches;	// cobra_json.c
 extern Match	*old_matches;	// cobra_json.c
 extern char	 bvars[128];	// cobra_json.c
-extern char	 json_msg[128];	// cobra_json.c
+extern char	 json_msg[512];	// cobra_json.c
 
 extern char	*b_cmd;
 extern char	*yytext;

@@ -1280,19 +1280,20 @@ check_contamination(const int a, const int b, const int cid)
 }
 
 static void
-usage(FILE *fd)
+usage(void)
 {
-	fprintf(fd, "find_taint %s: unrecognized -- option(s): '%s'\n", tool_version, backend);
-	fprintf(fd, "valid options are:\n");
-	fprintf(fd, "	--json          generate the basic results in json format (has less detail)\n");
-	fprintf(fd, "	--json+         like --json, but includes more detail\n");
-	fprintf(fd, "	--sanity        start with a check for missing links in the input token-stream\n");
-	fprintf(fd, "	--sequential    disable parallel processing in backend (overruling -N settings)\n");
-	fprintf(fd, "	--limitN        with N a number, limit distance from fct call to fct def to Nk tokens\n");
-	fprintf(fd, "	--cfg=file      with file the name of a new configs file (in configs dir, or full path)\n");
-	fprintf(fd, "	--help          print this message\n");
-	fprintf(fd, "	--exit          immediately exit after startup phase in front end is completed\n");
-	fprintf(fd, "all diagnostic and error output is written to stderr (also when json format is used)\n");
+	fprintf(stderr, "find_taint %s: unrecognized -- option(s): '%s'\n", tool_version, backend);
+	fprintf(stderr, "valid options are:\n");
+	fprintf(stderr, "	--json          generate the basic results in json format (has less detail)\n");
+	fprintf(stderr, "	--json+         like --json, but includes more detail\n");
+	fprintf(stderr, "	--sanity        start with a check for missing links in the input token-stream\n");
+	fprintf(stderr, "	--sequential    disable parallel processing in backend (overruling -N settings)\n");
+	fprintf(stderr, "	--limitN        with N a number, limit distance from fct call to fct def to Nk tokens\n");
+	fprintf(stderr, "	--cfg=file      with file the name of a new configs file (in configs dir, or full path)\n");
+	fprintf(stderr, "	--help          print this message\n");
+	fprintf(stderr, "	--exit          immediately exit after startup phase in front end is completed\n");
+	fprintf(stderr, "all diagnostic and error output is written to stderr (also when json format is used)\n");
+	exit(1);
 }
 
 static void
@@ -1333,61 +1334,64 @@ sanity_check(void)
 	fprintf(stderr, "\n");
 }
 
-static int
-valid_args(void)
-{	char *arg;
-	int valid = 0;
+static void
+handle_args(void)
+{	FILE *fd;
+	char *arg;
+	char *s = backend;
 
-	if (strlen(backend) == 0)
-	{	return 1;
-	}
-
-	if ((arg = strstr(backend, "limit")) != NULL)
-	{	arg = &arg[5];
-		if (isdigit((int) *arg))
-		{	setlimit = atoi(arg);
-			fprintf(stderr, "limiting distance from fct call to fct def to %d,000 tokens\n",
-				setlimit);
-			valid++;
+	while (strlen(s) > 0)
+	{	if (strncmp(s, "limit", 5) == 0)
+		{	arg = &s[5];
+			if (isdigit((int) *arg))
+			{	setlimit = atoi(arg);
+				fprintf(stderr, "limiting distance from fct call to fct def to %d,000 tokens\n",
+					setlimit);
+				while (*s != ' ' && *s != '\0')
+				{	s++;
+				}
+			} else
+			{	usage();
+			}
+		} else if (strncmp(s, "sequential ", strlen("sequential ")) == 0)
+		{	Ncore = 1;	// option --sequential, overrides -N from front-end
+			fprintf(stderr, "disabled parallel processing in backend\n");
+			s += strlen("sequential ");
+		} else if (strncmp(s, "sanity ", strlen("sanity ")) == 0)
+		{	sanity_check();
+			s += strlen("sanity ");
+		} else if (strncmp(s, "json", 4) == 0)
+		{	json_format = 1;
+			if (s[4] == '+')
+			{	json_plus = 1;
+				s++;
+			}
+			s += 5;
+		} else if (strncmp(s, "cfg=", 4) == 0)
+		{	arg = strchr(s, ' ');
+			if (!arg)
+			{	usage();
+			}
+			*arg = '\0';
+			Cfg = &s[4];
+			if ((fd = fopen(Cfg, "r")) == NULL)
+			{	fprintf(stderr, "find_taint: no such file '%s'\n",
+					Cfg);
+				exit(1);
+			}
+			fclose(fd);
+			s = arg;
+			s++;
+		} else if (strncmp(s, "exit ", 5) == 0)
+		{	exit(0);
+		} else
+		{	usage();
 	}	}
-	if (strstr(backend, "sequential") != NULL)
-	{	Ncore = 1;	// option --sequential, overrides -N from front-end
-		fprintf(stderr, "disabled parallel processing in backend\n");
-		valid++;
-	}
-	if (strstr(backend, "sanity") != NULL)
-	{	sanity_check();
-		valid++;
-	}
-	if (strstr(backend, "json") != NULL)
-	{	json_format = 1;
-		if (strstr(backend, "json+") != NULL)
-		{	json_plus = 1;
-		}
-		valid++;
-	}
-	if ((arg = strstr(backend, "cfg=")) != NULL)
-	{	Cfg = &arg[4];
-		valid++;
-	}
-	if (strstr(backend, "exit") != NULL)	// to measure time needed for startup alone
-	{	exit(0);
-	}
-
-	if (!valid)	// not a great test
-	{	usage(stderr);
-	}
-
-	return valid;
 }
 
 static int
 phase_zero(void)
 {
-	if (!valid_args())
-	{	return 0;
-	}
-
 	if (json_format)
 	{	printf("[\n");
 	}
@@ -1542,7 +1546,9 @@ show_bindings(const char *s, const Prim *a, const Prim *b, int cid)
 void
 cobra_main(void)
 {
-	if (!phase_zero())	// prep, setup data structs, parse args
+	handle_args();
+
+	if (!phase_zero())	// prep, setup data structs
 	{	return;		// setup failed
 	}
 
