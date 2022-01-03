@@ -2,7 +2,7 @@
 
 // utility functions for the cwe checkers
 
-TokRange	**tokrange;
+extern TokRange	**tokrange;
 pthread_t	 *t_id;
 
 static int seen_mark_fcts;
