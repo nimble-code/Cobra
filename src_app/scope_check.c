@@ -45,7 +45,7 @@ struct MyRange {
 	int file_only;
 } **myrange;
 
-TokRange	**tokrange;	// for cobra_prep.c
+extern TokRange	**tokrange;	// for cobra_prep.c
 
 int
 hash_s(char *v)
