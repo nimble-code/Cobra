@@ -556,7 +556,7 @@ usage(char *s)
 	fprintf(stderr, "\t-c \"commands\"       -- execute commands and stop (cf -e, -f)\n");
 	fprintf(stderr, "\t-c \"m /regex; p\"     -- find tokens matching a regular expr\n");
 	fprintf(stderr, "\t-comments           -- include comments as tokens (unless -cpp is also used)\n");
-	fprintf(stderr, "\t-configure dir      -- set and remember the name for the cobra rules directory\n");
+	fprintf(stderr, "\t-configure dir      -- set and remember the name for the Cobra installation directory\n");
 	fprintf(stderr, "\t-cpp                -- enable C preprocessing%s\n", no_cpp?"":" (default)");
 	fprintf(stderr, "\t-d and -v -d        -- debug cobra inline program executions\n");
 	fprintf(stderr, "\t-eof                -- treat end-of-file as EOF tokens\n");
