@@ -225,13 +225,8 @@ list_states(char *tag, int n)
 static void
 te_error(const char *s)
 {
-	if (json_format)
-	{	memset(bvars, 0, sizeof(bvars));
-		sprintf(json_msg, "\"error: %.110s\"", s);
-		json_match(glob_te, json_msg, "", 0);	// te_error
-	} else
-	{	fprintf(stderr, "error: %s\n", s);
-	}
+	fprintf(stderr, "error: %s\n", s); // errors always to stderr, not in json format
+
 	if (cobra_texpr)	// non-interactive
 	{	stop_timer(0, 0, "te");
 		noreturn();
@@ -1572,7 +1567,16 @@ mark_prim(int d, int m)
 static int
 check_match(int d, int m, int old)
 {
+// printf("check match %d (%d %d) %s %s\n", d, m, old, cur->txt, q_now->txt);
 	assert(d >= 0 && d <= Seq);
+
+	if (snap_pop[d]->p == NULL)
+	{	if (verbose)
+		{	fprintf(stderr, "assert fails: snap_pop[d]->p == NULL\n");
+		}
+		return old;
+	}
+
 	assert(snap_pop[d]->p != NULL);
 
 	if (((snap_pop[d]->p->type & m) == m) != (old == 0))
@@ -1611,8 +1615,9 @@ push_prim(void)
 			n->nxt = snapshot[d]->p;
 			snapshot[d]->p = n;
 			snapshot[d]->n += 1;
-// printf("Push_prim %s >>> %d\n", n->t->txt, d);
-	}	}
+			if (verbose)
+			{	printf("Push_prim %s >>> %d\n", n->t->txt, d);
+	}	}	}
 #endif
 }
 
@@ -1646,7 +1651,9 @@ pop_prim(void)
 				prim_free = n;
  #endif
 				snapshot[d]->n -= 1;
-// printf("Pop_prim %s <<< %d\n", n->t->txt, d);
+				if (verbose)
+				{	printf("Pop_prim %s <<< %d\n", n->t->txt, d);
+				}
 			} else if (0)	// happens after accept and restart
 			{	printf("Bad Pop, state %d\n", d);
 	}	}	}
@@ -2690,17 +2697,10 @@ cobra_te(char *te, int and, int inv)	// fct is too long...
 						{	if (q_now->prv)
 							{ q_now = q_now->prv;
 							} else
-							{ if (json_format)
-							  { sprintf(json_msg, "\"re error for . (S%d->S%d)\"",
-								s->seq, t->dest);
-							    memset(bvars, 0, sizeof(bvars));
-							    json_match(te, json_msg, cur->fnm, cur->lnr); // te error
-							  } else
-							  { printf("%s:%d: re error for . (s%d->s%d) <%p>\n",
+							{ fprintf(stderr, "%s:%d: re error for . (s%d->s%d) <%p>\n",
 								cur->fnm, cur->lnr,
 								s->seq, t->dest,
 								(void *) t->nxt);
-							  }
 							  break;
 							}
 						} else
