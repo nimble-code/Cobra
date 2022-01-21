@@ -28,10 +28,11 @@
 		{	Next;
 		}
 		r = Extern[q.txt];
-		if (r.lnr == 0 || r.type == .type)
+		if (r.lnr == 0 || r.txt == .txt)
 		{	Next;
 		}
 		cnt++;
+		.mark = 1;	# mark the location
 		if (!terse)
 		{	print " " cnt ": " .fnm ":" .lnr ": " q.txt " declared as " .type;
 			print " but as extern " r.type " at " r.fnm ":" r.lnr "\n";

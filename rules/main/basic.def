@@ -198,6 +198,7 @@ def check_for1		# for.cobra
 	n {		# move to the start of the loop body {
 	c $$ /^[^!><=]*=$	# match for the bound symbol followed
 				# by an assignment operator +=, -=, =, etc
+	n $$ /^[^!><=]*=$	# move to that symbol
 	>1
 end
 
@@ -325,8 +326,10 @@ def check_param_count	# param_count_check.cobra
 
 			. = .nxt;
 			if (.txt != "(")
-			{	Next;
+			{	. = m;
+				Next;
 			}
+
 			r = .;
 			. = .jmp;
 			. = .nxt;
@@ -404,11 +407,13 @@ def check_param_count	# param_count_check.cobra
 
 			. = .nxt;
 			if (.txt != "(")
-			{	Next;
+			{	. = q;
+				Next;
 			}
 			x = F[q.txt];
 			if (x.lnr == 0 || x.bound == first_t)
-			{	Next;	# no formal def seen, or multiple defs seen
+			{	. = q;
+				Next;	# no formal def seen, or multiple defs seen
 			}
 	
 			r = .;
