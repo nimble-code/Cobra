@@ -59,7 +59,7 @@ released under the same license in June 2019.
 * configure the tool so that it knows where to find the rule libraries
   (using the $COBRA directory set at the beginning):
 
-   $ cobra -configure $COBRA/rules
+   $ cobra -configure $COBRA
 
    this creates a ~/.cobra file in your home directory, which
    cobra reads on startup to find the predefined checker libraries
