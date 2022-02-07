@@ -1638,6 +1638,10 @@ pre_scan(char *bc)	// non-generic commands
 		} else if (strncmp(bc, "setlinks", strlen("setlinks")) == 0)
 		{	set_links();	// cobra_fcg.c
 			return 1;
+		} else if (strncmp(bc, "seed", 4) == 0)
+		{	a = nextarg(bc);
+			json_import(a);	// read Cobra generated json output
+			return 1;
 		} else if (strncmp(bc, "stream", 6) == 0)
 		{	char *qtr;
 
@@ -1786,6 +1790,9 @@ pre_scan(char *bc)	// non-generic commands
 				} 
 				printf("usage: ps delete name\n");
 				break;
+			} else if (strncmp(a, "json", 4) == 0)
+			{	patterns_json(nextarg(a));		// produce json output
+				return 1;
 			} else if (strncmp(a, "list", 4) == 0)		// ps list [name]
 			{	patterns_list(nextarg(a));
 				return 1;
@@ -2059,6 +2066,19 @@ pre_scan(char *bc)	// non-generic commands
 		if (strcmp(bc, "quit") == 0
 		||  strcmp(bc, "q") == 0)
 		{	return 0;		// session ends
+		}
+		break;
+
+	case 'v':
+		if (strncmp(bc, "verbose", strlen("verbose")) == 0)
+		{	if (strstr(&bc[7], "on"))
+			{	verbose++;
+			} else if (strstr(&bc[7], "off"))
+			{	verbose--;
+			} else
+			{	printf("usage: verbose [on|off]\n");
+			}
+			return 1;
 		}
 		break;
 
@@ -3314,11 +3334,13 @@ help(char *s, char *unused)	// 1
 	printf("  %8s  %c %s\n", "pe", ' ',             "[Name:] pattern   same as pat or pattern (pe=pattern expression)");
 	printf("  %8s  %c %s\n", "pe", ' ',             "A: B [+-&] C pe set union, difference, or intersection of B and C, stored in A");
 	printf("  %8s  %c %s\n", "restore", ' ',	"n         alternative syntax for: <n");
+	printf("  %8s  %c %s\n", "seed"   , ' ',	"fnm       seed markings by reading JSON formatted Cobra output file fnm");
 	printf("  %8s  %c %s\n", "setlinks", ' ',	"          set .bound field for if/else/switch/case/break stmnts");
 	printf("  %8s  %c %s\n", "stream"  , ' ',	"[mode=text] [limit=N] [margin=N] when streaming input from stdin");
 	printf("  %8s  %c %s\n", "terse", ' ',		"on|off    enable/disable display of details with d/l/p");
 	printf("  %8s  %c %s\n", "track", ' ',		"start fnm|stop temporarily divert all output to fnm");
 	printf("  %8s  %c %s\n", "unmark", ' ',		"p [p2]    alternative syntax for: mark no p [p2]");
+	printf("  %8s  %c %s\n", "verbose", ' ',	"on|off    increas/decrease verbosity");
 	printf("  %8s  %c %s\n", "view", ' ',           "          list known command script names");
 	printf("  %8s  %c %s\n", "=", ' ',		"[string [(expr)]    print nr of matches, with optional string/expr");
 
@@ -3416,6 +3438,12 @@ cleanup(int unused)
 }
 
 // externally visible functions:
+
+int
+check_config(void)
+{
+	return try_read(".cobra");
+}
 
 void
 fix_eol(void)

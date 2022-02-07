@@ -123,6 +123,7 @@ extern char	 json_msg[512];	// cobra_json.c
 extern char	*b_cmd;
 extern char	*yytext;
 extern int	 eol, eof;
+extern int	 across_file_match;	// global flag
 extern int	 evaluate(const Prim *, const Lextok *);
 extern void	 fix_eol(void);
 
@@ -192,7 +193,6 @@ reinit_te(void)
 	cur = prim;
 }
 
-#if 0
 static void
 list_states(char *tag, int n)
 {	List *c;
@@ -220,7 +220,6 @@ list_states(char *tag, int n)
 	}
 	printf("\n");
 }
-#endif
 
 static void
 te_error(const char *s)
@@ -272,6 +271,7 @@ te_regstop(void)
 		re_list = re_list->nxt;
 	}
 }
+
 // end regular expression matching on token text
 
 static void
@@ -692,7 +692,7 @@ mk_el(Node *n, char *caller)
 	t = (Nd_Stack *) emalloc(sizeof(Nd_Stack), 94);
 	t->seq = Seq++;
 	t->n = n;
-	if (verbose)
+	if (verbose>1)
 	{	printf("---mk_el %d -- tok '%s' typ %d (%s)\n",
 			t->seq,
 			t->n?t->n->tok:"---",
@@ -709,7 +709,7 @@ push(Nd_Stack *t)
 	t->nxt = nd_stack;
 	nd_stack = t;
 
-	if (verbose)
+	if (verbose>1)
 	{	printf("\tpush (%s)	<seq %d succ %d, r %d, l %d>\n",
 			t->n?t->n->tok:"---",
 			t->seq,
@@ -738,7 +738,7 @@ pop(void)
 	nd_stack = nd_stack->nxt;
 	t->nxt = NULL;
 
-	if (verbose && t->n)
+	if (verbose>1 && t->n)
 	{	printf("\tpop (%s) <seq %d succ %d>\n",
 			t->n->tok, t->seq, t->n->succ?t->n->succ->seq:0);
 	}
@@ -760,7 +760,7 @@ static void
 clear_visit(Nd_Stack *t)
 {
 	if (t)
-	{	if (verbose)
+	{	if (verbose>1)
 		{	printf("---clear-visit %d\n", t->seq);
 		}
 		t->visited = 0;
@@ -774,7 +774,7 @@ loop_back(Nd_Stack *a, Nd_Stack *t, int caller)
 {
 	assert(a != NULL);
 
-	if (verbose)
+	if (verbose>1)
 	{	printf("---connect %d (succ %d) -> %d (succ %d) <caller %d>\n",
 			a->seq,
 			a->n && a->n->succ?a->n->succ->seq:0,
@@ -783,7 +783,7 @@ loop_back(Nd_Stack *a, Nd_Stack *t, int caller)
 			caller);
 	}
 	if (a->visited&2)
-	{	if (verbose)
+	{	if (verbose>1)
 		{	printf("!	%d previously visited!\n", a->seq);
 		}
 		return;
@@ -793,13 +793,13 @@ loop_back(Nd_Stack *a, Nd_Stack *t, int caller)
 	if (a->n)	// NNODE
 	{	if (!a->n->succ)
 		{	a->n->succ = t;
-			if (verbose)
+			if (verbose>1)
 			{	printf("=\t%d successor is now %d\n",
 					a->seq, t->seq);
 			}
 		} else
 		{	int z = a->seq;
-			if (verbose)
+			if (verbose>1)
 			{	printf(">\t%d has successor %d, find tail\n",
 					z, a->n->succ->seq);
 			}
@@ -812,11 +812,11 @@ loop_back(Nd_Stack *a, Nd_Stack *t, int caller)
 			if (!a || !a->n)	// Cnode
 			{	if (a && !a->rgt)
 				{	a->rgt = t;
-					if (verbose)
+					if (verbose>1)
 					{	printf("Cnode	-- %d attached to rgt of %d\n",
 							t?t->seq:-1, a->seq);
 					}
-				} else if (verbose)
+				} else if (verbose>1)
 				{	printf("\tCnode (%p) S%d should connect to S%d (l %p, r %p)\n",
 						(void *) a, a?a->seq:-1, t->seq,
 						(void *) a->lft, (void *) a->rgt);
@@ -824,7 +824,7 @@ loop_back(Nd_Stack *a, Nd_Stack *t, int caller)
 				goto L;
 			}
 			a->n->succ = t;
-			if (verbose)
+			if (verbose>1)
 			{	printf("=\t%d successor is now %d\n",
 					a->seq, t->seq);
 				printf("<\n");
@@ -832,33 +832,33 @@ loop_back(Nd_Stack *a, Nd_Stack *t, int caller)
 	} else	// CNODE
 	{
 L:		assert(a->lft != NULL);
-		if (verbose)
+		if (verbose>1)
 		{	printf("Cnode -- loopback lft\n");
 		}
 		loop_back(a->lft, t, 2);
-		if (verbose)
+		if (verbose>1)
 		{	printf("Cnode -- return from loopback lft\n");
 		}
 		if (!a->rgt)
 		{	a->rgt = t;
-			if (verbose)
+			if (verbose>1)
 			{	printf("Cnode	-- %d attached to rgt of %d\n",
 					t?t->seq:-1, a->seq);
 			}
 		} else
 		{	if (a->rgt->seq == t->seq)
-			{	if (verbose)
+			{	if (verbose>1)
 				{	printf("Cnode -- %d rgt already set correctly to %d\n",
 						a->seq, t->seq);
 				}
 				return;
 			}
-			if (verbose)
+			if (verbose>1)
 			{	printf("Cnode	-- %d rgt already set to %d, loopback rgt\n",
 					a->seq, a->rgt->seq);
 			}
 			loop_back(a->rgt, t, 3);
-			if (verbose)
+			if (verbose>1)
 			{	printf("\tCnode -- return from loopback rgt\n");
 	}	}	}
 }
@@ -1014,7 +1014,7 @@ thompson(char *s)
 
 	reverse_polish(s);
 
-	if (verbose > 1)
+	if (verbose > 2)
 	{	show_re();
 		return;
 	}
@@ -1022,7 +1022,7 @@ thompson(char *s)
 	for (re = rev_pol; re; re = re_nxt)
 	{	re_nxt = re->nxt;
 		re->nxt = NULL;
-		if (verbose)
+		if (verbose>1)
 		{	switch (re->type) {
 			case '*':
 			case '+':
@@ -1123,12 +1123,11 @@ copy_snapshot(int from, int into)
 	assert(from >= 0 && from <= Seq+1);
 	assert(into >= 0 && into <= Seq+1);
 #if 0
-	snapshot[into] = snapshot[from];	// move, or copy?
-	snapshot[from] = (Snapshot *) emalloc(sizeof(Snapshot), 68); // recycle?
+	snapshot[into] = snapshot[from];				// move, or copy?
+	snapshot[from] = (Snapshot *) emalloc(sizeof(Snapshot), 68);	// recycle?
 #else
 	memcpy(snapshot[into], snapshot[from], sizeof(Snapshot));
 #endif
-//printf(">>>Copy snapshot %d -> %d\n", from, into);
 }
 
 static Range *
@@ -1174,7 +1173,7 @@ range(char *s)
 }
 
 static void
-mk_trans(int src, int match, char *pat, int dest,int cond)	// called from main.c
+mk_trans(int src, int match, char *pat, int dest, int cond)	// called from main.c
 {	Trans *t;
 	char *b, *g;
 
@@ -1237,7 +1236,8 @@ get_store(Store *n)
 	if (free_stored)
 	{	b = free_stored;
 		free_stored = free_stored->nxt;
-		b->ref = (Prim *) 0;
+		b->bdef = (Prim *) 0;
+		b->ref  = (Prim *) 0;
 	} else
 	{	b = (Store *) emalloc(sizeof(Store), 102);
 	}
@@ -1245,6 +1245,7 @@ get_store(Store *n)
 	if (n)
 	{	b->name = n->name;
 		b->text = n->text;
+		b->bdef = n->bdef;
 		b->ref  = n->ref;
 	}
 	return b;
@@ -1252,8 +1253,19 @@ get_store(Store *n)
 
 // Execution
 
+Prim *
+bound_prim(const char *s)
+{	Store*b;
+
+	for (b = e_bindings; b; b = b->nxt)
+	{	if (strcmp(s, b->name) == 0)
+		{	return b->bdef;
+	}	}
+	return (Prim *) NULL;
+}
+
 char *
-bound_value(const char *s)
+bound_text(const char *s)
 {	Store*b;
 
 	for (b = e_bindings; b; b = b->nxt)
@@ -1320,9 +1332,9 @@ mk_active(Store *bnd, Store *new, int orig, int src, int into)
 #if 1
 	copy_snapshot(orig, src);
 #endif
-
 	for (c = curstates[into]; c; c = c->nxt)
 	{	assert(c->s);
+
 		if (c->s->seq == src)
 		{	if (!bnd && !new)
 			{	return;
@@ -1391,8 +1403,9 @@ mk_active(Store *bnd, Store *new, int orig, int src, int into)
 
 	c->nxt = curstates[into];
 	curstates[into] = c;
-//	list_states("			", into);
-
+	if (verbose)
+	{	list_states("			", into);
+	}
 }
 
 static void
@@ -1437,8 +1450,12 @@ is_accepting(Store *b, int s)
 	{	add_match(cur, q_now, b);
 
 		if (verbose)
-		{	printf("%s:%d..%d: matches (state %d)\n",
-				cur->fnm, cur->lnr, q_now->lnr, s);
+		{	printf("%s:%d..", cur->fnm, cur->lnr);
+			if (strcmp(cur->fnm, q_now->fnm) != 0)
+			{	printf("%s:", q_now->fnm);
+			}
+			printf("%d: matches (state %d) bindings: %p\n",
+				q_now->lnr, s, (void *) b);
 		}
 
 		free_list(1 - current);		// remove next states
@@ -1452,7 +1469,7 @@ is_accepting(Store *b, int s)
 }
 
 static Store *
-saveas(State *s, char *name, char *text)
+saveas(State *s, char *name, char *text)	// name binding
 {	Store *b;
 
 	for (b = s->bindings; b; b = b->nxt)
@@ -1464,6 +1481,7 @@ saveas(State *s, char *name, char *text)
 	b = get_store(0);
 	b->name = name;
 	b->text = text;
+	b->bdef = q_now;
 	b->nxt  = (Store *) 0;
 
 	return b;
@@ -1567,7 +1585,6 @@ mark_prim(int d, int m)
 static int
 check_match(int d, int m, int old)
 {
-// printf("check match %d (%d %d) %s %s\n", d, m, old, cur->txt, q_now->txt);
 	assert(d >= 0 && d <= Seq);
 
 	if (snap_pop[d]->p == NULL)
@@ -1694,8 +1711,9 @@ check_level(void)
 static void
 free_bind(Bound *b)
 {
-	b->ref = (Prim *) 0;
-	b->nxt = free_bound;
+	b->bdef = (Prim *) 0;
+	b->ref  = (Prim *) 0;
+	b->nxt  = free_bound;
 	free_bound = b;
 }
 
@@ -1706,6 +1724,7 @@ free_m(Match *m)
 
 	nm = m->nxt;
 
+	m->msg  = (char *) 0;
 	m->from = (Prim *) 0;
 	m->upto = (Prim *) 0;
 	m->nxt  = free_match;
@@ -1792,6 +1811,34 @@ patterns_create(void)		// convert marks to pattern matchess in SetName
 }
 
 void
+patterns_json(char *s)
+{	Named *q;
+	Match *m;
+
+	for (q = namedset; q; q = q->nxt)
+	{	if (strcmp(q->nm, s) == 0)
+		{	break;
+	}	}
+	if (!q)
+	{	printf("pattern set '%s' not found\n", s);
+		return;
+	}
+	for (m = q->m; m; m = m->nxt)
+	{	if (m->msg)
+		{	strncpy(json_msg, m->msg, sizeof(json_msg)-1);
+		} else if (strcmp(m->from->fnm, m->upto->fnm) == 0)
+		{	sprintf(json_msg, "lines %d..%d",
+				m->from->lnr, m->upto->lnr);
+		} else
+		{	sprintf(json_msg, "%s:%d..%s:%d",
+				m->from->fnm, m->from->lnr,
+				m->upto->fnm, m->upto->lnr);
+		}
+		json_match(q->nm, json_msg, m->from, m->upto);
+	}
+}
+
+void
 patterns_list(char *s)
 {	Named *q;
 	Match *r;
@@ -1852,9 +1899,9 @@ convert_matches(int n)
 		return p;	// dont convert patterns to marks
 	}
 
-	if (no_match && no_display && p > 0)	// terse mode
-	{	return p;
-	}
+//	if (no_match && no_display && p > 0)
+//	{	return p;
+//	}
 
 	return matches2marks(1);
 }
@@ -2006,7 +2053,13 @@ pattern_full(int which, int N, int M)
 		hits++;
 
 		lst = cur->lnr;
-		fprintf(fd, "%s:%d..%d", cur->fnm, lst, cur->bound->lnr);
+
+		fprintf(fd, "%s:%d..", cur->fnm, lst);
+		if (strcmp(cur->fnm, cur->bound->fnm) != 0)
+		{	fprintf(fd, "%s:", cur->bound->fnm);
+		}
+		fprintf(fd, "%d", cur->bound->lnr);
+
 		if (r > 0)
 		{	fprintf(fd, " (%d lines)\n", r);
 		} else
@@ -2104,7 +2157,6 @@ parse_constraint(char *c)
 	Lextok *rv = NULL;
 
 	b_cmd = yytext = c;
-
 	rv = prep_eval();
 
 	b_cmd  = ob;
@@ -2232,7 +2284,7 @@ get_constraints(char *t)
 			p = parse_constraint(c+1);
 			if (p)
 			{	store_constraint(nr, p);
-				if (verbose)
+				if (verbose>1)
 				{	printf("constraint %d = '%s' -- parses: %p\n",
 						nr, c+1, (void *) p);
 				}
@@ -2561,11 +2613,13 @@ cobra_te(char *te, int and, int inv)	// fct is too long...
 	}
 
 	thompson(te);
+
 	if (!nd_stack || nerrors > 0)
 	{	te_regstop();
 		stop_timer(0, 0, "te");
 		return;
 	}
+
 	if (nd_stack->nxt)	// error
 	{	Nd_Stack *q = nd_stack;
 		while (q)
@@ -2631,8 +2685,12 @@ cobra_te(char *te, int and, int inv)	// fct is too long...
 
 		for (q_now = cur; q_now; q_now = q_now->nxt)
 		{
-			if (q_now->fnm != cur->fnm)	// no match across files
-			{	break;
+			if (!across_file_match	// unless we allow this
+			&&  q_now->fnm != cur->fnm)	// no match across files
+			{	if (verbose)
+				{	printf("stop match attempt at file boundary\n");
+				}
+				break;
 			}
 			anychange = 0;
 			if (*(q_now->txt+1) == '\0')
@@ -2646,7 +2704,6 @@ cobra_te(char *te, int and, int inv)	// fct is too long...
 
 			for (c = curstates[current]; c; c = c->nxt)
 			{	s = c->s;
-
 				if (!has_positions
 				&&  s->seq < MAX_CONSTRAINT
 				&&  constraints[s->seq])
@@ -2678,15 +2735,16 @@ cobra_te(char *te, int and, int inv)	// fct is too long...
 
 					if (has_positions
 					&&  t->cond)
-					{	if (!evaluate(q_now, constraints[t->cond]))
+					{	e_bindings = s->bindings;
+						if (!evaluate(q_now, constraints[t->cond]))
 						{	if (verbose)
 							{	printf("\tconstraint %d fails (S%d -> S%d)\n",
 									t->cond, s->seq, t->dest);
 							}
 							continue;
 						} else if (verbose)
-						{	printf("\t%s:%d: constraint %d holds (%d) (S%d -> S%d)\n",
-								q_now->fnm, q_now->lnr,
+						{	printf("\t%s:%d: '%s' constraint %d holds (%d) (S%d -> S%d)\n",
+								q_now->fnm, q_now->lnr, q_now->txt,
 								t->cond,
 								(q_now->jmp?q_now->jmp->lnr:0) - q_now->lnr,
 								s->seq, t->dest);
@@ -2752,19 +2810,17 @@ cobra_te(char *te, int and, int inv)	// fct is too long...
 									{	printf("accepted (%d)\n",
 											prim_free->type);
 						}	}	}	}
-
 						mk_active(s->bindings, 0, s->seq, t->dest, 1-current);
 						anychange = 1;
 						if (is_accepting(s->bindings, t->dest))
 						{	goto L;
 						}
 						continue;
-					}
+					} // !t->pat
 
 					if (t->recall)	// bound variable ref
 					{	if (recall(c->s, t, q_now->txt))
-						{
-							if (!t->match
+						{	if (!t->match
 							&&  (q_now->txt[0] == '{'
 							  || q_now->txt[0] == '('
 							  || q_now->txt[0] == '['))
@@ -2926,7 +2982,6 @@ cobra_te(char *te, int and, int inv)	// fct is too long...
 							}
 							goto is_match;
 					}	}
-
 					if (*(t->pat) == '@')
 					{	m = tp_desc(q_now->typ);
 						p = t->pat+1;
@@ -2957,7 +3012,6 @@ cobra_te(char *te, int and, int inv)	// fct is too long...
 							}
 						}
 					}
-
 					// match==0 && m != p	m: tokentext, p: pattern
 					// match==1 && m == p
 
@@ -3008,11 +3062,12 @@ cobra_te(char *te, int and, int inv)	// fct is too long...
 						}	}	}	}
 		is_match:
 						if (t->saveas)
-						{	Store *b = saveas(s, t->saveas, q_now->txt);
+						{	Store *b;
+							b = saveas(s, t->saveas, q_now->txt);
 							if (verbose)
-							{	printf("==%s:%d: New Binding: %s -> %s\n",
+							{	printf("==%s:%d: New Binding: %s -> %s (%p)\n",
 									q_now->fnm, q_now->lnr,
-									t->saveas, q_now->txt);
+									t->saveas, q_now->txt, (void *) b);
 							}
 							mk_active(s->bindings, b, s->seq, t->dest, 1-current);
 						} else
@@ -3035,7 +3090,7 @@ cobra_te(char *te, int and, int inv)	// fct is too long...
 					{	mustbreak = 0;
 						break;
 					}
-				}		// for each possible transistion
+				}		// for each possible transition
 			}			// for each current state
 
 		L:	mustbreak = 0;
@@ -3045,8 +3100,8 @@ cobra_te(char *te, int and, int inv)	// fct is too long...
 			} else
 			{	break;			// no match of pattern, Next
 			}
-		}	// for-loop match attempt on token q_now
-	}		// for-loop starting match attempt
+		}	// for-loop look-ahead match attempt on token q_now
+	}		// for-loop starting match attempt cur
 
 	te_regstop();
 
@@ -3069,10 +3124,16 @@ cobra_te(char *te, int and, int inv)	// fct is too long...
 		rx = 0;
 	} else if (stream <= 0)	// not streaming
 	{	if (convert_matches(0) > 0)
-		{	if (json_format)
+		{
+			if (json_format)
 			{	json(te);	// te reporting, not streaming
 			} else
-			{	display("", "");
+			{
+#if 1
+				pattern_full(0, -1, -1); // shows bound vars too
+#else
+				display("", "");
+#endif
 			}
 		} else
 		{	if (json_format)

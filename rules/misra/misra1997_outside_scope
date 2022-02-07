@@ -1,0 +1,46 @@
+# 15 rules are either compiler checks or outside the scope of static analyzers like cobra
+
+!echo "Rule 1 (Required) All code shall conform to ISO 9899:1990 standard C, with no extensions permitted."
+# checked by compiler
+
+!echo "Rule 2 (Advisory) Code written in languages other than C should only be used if there is a defined interface standard for object code to which the compilers/assemblers for both languages conform."
+# outside scope of static analysis
+
+!echo "Rule 4 (Advisory) Provision should be made for appropriate runtime checking. Minimization of run-time failures must be ensured by the use of at least one of (a) static analysis tools/techniques (b) dynamic analysis tools/techniques (c) explicit coding of checks to handle run-time faults. (as revised) "
+# outside scope of static analysis
+
+!echo "Rule 6 (Required) Character constants and string literals shall only contain characters that map to a defined subset of ISO 10646-1."
+# requires definition of the desired subset
+
+!echo "Rule 15 (Advisory) Floating point implementations should comply with a defined floating point standard."
+# outside scope of static analysis
+
+!echo "Rule 18 (Advisory) Numeric constants must be given an appropriate suffix that reveals their intended type, e.g., 27u, whenever an appropriate suffix is available."
+# checking 'intent' is outside scope of static analysis
+
+!echo "Rule 20 (Required) All object and function identifiers shall be declared before use."
+# checked by compiler
+
+!echo "Rule 41 (Advisory) The implementation of integer division in the chosen compiler should be determined, documented and taken into account."
+# outside scope of static analysis
+
+!echo "Rule 44 (Advisory) (As revised:) Redundant or unnecessary casts are allowed, but must be identified as such in a comment."
+# outside scope of static analysis
+
+!echo "Rule 68 (Required) Functions shall always be declared at file scope."
+# compiler checks
+
+!echo "Rule 77 (Required) The unqualified type of parameters passed to a function shall be compatible with the unqualified expected types defined in the function prototype."
+# compiler can check
+
+!echo "Rule 101 (Advisory) Pointer arithmetic should not be used."
+# not cobra
+
+!echo "Rule 103 (Required) Relational operators shall not be applied to pointer types except where both operands are of the same type and point to the same array, structure or union."
+# not cobra
+
+!echo "Rule 113 (Required) All members of a structure (or union) shall be named and shall only be accessed via their name."
+# not cobra
+
+!echo "Rule 116 (Required) All libraries used in production code shall be written to comply with the provisions of these rules, and shall have been subject to appropriate validation."
+# outside scope

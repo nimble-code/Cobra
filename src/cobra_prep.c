@@ -17,6 +17,7 @@
 #endif
 
 int ada;
+int across_file_match;
 int all_headers;
 int cplusplus;
 int Ctok;
@@ -66,6 +67,7 @@ static char	*preproc   = "";
 static char	*file_list;	// file with filenames to process
 static int	 handle_typedefs = 1;
 static char	*recursive;	// use find to populate file_list
+static char	*seedfile;
 static int	 textmode;
 static char	 tmpf[32];
 static int	 with_qual = 1;
@@ -569,7 +571,8 @@ usage(char *s)
 	fprintf(stderr, "\t                       var-reference: :name\n");
 	fprintf(stderr, "\t                       same as -re, -regex,-expr, see also -pe\n");
 	fprintf(stderr, "\t-f file             -- execute commands from file and stop (cf -view)\n");
-	fprintf(stderr, "\t-F file             -- read files to process from file instead of command line (see also -recursive)\n");
+	fprintf(stderr, "\t-F file             -- read file names to process from file instead of command line (see also -recursive)\n");
+	fprintf(stderr, "\t-global             -- allow pattern matches (pe) to cross file boundaries\n");
 	fprintf(stderr, "\t-Idir, -Dstr, -Ustr -- preprocessing directives\n");
 	fprintf(stderr, "\t-Java               -- recognize Java keywords\n");
 	fprintf(stderr, "\t-json               -- generate json output for -pattern/-pe matches (only)\n");
@@ -597,6 +600,7 @@ usage(char *s)
 	fprintf(stderr, "\t-regex \"expr\"       -- see -e\n");
 	fprintf(stderr, "\t-runtimes           -- report runtimes of commands executed, if >1s\n");
 	fprintf(stderr, "\t-scrub              -- produce output in scrub-format\n");
+	fprintf(stderr, "\t-seed file          -- read JSON formatted output from file to seed initial pattern sets\n");
 	fprintf(stderr, "\t-stream N           -- set stdin stream buffer-limit to N  (default %d)\n", stream_lim);
 	fprintf(stderr, "\t-stream_margin N    -- set stdin window margin to N tokens (default %d)\n", stream_margin);
 	fprintf(stderr, "\t-stream_override    -- override warning about a non-streamable script\n");
@@ -888,6 +892,7 @@ unquoted(char *p)
 	// passed to cobra_te in an interactive session
 
 	if ((*p == '\'' || *p == '\"')
+//	&&   len > 0			// guaranteed, since *p is non-zero
 	&&   p[len-1] == *p)
 	{	p[len-1] = '\0';
 		p++;
@@ -1213,7 +1218,11 @@ RegEx:			  no_match = 1;		// -e -expr -re or -regex
 			  argc--; argv++;
 			  break;
 
-		case 'g': gui = 1;
+		case 'g': if (strcmp(argv[1], "-global") == 0)
+			  {	across_file_match = 1;
+			  } else
+			  {	gui = 1;
+			  }
 			  break;
 
 		case 'I': add_preproc(argv[1]);
@@ -1323,6 +1332,11 @@ RegEx:			  no_match = 1;		// -e -expr -re or -regex
 
 		case 's': if (strcmp(argv[1], "-scrub") == 0)
 			  {	scrub = 1;
+				break;
+			  }
+			  if (strcmp(argv[1], "-seed") == 0)
+			  {	argc--; argv++;
+				seedfile = argv[1];
 				break;
 			  }
 			  if (strcmp(argv[1], "-stream") == 0)
@@ -1570,7 +1584,15 @@ cwe_mode:	no_match = 1;	// for consistency with -f
 	{	return 0;
 	}
 	post_process(1);	// collect info from cores
-	cobra_main();		// cobra and cobra_checkers
+
+	if (seedfile)
+	{	json_import(seedfile);
+	}
+
+	if (strstr(progname, "cobra") == NULL
+	|| !check_config())	// no ./.cobra file
+	{	cobra_main();
+	}
 
 	return 0;
 }

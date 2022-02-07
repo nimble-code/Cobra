@@ -63,6 +63,7 @@ fcts	# mark function definitions
 			{	zx = Params[.txt];
 				if (zx != 0 && zx.mark != 1340)
 				{	zx.mark = 1340;
+					.mark = 1;
 					if (terse)
 					{	w_cnt++;
 						if (verbose || w_cnt < 10)
@@ -83,7 +84,8 @@ fcts	# mark function definitions
 			. = .nxt;	# 2nd arg
 			if (@ident
 			&& Params[.txt] != 0)
-			{	if (terse)
+			{	.mark = 1;
+				if (terse)
 				{	w_cnt++;
 					Files[.fnm]++;
 				} else

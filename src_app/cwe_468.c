@@ -73,7 +73,7 @@ cwe468_report(void)
 			{	sprintf(json_msg, "'%s': risky cast using pointer arithmetic",
 					mycur->txt);
 				if (json_format)
-				{	json_match("cwe_468", json_msg, mycur->fnm, mycur->lnr);
+				{	json_match("cwe_468", json_msg, mycur, 0);
 				} else
 				{	printf("%s:%d: cwe_468: %s\n",
 						mycur->fnm, mycur->lnr, json_msg);

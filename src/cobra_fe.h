@@ -7,7 +7,7 @@
 #ifndef COBRA_FE
 #define COBRA_FE
 
-#define tool_version	"Version 3.7 - 9 December 2021"
+#define tool_version	"Version 3.8 - 7 February 2022"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -59,7 +59,8 @@ struct ArgList {
 };
 
 struct Bound {
-	Prim	*ref;
+	Prim	*bdef;		// where binding was set
+	Prim	*ref;		// where match was found
 	Bound	*nxt;
 };
 
@@ -72,6 +73,7 @@ struct Files {
 };
 
 struct Match {
+	char	*msg;
 	Prim	*from;
 	Prim	*upto;
 	Bound	*bind;
@@ -95,6 +97,7 @@ struct Stack {
 struct Store {
 	char	*name;
 	char	*text;
+	Prim	*bdef;		// where binding was set
 	Prim	*ref;		// last place where bound var was seen
 	Store	*nxt;
 };
@@ -144,11 +147,13 @@ extern int	json_format;
 extern int	json_plus;
 extern int	nr_json;
 extern char	json_msg[512];
-extern void	json_match(const char *, const char *, const char *, int);
+extern void	json_match(const char *, const char *, const Prim *, const Prim *);
 extern void	new_named_set(const char *);
 extern Match	*findset(const char *, int, int);
+extern Files	*findfile(const char *);
 
 extern int	add_file(char *, int, int);
+extern int	check_config(void);
 extern int	c_lex(int);
 extern int	do_markups(const char *);
 extern int	json_convert(const char *);
@@ -160,7 +165,7 @@ extern int	sanitycheck(int);
 extern size_t	*hmalloc(size_t, const int, const int);
 
 extern void	add_match(Prim *f, Prim *t, Store *bd);
-extern void	add_pattern(const char *, Prim *, Prim *);
+extern void	add_pattern(const char *, const char *, Prim *, Prim *);
 extern void	basic_prim(const char *s, int cid);
 extern void	clear_matches(void);
 extern void	clr_matches(int);
@@ -175,6 +180,7 @@ extern void	ini_lock(void);
 extern void	ini_par(void);
 extern void	ini_pre(int);
 extern void	ini_timers(void);
+extern void	json_import(const char *);
 extern void	lock_print(int);
 extern void	memusage(void);
 extern void	post_process(int);

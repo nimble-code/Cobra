@@ -224,10 +224,12 @@ cwe131_report(void)
 		for (; mycur; mycur = mycur->nxt)
 		{	if (mycur->mark == 131)
 			{	sprintf(json_msg, "missing sizeof() in memory allocation?");
-
-				printf("%s:%d: cwe_131: %s\n",
-					mycur->fnm, mycur->lnr, json_msg);
-
+				if (json_format)
+				{	json_match("cwe_131", json_msg, mycur, 0);
+				} else
+				{	printf("%s:%d: cwe_131: %s\n",
+						mycur->fnm, mycur->lnr, json_msg);
+				}
 				mycur->mark = 0;
 			} else if (mycur->mark == 1310)
 			{	Prim *q = mycur;
@@ -251,7 +253,7 @@ cwe131_report(void)
 					} else
 					{	strcpy(more, ample);
 					}
-					json_match("cwe_131", more, q->fnm, q->lnr);
+					json_match("cwe_131", more, q, 0);
 				} else
 				{	printf("%s:%d:  cwe_131: %s\n",
 						q->fnm, q->lnr, ample);

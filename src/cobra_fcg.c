@@ -680,7 +680,7 @@ context(char *s, char *unused)
 		sleep(1);
 		unlink(CobraDot);
 	}
-	if (0)
+	if (0)	// debug
 	{	printf("Dump:\n");
 		for (ix = 0; ix < Ncore; ix++)
 		for (f = flist[ix]; f; f = f->nxt)

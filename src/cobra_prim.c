@@ -193,7 +193,7 @@ check_args(char *s, const char *c_base)	// single-core
 		// should also check java/C++,python etc.
 	}
 
-	c = (char *) emalloc((n+1)*sizeof(char), 69);	// single core
+	c = (char *) emalloc((n+2)*sizeof(char), 69);	// single core
 	if (p)
 	{	*p = '\0';
 		strncpy(c, s, n);	// upto $COBRA
@@ -229,16 +229,16 @@ check_args(char *s, const char *c_base)	// single-core
 			return (char *) 0;
 		}
 
-		for (m = 0; m < NHASH; m++)	// bug fix: was n
+		for (m = 0; m < NHASH; m++)
 		for (f = files[m]; f; f = f->nxt)
-		{	strcat(c, " ");
-			assert(strlen(c)+strlen(f->s) < n);
+		{	assert(strlen(c)+strlen(f->s)+2 <= n);
+			strcat(c, " \"");
 			strcat(c, f->s);
+			strcat(c, "\"");
 		}
 		p = a + strlen("$ARGS");
 	}
-
-	assert(strlen(c)+strlen(p) < n);
+	assert(strlen(c)+strlen(p) <= n);
 	strcat(c, p);	// the rest, if any
 
 	if (!a && q)
@@ -271,10 +271,26 @@ listfiles(int verb, const char *s)
 	{	if (verb)
 		{	printf("  %s\n", f->s);
 		} else
-		{	len += strlen(f->s)+1;
+		{	len += strlen(f->s) +1 +2;
+			// +1 for added space after, and
+			// +2 to allow for added quotes in check_args
 	}	}
 
 	return len;
+}
+
+Files *
+findfile(const char *s)
+{	Files *f;
+	int n;
+
+	for (n = 0; n < NHASH; n++)
+	for (f = files[n]; f; f = f->nxt)
+	{	if (strcmp(f->s, s) == 0)
+		{	return f;
+	}	}
+
+	return NULL;
 }
 
 static void
@@ -725,7 +741,7 @@ process_line(char *buf, int cid)
 	{	if (sscanf(buf, "line	%d	%s", &y, z) == 2)
 		{	assert(Px.lex_lineno == y);
 			n = strrchr((const char *) buf, (int) '\t');
-			strcpy(z, n+1); // in case filename has spaces
+			strncpy(z, n+1, sizeof(z)-1); // in case filename has spaces
 			assert(strcmp(Px.lex_fname, z) == 0);
 		}
 		return;

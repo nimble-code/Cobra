@@ -98,7 +98,8 @@ extern char *cobra_txt(void);
 extern char *cobra_typ(void);
 extern char *fct_which(const Prim *);
 
-extern char *bound_value(const char *);
+extern char *bound_text(const char *);
+extern Prim *bound_prim(const char *);
 
 extern int add_stream(Prim *);
 extern int cobra_lnr(void);
@@ -129,6 +130,7 @@ extern void fix_imbalance(void);
 extern void json(const char *);
 extern void list_checkers(void);
 extern void patterns_create(void);
+extern void patterns_json(char *);
 extern void patterns_list(char *);
 extern void patterns_delete(void);
 extern void noreturn(void);

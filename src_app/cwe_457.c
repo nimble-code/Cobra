@@ -408,7 +408,7 @@ report_457(void)
 				}
 				sprintf(json_msg, "uninitialized var %s?", cur->txt);
 				if (json_format)
-				{	json_match("cwe_457", json_msg, cur->fnm, cur->lnr);
+				{	json_match("cwe_457", json_msg, cur, 0);
 				} else
 				{	printf("%s:%d: cwe_457: %s\n",
 						cur->fnm, cur->lnr, json_msg);

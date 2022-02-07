@@ -192,7 +192,7 @@
     (short for 'pattern set') command.
     added manual pages and explanations for the changes.
 
-3.7 december 10 2021
+3.7 december 10, 2021
   - added support for named pattern sets in the scripting
     language (routines: pset(), add_pattern(), del_pattern() )
   - fixed a bug in the working of the contains & command
@@ -217,10 +217,70 @@
    - the backend tool cwe will be modified as well
      in a future update
 
-update december 30 2021
-   - updated interface from cobra to backend checkers
-     to support json output format
-   - cwe and find_taint updated to recognize the new
+new in december 30, 2021
+   - updated the interface between cobra and backend checkers
+     (like cwe and find_taint) to support json output format
+   - cwe and find_taint were updated to recognize new commandline
      options --json and --json+ to generate output in
      json format
-   - improved argument handling for cwe and find_taint
+   - improved argument handling for both cwe and find_taint
+
+3.8 february 7, 2022
+   - added support to front-end and back-ends (cwe etc)
+     to output JSON formatted files that the Cobra-front
+     can read back in to seed pattern sets based on
+     the results of the earlier run.
+     the feature uses a field named "cobra" in the JSON
+     output that gives exact token locations, but JSON
+     files without this field can also be read.
+     the inline command to read a JSON file is:
+	: seed filename
+     and the matching command-line option is:
+	$ cobra -seed filename *.c
+     preprocessing (-cpp) should be enabled or disabled
+     the same when the JSON format is generated and when
+     it is read. and the files referenced must be available.
+     once the token markings are seeded, the newly created
+     pattern set(s) can be manipulated in the
+     usual ways with other query commands (e.g. pset).
+
+   - added a prototype for json_convert.c to convert
+     Cobra generated JSON ouput into alternate formats
+     (JUnit and SARIF).
+     The accuracy of the conversions needs review.
+
+   - added an option to the 'ps' inline query command to
+     generate JSON output directly from a pattern-set
+     (without having to convert it first into basic markings):
+	: ps json setname
+     the output can be redirected into file in the usual way:
+	: track start file
+	: ps json setname
+	: track stop
+	:!wc file
+     the older method to generate the same JSON output
+     is to first convert the set into basic markings, eg:
+	: reset
+	: ps convert setname
+	: json msg
+
+   - added a configuration file option on startup.  if a file
+     named .cobra is found in the current directory, it is
+     executed on startup as a regular command file.
+     the effect is similar as if the first query command
+     executed in the session was ". .cobra" or command-line
+     options start with the same: $ cobra -c ". .cobra; ..." *.c
+
+   - added the missing "verbose" query command, which sets
+     verbose mode that some rule libraries use
+
+   - made it possible to refer to token field names (e.g., .curly)
+     within pattern constraints using bound variables -- to be
+     documented in the relevant manual pages.
+
+   - added a new -global command-line flag to allow pattern
+     matches to cross file boundaries (off by default, and it
+     can make searches much slower, especially when using .*)
+
+   - improves several rules, and added some more misra rule checkers
+     (misra1997, rules 12, 21, 25, and 42).

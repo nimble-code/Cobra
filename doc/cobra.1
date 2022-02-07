@@ -28,6 +28,14 @@ other types of input not related to programming, by defining
 maps of the types of tokens that must be recognized.
 The query command-, pattern matching, and scripting languages
 are documented in online reference manuals.
+.br
+If a file named ".cobra" is found in the directory where
+\*C starts, it is assumed to be a command-file that will be
+executed immediately after all source-files have been read.
+The effect is similar to the first query command executed
+being ". .cobra" (meaning: read and execute the file).
+Syntax errors will result if the file does not contain valid
+query commands.
 .SH OPTIONS
 .TP
 .B \-Ada

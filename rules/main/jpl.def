@@ -74,7 +74,7 @@ def jpl_rule3b
 				. = .nxt;
 			}
 			if (cnt == 1)
-			{	q.mark = 0;	## for (x=ptr;x;x=x->nxt)
+			{	q.mark = 0;	# for (x=ptr;x;x=x->nxt)
 		}	}
 	%}
 end

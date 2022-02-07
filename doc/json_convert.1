@@ -1,0 +1,61 @@
+.ds J Json_convert
+.\" nroff -man json_covert.1
+.\" place in (depending on your system):
+.\"    /usr/local/man/man1
+.\" or /usr/man/man1
+.\" or /usr/share/man/man1
+.TH JSON_CONVERT 1
+.SH NAME
+json_convert \- convert Cobra json outputs into JUnit or SARIF format
+.SH SYNOPSIS
+.br
+.B json_convert
+.BI [ options ]
+.BI "\-f file"
+.SH DESCRIPTION
+\*J reads a JSON formatted file provided as the last argument
+and converts it into either JUnit or SARIF format.
+If no further options are given, the input is converted into JUnit format.
+
+.SH OPTIONS
+.TP
+.B \-V
+Print version number and exit.
+.TP
+.B \-verbose
+Currently this merely prints the number of valid records read from
+the input on the standard output. Error message are always printed
+on the standard error output stream.
+.TP
+.B \-junit
+Generate JUnit format (the default).
+.TP
+.B \-sarif
+Generate SARIF format instead. If multiple format options are given,
+the final one will prevail.
+.TP
+.BI "\-f file"
+The file is assumed to be in JSON format, and must contain fields
+named "type," "file," "line," and "message."
+Ideally, it also contains fields named "cobra," which will be
+present in Cobra generated JSON files. The "cobra" fields contain
+additional location information that can be used in the conversions.
+
+.SH EXAMPLES
+.br
+.in +5
+$ cwe -json+ *.c > json.txt
+.br
+$ find_taint -json+ *.c >> json.txt
+.br
+$ json_convert -sarif -f json.txt > sarif.txt
+.br
+.in -5
+
+.sp
+.SH AUTHOR
+Gerard Holzmann, gholzmann@acm.org
+.sp
+.SH SEE ALSO
+\fBcwe\f1, \fBcobra\f1, \fBfind_taint\f1.
+.br

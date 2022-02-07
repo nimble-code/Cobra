@@ -146,7 +146,7 @@ cwe120_check_list(TrackVar *p, const char *s)
 	while (p)
 	{	for (q = p->lst; q; q = q->nxt)
 		{	if (json_format)
-			{	json_match("cwe_120", s, q->nv->fnm, q->nv->lnr);
+			{	json_match("cwe_120", s, q->nv, 0);
 			} else
 			{	printf("%s:%d: %s\n", q->nv->fnm, q->nv->lnr, s);
 		}	}
@@ -433,7 +433,7 @@ report_120_3(void)
 			sprintf(json_msg, "%s :: buffer overrun, %s is size %d but %s is size %d",
 				r->fc->txt, r->dst->txt, r->dsc, r->src->txt, r->ssc);
 			if (json_format)
-			{	json_match("cwe_120_3", json_msg, r->mycur->fnm, r->mycur->lnr);
+			{	json_match("cwe_120_3", json_msg, r->mycur, 0);
 			} else
 			{	printf("%s:%d: cwe_120_3 %s\n",
 					r->mycur->fnm, r->mycur->lnr, json_msg);

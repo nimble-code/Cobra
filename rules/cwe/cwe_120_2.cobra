@@ -56,10 +56,11 @@ r
 	if (sz > 0)
 	{	lock();
 		print "cwe_120_2: " sz " warnings: printf or scanf  :: missing width limit on %s\n";
-		if (verbose || sz < 10)
-		{	for (i in Snprintf)
-			{	dot = NoWidth[i.txt];
-				print "\t" i.txt ": " dot.txt "\n";
+		for (i in Snprintf)
+		{	dot = NoWidth[i.txt];
+			dot.mark = 1;
+			if (verbose || sz < 10)
+			{	print "\t" i.txt ": " dot.txt "\n";
 		}	}
 		unlock();
 	}

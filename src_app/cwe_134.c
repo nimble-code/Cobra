@@ -180,7 +180,7 @@ cwe134_report(void)
 		}
 		if (strlen(json_msg) > 0)
 		{	if (json_format)
-			{	json_match("cwe_134", json_msg, mycur->fnm, mycur->lnr);
+			{	json_match("cwe_134", json_msg, mycur, 0);
 			} else
 			{	printf("%s:%d: cwe_134: %s\n",
 					mycur->fnm, mycur->lnr, json_msg);

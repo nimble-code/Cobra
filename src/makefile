@@ -16,7 +16,8 @@ OS=cobra_prim.o cobra_prep.o cobra_heap.o \
    cobra_links.o cobra_array.o cobra_list.o cobra_json.o
 
 AR=cobra_lex.o cobra_prep.o cobra_prim.o \
-   cobra_heap.o cobra_links.o cobra_json.o
+   cobra_heap.o cobra_links.o cobra_json.o \
+   cobra_stub.o
 
 			# gprof: make F="-g -pg"
 			# coverage: make F="-fprofile-arcs -ftest-coverage"
@@ -47,9 +48,7 @@ app:	c.ar $(APP)/c_api.h
 	cd $(APP); make
 
 man:
-	cp ../doc/cobra.1 $(MAN)
-	cp ../doc/cwe.1   $(MAN)
-	cp ../doc/find_taint.1 $(MAN)
+	cp ../doc/*.1 $(MAN)
 
 c.ar:	$(AR)
 	ar -r c.ar $(AR)

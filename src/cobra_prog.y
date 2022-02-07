@@ -3215,7 +3215,7 @@ next:
 					(q->typ == ADD_PATTERN) ? "add" : "del",
 					q->lft->s, f->fnm, f->lnr, u->fnm, u->lnr);
 				if (q->typ == ADD_PATTERN)
-				{	add_pattern(q->lft->s, f, u);
+				{	add_pattern(q->lft->s, 0, f, u);
 				} else
 				{	del_pattern(q->lft->s, f, u);
 			}	}
@@ -3902,7 +3902,7 @@ stop_threads(void)
 int
 has_stop_cmd(Lextok *p)
 {
-	if (!p || p->visit & 128)
+	if (!p || (p->visit & 128))
 	{	return 0;
 	}
 	p->visit |= 128;

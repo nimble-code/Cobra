@@ -119,7 +119,14 @@ eval_lex(void)
 		return b_cmd[iscan++];
 	case '\\':
 		iscan++;
-		// fall through
+		if (b_cmd[iscan] == '|')	// watch for \|\| from cobra_te.c
+		{	if (b_cmd[iscan+1] == '\\'
+			&&  b_cmd[iscan+2] == '|')
+			{	iscan += 3;
+				yylval->typ = OR;
+				return OR;
+		}	}
+		// else fall through
 	case '{': case '}':
 	case '[': case ']':
 		// special case of strings
@@ -283,48 +290,186 @@ tokenname(int n)
 	return c_tmp;
 }
 
+enum {
+	fnm_t     = 1,
+	typ_t     = 2,
+	txt_t     = 3,
+	fct_t     = 4,
+
+	lnr_t     = 10,
+	seq_t     = 11,
+	mark_t    = 12,
+	curly_t   = 13,
+	round_t   = 14,
+	bracket_t = 15,
+	len_t     = 16,
+
+	nxt_t     = 20,
+	prv_t     = 21,
+	bound_t   = 22,
+	jmp_t     = 23
+};
+
+static char *
+dot_derive(const Prim *q, int e)
+{
+	switch (e) {
+	case fnm_t: return q->fnm;
+	case txt_t: return q->txt;
+	case typ_t: return q->typ;
+	case fct_t: return fct_which(q);
+	default:    break;
+	}
+	return q->txt;
+}
+
+static int
+field_cmp(const Prim *q, const Prim *r, int e)
+{	// like strcmp, return 0 when equal, non-zero otherwise
+
+	if (q && r)
+	switch (e) {
+	case fnm_t:	return strcmp(q->fnm, r->fnm);
+	case typ_t:	return strcmp(q->typ, r->typ);
+	case txt_t:	return strcmp(q->txt, r->txt);
+	case fct_t:	return strcmp(fct_which(q), fct_which(r));
+
+	case lnr_t:	return (q->lnr     == r->lnr)?0:1;
+	case seq_t:	return (q->seq     == r->seq)?0:1;
+	case mark_t:	return (q->mark    == r->mark)?0:1;
+	case curly_t:	return (q->curly   == r->curly)?0:1;
+	case round_t:	return (q->round   == r->round)?0:1;
+	case bracket_t:	return (q->bracket == r->bracket)?0:1;
+	case len_t:	return (q->len     == r->len)?0:1;
+
+	case nxt_t:	return (q->nxt   == r)?0:1;
+	case prv_t:	return (q->prv   == r)?0:1;
+	case bound_t:	return (q->bound == r)?0:1;
+	case jmp_t:	return (q->jmp   == r)?0:1;
+	default:	break;
+	}
+	return 1;
+}
+
+static int
+field_type(const char *s)
+{
+	switch (s[0]) {
+	case 'b':
+		if (strcmp(s, "bound") == 0)
+		{	return bound_t;
+		}
+		return (strcmp(s, "bracket") == 0)?bracket_t:0;
+	case 'c':
+		return (strcmp(s, "curly")   == 0)?curly_t:0;
+	case 'f':
+		return (strcmp(s, "fnm")     == 0)?fnm_t:0;
+	case 'j':
+		return (strcmp(s, "jmp")     == 0)?jmp_t:0;
+	case 'l':
+		if (strcmp(s, "len") == 0)
+		{	return len_t;
+		}
+		return (strcmp(s, "lnr")  == 0)?lnr_t:0;
+	case 'm':
+		return (strcmp(s, "mark")  == 0)?mark_t:0;
+	case 'n':
+		return (strcmp(s, "nxt")   == 0)?nxt_t:0;
+	case 'p':
+		return (strcmp(s, "prv")   == 0)?prv_t:0;
+	case 'r':
+		return (strcmp(s, "round") == 0)?round_t:0;
+	case 's':
+		return (strcmp(s, "seq")   == 0)?seq_t:0;
+	case 't':
+		if (strcmp(s, "txt") == 0)
+		{	return txt_t;
+		}
+		return (strncmp(s, "typ", 3) == 0)?typ_t:0;
+	default:
+		break;
+	}
+	return 0;
+}
+
+// dot_match is called from cobra_te.c to evaluate a
+// == or != constraint in a pattern match if there are either
+// bound variables, names, or regular expressions
+
 static int
 dot_match(const Prim *q, Lextok *lft, Lextok *rgt)
-{	char *a = lft->s;
-	char *b = rgt->s;
-	char *compare_with = 0;
+{	char *a = (char *) 0;
+	char *b = (char *) 0;
+	Prim *r = (Prim *) 0;
+	int e = 0, le = 0, re = 0;
 
 	if (lft->typ == '.')
-	{	if (strcmp(lft->s, "fnm") == 0)
-		{	a = q->fnm;
-		} else if (strcmp(lft->s, "txt") == 0)
-		{	a = q->txt;
-		} else if (strcmp(lft->s, "fct") == 0)
-		{	a = fct_which(q);
-		}
-	} else if (lft->typ == REGEX)
-	{	compare_with = b;
-	} else if (lft->typ == ':')
-	{	a = bound_value(lft->rgt->s);
-	}
-
+	{	le = field_type(lft->s);
+		if (!le)
+		{	fprintf(stderr, "bad field type '%s'\n", lft->s);
+			return -1;
+	}	}
 	if (rgt->typ == '.')
-	{	if (strcmp(rgt->s, "fnm") == 0)
-		{	b = q->fnm;
-		} else if (strcmp(rgt->s, "txt") == 0)
-		{	b = q->txt;
+	{	re = field_type(rgt->s);
+		if (!re)
+		{	fprintf(stderr, "bad field type '%s'\n", rgt->s);
+			return -1;
+	}	}
+
+	if (lft->typ == ':')			// lhs is bound var
+	{	if (rgt->typ == ':')		// rhs as well
+		{	e = 0;			// cmp bound txt below
+		} else if (rgt->typ == '.')
+		{	r = bound_prim(lft->rgt->s); // origin
+			e = re;
 		}
-	} else if (rgt->typ == REGEX)
-	{	compare_with = a;
-	} else if (rgt->typ == ':')
-	{	b = bound_value(rgt->rgt->s);
+	} else  if (rgt->typ == ':'	// rhs is bound var
+		&&  lft->typ == '.')
+	{	r = bound_prim(rgt->rgt->s);	// origin
+		e = le;	// lhs ref
 	}
 
-	if (compare_with)
-	{	return regex_match(0, compare_with);
+	if (e)
+	{	return field_cmp(q, r, e);
 	}
 
-	if (!a || !b)
-	{	return -1;
+	// two dot fields, bound vars, or one is a regex
+	switch (lft->typ) {
+	case '.':	a = dot_derive(q, le); break;
+	case ':':	a = bound_text(lft->rgt->s); break;
+	case REGEX:	a = rgt->s; // ignored: there should be just one regex
+	default:	a = lft->s; break;
+	}
+	switch (rgt->typ) {
+	case '.':	b = dot_derive(q, re); break;
+	case ':':	b = bound_text(rgt->rgt->s); break;
+	case REGEX:	return regex_match(0, a);
+	default:	a = rgt->s; break;
+	}
+	if (lft->typ == REGEX)
+	{	return regex_match(0, b);
 	}
 
-	return strcmp(a, b);
+	return (!a ||!b) ? -1 : strcmp(a, b);
 }
+
+static int
+yylex(void)
+{	int n = eval_lex();
+
+	if (0)
+	{	printf("yylex: %s <%d>", tokenname(n), n);
+		if (n == NAME
+		||  n == REGEX)
+		{	printf(" = '%s'", yylval->s);
+		}
+		printf("\n");
+	}
+	last_tok = n;
+	return n;
+}
+
+// externally visible function:
 
 #define binop(op)	(evaluate(q, n->lft) op evaluate(q, n->rgt))
 
@@ -408,31 +553,15 @@ evaluate(const Prim *q, const Lextok *n)
 		case '.':  rval = lookup(q, n->s); break;
 		case NR:   rval = n->val; break;
 		case SIZE: rval = nr_marks(n->rgt->val); break;
-		case ':':  fprintf(stderr, "invalid use of ':'\n");
+		case ':':  fprintf(stderr, "invalid use of ':', expect int, saw string\n");
+			   // a bound variable reference defaults to a string result
+			   // but we expect an integer value here
 			   break;
 		default:   fprintf(stderr, "expr: unknown type %d\n", n->typ);
 			   break;
 	}	}
 	return rval;
 }
-
-static int
-yylex(void)
-{	int n = eval_lex();
-
-	if (0)
-	{	printf("yylex: %s <%d>", tokenname(n), n);
-		if (n == NAME
-		||  n == REGEX)
-		{	printf(" = '%s'", yylval->s);
-		}
-		printf("\n");
-	}
-	last_tok = n;
-	return n;
-}
-
-// externally visible function:
 
 Lextok *
 prep_eval(void)

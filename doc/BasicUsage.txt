@@ -8,7 +8,11 @@ Cobra Version 3.0 -- Basic Usage
 
    $ cobra -pattern 'for ( .* ) ^{' *.c
 
-   Or try some predefined checks:
+   or equivalently
+
+   $ cobra -pe 'for ( .* ) ^{' *.c
+
+   try some predefined checks:
 
    $ cobra -terse -f basic *.[ch]
 
@@ -18,17 +22,18 @@ Cobra Version 3.0 -- Basic Usage
 
    add C preprocessor directives on the command-line as needed
 
-   for interactive use, type for instance:
+2. for interactive use, try for instance:
 
    $ cd cobra/src
    $ cobra -cpp *.[ch]
-   4 cores, 14 files, 93623 tokens
-   :           # << : is the cobra command prompt
-   :           # << type your queries here
+   1 core, 14 files, 93623 tokens
+   :           # << the colon : is the cobra command prompt
+   :           # << type your queries here, for instance:
+   : pe if ( 0 )
    : q         # << quit
    $
 
-2. some simple predefined checks:
+3. some simple predefined checks:
 
   $ cobra -terse -f stats     *.[ch]
   $ cobra -terse -f metrics   *.[ch]

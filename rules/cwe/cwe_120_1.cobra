@@ -65,10 +65,11 @@ r
 	if (sz > 0)
 	{	lock();
 		print "cwe_120_1: " sz " warnings: 'gets' performs no bounds checking, (use fgets)\n";
-		if (verbose || sz < 10)
-		{	for (i in Gets)
-			{	dot = Gets[i.txt];
-				print "\t" i.txt ": " dot.txt "\n";
+		for (i in Gets)
+		{	dot = Gets[i.txt];
+			dot.mark = 1;
+			if (verbose || sz < 10)
+			{	print "\t" i.txt ": " dot.txt "\n";
 		}	}
 		unlock();
 	}
@@ -76,10 +77,11 @@ r
 	if (sz > 0)
 	{	lock();
 		print "cwe_120_1: " sz " warnings: 'strcpy' performs no bounds checking, (use strncpy)\n";
-		if (verbose || sz < 10)
-		{	for (i in Strcpy)
-			{	dot = Strcpy[i.txt];
-				print "\t" i.txt ": " dot.txt "\n";
+		for (i in Strcpy)
+		{	dot = Strcpy[i.txt];
+			dot.mark = 1;
+			if (verbose || sz < 10)
+			{	print "\t" i.txt ": " dot.txt "\n";
 		}	}
 		unlock();
 	}
@@ -87,10 +89,11 @@ r
 	if (sz > 0)
 	{	lock();
 		print "cwe_120_1: " sz " warnings: 'strcat' performs no bounds checking, (use strncat)\n";
-		if (verbose || sz < 10)
-		{	for (i in Strcat)
-			{	dot = Strcat[i.txt];
-				print "\t" i.txt ": " dot.txt "\n";
+		for (i in Strcat)
+		{	dot = Strcat[i.txt];
+			dot.mark = 1;
+			if (verbose || sz < 10)
+			{	print "\t" i.txt ": " dot.txt "\n";
 		}	}
 		unlock();
 	}
@@ -98,10 +101,11 @@ r
 	if (sz > 0)
 	{	lock();
 		print "cwe_120_1: " sz " warnings: 'sprintf' performs no bounds checking, (use snprintf)\n";
-		if (verbose || sz < 10)
-		{	for (i in Sprintf)
-			{	dot = Sprintf[i.txt];
-				print "\t" i.txt ": " dot.txt "\n";
+		for (i in Sprintf)
+		{	dot = Sprintf[i.txt];
+			dot.mark = 1;
+			if (verbose || sz < 10)
+			{	print "\t" i.txt ": " dot.txt "\n";
 		}	}
 		unlock();
 	}

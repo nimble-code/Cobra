@@ -60,7 +60,7 @@ extern char  json_msg[512];
 
 extern int   json_convert(const char *);
 extern void  json(const char *);
-extern void  json_match(const char *, const char *, const char *, int);
+extern void  json_match(const char *, const char *, const Prim *, const Prim *);
 extern void  add_pattern(const char *, Prim *, Prim *);
 extern void  del_pattern(const char *, Prim *, Prim *);
 

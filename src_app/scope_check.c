@@ -46,6 +46,8 @@ struct MyRange {
 } **myrange;
 
 extern TokRange	**tokrange;	// for cobra_prep.c
+extern void set_multi(void);	// cwe_util.c
+FILE *track_fd;
 
 int
 hash_s(char *v)
@@ -317,6 +319,9 @@ cobra_main(void)
 	if (!cobra_commands)
 	{	cobra_commands = "Rule";
 	}
+
+	set_multi();		// cwe_util.c, multi-threading in cobra_links.c
+	track_fd = stdout;	// cobra_links.c
 
 	start_time = times(&start_tm);
 

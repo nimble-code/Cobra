@@ -189,7 +189,7 @@ cwe170_report(void)
 			{	sprintf(json_msg, "'%s' in strncpy may not be null terminated",
 					mycur->bound->txt);
 				if (json_format)
-				{	json_match("cwe_170", json_msg, mycur->fnm, mycur->lnr);
+				{	json_match("cwe_170", json_msg, mycur, 0);
 				} else
 				{	printf("%s:%d: cwe_170: %s\n",
 						mycur->fnm, mycur->lnr, json_msg);

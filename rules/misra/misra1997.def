@@ -62,6 +62,59 @@ def m97_rule11
 	d
 end
 
+def m97_rule12
+	r
+	# eg: Do not reuse name of a record in a struct or union for variables declared elsewhere.
+	%{
+		unset N;
+		Stop;
+	%}
+	%{
+		if (.txt == "struct"
+		||  .txt == "union")
+		{	b = .prv;
+			if (b.txt == "typedef")
+			{	Next;
+			}
+			. = .nxt;
+			N[.txt] = .;
+			b = .nxt;	# {
+			if (b.txt != "{")
+			{	Next;
+			}
+			. = b.nxt;
+			b = b.jmp;
+			while (.seq < b.seq)
+			{	if (.type == "ident")
+				{	N[.txt] = .;
+				}
+				. = .nxt;
+			}
+		}
+	%}
+	%{
+		if (.type == "type")
+		{	b = .prv;
+			if (b.txt == "struct"
+			||  b.txt == "union")	# eg typedef Name Name;
+			{	Next;
+			}
+			. = .nxt;
+			p = N[.txt];
+			if (p.seq > 0 && p.seq != .seq)
+			{	if (verbose)
+				{	if (.lnr < p.lnr)
+					{	p.mark = 1;
+						print .fnm ":" .lnr ": " p.txt " reused at " p.fnm ":" p.lnr "\n";
+					} else
+					{	.mark = 1;
+						print p.fnm ":" p.lnr ": " p.txt " reused at " .fnm ":" .lnr "\n";
+		}	}	}	}
+	%}
+	= "=== R12: (Advisory) No identifier in one name space shall have the same spelling as an identifier in another name space:"
+	d
+end
+
 def m97_rule13
 	# cpp on
 	r; m char; m int; m short; m long; m float; m double
@@ -85,6 +138,31 @@ def m97_rule19
 	d
 end
 
+def m97_rule21
+	r
+	m @type @ident
+	m & (.curly > 0)
+	%{
+		if (.mark == 0)
+		{	Next;
+		}
+		.mark = 0;
+		nm = .nxt;
+		p = nm.nxt;
+		# search to end of block to see if nm is redeclared
+		while (p.curly >= .curly && p.lnr > 0)
+		{	if (p.txt == nm.txt && p.curly > nm.curly)
+			{	q = p.prv;
+				if (q.typ == "type")
+				{	p.mark = 1;
+			}	}
+			p = p.nxt;
+		}
+	%}
+	= "=== R21: (Required) Declarations within an inner scope should not hide any declarations in an outer scope:"
+	d
+end
+
 def m97_rule22
 	r
 	!scope_check -c R22 $FLAGS $ARGS
@@ -102,6 +180,35 @@ def m97_rule24
 	r; m extern; m & (.curly > 0)	# partial check
 	= "=== R24: (Required) Identifiers shall not have both internal and external linkage:"
 	d
+end
+
+def m97_rule25
+	r
+	m extern @type
+	%{
+		unset E;
+		Stop;
+	%}
+	%{	# extern type ident
+		if (.mark == 0) { Next; }
+		.mark = 0;
+		. = .nxt;	# type
+		t = .;
+		. = .nxt;	# ident
+		if (!@ident) { Next; }
+		p = E[.txt];
+		if (p.seq > 0)
+		{	if (verbose)
+			{	print .fnm ":" .lnr ": repeated extern declaration of " p.fnm ":" p.lnr ": " .txt "\n";
+			}
+			p.mark = 1;
+			.mark = 1;
+		} else
+		{	E[.txt] = t;
+		}
+	%}
+	= "=== R25,R27: (Required) An identifier with external linkage shall have exactly one external definition:"
+	# covers also: "Rule 27 (Advisory) External objects should not be declared in more than one file."
 end
 
 def m97_rule28
@@ -199,6 +306,71 @@ def m97_rule40
 	r; m sizeof; n; c /[-=\+\(]
 	= "=== R40: (Advisory) (As revised:) If the sizeof operator is used on an expression, then this expression may not contain any side-effects:"
 	d
+end
+
+def m97_rule42
+	r
+	m ,
+	m & (.curly > 0 && .round == 0)
+	%{
+		if (.type == "type" || .txt == "enum")
+		{	m = .;
+			while (m.txt != ";")	# declarations
+			{	m.mark = 0;
+				m = m.nxt;
+			}
+			Next;
+		}
+
+		# exclude initializer lists
+		if (.txt == "=")
+		{	m = .nxt;
+			if (m.txt == "{")
+			{	e = m.jmp;
+				while (m.seq < e.seq)
+				{	m.mark = 0;
+					m = m.nxt;
+			}	}
+			Next;
+		}
+
+		# exclude decls using userdefined types: name [*]* name , [*]* name ... ;
+		if (@ident)
+		{	n = .;
+			m = n;
+			while (n.txt != ";")
+			{	if (n.txt != "*"
+				&&  n.txt != "="
+				&&  n.txt != ","
+				&&  n.txt != "("
+				&&  n.txt != ")"
+				&&  n.typ != "const_int"
+				&&  n.type != "ident")
+				{	Next;
+				}
+				n = n.nxt;
+			}
+			# if we got here, it's a declaration
+			while (m.seq != n.seq)
+			{	m.mark = 0;
+				m = m.nxt;
+			}
+			Next;
+		}
+		# exclude ifdef 0 fragments
+		if (.txt == "#if")
+		{	m = .nxt;
+			if (m.txt == "0")
+			{	m = m.nxt;
+				# handles most cases, but not all
+				# search up to first #endif
+				while (m.txt != "#endif" && m.lnr > 0)
+				{	m.mark = 0;
+					m = m.nxt;
+			}	}
+		}
+	%}
+	= "=== R42: (Required) The comma operator shall not be used, except in the control expression of a for-loop or in declarations or fct args:"
 end
 
 def m97_rule50
@@ -460,6 +632,13 @@ def m97_rule92
 	# cpp off
 	r; m @cpp; m & /undef
 	= "=== R92: (Advisory) \#undef should not be used:"
+	d
+end
+
+def m97_rule96
+	r
+	pe \#define @ident ( .* x:@ident .* ) ^EOL* ^( :x 
+	= "=== R96 (Required) In the def of a fct-like macro the whole def, and each instance of a parameter, shall be enclosed in parentheses."
 	d
 end
 

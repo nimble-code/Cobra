@@ -337,7 +337,7 @@ def check_param_count	# param_count_check.cobra
 			{	. = .nxt;
 			}
 			if (.txt == "{")
-			{	m.mark = 1;	# fct name
+			{	# m.mark = 1;	# fct name (mark not used)
 	
 				r.mark = 0;	# start of param list in prototype
 				n = .jmp;
@@ -352,18 +352,20 @@ def check_param_count	# param_count_check.cobra
 					}
 					if (.txt == "...")	# var nr of args
 					{	. = n;
+						# m.mark = 0;	# reset
+						r.mark = 0;	# reset
 						Next;
 					}
 					. = .nxt;
 				}
-	
+
 				if (r.mark > 0)
-				{	r.mark++;	# first param
+				{	r.mark++;	# add first param
 				}
 				if (r.mark == 0 && cnt > 0)
 				{	r.mark = 1;
 				}
-				
+
 				q = F[m.txt];
 				if (q.lnr > 0 && q.mark != r.mark && q.bound != first_t)
 				{	cnt2++;
@@ -375,6 +377,8 @@ def check_param_count	# param_count_check.cobra
 						print " " cnt2 ": " m.txt "():\tat " m.fnm ":" m.lnr ", and at " q.fnm ":" q.lnr "\n";
 					}
 					q.bound = first_t;	# mark it as dubious
+					q.mark = 123456;	# leave a unique mark
+					r.mark = 123456;
 				} else
 				{	F[m.txt] = r;	# the count
 				}
@@ -450,20 +454,27 @@ def check_param_count	# param_count_check.cobra
 			cnt = 0;
 			for (i in Formal)
 			{	cnt++;
-				if (terse)
-				{	continue;
-				}
-				if (!warn2)
+				if (!terse && !warn2)
 				{	print "=== Mismatch of formal and actual parameter counts:\n";
 					warn2 = 1;
 				}
 				f = Formal[i.txt];
 				a = Actual[i.txt];
-				print " " cnt ": fct " i.txt "() expects: " f.mark " [" f.fnm ":" f.lnr "] parameters, saw: " a.mark " [" a.fnm ":" a.lnr "]\n";
+				if (!terse)
+				{	print " " cnt ": fct " i.txt "() expects: " f.mark " [" f.fnm ":" f.lnr "] parameters, saw: " a.mark " [" a.fnm ":" a.lnr "]\n";
+				}
+				a.mark = 123456;	# leave mark only at caller
 			}
 			if (terse && cnt > 0)
 			{	print "=== Mismatch of formal and actual parameter counts: " cnt "\n";
 		}	}
 		Stop;
+	%}
+	%{	# cleanup
+		if (.mark == 123456)	# mark to remember, e.g. for later json report
+		{	.mark = 1;
+		} else
+		{	.mark = 0;	# all formals and non-error actuals
+		}
 	%}
 end

@@ -91,7 +91,8 @@ m & {
 	# at the end of each loop
 	for ( i in IndexVar )
 	{	if (Modified[i.txt] > 1)	# modified more than once and never tested
-		{	if (terse)
+		{	.mark = 1;
+			if (terse)
 			{	w_cnt++;
 				l_cnt++;
 				if (verbose || w_cnt < 10)

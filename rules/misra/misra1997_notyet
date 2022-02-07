@@ -1,46 +1,12 @@
 
-!echo "Rule 1 (Required) All code shall conform to ISO 9899:1990 standard C, with no extensions permitted."
-# checked by compiler
-
-!echo "Rule 2 (Advisory) Code written in languages other than C should only be used if there is a defined interface standard for object code to which the compilers/assemblers for both languages conform."
-# outside scope of static analysis
-
-!echo "Rule 4 (Advisory) Provision should be made for appropriate runtime checking. Minimization of run-time failures must be ensured by the use of at least one of (a) static analysis tools/techniques (b) dynamic analysis tools/techniques (c) explicit coding of checks to handle run-time faults. (as revised) "
-# outside scope of static analysis
-
-!echo "Rule 6 (Required) Character constants and string literals shall only contain characters that map to a defined subset of ISO 10646-1."
-# e.g., the ASCII subset of Unicode: 0..127
-
-!echo "Rule 12 (Advisory) No identifier in one name space shall have the same spelling as an identifier in another name space."
-# eg: Do not reuse name of a record in a struct or union for variables declared elsewhere.
-# XXX Consider adding.
-
-!echo "Rule 15 (Advisory) Floating point implementations should comply with a defined floating point standard."
-# outside scope of static analysis
-
 !echo "Rule 16 (Required) The underlying bit representations of floating point numbers shall not be used in any way by the programmer."
 # unlikely to be violated, could check for bit-operators used on floating point vars
 
 !echo "Rule 17 (Required) Typedef names shall not be reused for any other purpose in the application."
 # eg as a structure name, labelname -- compiler likely checks this
 
-!echo "Rule 18 (Advisory) Numeric constants must be given an appropriate suffix that reveals their intended type, e.g., 27u, whenever an appropriate suffix is available."
-# checking 'intent' is outside scope of static analysis
-
-!echo "Rule 20 (Required) All object and function identifiers shall be declared before use."
-# checked by compiler
-
-!echo "Rule 21 (Required) Declarations (e.g. of identifiers) within an inner scope should not hide any declarations in an outer scope."
-# XXX consider adding a check
-
-!echo "Rule 25 (Required) An identifier with external linkage shall have exactly one external definition."
-# checked by compiler
-
 !echo "Rule 26 (Required) If objects or functions are declared more than once they shall have compatible declarations."
 # XXX check if decl and extern decls match
-
-!echo "Rule 27 (Advisory) External objects should not be declared in more than one file."
-# XXX check for one extern per decl
 
 !echo "Rule 29 (Required) The use of a tag shall agree with its declaration."
 # harder to check
@@ -55,25 +21,16 @@
 # XXX add available check for this -- means that all conditional clauses must be parenthesized
 
 !echo "Rule 37 (Required) Bitwise operations shall not be performed on signed integer types."
-# later
+# tbd
 
 !echo "Rule 38 (Required) The right hand operand of a shift operator shall lie between zero and one less than the width in bits of the left hand operand (inclusive)."
-# later
+# tbd
 
 !echo "Rule 39 (Required) The unary minus operator shall not be applied to an unsigned expression."
-# later
-
-!echo "Rule 41 (Advisory) The implementation of integer division in the chosen compiler should be determined, documented and taken into account."
-# outside scope of static analysis
-
-!echo "Rule 42 (Required) The comma operator shall not be used, except in the control expression of a for-loop. (and in declarations or fct args) "
-# XXX add check, eg: m ,; w .curly>0; b (; b; unmark for; n; n ,
+# tbd
 
 !echo "Rule 43 (Required) Implicit type conversions which may result in a loss of information shall not be used."
-# later
-
-!echo "Rule 44 (Advisory) (As revised:) Redundant or unnecessary casts are allowed, but must be identified as such in a comment."
-# outside scope of static analysis
+# tbd
 
 !echo "Rule 45 (Required) Type casting from any type to or from pointers shall not be used. (As revised:) Pointers must have an associated type (of the object pointed to). Operations on pointers of mixed type are not allowed, e.g. int_ptr = (int *) short_ptr;"
 # XXX flag void pointers
@@ -105,9 +62,6 @@
 !echo "Rule 66 (Advisory) Only expressions concerned with loop control should appear within a for statement."
 # XXX could add check
 
-!echo "Rule 68 (Required) Functions shall always be declared at file scope."
-# compiler checks
-
 !echo "Rule 71 (Required) Functions shall always have prototype declarations and the prototype shall be visible at both the function definition and call."
 # XXX could check
 
@@ -119,9 +73,6 @@
 
 !echo "Rule 74 (Required) If identifiers are given for any of the parameters, then the identifiers used in the declaration and definition shall be identical."
 # XXX add check
-
-!echo "Rule 77 (Required) The unqualified type of parameters passed to a function shall be compatible with the unqualified expected types defined in the function prototype."
-# compiler can check
 
 !echo "Rule 78 (Required) The number of parameters passed to a function shall match the function prototype."
 # compiler checks -- but XXX could add check
@@ -153,17 +104,8 @@
 !echo "Rule 95 (Required) Arguments to a function-like macro shall not contain tokens that look like pre-processing directives."
 # XXX add check
 
-!echo "Rule 96 (Required) In the definition of a function-like macro the whole definition, and each instance of a parameter, shall be enclosed in parentheses."
-# XXX check which jpl/p10 rule covers this
-
 !echo "Rule 97 (Advisory) Identifiers in pre-processor directives should be defined before use."
-# XXX add check
-
-!echo "Rule 101 (Advisory) Pointer arithmetic should not be used."
-# not cobra
-
-!echo "Rule 103 (Required) Relational operators shall not be applied to pointer types except where both operands are of the same type and point to the same array, structure or union."
-# not cobra
+# XXX add check, ie they should not default to 0 by being undefined (ifdef A must be preceded by undef A if undefined)
 
 !echo "Rule 104 (Required) Non-constant pointers to functions shall not be used."
 # XXX add check for fct pointers
@@ -181,22 +123,16 @@
 # XXX add check (eg array bounds?)
 
 !echo "Rule 109 (Required) Overlapping variable storage shall not be used."
-# not cobra
+# not cobra / no union?
 
 !echo "Rule 111 (Required) Bit fields shall only be defined to be of type unsigned int or signed int."
 # XXX add check
-
-!echo "Rule 113 (Required) All members of a structure (or union) shall be named and shall only be accessed via their name."
-# not cobra
 
 !echo "Rule 114 (Required) Reserved words and standard library function names shall not be redefined or undefined."
 # XXX add check against fixed list
 
 !echo "Rule 115 (Required) Standard library function names shall not be reused."
 # XXX add check against fixed list
-
-!echo "Rule 116 (Required) All libraries used in production code shall be written to comply with the provisions of these rules, and shall have been subject to appropriate validation."
-# outside scope
 
 !echo "Rule 117 (Required) The validity of values passed to (and received from) library functions shall be checked."
 # XXX check which jpl/p10 rule covers this
