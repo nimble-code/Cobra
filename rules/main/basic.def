@@ -152,7 +152,7 @@ def check_condition	# condition.cobra
 	m for \(
 	n		# move to (
 	n \;		# move to condition
-	s \;		# stretch to include condition
+	st \;		# stretch to include condition
 	m ir =		# assignment in condition
 	w (.round == 1)	# not in nested braces
 	<|1		# include the other matches
@@ -194,7 +194,7 @@ def check_for1		# for.cobra
 	n		# move to the first symbol in the condition
 	m & @ident	# keep match only if this is an identifier
 	
-	s {		# bind the matching token to the {, which we know is there
+	st {		# bind the matching token to the {, which we know is there
 	n {		# move to the start of the loop body {
 	c $$ /^[^!><=]*=$	# match for the bound symbol followed
 				# by an assignment operator +=, -=, =, etc
@@ -207,9 +207,9 @@ def check_for2		# jpl_rule13a
 	m for \(	# mark for
 	n;j;e {; j	# move to (
 	n \;		# move to condition
-	s \;		# range = condition
+	st \;		# range = condition
 	m ir @ident	# loop bound variable
-	s {		# tag symbol to {
+	st {		# tag symbol to {
 	n {		# to loop body
 	m ir $$		# should not match
 	n
