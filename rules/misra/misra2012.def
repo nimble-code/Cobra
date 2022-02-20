@@ -21,7 +21,7 @@ def m12rule2.6
 	n		# back to name
 	<^1		# exclude conditional expressions
 	>1		# all proper labelnames, at point of definition
-	s goto $$	# forward to goto followed by labelname
+	st goto $$	# forward to goto followed by labelname
 	>2		# all backward jumps
 	r
 	<1		# restore marks from set 1
@@ -41,7 +41,7 @@ def m12rule2.7
 	m ir @ident	# mark all parameter names (and typedef names
 	e /^[,)]$	# most of the parameter names
 	>1
-	s $$		# search forward for the name
+	st $$		# search forward for the name
 	>2
 	<1
 	<^2		# what remains are unused parameters
@@ -279,7 +279,7 @@ def m12rule15.2
 	# cpp on
 	r; m goto; n	# names of labels used in gotos
 	>1		# all labelnames
-	s $$ :		# forward to labelname followed by colon
+	st $$ :		# forward to labelname followed by colon
 	>2		# only forward jumps
 	r
 	<1		# restore marks from set 1
@@ -401,7 +401,7 @@ end
 def m12rule17.2
 	# cpp on
 	r; m @ident \(; n; j; ex {; j; b	# all fct declarations
-	s top }			# set range to fct body (stretch command)
+	st top }		# set range to fct body (stretch command)
 	m ir $$			# match of fct name inside the range
 	e \(			# recursive fct call
 	= "=== R17.2: (Required) Functions shall not call themselves, either directly or indirectly:"
@@ -434,7 +434,7 @@ def m12rule17.8
 	# cpp on
 	r; m @ident \(; n; j; e {; j
 	m ir @ident
-	s $$
+	st $$
 	n $$
 	e ++
 	>1

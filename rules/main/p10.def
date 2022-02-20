@@ -14,7 +14,7 @@ def p10_rule1a(rn)
 	# cpp on
 	r
  	fct_names
-	s {			# tag name to {
+	st {			# tag name to {
 	n {			# move to {
 	m ir $$			# match of fct name inside the range
 	e \(			# recursive fct call
@@ -42,7 +42,7 @@ def p10_rule2a(rn)
 	r
 	m for \(; n
 	n \;
-	s \;	# isolate the condition
+	st \;	# isolate the condition
 	c <
 	>1
 	u
@@ -82,7 +82,7 @@ def p10_rule2b(rn)
 	r	# assumes p10_rule2a ran first
 	<1	# upperbound from p10_rule2a
 	n; n \;	# move to increment
-	s )
+	st )
 	c no /\+
 	c no ->
 	= "=== rn: give all loops a fixed upper-bound (missing increment):"
@@ -94,7 +94,7 @@ def p10_rule2c(rn)
 	r	# assumes p10_rule2a ran first
 	<2	# lowerbound from p10_rule2a
 	n; n \;	# move to increment
-	s )
+	st )
 	c no /\-
 	c no ->
 	= "=== rn: give all loops a fixed upper-bound (missing decrement):"
@@ -267,7 +267,7 @@ def p10_rule7b(rn)
 	m ir @ident
 	b; m & *	# pointer parameter
 	n
-	s $$
+	st $$
 	n $$	# first use of fct pointer parameter should be a condition
 	w (.round == 0)
 	>1

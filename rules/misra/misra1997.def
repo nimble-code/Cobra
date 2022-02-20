@@ -532,7 +532,7 @@ end
 def m97_rule70
 	# cpp on
 	r; m @ident \(; n; j; ex {; j; b	# all fct decls
-	s top }			# set range to fct body (stretch command)
+	st top }		# set range to fct body (stretch command)
 	m ir $$			# match of fct name inside the range
 	e \(			# recursive fct call
 	= "=== R70: (Required) Functions shall not call themselves, either directly or indirectly:"

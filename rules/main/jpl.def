@@ -26,9 +26,9 @@ def jpl_rule3a
 	m for \(	# mark for
 	n;j;e {; j	# move to (
 	n \;		# move to condition
-	s \;		# range = condition
+	st \;		# range = condition
 	m ir @ident	# loop bound variable
-	s {		# tag symbol to {
+	st {		# tag symbol to {
 	n {		# move to it
 	m ir $$		# should not match
 	n
@@ -46,7 +46,7 @@ def jpl_rule3b
 	r
 	m for \(; n
 	n \;
-	s \;	# isolate the condition
+	st \;	# isolate the condition
 	c <
 	>1
 	u
@@ -133,7 +133,7 @@ end
 def jpl_rule4
 	# cpp on
 	fcts
-	s {			# tag symbol to {
+	st {			# tag symbol to {
 	n {			# move to it
 	m ir $$			# match of fct name inside the range
 	e \(			# recursive fct call
@@ -316,7 +316,7 @@ def jpl_rule15
 	r
 	m @ident \(; n; j; e {; j
 	m ir @ident	# parameter names
-	s {		# only the last tag survives here
+	st {		# only the last tag survives here
 	n {
 	n $$		# first use of the parameter
 	m & (!.round)	# use outside (...), i.e., not in a condition
@@ -455,7 +455,7 @@ def jpl_rule24
 	# cpp on
 	r
 	m \;
-	s \;
+	st \;
 	m & (.round == 0 && .range == 0)
 end
 
@@ -466,23 +466,23 @@ def jpl_rule25a
 	m & (!.curly)
 	m ir ,		# the number of parameters is > 1 
 	n ,		# move to the first
-	s )		# set new range
+	st )		# set new range
 	m ir ,		# there are more within this remainder, there are >2
 
 	n ,		# move to the next
-	s )		# set new range
+	st )		# set new range
 	m ir ,		# there are more within this remainder, there are >3
 
 	n ,		# move to the next
-	s )		# set new range
+	st )		# set new range
 	m ir ,		# there are more within this remainder, there are >4
 
 	n ,		# move to the next
-	s )		# set new range
+	st )		# set new range
 	m ir ,		# there are more within this remainder, there are >5
 
 	n ,		# move to the next
-	s )		# set new range
+	st )		# set new range
 	m ir ,		# there are more within this remainder, there are >6
 end
 
@@ -505,7 +505,7 @@ end
 def jpl_rule28
 	# cpp off		# jpl_rule28
 	r; m typedef
-	s \;
+	st \;
 	c *
 	c no /[Pp]tr
 end

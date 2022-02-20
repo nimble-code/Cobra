@@ -244,7 +244,7 @@ def m04_rule14.6
 	m ir break
 	<^1		# exclude break stmnts inside switch
 	n		# first stmnt after break
-	s top }		# set new range
+	st top }		# set new range
 	m ir break	# is there a second break stmnt
 	= "=== R14.6: (Required) For any iteration stmnt there shall be at most one break stmnt used for loop termination:"
 	d
@@ -352,7 +352,7 @@ end
 def m04_rule16.2
 	# cpp on
 	r; m @ident \(; n; j; ex {; j; b	# all fct declarations
-	s top }			# set range to fct body (stretch command)
+	st top }		# set range to fct body (stretch command)
 	m ir $$			# match of fct name inside the range
 	e \(			# recursive fct call
 	= "=== R16.2: (Required) Functions shall not call themselves, either directly or indirectly:"
