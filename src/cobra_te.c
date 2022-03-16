@@ -117,8 +117,7 @@ Store	*e_bindings;	// shared with cobra_eval.y
 
 extern Match	*matches;	// cobra_json.c
 extern Match	*old_matches;	// cobra_json.c
-extern char	 bvars[128];	// cobra_json.c
-extern char	 json_msg[512];	// cobra_json.c
+
 
 extern char	*b_cmd;
 extern char	*yytext;
@@ -142,7 +141,7 @@ static State	*states;
 static Store	*free_stored;
 static State	*free_state;
 static Rlst	*re_list;
-static char	SetName[128];	// for a new named set of pattern matches
+static char	SetName[256];	// for a new named set of pattern matches
 
 static PrimStack *prim_stack;
 static PrimStack *prim_free;
@@ -224,7 +223,7 @@ list_states(char *tag, int n)
 static void
 te_error(const char *s)
 {
-	fprintf(stderr, "error: %s\n", s); // errors always to stderr, not in json format
+	fprintf(stderr, "error: %s...\n", s); // errors always to stderr, not in json format
 
 	if (cobra_texpr)	// non-interactive
 	{	stop_timer(0, 0, "te");
@@ -254,6 +253,7 @@ te_regstart(const char *s)
 	if (n != 0)	// compile
 	{	static char ebuf[64];
 		regerror(n, r->trex, ebuf, sizeof(ebuf));
+		fprintf(stderr, "saw: '%s'\n", s);
 		te_error(ebuf);
 		return 0;
 	}
@@ -1206,6 +1206,9 @@ mk_trans(int src, int match, char *pat, int dest, int cond)	// called from main.
 	&& *pat == '/'
 	&&  strlen(pat) > 1)
 	{	t->t = te_regstart(pat+1);
+		if (!t->t)
+		{	return;
+		}
 	}
 
 	t->cond = cond;
@@ -1778,6 +1781,49 @@ undo_matches(void)
 }
 
 void
+patterns_help(void)
+{
+	printf("ps caption n message	# add (or replace) a caption to an existing pattern set 'n'\n");
+	printf("ps convert n		# convert a pattern set 'n' into basic token markings\n");
+	printf("ps create n		# convert basic token markings into a pattern set named 'n'\n");
+	printf("ps delete n		# delete pattern set 'n'\n");
+	printf("ps list [n]		# list a specific or all pattern sets, and their membership\n");
+	printf("ps rename n newname	# renames an existing pattern set n to newname\n");
+	printf("ps n1 = n2 [& + -] n3	# define n1 as the intersection (&), union (+), difference (-) of n2 and n3\n");
+	printf("ps help			# print this message\n");
+}
+
+void
+patterns_caption(char *s)
+{	Named *x;
+	char *t = s;
+
+	// setname message ...
+	// printf("caption: '%s'\n", s);
+	while (*t != '\0' && !isspace((int) *t))
+	{	t++;
+	}
+	if (!isspace((int) *t))
+	{	fprintf(stderr, "error: bad format\n");
+		return;
+	}
+	*t = '\0';
+	x = findset(s, 0, 12);
+	if (!x)
+	{	if ((!json_format && !no_display && !no_match) && verbose)
+		{	fprintf(stderr, "warning: no such set '%s'\n", s);
+		}
+		return;
+	}
+	t++;	// now points at message
+	if (!x->msg
+	|| strlen(x->msg) < strlen(t))
+	{	x->msg = (char *) emalloc(strlen(t)+1, 100);
+	}
+	strcpy(x->msg, t);
+}
+
+void
 patterns_create(void)		// convert marks to pattern matchess in SetName
 {	Match *om = matches;
 	Match *p;
@@ -1803,24 +1849,30 @@ patterns_create(void)		// convert marks to pattern matchess in SetName
 		matches = p;
 		p_cnt++;
 	}
-	new_named_set(SetName);
+	if (p_cnt > 0)
+	{	new_named_set(SetName);		// convert marks to set
+	}
 	matches = om;	// restore
 
-	printf("%d marks -> %d patterns stored in %s\n", m_cnt, p_cnt, SetName);
-
+	if (verbose
+	||  (!json_format
+	 &&  !no_match
+	 &&  !no_display))
+	{	printf("%d marks -> %d patterns stored in %s\n", m_cnt, p_cnt, SetName);
+	}
 }
 
 void
 patterns_json(char *s)
 {	Named *q;
 	Match *m;
+	char *t;
 
-	for (q = namedset; q; q = q->nxt)
-	{	if (strcmp(q->nm, s) == 0)
-		{	break;
-	}	}
+	q = findset(s, 0, 11);
 	if (!q)
-	{	printf("pattern set '%s' not found\n", s);
+	{	if (!json_format && !no_display && !no_match)
+		{	fprintf(stderr, "pattern set '%s' not found\n", s);
+		}
 		return;
 	}
 	for (m = q->m; m; m = m->nxt)
@@ -1834,28 +1886,80 @@ patterns_json(char *s)
 				m->from->fnm, m->from->lnr,
 				m->upto->fnm, m->upto->lnr);
 		}
-		json_match(q->nm, json_msg, m->from, m->upto);
+		t = q->msg?q->msg:q->nm;
+		json_match(t, json_msg, m->from, m->upto);
 	}
+}
+
+static void
+patterns_show(Named *q, int cnt)
+{	FILE *fd = track_fd?track_fd:stdout;
+	Match *r;
+	int sz = 0;
+
+	if (!q)
+	{	return;
+	}
+	for (r = q->m; r; r = r->nxt)
+	{	sz++;
+	}
+	if (cnt >= 0)
+	{	fprintf(fd, "%3d: ", cnt);
+	}
+	fprintf(fd, "%s, %d patterns", q->nm, sz);
+	if (q->msg && strlen(q->msg) > 0)
+	{	fprintf(fd, " :: %s", q->msg);
+	}
+	fprintf(fd, "\n");
+}
+
+static int
+patterns_reversed(Named *q, int cnt)
+{
+	if (!q)
+	{	return cnt;
+	}
+	cnt = patterns_reversed(q->nxt, cnt);
+	patterns_show(q, cnt);
+	return cnt+1;
 }
 
 void
 patterns_list(char *s)
-{	Named *q;
-	Match *r;
-	int cnt = 1;
-	int sz;
+{
+	if (strlen(s) > 0)
+	{	patterns_show(findset(s, 1, 13), -1);
+	} else
+	{	patterns_reversed(namedset, 1);
+	}
+}
 
-	for (q = namedset; q; q = q->nxt)
-	{	sz = 0;
-		for (r = q->m; r; r = r->nxt)
-		{	sz++;
+void
+patterns_rename(char *s)
+{	Named *q;
+	char *p = s;
+
+	if (!s)
+	{	fprintf(stderr, "usage: ps rename A B\n");
+		return;
+	}
+	while (*p != ' ' && *p != '\0')
+	{	p++;
+	}
+	if (*p == ' ')
+	{	*p = '\0';
+		p++;
+	} else
+	{	fprintf(stderr, "usage: ps rename A B\n");
+		return;
+	}
+	q = findset(s, 1, 14);
+	if (q)
+	{	if (strlen(p) > strlen(s))
+		{	q->nm = (char *) emalloc(strlen(p)+1, 145);
 		}
-		if (*s == '\0')
-		{	printf("%d: %s, %d patterns\n", cnt++, q->nm, sz);
-		} else if (strcmp(q->nm, s) == 0)
-		{	printf("%s, %d patterns\n", q->nm, sz);
-			break;
-	}	}
+		strcpy(q->nm, p);
+	}
 }
 
 void
@@ -1863,8 +1967,9 @@ patterns_delete(void)
 {	Named *q, *pq = NULL;
 	Match *r;
 
-	for (q = namedset; q; pq = q, q = q->nxt)
-	{	if (strcmp(q->nm, SetName) == 0)
+	for (q = namedset; q; pq = q, q = q->nxt)	// delete
+	{	if (strcmp(q->nm, SetName) == 0
+		&&  strlen(SetName) == strlen(q->nm))
 		{	if (pq)
 			{	pq->nxt = q->nxt;
 			} else
@@ -1874,14 +1979,18 @@ patterns_delete(void)
 			r = q->m;
 			do {	r = free_m(r);	// recycle the Match elements
 			} while (r);		// and bindings
-			printf("pattern set '%s' deleted\n", SetName);
+			if (!json_format && !no_match && !no_display)
+			{	printf("pattern set '%s' deleted\n", SetName);
+			}
 			return;
 	}	}
-	printf("pattern set '%s' not found\n", SetName);
+	if (!json_format && !no_match && !no_display)
+	{	fprintf(stderr, "pattern set '%s' not found\n", SetName);
+	}
 }
 
 static int
-convert_matches(int n)
+preserve_matches(int n)
 {	int p;
 
 	if (!matches)
@@ -1891,7 +2000,7 @@ convert_matches(int n)
 	p = do_markups((const char *) SetName);
 
 	if (strlen(SetName) > 0 && p > 0)
-	{	new_named_set(SetName);
+	{	new_named_set(SetName);		// preserve_matches end of pe
 		matches = (Match *) 0;
 		if (!json_format && !no_match && !no_display)
 		{	printf("%d patterns stored in set '%s'\n", p, SetName);
@@ -1938,10 +2047,12 @@ show_curstate(int rx)
 }
 
 static void
-pattern_matched(int which, int N, int M)	// structured patterns
+pattern_matched(Named *curset, int which, int N, int M)
 {	Match *m;
 	int r, n = 0, p = 0, a, b;
 	FILE *fd = track_fd?track_fd:stdout;
+	char *t;
+	int opened = 0;
 
 	for (m = matches; m; m = m->nxt)
 	{	if (!m->from
@@ -1968,41 +2079,102 @@ pattern_matched(int which, int N, int M)	// structured patterns
 		{	continue;
 		}
 		p++;
-
-		fprintf(fd, "%d: %s:%d..%d", p,
-			m->from?m->from->fnm : "?",
-			m->from?m->from->lnr:0,
-			m->upto?m->upto->lnr:0);
-		if (r > 0)
-		{	fprintf(fd, " (%d lines)\n", r);
+		if (json_format)
+		{	if (m->msg)
+			{	strncpy(json_msg, m->msg, sizeof(json_msg)-1);
+			} else if (strcmp(m->from->fnm, m->upto->fnm) == 0)
+			{	sprintf(json_msg, "lines %d..%d",
+					m->from->lnr, m->upto->lnr);
+			} else
+			{	sprintf(json_msg, "%s:%d..%s:%d",
+					m->from->fnm, m->from->lnr,
+					m->upto->fnm, m->upto->lnr);
+			}
+			memset(bvars, 0, sizeof(bvars));
+			if (m->bind)
+			{	Bound *u = m->bind;
+				while (u)
+				{	char vb[512];
+					memset(vb, 0, sizeof(vb));
+					if (u->bdef
+					&&  u->ref
+					&&  strcmp(u->bdef->txt, u->ref->txt) == 0)
+					{	snprintf(vb, sizeof(vb), "%s (ln %d..%d)",
+							u->bdef->txt, u->bdef->lnr, u->ref->lnr);
+						if (strlen(bvars) + strlen(vb) + 3 < sizeof(bvars))
+						{	if (bvars[0] != '\0')
+							{	strcat(bvars, ", ");
+							}
+							strcat(bvars, vb);
+					}	}
+					u = u->nxt;
+			}	}
+			t = curset->msg?curset->msg:curset->nm;
+			if (!opened)
+			{	fprintf(fd, "[\n");
+				opened++;
+			}
+			json_match(t, json_msg, m->from, m->upto);
 		} else
-		{	fprintf(fd, "\n");
-		}
-
-		if (m->bind)
-		{	Bound *q;
-			fprintf(fd, "\tbound variables matched: %s (ln %d)",
-				m->bind->ref?m->bind->ref->txt:"?",
-				m->bind->ref?m->bind->ref->lnr:-1);
-			for (q = m->bind->nxt; q; q = q->nxt)
-			{	fprintf(fd, ", %s (ln %d)",
-					q->ref?q->ref->txt:"?",
-					q->ref?q->ref->lnr:-1);
+		{	if (p == 1 && curset->msg)
+			{	fprintf(fd, "%s:\n", curset->msg);
+			}
+			fprintf(fd, "%d: %s:%d..%d", p,
+				m->from?m->from->fnm : "?",
+				m->from?m->from->lnr:0,
+				m->upto?m->upto->lnr:0);
+			if (r > 0)
+			{	fprintf(fd, " (%d lines)\n", r);
+			} else
+			{	fprintf(fd, "\n");
+			}
+	
+			if (m->bind)
+			{	Bound *q;
+				int heading = 0;
+	
+				if (m->bind->bdef
+				&&  m->bind->ref)
+				{	heading++;
+					fprintf(fd, "\tbound variable matches:");
+					fprintf(fd, " %s: (ln %d)",
+						m->bind->bdef->txt, m->bind->bdef->lnr);
+					fprintf(fd, " :%s (ln %d)",
+						m->bind->ref->txt, m->bind->ref->lnr);
+				}
+				for (q = m->bind->nxt; q; q = q->nxt)
+				{	if (!q->bdef
+					|| !q->ref)
+					{	continue;
+					}
+					if (!heading)
+					{	heading++;
+						fprintf(fd, "\tbound variable matches:");
+					}
+					fprintf(fd, ", %s: (ln %d)",
+						q->bdef->txt, q->bdef->lnr);
+					fprintf(fd, ", :%s (ln %d)",
+						q->ref->txt, q->ref->lnr);
+			}	}
+	
+			fprintf(fd, "\n");
+	
+			a = m->from->lnr;
+			b = m->upto->lnr;
+			if (no_display && r > 5)	// terse mode
+			{	show_line(fd, m->from->fnm, 0, a, a+1, 0);
+				fprintf(fd, " ...\n");
+				show_line(fd, m->from->fnm, 0, b-1, b, 0);
+			} else
+			{	show_line(fd, m->from->fnm, 0, a, b, 0);
 		}	}
-
-		fprintf(fd, "\n");
-
-		a = m->from->lnr;
-		b = m->upto->lnr;
-		if (no_display && r > 5)	// terse mode
-		{	show_line(fd, m->from->fnm, 0, a, a+1, 0);
-			fprintf(fd, " ...\n");
-			show_line(fd, m->from->fnm, 0, b-1, b, 0);
-		} else
-		{	show_line(fd, m->from->fnm, 0, a, b, 0);
-		}
 	}
-	fprintf(fd, "%d pattern%s\n", p, p!=1?"s":"");
+	if (opened)
+	{	fprintf(fd, "]\n");
+	}
+	if (!no_display)
+	{	fprintf(fd, "%d pattern%s\n", p, p!=1?"s":"");
+	}
 }
 
 static void
@@ -2093,41 +2265,81 @@ pattern_full(int which, int N, int M)
 	}
 }
 
+void
+dp_help(void)
+{
+	printf("dp *			# display all results from all current pattern sets\n");
+	printf("dp setname		# display all results of one specific pattern set\n");
+	printf("dp [setname *] n		# display only the n-th match\n");
+	printf("dp [setname *] N M	# display only matches of between N and M lines long (inclusive)\n");
+	printf("dp [setname *] n N M	# display only the n-th match within the given length range\n");
+	printf("dp help			# print this message\n");
+	printf("optionally use in 'terse' mode to print only the first and last 2 lines of each match\n");
+}
+
 static void
 dp_usage(const char *s, int nr)
 {
-	printf("dp: unrecognized option '%s' (nr=%d)\n", s, nr);
-	printf("usage (with n N and M numbers):\n");
-	printf("    dp  \t	# print all patterns fully\n");
-	printf("    dp n\t	# print only the n-th pattern fully\n");
-	printf("    dp N M\t	# print all patterns between N and M lines long\n");
-	printf("    dp n N M	# print the n-th pattern between N and M lines long\n");
-	printf("in terse mode only the first and last 2 lines of each pattern are printed\n");
+	printf("dp: unrecognized option '%s'", s);
+	if (nr)
+	{	printf(" (nr=%d)", nr);
+	}
+	printf("\n");
+	dp_help();
+}
+
+static void
+dp_all(int a, int b, int c)
+{	Match *pm = matches;
+	Named *x;
+//	FILE *fd = track_fd?track_fd:stdout;
+
+	for (x = namedset; x; x = x->nxt)	// dp *
+	{	matches = x->m;
+		if (matches)
+		{	// if (!json_format)
+			// {	fprintf(fd, "%s:\n", x->msg?x->msg:"Matches");
+			// }
+			pattern_matched(x, a, b, c);
+	}	}
+
+	matches = pm; // restore
 }
 
 void
-display_patterns(const char *te)	// dp [name] [n [N [M]]]
+patterns_display(const char *te)	// dp [name] [n [N [M]]]
 {	int j = 0;
 	int nr, a, b, c;
+	Named *ns;
 	Match *pm = matches;
 	char nm[512];
 
 	while (te[j] == ' ' || te[j] == '\t')
 	{	j++;
 	}
+	if (strcmp(te, "help") == 0
+	||  strcmp(te, "?") == 0)
+	{	dp_help();
+		return;
+	}
 
-	if (isalpha((uchar) te[j]))	// named set
+	if (isalpha((uchar) te[j]) || te[j] == '*' || te[j] == '_')	// named set
 	{	nr = sscanf(&te[j], "%s %d %d %d", nm, &a, &b, &c);
 		switch (nr) {
 		case 1: a =  0;
 		case 2: b = -1;
 		case 3: c = -1;
 		case 4:
-			matches = findset(nm, 1, 2);
-			if (matches)
-			{	pattern_matched(a, b, c);
+			if (te[j] == '*')	// dp *
+			{	dp_all(a, b, c);
+				break;
 			}
-			matches = pm; // restore
+			ns = findset(nm, 1, 2);
+			if (ns && ns->m)
+			{	matches = ns->m;
+				pattern_matched(ns, a, b, c);
+				matches = pm; // restore
+			}
 			break;
 		default:
 			dp_usage(&te[j], nr);
@@ -2177,7 +2389,11 @@ store_constraint(int n, Lextok *p)
 		return;
 	}
 	if (constraints[n]
-	&&  p != constraints[n])
+	&&  p != constraints[n]
+	&& verbose
+	&& !json_format
+	&& !no_match
+	&& !no_display)
 	{	fprintf(stderr, "warning: constraint %d redefined\n", n);
 	}
 	constraints[n] = p;
@@ -2313,7 +2529,7 @@ set_union(Match *a, Match *b)
 	int cnt = 0;
 
 	matches = (Match *) 0;
-	new_named_set(SetName);
+	new_named_set(SetName);	// set union
 	n = namedset;
 
 L:	for (m = q; m; m = m->nxt)
@@ -2330,7 +2546,9 @@ L:	for (m = q; m; m = m->nxt)
 		goto L;
 	}
 	matches = om;
-	printf("%d patterns stored in set '%s'\n", cnt, SetName);
+	if (!json_format && !no_match && !no_display)
+	{	printf("%d patterns stored in set '%s'\n", cnt, SetName);
+	}
 }
 
 #if 0
@@ -2373,7 +2591,7 @@ set_difference(Match *a, Match *b, int how)	// how==1: a-b, how==0: a&b
 	int cnt = 0;
 
 	matches = (Match *) 0;
-	new_named_set(SetName);
+	new_named_set(SetName);		// set difference
 	n = namedset;
 
 	for (m = a; m; m = m->nxt)
@@ -2390,7 +2608,40 @@ set_difference(Match *a, Match *b, int how)	// how==1: a-b, how==0: a&b
 	}
 	matches = om;
 
-	printf("%d patterns stored in set '%s'\n", cnt, SetName);
+	if (!json_format && !no_match && !no_display)
+	{	fprintf(stderr, "%d patterns stored in set '%s'\n", cnt, SetName);
+	}
+}
+
+static void
+clone_set(const char *s)
+{	Match *m, *p;
+	Named *n, *x;
+	Match *om = matches;
+	int cnt = 0;
+
+	x = findset(s, 0, 9);
+	assert(x);
+
+	matches = (Match *) 0;
+	new_named_set(SetName);
+	matches = om;
+	n = namedset;
+	n->msg = x->msg;
+
+	for (m = x->m; m; m = m->nxt)
+	{	p = (Match *) emalloc(sizeof(Match), 100);
+		p->from = m->from;
+		p->upto = m->upto;
+		p->bind = m->bind;
+		p->nxt = n->m;
+		n->m = p;
+		cnt++;
+	}
+
+	if (!json_format && !no_match && !no_display)
+	{	fprintf(stderr, "%d patterns stored in set '%s'\n", cnt, SetName);
+	}
 }
 
 void
@@ -2399,6 +2650,7 @@ set_operation(char *s)
 	char name1[512];
 	char name2[512];
 	char op;
+	Named *ns1, *ns2;
 	Match *m1, *m2;
 
 	if (strlen(SetName) == 0)
@@ -2420,12 +2672,21 @@ set_operation(char *s)
 	{	printf("undefined set operation '%s'\n", s);
 		return;
 	}
-	m1 = findset(name1, 0, 3);
-	m2 = findset(name2, 0, 4);
+	ns1 = findset(name1, 0, 3);
+	ns2 = findset(name2, 0, 4);
+	m1 = ns1?ns1->m:0;
+	m2 = ns2?ns2->m:0;
 	if (!m1 || !m2)
-	{	printf("no such set %s %s (check: ps list)\n",
-			m1?"":name1,
-			m2?"":name2);
+	{	if ((!json_format && !no_match && !no_display) && verbose)
+		{	fprintf(stderr, "no such set %s %s (check: ps list)\n",
+				m1?"":name1,
+				m2?"":name2);
+		}
+		if (m1)
+		{	clone_set(name1);
+		} else if (m2)
+		{	clone_set(name2);
+		}
 		return;
 	}
 	switch (op) {
@@ -2453,6 +2714,13 @@ prune_if_zero(void)	// omit tokens between #if 0 and #endif
 	int cnt = 0, nr = 0, n;
 	static int pruned = 0;
 
+	if (pruned)
+	{	return;
+	}
+
+	if (verbose)
+	{	printf("Prune If Zero\n");
+	}
 	if (!stream)
 	for (q = prim; q; q = q->nxt)
 	{	if (strcmp(q->txt, "#if") != 0
@@ -2505,11 +2773,7 @@ cp_pset(char *s, int ix)
 	Match *y;
 	Prim  *r, *q = NULL;
 
-	for (x = namedset; x; x = x->nxt)
-	{	if (strcmp(x->nm, s) == 0)
-		{	break;
-	}	}
-
+	x = findset(s, 0, 10);
 	if (!x || !x->m)
 	{	if (verbose)
 		{	fprintf(stderr, "warning: cp_pset: no such set '%s'\n", s);
@@ -2536,6 +2800,89 @@ cp_pset(char *s, int ix)
 }
 
 void
+pe_help(void)
+{
+	printf("pe [&] [setname:] pattern_expr [constraint]*\n");
+	printf(" where pattern_expr is a regex on token names, optionally\n");
+	printf(" containing name bindings and/or position references\n");
+	printf(" position_reference: < [0-9]+ >\n");
+	printf(" constraint        : @ [0-9]+ ( token_expr )\n");
+	printf(" the token_expr in a constraint is as defined in the query language\n");
+	printf(" but it can also contain bound variable references\n");
+}
+
+#if 0
+static Prim *
+ps_fix(Prim *m, int pickup, int whatchanged)
+{	static Prim *x = (Prim *) 0;
+	static int ncnt = 0;
+	Prim *y = m;
+
+	if (!m)
+	{	return (Prim *) 0;
+	}
+
+	if (!pickup || !x)
+	{	x = prim;
+		ncnt = 0;
+	}
+
+	// the new sequence in x has EOF tokens added
+	// so the sequence number looked for is higher
+	while (x && x->seq != m->seq + ncnt)
+	{	switch (whatchanged) {
+		case 2:	if (strcmp(x->txt, "EOF") == 0
+			&&  strcmp(x->typ, "cpp") == 0)
+			{	ncnt++;
+			}
+			break;
+		case 3:	if (strcmp(x->txt, "EOF") == 0
+			&&  strcmp(x->typ, "cpp") == 0)
+			{	ncnt++;
+				break;
+			}
+			// else fall thru
+		case 1:	if (strcmp(x->txt, "EOL") == 0
+			&&  strcmp(x->typ, "cpp") == 0)
+			{	ncnt++;
+			}
+			break;
+		default:
+			; // cannot happen
+		}
+		y = x;
+		x = x->nxt;
+	}
+	if (!x)
+	{	if (verbose)
+		{	fprintf(stderr, "warning: pickup %d at eof\n", m->seq);
+			// the new token is the last one in the input
+		}
+		return y;
+	}
+	return x;
+}
+
+static void
+ps_update(int whatchanged)
+{	Named *x;
+	Match *m;
+	Bound *b;
+
+	// update the from, upto, and bind fields in matches
+
+	for (x = namedset; x; x = x->nxt)	// update matches
+	for (m = x->m; m; m = m->nxt)
+	{	m->from = ps_fix(m->from, 0, whatchanged);
+		m->upto = ps_fix(m->upto, 1, whatchanged);
+		for (b = m->bind; b; b = b->nxt)
+		{	b->bdef = ps_fix(b->bdef, 0, whatchanged);
+			b->ref  = ps_fix(b->ref, 1, whatchanged);
+	}	}
+}
+#endif
+
+void
 cobra_te(char *te, int and, int inv)	// fct is too long...
 {	List	*c;
 	Trans	*t;
@@ -2558,6 +2905,13 @@ cobra_te(char *te, int and, int inv)	// fct is too long...
 
 	if (!te)
 	{	return;
+	}
+
+	if (strcmp(te, "help") == 0
+	||  strcmp(te, "?") == 0
+	||  strcmp(te, "\\?") == 0)
+	{	pe_help();
+		return;
 	}
 
 	has_positions = get_positions(te);
@@ -2587,25 +2941,33 @@ cobra_te(char *te, int and, int inv)	// fct is too long...
 				*(p-1), *(p+1));
 	}	}
 	anychange = 0;
+
 	if (!eol && strstr(te, "EOL"))
 	{	char *q1 = strstr(te, "define");
 		char *q2 = strstr(te, "EOL");
-		// with nocpp, there is already an EOL at the end
-		// of every #define macro
-		if (!no_cpp || (!q1 || q1 > q2))
-		{	anychange = 1;
-			eol = 1;
+		if (!no_cpp)
+		{	fprintf(stderr, "error: -cpp removes preprocessing directives\n");
+			fprintf(stderr, "       cannot check '%s'\n", te);
+			return;
+		}
+		// with nocpp, there is an EOL at the end of every #define macro
+		if (!q1)
+		{	fprintf(stderr, "error: expression requires -eol flag\n");
+			return;
+		}
+		if (q1 > q2)
+		{	fprintf(stderr, "error: define should precede EOL marker\n");
+			fprintf(stderr, "       cannot check '%s'\n", te);
+			return;
 	}	}
+
 	if (!eof && strstr(te, "EOF"))
-	{	anychange = 1;
-		eof = 1;
+	{	fprintf(stderr, "error: use of EOF requires -eof cmdln arg\n");
+		return;
+	//	fix_eol();		// changes location of tokens
+	//	ps_update(anychange);	// updates matches in pattern sets
+	//				// not completely reliable
 	}
-	if (anychange)
-	{	fix_eol();
-		if (!json_format && !no_match && !no_display)
-		{	fprintf(stderr, "warning: use of EOL/EOF requires -eol/-eof cmdln arg\n");
-			fprintf(stderr, "         rescanned input\n");
-	}	}
 
 	if (ncalls++ > 0)
 	{	reinit_te();
@@ -2668,7 +3030,7 @@ cobra_te(char *te, int and, int inv)	// fct is too long...
 
 	prune_if_zero();	// remove code in #if 0 blocks
 
-	for ( ; cur; cur = cur->nxt)
+	for (cur = prim; cur; cur = cur->nxt)
 	{	free_list(current);
 		free_list(1 - current);
 		copy_list(2, current);	// initial state
@@ -2892,7 +3254,7 @@ cobra_te(char *te, int and, int inv)	// fct is too long...
 								if (*p == '/'
 								&&  strlen(p) > 1)
 								{	regex_t *z = te_regstart(p+1);
-									tmx = te_regmatch(z, m);
+									tmx = z?te_regmatch(z, m):0;
 								} else if (*p == '\\')
 								{	tmx = strcmp(m, p+1);
 								} else
@@ -2946,7 +3308,7 @@ cobra_te(char *te, int and, int inv)	// fct is too long...
 									if (*p == '/'
 									&&  strlen(p) > 1)
 									{	regex_t *z = te_regstart(p+1);
-										tmx = te_regmatch(z, m);
+										tmx = z?te_regmatch(z, m):0;
 									} else if (*p == '\\')
 									{	tmx = strcmp(m, p+1);
 									} else
@@ -3114,16 +3476,18 @@ cobra_te(char *te, int and, int inv)	// fct is too long...
 		for (rx = 0, x = matches; x; x = x->nxt)
 		{	rx++;
 		}
-		n_cnt = convert_matches(0);
+		n_cnt = preserve_matches(0);
 		set_cnt(n_cnt);
 		if (n_cnt)
 		{	if (json_format)
-			{	json(te);	// te reporting, interactive
+			{	if (!no_display && !no_match)
+				{	json(te);	// te reporting, interactive
+				}
 				clear_matches();
 		}	}
 		rx = 0;
 	} else if (stream <= 0)	// not streaming
-	{	if (convert_matches(0) > 0)
+	{	if (preserve_matches(0) > 0)
 		{
 			if (json_format)
 			{	json(te);	// te reporting, not streaming

@@ -1,4 +1,4 @@
-# cpp off
+def jpl_rule23
 %{
 	nr_if  = 0;
 	nr_endif = 0;
@@ -27,5 +27,6 @@
 		last = .;
 	}
 %}
-= "=== R23: Place \#else, \#elif, and \#endif in the same file as the matching \#if\n"
-d
+	ps create R23
+	ps caption R23 Place \#else, \#elif, and \#endif in the same file as the matching \#if
+end

@@ -3,175 +3,87 @@
 quiet on
 
 . jpl.def
+. binop.def
+. jpl/rule23
+. jpl/rule31
 
+#### LOC-1 Language Compliance
+jpl_rule1
 # jpl_rule2	# not in scope - compile with warnings, use static analysis
 
 #### LOC-2 Predictable Execution
-
 jpl_rule3a
-	= "=== R3a: do not modify the loop counter inside a loop body:"
-	d
 jpl_rule3b
-	= "=== R3b: loop condition must contain a comparison:"
-	d
 jpl_rule3c
-	= "=== R3c: suspicious for-loop increment/decrement:"
-	d
 jpl_rule4
-	= "=== R4: Do not use direct or indirect recursion:"
-	d
 jpl_rule5
-	= "=== R5: Do not use dynamic memory allocation after task initialization:"
-	d
-
 # jpl_rule6	# not statically checkable - use ipc messages
-
 jpl_rule7
-	= "=== R7: Do not use task delays for task synchronization:"
-	d
-
 # jpl_rule8	# not statically checkable - transfer write permissions for shared data
-
 jpl_rule9a
-	= "=== R9a: Place restrictions on the use of semaphores:"
-	d
 jpl_rule9b
-	= "=== R9b: Place restrictions on the use of locks:"
-	d
-
 # jpl_rule10	# not statically checkable - use memory protection, margins, barriers etc
+jpl_rule11
 jpl_rule12a
-	= "=== R12a: Do not use selective value assignments to elements of an enum list:"
-	d
 jpl_rule12b
-	= "=== R12b: Do not use selective value assignments to elements of an enum list:"
-	d
 
 #### LOC-3 Defensive Coding
-
 jpl_rule13a
-	= "=== R13a: (related) - do not use single-letter global identifiers:"
-	d
 
-# much faster check for large files:
-!scope_check -c R13 $FLAGS $ARGS
-
-#. play/rule13.cobra	# not very accurate
-#	markup1
-#	= "=== R13b: identifiers used in only one file:"
-#	l
-#	markup2
-#	= "=== R13c: identifiers used in only one function:"
-#	d
+!scope_check -json -N1 -c R13 $FLAGS $ARGS > JPL_R13.txt
+ seed JPL_R13.txt
+ ps caption R13 Declare data at the smallest possible level of scope
+ !rm -f JPL_R13.txt
 
 jpl_rule14a
-	= "=== R14a: all non-void fcts must return a value:"
-	d
 jpl_rule14b
-	= "=== R14b: return statement without expression:"
-	d
 jpl_rule14c
-	= "=== R14c: every fct has an explicit return type (MISRA97, Rule 75):"
-	d
-jpl_rule14d
-	= "=== R14d: caller does not check return value:"
-	d
-jpl_rule14e		# uses a set from 14d
-	= "=== R14e: caller does not check return value:"
-	d
-jpl_rule14f		# uses a set from 14d
-	= "=== R14f: caller does not check return value:"
-	d
-jpl_rule14g		# uses a set from 14d
-	= "=== R14g: caller does not check return value:"
-	d
+jpl_rule14defg
 jpl_rule14h
-	= "=== R14h: use only one return, at end of function (MISRA97, Rule 82):"
-	d
 jpl_rule15
-	= "=== R15: Check the validity of values passed to functions:"
-	d
+
+!rm -f _TMP1_
+track start _TMP1_
+ jpl_rule16 2	# assertion density 2%
+track stop
 
 jpl_rule17
-	= "=== R17: Use u32, i16, etc instead of predefined C data types such as int, short, etc.:"
-#	d
-. binop.cobra	# jpl_rule18: use braces
-	binop R18
+binop R18
+jpl_rule19a
 jpl_rule19b
-	= "=== R19b: Do not use side-effects in conditions:"
-	d
 
 #### LOC-4 Code Clarity
-
+jpl_rule20a
+jpl_rule20b
+jpl_rule20c
+jpl_rule21
+jpl_rule22
+jpl_rule23
 jpl_rule24
-	= "=== R24: Place no more than one statement or declaration per line:"
-#	d
-jpl_rule25a
-	= "=== R25a: Use short functions with no more than 6 parameters:"
-	d
-jpl_rule25b 60
-	= "=== R25b: Don't use functions longer than nr lines:"
-	# = "fct length:" (.range)	# report fct lengths
-	b; j; b				# match  fct names
-	d
+jpl_rule25 75
 jpl_rule26_27
-	= "=== R26-27: More than the max of two levels of indirection:"
-	d
+jpl_rule28
 
 # jpl_rule29	# not in scope - no non-constant fct pointers
 # jpl_rule30	# not in scope - no casting of fct pointers
 
+jpl_rule31	# place no code before #include
 
-#### the remaing rules require cpp off ###
+ps list
 
-#### LOC-1 Language Compliance
+!rm -f _TMP2_
+track start _TMP2_
+	terse on
+	dp *
+	terse off
+track stop
 
-jpl_rule1
-	= "=== R1: Do not stray outside the language definition (no pragmas):"
-	d
+!cat _TMP1_ _TMP2_ > _JPL_.txt
+!rm -f _TMP1_ _TMP2_
 
-#### LOC-2 Predictable Execution
-
-jpl_rule11
-	= "=== R11: Do not use goto, setjmp or longjmp:"
-	d
-
-#### LOC-3 Defensive Coding
-
-jpl_rule16 2	# assertion density 2%
-	# reports stats
-
-jpl_rule19a
-	= "=== R19a: Do not use side-effects in assertions:"
-	d
-
-#### LOC-4 Code Clarity
-
-jpl_rule20a
-	= "=== R20a: Limit use of the C pre-processor:"
-	d
-jpl_rule20b
-	= "=== R20b: Macro is not a syntactic unit:"
-	p
-jpl_rule20c
-	= "=== R20c: Use of token pasting or stringification:"
-	d
-jpl_rule21		# no macros in functions
-	= "=== R21: Do not define macros within a function or a block:"
-	d
-jpl_rule22		# no undef or redefine
-	= "=== R22: Do not undefine or redefine macros:"
-	d
-
-. jpl/rule23	# match directives in same file
-	# prints warnings
-
-jpl_rule28
-	= "=== R28: Do not hide dereference operations in typedefs:"
-	d
-
-. jpl/rule31.cobra	# place no code before #include
-	= "=== R31: include directives should not be preceded by code"
-	d
+# report
+!if [ -s _JPL_.txt ] ; then echo "detailed results are in file _JPL_.txt"; fi
+# cleanup
+!if [ -s _JPL_.txt ] ; then true; else rm -f _JPL_.txt; fi
 
 quiet off

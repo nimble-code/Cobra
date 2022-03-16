@@ -1,81 +1,75 @@
+# misra 2004 guidelines
+
+requires 3.9
+
 . basic.def
 
-def m04_rule2.1
-	# cpp on
+def m04_rule2_1
 	r; m asm; b {; s asm; c \;
 	>1
 	r; m asm; n \;; s }; c \;
 	<|1
-	= "=== R2.1: (Required) Assembly language shall be encapsulated and isolated:"
-	d
+	ps create M04_R2_1
+	ps caption M04_R2_1 (Required) Assembly language shall be encapsulated and isolated
 end
 
-def m04_rule2.2
-	# cpp off
+def m04_rule2_2
 	r; m \//
-	= "=== R2.2: (Required) Source code shall only use /* ... */ style comments:"
-	d
+	ps create M04_R2_2
+	ps caption M04_R2_2 (Required) Source code shall only use /* ... */ style comments
 end
 
-def m04_rule2.3
-	# cpp off
+def m04_rule2_3
 	r
 	m /^/\*.*/\*
 	m /^//.*/\*
-	= "=== R2.3: (Required) The character sequence /* shall not be used within a comment:"
-	d
+	ps create M04_R2_3
+	ps caption M04_R2_3 (Required) The character sequence /* shall not be used within a comment
 end
 
-def m04_rule2.4
-	# cpp off
+def m04_rule2_4
 	r; m //\*.*\;.*\*/		# stmnt separator in C comment
 	m //\*[^\*]*\;			# avoid /* ... */ ...;
 	m //\*[^/]*\;			# ditto
 	m ///.*\;			# stmnt separator in C++ comment
-	= "=== R2.4: (Advisory) Sections of code should not be commented out:"
-	d
+	ps create M04_R2_4
+	ps caption M04_R2_4 (Advisory) Sections of code should not be commented out
 end
 
-def m04_rule3.4
-	# cpp off
+def m04_rule3_4
 	r; m @cpp; m & /pragma
-	= "=== R3.4: (Required) All uses of the \#pragma directive shall be documented and explained:"
-	d
+	ps create M04_R3_4
+	ps caption M04_R3_4 (Required) All uses of the \#pragma directive shall be documented and explained
 end
 
-def m04_rule4.1
-	# cpp on
+def m04_rule4_1
 	r
 	m \\\ /^['\"?abfnrtvxX0-9]		# undefined escape
 	m \\\ /^[0-9][0-9][0-9]$		# octal escape
-	= "=== R4.1: (Required) Only those escape sequences that are defined in the ISO C standard shall be used:"
-	d
+	ps create M04_R4_1
+	ps caption M04_R4_1 (Required) Only those escape sequences that are defined in the ISO C standard shall be used
 end
 
-def m04_rule4.2
-	# cpp on
+def m04_rule4_2
 	r; m ? ?; n; e /^[=\(\)/'<>!\-]		# use of trigraphs
-	= "=== R4.2: (Required) Trigraphs shall not be used:"
-	d
+	ps create M04_R4_2
+	ps caption M04_R4_2 (Required) Trigraphs shall not be used
 end
 
-def m04_rule5.1
-	# cpp on
+def m04_rule5_1
 	r
 	m @ident; m & (.len > 31)
-	= "=== R5.1: (Required) Identifiers (internal and external) shall not rely on the significance of more than 31 characters:"
-	d
+	ps create M04_R5_1
+	ps caption M04_R5_1 (Required) Identifiers (internal and external) shall not rely on the significance of more than 31 characters
 end
 
-def m04_rule6.3
-	# cpp on
+def m04_rule6_3
 	r; m char; m int; m short; m long; m float; m double
-	= "=== R6.3: (Advisory) typedefs that indicate size and signedness should be used in place of the basic types:"
-	d
+	ps create M04_R6_3
+	ps caption M04_R6_3 (Advisory) typedefs that indicate size and signedness should be used in place of the basic types
 end
 
-def m04_rule6.4
-	# cpp on
+def m04_rule6_4
 	r; m ?; s :	# find p ? r : s
 	n :; b		# move mark to the ident before the :
 	>1		# save
@@ -84,12 +78,11 @@ def m04_rule6.4
 	<^1		# exclude conditional expressions
 	b
 	unmark int
-	= "=== R6.4: (Required) Bit fields shall only be defined to be of type unsigned int or signed int:"
-	d
+	ps create M04_R6_4
+	ps caption M04_R6_4 (Required) Bit fields shall only be defined to be of type unsigned int or signed int
 end
 
-def m04_rule6.5
-	# cpp on
+def m04_rule6_5
 	r; m ?; s :	# find p ? r : s
 	n :; b		# move mark to the ident before the :
 	>1		# save
@@ -99,58 +92,55 @@ def m04_rule6.5
 	b; b
 	unmark unsigned	# common cases only
 	n :; n
-	= "=== R6.5: (Required) Bit fields of type signed int shall be at least 2 bits long:"
-	d
+	ps create M04_R6_5
+	ps caption M04_R6_5 (Required) Bit fields of type signed int shall be at least 2 bits long
 end
 
-def m04_rule7.1
-	# cpp on
+def m04_rule7_1
 	r
 	m /^0[0-9]			# octal constant
 	m \\\ /^[0-9][0-9][0-9]$	# octal escape
-	= "=== R7.1: (Required) Octal constants (other than zero) and octal escape sequences shall not be used:"
-	d
+	ps create M04_R7_1
+	ps caption M04_R7_1 (Required) Octal constants (other than zero) and octal escape sequences shall not be used
 end
 
-def m04_rule8.6
-	# cpp on
+def m04_rule8_6
 	r; m extern; m & (.curly > 0)	# partial check
-	= "=== R8.6: (Required) Functions shall be declared at file scope:"
-	d
-#	rule was deleted in misra2012
+	ps create M04_R8_6
+	ps caption M04_R8_6 (Required) Functions shall be declared at file scope
+	# rule was omitted in misra2012
 end
 
-def m04_rule8.7
+def m04_rule8_7
 	r
-	!scope_check -c R8.7 $FLAGS $ARGS
-	# "Rule 8.7 (Required) Objects shall be defined at block scope if they are only accessed from within a single function."
+	!scope_check -json -N1 -c M04_R8_7 $FLAGS $ARGS > _M04_R8_7.txt
+	seed _M04_R8_7.txt
+	ps caption M04_R8_7 (Required) Objects shall be defined at block scope if they are only accessed from within a single function
+	!rm -f _M04_R8_7.txt
 end
 
-def m04_rule8.10
-	r
-	# "Rule 8.10 (Required) All declarations and definitions of objects or functions at file scope shall have internal linkage unless external linkage is required."
-	# covered by 8.7
+def m04_rule8_10
+	# r
+	# "Rule 8_10 (Required) All declarations and definitions of objects or functions at file scope shall have internal linkage unless external linkage is required."
+	# covered by 8_7
 end
 
-def m04_rule9.3
-	# cpp on
+def m04_rule9_3
 	r; m enum; n; m & {; c =; s =; c ,		# nameless enum, no comma before the first =
 	>1
 	r; m enum; n; n; m & {; c =; s =; c ,		# named enum
 	<|1
-	= "=== R9.3: (Required) In an enumerator list, the = construct shall not be used to explicitly initialise members other than the first, unless all items are explicitly initialised:"
-	d
+	ps create M04_R9_3
+	ps caption M04_R9_3 (Required) In an enumerator list, the = construct shall not be used to explicitly initialise members other than the first, unless all items are explicitly initialised
 end
 
-def m04_rule12.3
-	# cpp on
+def m04_rule12_3
 	r; m sizeof; n; c /[-=\+\(]
-	= "=== R12.3: (Required) The sizeof operator shall not be used on expressions that contain side effects:"
-	d
+	ps create M04_R12_3
+	ps caption M04_R12_3 (Required) The sizeof operator shall not be used on expressions that contain side effects
 end
 
-def m04_rule12.4
-	# cpp on
+def m04_rule12_4
 	r; m \&&; s top ); c no \;; c /[-+][-+]	# not in for-loop; pre or post increments
 	>1
 	r; m \||; s top ); c no \;; c /[-+][-+]
@@ -167,23 +157,21 @@ def m04_rule12.4
 	>1
 	r; m \||; s top ); c no \;; c /[a-zA-Z0-9_]+\(		# fct calls
 	<|1
-	= "=== R12.4: (Required) The right-hand operand of a logical && or || operator shall not contain side effects:"
-	d
+	ps create M04_R12_4
+	ps caption M04_R12_4 (Required) The right-hand operand of a logical && or || operator shall not contain side effects
 end
 
-def m04_rule12.10
-	# cpp on
+def m04_rule12_10
 	r; m @type; s \;; c ,; m ,	# commas in declarations
 	>1
 	r; m ,
 	w (.curly>0 && .round == 0)
 	<^1
-	= "=== R12:.10 (Required) The comma operator shall not be used:"
-	d
+	ps create M04_R12_10
+	ps caption M04_R12_10 (Required) The comma operator shall not be used
 end
 
-def m04_rule13.1
-	# cpp on
+def m04_rule13_1
 	r; m if;    n; c /[-+][-+]		# pre or post increments
 	>1
 	r; m if;    n; c /[^=<>!]=			# assignments
@@ -200,43 +188,38 @@ def m04_rule13.1
 	>1
 	r; m for;   n \;; s \;; c /[^=<>!]=
 	<|1
-	= "=== R13.1: (Required) Assignment operators shall not be used in expressions that yield a Boolean value:"
-	d
+	ps create M04_R13_1
+	ps caption M04_R13_1 (Required) Assignment operators shall not be used in expressions that yield a Boolean value
 end
 
-def m04_rule13.3
-	# cpp on
+def m04_rule13_3
 	r; m [!=]=; b; m & .
 	>1
 	r; m [!=]=; n; m & .
 	<|1
-	= "=== R13.3: (Required) Floating-point expressions shall not be tested for equality or inequality:"
-	d
+	ps create M04_R13_3
+	ps caption M04_R13_3 (Required) Floating-point expressions shall not be tested for equality or inequality
 end
 
-def m04_rule13.6
-	# cpp on
-	check_for
-	= "=== R13.6: (Required) Numeric vars used in a for loop for iteration counting shall not be modified in the loop-body:"
+def m04_rule13_6
+	check_for M04_R13_6
+	ps caption M04_R13_6 (Required) Numeric vars used in a for loop for iteration counting shall not be modified in the loop-body
 end
 
-def m04_rule14.4
-	# cpp on
+def m04_rule14_4
 	r; m goto
-	= "=== R14.4: (Required) The goto stmnt shall not be used:"
-	d
+	ps create M04_R14_4
+	ps caption M04_R14_4 (Required) The goto stmnt shall not be used
 end
 
-def m04_rule14.5
-	# cpp on
+def m04_rule14_5
 	r; m continue
-	= "=== R14.5: (Required) The continue stmnt shall not be used:"
-	d
-#	rule was deleted from misra2012
+	ps create M04_R14_5
+	ps caption M04_R14_5 (Required) The continue stmnt shall not be used
+	# rule was omitted in misra2012
 end
 
-def m04_rule14.6
-	# cpp on
+def m04_rule14_6
 	r; m switch \(; n; j; e {; n; n; s top }
 	m ir break	# marks break stmnts inside switch
 	>1		# save these
@@ -246,12 +229,11 @@ def m04_rule14.6
 	n		# first stmnt after break
 	st top }		# set new range
 	m ir break	# is there a second break stmnt
-	= "=== R14.6: (Required) For any iteration stmnt there shall be at most one break stmnt used for loop termination:"
-	d
+	ps create M04_R14_6
+	ps caption M04_R14_6 (Required) For any iteration stmnt there shall be at most one break stmnt used for loop termination
 end
 
-def m04_rule14.7
-	# cpp on
+def m04_rule14_7
 	r; m @ident \(
 	m & (!.curly)
 	n; j; e {; n
@@ -261,12 +243,11 @@ def m04_rule14.7
 	n
 	w (.txt != } || .curly > 1)
 	b return
-	= "=== R14.7: (Required) A fct shall have a single point of exit at the end of the fct:"
-	d
+	ps create M04_R14_7
+	ps caption M04_R14_7 (Required) A fct shall have a single point of exit at the end of the fct
 end
 
-def m04_rule14.8
-	# cpp on
+def m04_rule14_8
 	r; m switch \(; n; j; n; unmark {
 	>1
 	r; m while; b; unmark }; n
@@ -279,29 +260,25 @@ def m04_rule14.8
 	>1
 	r; m for;   n; j; n; unmark {; b
 	<|1
-	= "=== R14.8: (Required) The stmnt forming the body of a switch, while, do ... while or for stmnt shall be a compound stmnt:"
-	d
+	ps create M04_R14_8
+	ps caption M04_R14_8 (Required) The stmnt forming the body of a switch, while, do ... while or for stmnt shall be a compound stmnt
 end
 
-def m04_rule14.9
-	# cpp on
+def m04_rule14_9
 	r; m if;    n; j; n; unmark {; b
 	>1
 	r; m else;  n;       unmark {; unmark if; b
 	<|1
-	= "=== R14.9: (Required) An if (expr) shall be followed by a compound stmnt. An else keyword shall be followed by either a compound stmnt, or another if:"
-	d
+	ps create M04_R14_9
+	ps caption M04_R14_9 (Required) An if (expr) shall be followed by a compound stmnt. An else keyword shall be followed by either a compound stmnt, or another if
 end
 
-def m04_rule14.10
-	# cpp on
-	check_ifelseif
-	= "=== R14:.10 (Required) All if... else if constructs shall be terminated with an else clause:"
-	d
+def m04_rule14_10
+	check_ifelseif M04_R14_10
+	ps caption M04_R14_10 (Required) All if... else if constructs shall be terminated with an else clause
 end
 
-def m04_rule15.2
-	# cpp on
+def m04_rule15_2
 	r; m case; s case; c \;; c no switch; c no break
 	>1
 	r; m case; s default; c \;; c no switch; c no break
@@ -309,65 +286,58 @@ def m04_rule15.2
 	>1
 	r; m case; s top }; c \;; c no switch; c no break
 	<|1
-	= "=== R15.2: (Required) An unconditional break stmnt shall terminate every non-empty switch clause:"
-	d
+	ps create M04_R15_2
+	ps caption M04_R15_2 (Required) An unconditional break stmnt shall terminate every non-empty switch clause
 end
 
-def m04_rule15.3
-	# cpp on
+def m04_rule15_3
 	r; m switch; n; j; n; c top no default
 	b; j; b
-	= "=== R15.3: (Required) The final clause of a switch stmnt shall be the default clause:"
-	d
+	ps create M04_R15_3
+	ps caption M04_R15_3 (Required) The final clause of a switch stmnt shall be the default clause
 end
 
-def m04_rule15.4
-	# cpp on
+def m04_rule15_4
 	r; m switch; n {; c top no case
 	>1
 	r; m switch; n {; c case
 	n case; n; s top }; c no case	# partial check
 	<|1
-	= "=== R15.4: (Required) A switch expression shall not represent a value that is effectively Boolean:"
-	d
+	ps create M04_R15_4
+	ps caption M04_R15_4 (Required) A switch expression shall not represent a value that is effectively Boolean
 end
 
-def m04_rule15.5
-	# cpp on
+def m04_rule15_5
 	r; m switch; n {; c top no case
-	= "=== R15.5: (Required) Every switch stmnt shall have at least one case clause:"
-	d
+	ps create M04_R15_5
+	ps caption M04_R15_5 (Required) Every switch stmnt shall have at least one case clause
 end
 
-def m04_rule16.1
-	# cpp on
+def m04_rule16_1
 	r; m ...
 	b;b
 	unmark catch	# C++ catch(...)
 	n;n
-	= "=== R16.1: (Required) Functions shall not be defined with variable numbers of arguments:"
-	d
+	ps create M04_R16_1
+	ps caption M04_R16_1 (Required) Functions shall not be defined with variable numbers of arguments
 end
 
-def m04_rule16.2
-	# cpp on
+def m04_rule16_2
 	r; m @ident \(; n; j; ex {; j; b	# all fct declarations
 	st top }		# set range to fct body (stretch command)
 	m ir $$			# match of fct name inside the range
 	e \(			# recursive fct call
-	= "=== R16.2: (Required) Functions shall not call themselves, either directly or indirectly:"
-	d
+	ps create M04_R16_2
+	ps caption M04_R16_2 (Required) Functions shall not call themselves, either directly or indirectly
 end
 
-def m04_rule16.5
-	# cpp on
+def m04_rule16_5
 	r; m @ident \(; n; j; e {; j; e )
-	= "=== R16.5: (Required) Functions with no parameters shall be declared with parameter type void:"
-	d
+	ps create M04_R16_5
+	ps caption M04_R16_5 (Required) Functions with no parameters shall be declared with parameter type void
 end
 
-def m04_rule16.8
-	# cpp on
+def m04_rule16_8
 	r; m @ident \(; m & (!.curly); j; extend {; j; b; b; mark no void; n {
 	c no return	# should match zero ranges
 	>1
@@ -376,141 +346,123 @@ def m04_rule16.8
 	n		# move to the token that follows, which should not be a semicolon
 	m no \;		# return stmnt without expression
 	<|1
-	= "=== R16.8: (Required) All exit paths from a fct with non-void return type shall have an explicit return stmnt with an expression:"
-	d
+	ps create M04_R16_8
+	ps caption M04_R16_8 (Required) All exit paths from a fct with non-void return type shall have an explicit return stmnt with an expression
 end
 
-def m04_rule17.5
-	# cpp on
+def m04_rule17_5
 	r; m * *; n; n; m & *
 	>1
 	r; m * *; n; n; m & @ident; n; m & [
 	<|1
-	= "=== R17.5: (Advisory) The declaration of objects should contain no more than 2 levels of pointer indirection:"
-	d
+	ps create M04_R17_5
+	ps caption M04_R17_5 (Advisory) The declaration of objects should contain no more than 2 levels of pointer indirection
 end
 
-def m04_rule18.4
-	# cpp on
+def m04_rule18_4
 	r; m union
-	= "=== R18.4: (Required) Unions shall not be used:"
-	d
+	ps create M04_R18_4
+	ps caption M04_R18_4 (Required) Unions shall not be used
 end
 
-def m04_rule19.1
+def m04_rule19_1
 	. jpl/rule31.cobra
-	= "=== R19.1: (Advisory) \#include stmnts in a file should only be preceded by other preprocessor directives or comments:"
-	d
+	ps rename R31 M04_R19_1
+	ps caption M04_R19_1 (Advisory) \#include stmnts in a file should only be preceded by other preprocessor directives or comments
 end
 
-def m04_rule19.2
-	# cpp off
+def m04_rule19_2
 	r; m @cpp; m & /include.*[<"].*['\,\*].*[>"]
-	= "=== R19.2: (Advisory) Non-standard characters should not occur in header file names in \#include directives:"
-	d
+	ps create M04_R19_2
+	ps caption M04_R19_2 (Advisory) Non-standard characters should not occur in header file names in \#include directives
 end
 
-def m04_rule19.3
-	# cpp off
+def m04_rule19_3
 	r; m @cpp; m & /include; m no /\<; m no /"
-	= "=== R19.3: (Required) The \#include directive shall be followed by either a <filename> or filename sequence:"
-	d
+	ps create M04_R19_3
+	ps caption M04_R19_3 (Required) The \#include directive shall be followed by either a <filename> or filename sequence
 end
 
-def m04_rule19.5
-	# cpp off
+def m04_rule19_5
 	r; m @cpp; m & /undef;  m & (.curly > 0)
 	>1
 	r; m @cpp; m & /define; m & (.curly > 0)
 	<|1
-	= "=== R19.5: (Required) Macros shall not be \#define'd or \#undef 'd within a block:"
-	d
-#	rule was deleted from misra2012
+	ps create M04_R19_5
+	ps caption M04_R19_5 (Required) Macros shall not be \#define'd or \#undef 'd within a block
+	# rule was omitted in misra2012
 end
 
-def m04_rule19.6
-	# cpp off
+def m04_rule19_6
 	r; m @cpp; m & /undef
-	= "=== R19.6: (Required) \#undef shall not be used:"
-	d
+	ps create M04_R19_6
+	ps caption M04_R19_6 (Required) \#undef shall not be used
 end
 
-def m04_rule19.12
-	# cpp off
+def m04_rule19_12
 	r; m @cpp; m & /\#[^\#]+\#
-	= "=== R19:.12 (Required) There shall be at most one occurrence of the \# or \#\# preprocessor operators in a single macro definition:"
-	d
+	ps create M04_R19_12
+	ps caption M04_R19_12 (Required) There shall be at most one occurrence of the \# or \#\# preprocessor operators in a single macro definition
 end
 
-def m04_rule19.13
-	# cpp off
+def m04_rule19_13
 	r; m @cpp; m & /\#\#
-	= "=== R19:.13 (Advisory) The \# and \#\# preprocessor operators should not be used:"
-	d
 	r; m @cpp; m & /\#[^duie\ 0-9]
 	unmark /define
-	d
+	ps create M04_R19_13
+	ps caption M04_R19_13 (Advisory) The \# and \#\# preprocessor operators should not be used
 end
 
-def m04_rule20.4
-	# cpp on
+def m04_rule20_4
 	r; m /alloc; m free
-	= "=== R20.4: (Required) Dynamic heap memory allocation shall not be used:"
-	d
+	ps create M04_R20_4
+	ps caption M04_R20_4 (Required) Dynamic heap memory allocation shall not be used
 end
 
-def m04_rule20.5
-	# cpp on
+def m04_rule20_5
 	r; m errno
-	= "=== R20.5: (Required) The error indicator errno shall not be used:"
-	d
+	ps create M04_R20_5
+	ps caption M04_R20_5 (Required) The error indicator errno shall not be used
 end
 
-def m04_rule20.6
-	# cpp off
+def m04_rule20_6
 	r; m offsetof
-	= "=== R20.6: (Required) The macro offsetof in <stddef.h> shall not be used:"
-	d
+	ps create M04_R20_6
+	ps caption M04_R20_6 (Required) The macro offsetof in <stddef.h> shall not be used
 end
 
-def m04_rule20.7
-	# cpp off
+def m04_rule20_7
 	r; m setjmp; m longjmp
-	= "=== R20.7: (Required) The setjmp macro and the longjmp fct shall not be used:"
-	d
+	ps create M04_R20_7
+	ps caption M04_R20_7 (Required) The setjmp macro and the longjmp fct shall not be used
 end
 
-def m04_rule20.8
-	# cpp off
+def m04_rule20_8
 	r; m @cpp; m & /signal.h
-	= "=== R20.8: (Required) The signal handling facilities of <signal.h> shall not be used:"
-	d
+	ps create M04_R20_8
+	ps caption M04_R20_8 (Required) The signal handling facilities of <signal.h> shall not be used
 end
 
-def m04_rule20.9
-	# cpp off
+def m04_rule20_9
 	r; m @cpp; m & /stdio.h
-	= "=== R20.9: (Required) <stdio.h> shall not be used in production code:"
-	d
+	ps create M04_R20_8
+	ps caption M04_R20_9 (Required) <stdio.h> shall not be used in production code
 end
 
-def m04_rule20.10
-	# cpp on
+def m04_rule20_10
 	r; m atof; m atoi; m atol
-	= "=== R20:.10 (Required) The library fcts atof, atoi and atol from library <stdlib.h> shall not be used:"
-	d
+	ps create M04_R20_10
+	ps caption M04_R20_10 (Required) The library fcts atof, atoi and atol from library <stdlib.h> shall not be used
 end
 
-def m04_rule20.11
-	# cpp on
+def m04_rule20_11
 	r; m abort; m exit; m getenv; m system
-	= "=== R20:.11 (Required) The library fcts abort, exit, getenv and system from library <stdlib.h> shall not be used:"
-	d
+	ps create M04_R20_11
+	ps caption M04_R20_11 (Required) The library fcts abort, exit, getenv and system from library <stdlib.h> shall not be used
 end
 
-def m04_rule20.12
-	# cpp off
+def m04_rule20_12
 	r; m @cpp; m & /time.h
-	= "=== R20:.12 (Required) The time handling fcts of <time.h> shall not be used:"
-	d
+	ps create M04_R20_12
+	ps caption M04_R20_12 (Required) The time handling fcts of <time.h> shall not be used
 end

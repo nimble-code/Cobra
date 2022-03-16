@@ -5,7 +5,7 @@
 	{	q = .;
 		print .lnr "\t";
 		while (.lnr == q.lnr && .mark == 0)
-		{	if (.txt != "EOL")
+		{	if (.txt != "EOL" && .txt != "EOF")
 			{	print .txt " ";
 			}
 			.mark = 1;

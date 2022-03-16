@@ -1,49 +1,36 @@
 # CWE-468: incorrect pointer scaling
 # https://cwe.mitre.org/data/definitions/468.html
 
-# pattern: adding a constant to an identifier, in a parenthesized expression, which is cast to a pointer of some type
+requires 3.9
 
-%{
-	w_cnt = 0;
-	Stop;
-%}
+quiet on
+. cwe/cwe_468.def
 
-%{
-	if (!@const_int || .round == 0)
-	{	Next;
-	}
-	q = .prv;
-	if (q.txt != "+")
-	{	Next;
-	}
-	while (q.txt != "(")
-	{	q = q.prv;
-	}
-	q = q.prv;	# (... *) ( ... + const_int ...)
-	if (q.txt != ")")
-	{	Next;
-	}
-	q = q.prv;
-	if (q.txt != "*")
-	{	Next;
-	}
-	# gotcha
-	if (terse)
-	{	w_cnt++;
-	} else
-	{	lock();
-		print .fnm ":" .lnr ": cwe_468, risky cast using pointer arithmetic\n";
-		unlock();
-	}
-%}
-%{
-	if (terse && w_cnt > 0)
-	{	lock();
-		print "cwe_468: " w_cnt " warnings: risky cast using pointer arithmetic\n";
-		unlock();
-	}
-	w_cnt = 0;
-	Stop;
-%}
+cwe_468_start
+cwe_468_main
+# cwe_468_wrap
+cwe_468_set
 
+ps list CWE_468
 
+!rm -f _CWE_468_.txt
+track start _CWE_468_.txt
+	terse on
+	dp CWE_468
+	terse off
+track stop
+
+!rm -f _CWE_468_detail.txt
+track start _CWE_468_detail.txt
+	r
+	ps convert CWE_468
+	= "Risky cast using pointer arithmetic"
+	p
+track stop
+
+# report
+!if [ -s _CWE_468_.txt ] ; then echo "results are in _CWE_468_.txt and _CWE_468_detail.txt"; fi
+# cleanup
+!if [ -s _CWE_468_.txt ] ; then true; else rm -f _CWE_468_*.txt; fi
+
+quiet off

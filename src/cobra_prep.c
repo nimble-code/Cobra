@@ -21,8 +21,8 @@ int across_file_match;
 int all_headers;
 int cplusplus;
 int Ctok;
-int eol;
-int eof;
+int eol = 0;
+int eof = 1;	// new default v 3.9
 int gui;
 int java;
 int Ncore = 1;
@@ -561,8 +561,8 @@ usage(char *s)
 	fprintf(stderr, "\t-configure dir      -- set and remember the name for the Cobra installation directory\n");
 	fprintf(stderr, "\t-cpp                -- enable C preprocessing%s\n", no_cpp?"":" (default)");
 	fprintf(stderr, "\t-d and -v -d        -- debug cobra inline program executions\n");
-	fprintf(stderr, "\t-eof                -- treat end-of-file as EOF tokens\n");
-	fprintf(stderr, "\t-eol                -- treat newlines as EOL tokens\n");
+	fprintf(stderr, "\t-eof                -- omit EOF tokens at the end of files\n");
+	fprintf(stderr, "\t-eol                -- add EOL tokens at all newlines\n");
 	fprintf(stderr, "\t-e name             -- print lines with tokens matching name\n");
 	fprintf(stderr, "\t-e \"token_expr\"     -- print lines matching a token_expr (cf -view)\n");
 	fprintf(stderr, "\t                       use meta-symbols: ( | ) . * + ?\n");
@@ -1188,11 +1188,11 @@ main(int argc, char *argv[])
 
 		case 'e':
 			  if (strcmp(argv[1], "-eol") == 0)
-			  {	eol = 1;
+			  {	eol = 1 - eol; // default value is 0
 				break;
 			  }
 			  if (strcmp(argv[1], "-eof") == 0)
-			  {	eof = 1;
+			  {	eof = 1 - eof;	// default value is 1
 				break;
 			  }
 RegEx:			  no_match = 1;		// -e -expr -re or -regex
@@ -1478,13 +1478,13 @@ cwe_mode:	no_match = 1;	// for consistency with -f
 	}
 
 	if (cobra_texpr)
-	{	if (strstr(cobra_texpr, "EOL"))
+	{	if (strstr(cobra_texpr, "EOL") && !eol)
 		{	if (verbose)
 			{	fprintf(stderr, "%s: enabling -eol\n", progname);
 			}
 			eol = 1;
 		}
-		if (strstr(cobra_texpr, "EOF"))
+		if (strstr(cobra_texpr, "EOF") && !eof)
 		{	if (verbose)
 			{	fprintf(stderr, "%s: enabling -eof\n", progname);
 			}
@@ -1557,8 +1557,16 @@ cwe_mode:	no_match = 1;	// for consistency with -f
 	||  Ncore != 1
 	||  !no_cpp))
 	{	if (strstr(progname, "cobra") != NULL)
-		{	fprintf(stderr, "%s: error: streaming input\n", progname);
-			fprintf(stderr, "    requires -expr, -pat or -f, no -cpp, and ncore=1\n");
+		{	if (!no_cpp)
+			{	fprintf(stderr, "%s: error: cannot use -cpp with streaming input\n", progname);
+			}
+			if (Ncore != 1)
+			{	fprintf(stderr, "%s: error: cannot use Ncore>1 with streaming input\n", progname);
+			}
+			if (no_cpp && Ncore == 1)
+			{	fprintf(stderr, "%s: error: streaming input\n", progname);
+				fprintf(stderr, "    requires -expr, -pe or -f\n");
+			}
 			return 1;
 	}	}
 
@@ -1586,7 +1594,7 @@ cwe_mode:	no_match = 1;	// for consistency with -f
 	post_process(1);	// collect info from cores
 
 	if (seedfile)
-	{	json_import(seedfile);
+	{	json_import(seedfile, 0);
 	}
 
 	if (strstr(progname, "cobra") == NULL

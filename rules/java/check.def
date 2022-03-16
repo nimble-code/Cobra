@@ -1,0 +1,22 @@
+requires 3.9
+
+def J01
+	pe J01: @ident ( String p:@ident ) { .* ( :p \. equals ( @str ) )
+	ps caption J01 param being equated to Strings using equals
+end
+def J02
+	pe J02: @ident ( .* String p:@ident .*) { .* x:@ident = ^\;* + :p + .* \. /execute ( :x
+	ps caption J02 param used in string concat with result used in executeQuery
+end
+def J03
+	pe J03: \. getInstance ( /[Mm][Dd]5 )
+	ps caption J03 insecure use of Cryptography
+end
+def J04
+	pe J04: String [secret key token] = @str
+	ps caption J04 hard-coded credentials/tokens
+end
+def J05
+	pe J05: @ident ( .* String p:@ident .* ) { .* URL x:@ident = new URL ( :p ) .* }
+	ps caption J05 url class instatiation with parameter
+end

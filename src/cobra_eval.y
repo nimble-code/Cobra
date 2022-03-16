@@ -362,7 +362,10 @@ field_type(const char *s)
 		return (strcmp(s, "bracket") == 0)?bracket_t:0;
 	case 'c':
 		return (strcmp(s, "curly")   == 0)?curly_t:0;
-	case 'f':
+	case 'f':	
+		if (strcmp(s, "fct") == 0)
+		{	return fct_t;
+		}
 		return (strcmp(s, "fnm")     == 0)?fnm_t:0;
 	case 'j':
 		return (strcmp(s, "jmp")     == 0)?jmp_t:0;
@@ -396,6 +399,21 @@ field_type(const char *s)
 // == or != constraint in a pattern match if there are either
 // bound variables, names, or regular expressions
 
+#if 0
+static void
+dt(Lextok *t, int i)
+{
+
+	if (t->s) { printf("'%s' ", t->s); }
+	if (t->lft)
+	{	printf("L: "); dt(t->lft, i+1);
+	}
+	if (t->rgt)
+	{	printf("R: "); dt(t->rgt, i+1);
+	}
+}
+#endif
+
 static int
 dot_match(const Prim *q, Lextok *lft, Lextok *rgt)
 {	char *a = (char *) 0;
@@ -423,10 +441,25 @@ dot_match(const Prim *q, Lextok *lft, Lextok *rgt)
 		{	r = bound_prim(lft->rgt->s); // origin
 			e = re;
 		}
+		if (lft->rgt && (a = strchr(lft->rgt->s, '.')))
+		{	// lhs bound var contains a field like :x.len
+			*a = '\0';
+			r = bound_prim(lft->rgt->s);
+			if (r) { e = field_type(a+1); }
+		}
 	} else  if (rgt->typ == ':'	// rhs is bound var
 		&&  lft->typ == '.')
 	{	r = bound_prim(rgt->rgt->s);	// origin
 		e = le;	// lhs ref
+	}
+
+	if (rgt->typ == ':'
+	&&  rgt->rgt
+	&& (a = strchr(rgt->rgt->s, '.')))
+	{	// rhs bound var contains a field like :x.len
+		*a = '\0';
+		r = bound_prim(rgt->rgt->s);
+		if (r) { e = field_type(a+1); }
 	}
 
 	if (e)

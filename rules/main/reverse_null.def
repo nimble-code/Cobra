@@ -1,0 +1,78 @@
+requires 3.9
+
+def check_reverse_null
+	r
+	# fcts
+	# cpp off
+	# null tests
+	# r
+	m \( @ident
+	n
+	e \)
+	b; b
+	m & if
+	n; n
+	>1
+	# = "Null part 1:"
+	r
+	m @ident ==
+	m @ident !=
+	n; n
+	m & NULL
+	b; b
+	# = "Null part 2:"
+	<|1
+	# = "Null tests:"
+	%{
+		if (.mark)
+		{	NullTested[.txt] = .;
+			.mark = 0;
+		}
+	%}
+
+	m * @ident
+	b; 
+	unmark @type;
+	unmark ,	# likely in declarations list
+	unmark @qualifier;
+	unmark /_t$; n
+	n
+	m @ident ->
+	m & (.curly > 0)
+	m & (.fct != "global")
+	# = "Dereferences:"
+	%{
+		if (.mark)
+		{	t = NullTested[.txt];
+			if (t.lnr > 0)
+			{	Dereferenced[.txt] = .;
+			}
+			.mark = 0;
+		}
+	%}
+
+	# = "find path from 2 to 1:"
+	%{
+		for (i in NullTested)
+		{	t = NullTested[i.txt];
+			d = Dereferenced[i.txt];
+			if (d.fct == t.fct
+			&&  d.lnr  < t.lnr)
+			{	e = d;
+				while (e.lnr < t.lnr)
+				{	if (e.txt == "return"
+					||  e.txt == "break")
+					{	break;
+					}
+					e = e.nxt;
+				}
+				if (e.lnr >= t.lnr)
+				{	d.mark = 1;	# candidate reverse null
+					t.mark = 1;
+				#	print d.fnm ":" d.lnr "\tderef of " i.txt "\tpreceeds null test at line " t.lnr "\n";
+		}	}	}
+		Stop;
+	%}
+	ps create Reverse_Null
+	ps caption Reverse_Null Likely reverse null patterns
+end

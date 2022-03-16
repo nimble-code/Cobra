@@ -1,8 +1,0 @@
-# ncore 1
-
-. skip.def
-. play/goto_links
-. play/else_links
-. play/switch_links
-
-# to test startup time of cobra processing

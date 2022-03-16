@@ -1,0 +1,42 @@
+# consistency of extern declarations with the main declaration
+
+def check_extern
+	r
+	%{
+		# collect all basic extern declarations
+	
+		if (@type)
+		{	q = .prv;
+			if (q.txt == "extern")
+			{	q = .nxt;
+				if (q.type == "ident")
+				{	Extern[q.txt] = .;
+		}	}	}
+	%}
+	%{
+		# next check non-extern declarations
+		# and compare them with the extern versions
+		if (@type)
+		{	q = .prv;
+			if (q.txt == "extern")
+			{	Next;
+			}
+			q = .nxt;
+			if (q.type != "ident")
+			{	Next;
+			}
+			r = Extern[q.txt];
+			if (r.lnr == 0 || r.txt == .txt)
+			{	Next;
+			}
+			.mark = 1;	# mark the location
+			r.mark = 1;
+		#	if (!terse)
+		#	{	print ".fnm ":" .lnr ": " q.txt " declared as " .type;
+		#		print " but as extern " r.type " at " r.fnm ":" r.lnr "\n";
+		#	}
+		}
+	%}
+	ps create Extern
+	ps caption Extern Inconsistent extern declarations
+end

@@ -1,12 +1,7 @@
 # CWE-119: Improper Restriction of Operations within the Bounds of a Memory Buffer
 
-# !echo -n "cwe_119_1 "; date
+requires 3.9
+
 . cwe/cwe_119_1.cobra
-
-# !echo -n "cwe_119_2 "; date
 . cwe/cwe_119_2.cobra
-
-# !echo -n "cwe_119_3 "; date
 . cwe/cwe_119_3.cobra
-
-# !echo -n "done "; date

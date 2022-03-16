@@ -1,4 +1,4 @@
-Cobra Version 3.0 -- Basic Usage
+Cobra Version 3.9 -- Basic Usage
 ================================
 
 1. cd to the directory with the source files you want

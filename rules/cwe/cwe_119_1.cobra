@@ -1,135 +1,36 @@
 # CWE-119_1: Improper Restriction of Operations within the Bounds of a Memory Buffer
-# pattern 1: multiple array index increments in loop, without bounds checking?
+# pattern 1: multiple array index increments in loop, without bounds checking
 
-%{
-	w_cnt = 0;
-	l_cnt = 0;
-	unset Files;
-	unset IndexVar;
-	unset Modified;
-	lastfnm = .;
-	Stop;
-%}
+requires 3.9
 
-r		## modified 4/24/19 to leave bounds for goto/if/else/case/default/break
-m while (
-m for (
-n; j
-m do; n
-m & {
+quiet on
+. cwe/cwe_119_1.def
 
-%{
-	if (.mark == 0) { Next; }
-	.mark = 0;
+cwe_119_1_start
+cwe_119_1_main
+# cwe_119_1_wrap
+cwe_119_1_set
 
-	# loop-body
-	sol = .;	# start of loop
-	eol = .jmp;	# end of loop
-	. = .nxt;
-	while (.seq < eol.seq)
-	{	if (.txt == "[")
-		{	eob = .jmp;	# end of index
-			. = .nxt;
-			while (.seq < eob.seq)	# remember vars used in array index
-			{	if (@ident)
-				{	IndexVar[.txt] = .;
-# print .fnm ":" .lnr " set index var " .txt "\n";
-			# less common, omit for now
-			#		t = .;
-			#		. = .prv; if (.txt == "++" || .txt == "--") { Modified[t.txt]++; } . = .nxt;
-			#		. = .nxt; if (.txt == "++" || .txt == "--") { Modified[t.txt]++; } . = .prv;
-				}
-				. = .nxt;
-			}
-			# now at closing bracket ]
-		} else
-		{	if (@ident)
-			{	. = .prv;
-				if (.txt == "->" || .txt == "*" || @type)
-				{	. = .nxt;
-				} else
-				{	if (.txt == "++"
-					||  .txt == "--")
-					{	. = .nxt;
-						Modified[.txt]++;
-# print .fnm ":" .lnr " tag1 " .txt "\n";
-					} else
-					{	. = .nxt;
-					}
-					. = .nxt;
-					if (.txt == "++"
-					||  .txt == "--")	# could add =, if v als appears on rhs
-					{	. = .prv;
-						Modified[.txt]++;
-# print .fnm ":" .lnr " tag2 " .txt "\n";
-					} else
-					{	. = .prv;
-		}	}	}	}
-		. = .nxt;
-	}
+ps list CWE_119_1
 
-	. = sol.nxt;
-	while (.seq < eol.seq)
-	{
-# print .fnm ":" .lnr ": query " Modified[.txt] " for " .txt "\n";
-		if (.round > 0 && @ident && Modified[.txt] > 1 && .bracket == 0)
-		{
-# print .fnm ":" .lnr ": converstion " Modified[.txt] " set to 0\n";
-			Modified[.txt] = 0;
-# print .fnm ":" .lnr " zap modified for " .txt "\n";
-			# in round braces, tested in a conditional
-			# or in control part of for loop
-		}
-		. = .nxt;
-	}
+!rm -f _CWE_119_1_.txt
+track start _CWE_119_1_.txt
+	terse on
+	dp CWE_119_1
+	terse off
+track stop
 
-	if (lastfnm.fnm != .fnm)
-	{	l_cnt = 0;
-		lastfnm = .;
-	}
+!rm -f _CWE_119_1_detail.txt
+track start _CWE_119_1_detail.txt
+	r
+	ps convert CWE_119_1
+	= "Array-index variable modified multiple times in loop"
+	p
+track stop
 
-	# at the end of each loop
-	for ( i in IndexVar )
-	{	if (Modified[i.txt] > 1)	# modified more than once and never tested
-		{	.mark = 1;
-			if (terse)
-			{	w_cnt++;
-				l_cnt++;
-				if (verbose || w_cnt < 10)
-				{	Files[.fnm] = l_cnt;
-				}
-			} else
-			{	x = IndexVar[i.txt];
-				lock();
-				print x.fnm ":" x.lnr ": cwe_119_1: " ;
-				print "array-index variable '" i.txt "' modified multiple times in loop ";
-				print sol.lnr "-" eol.lnr "\n";
-				unlock();
-			}
-			unset Modified[i.txt];
-	}	}
-# print .fnm ":" .lnr " zapped\n";
+# report
+!if [ -s _CWE_119_1_.txt ] ; then echo "results are in _CWE_119_1_.txt and _CWE_119_1_detail.txt"; fi
+# cleanup
+!if [ -s _CWE_119_1_.txt ] ; then true; else rm -f _CWE_119_1_*.txt; fi
 
-	. = sol;
-	unset IndexVar;		# keep arrays small
-	unset Modified;
-%}
-
-%{
-	if (terse && w_cnt > 0)
-	{	lock();
-		print "cwe_119_1: " w_cnt " warnings: ";
-		print "array-index variable modified multiple times in loop\n";
-		if (verbose || w_cnt < 10)
-		{	for (a in Files)
-			{	print "\t" a.txt ": " Files[a.txt] " warnings\n";
-		}	}
-		unlock();
-	}
-	w_cnt = 0;
-	l_cnt = 0;
-	unset Files;
-	unset IndexVar;
-	unset Modified;
-	Stop;
-%}
+quiet off

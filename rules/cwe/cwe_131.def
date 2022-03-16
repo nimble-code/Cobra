@@ -1,0 +1,161 @@
+# CWE-131: incorrect calculation of buffer size
+# fast check for two common cases
+
+. skip.def
+
+def cwe_131_start
+   %{
+	w_cnt = 0;
+	b_cnt = 0;
+	Stop;
+   %}
+   r
+   fcts
+end
+
+def cwe_131_main
+   %{
+	if (.mark != 0)		# start of function definition, mark >0
+	{	# print "function " .txt "\n";
+		skipto("{");
+		start = .;	# start of fct body
+		limit = .jmp;	# end of fct body
+		if (limit.seq == 0) { Next; }
+	}
+
+	if (!~malloc || .curly == 0)
+	{	Next;
+	}
+	bname = .;		# as a default value
+	. = .prv;
+	if (.txt == "*")	# its likely a prototype declaration
+	{	. = .nxt;	# undo . = .prv
+		Next;
+	}
+		r = .;			# the token before malloc
+		if (r.txt == ")")	# a cast x = (...) malloc(...)
+		{	r = .jmp;
+			r = r.prv;
+		}
+		if (r.txt == "=")
+		{	r = r.prv;	# match ident assigned
+			if (r.typ == "ident")
+			{	bname = r;	# to match against later
+		}	}		# else it keeps default value "malloc"
+
+	. = .nxt;	# undo . = .prv
+	. = .nxt;	# malloc (
+	if (.txt != "(")
+	{	Next;
+	}
+	uptot = .jmp;
+	if (uptot.seq == 0) { Next; }
+	hasizeof = 0;
+	notsimple = 0;
+nmm = bname; # as a default?
+	while (.seq < uptot.seq)
+	{	if (.txt == "sizeof"
+		||  .txt == "strlen")	# technically strlens should also multiply by sizeof(char)
+		{	hasizeof = 1;
+			. = .nxt;
+			if (.txt == "(")
+			{	. = .jmp;
+		}	}
+		if (.txt == ",")
+		{	break;
+		}
+		if (@ident)
+		{	nmm = .;
+		}
+		if (@oper && .txt != "*")
+		{	notsimple = 1;
+		}
+		. = .nxt;
+	}
+	if (.txt == ",")	# has two args, should have only one
+	{	Next;
+	}
+	if (hasizeof == 0)
+	{	add_pattern(CWE_131_1, nmm, nmm);
+	#	if (terse)
+	#	{	w_cnt++;
+	#	} else
+	#	{
+	#		lock();
+	#		print .fnm ":" .lnr ": cwe_131, missing sizeof() in memory allocation?\n";
+	#		unlock();
+	#	}
+		Next;
+	}
+
+	# next: look for the multiplier of sizeof in a ~malloc call
+	#       and check for the use of that identifier standalone as an array index
+
+	if (notsimple == 1)
+	{	Next;
+	}
+
+	# nm is the identifier name to check for in the rest of the fct body
+	q = .nxt;	# one token after malloc (...)
+	while (q.seq < limit.seq)	# check from here to end of fct, flow insensitive
+	{	if (q.txt == nmm.txt)
+		{	r = q.nxt;
+			if (r.txt != "]")	# immediately following name
+			{	q = q.nxt;
+				continue;
+			}
+			r = q.prv;
+			if (r.txt != "[")	# immediately preceding name
+			{	q = q.nxt;
+				continue;
+			}
+			if (bname.txt != "malloc")	# not the defaul value
+			{	r = r.prv;		# point at array basename
+				if (r.txt != bname.txt)
+				{	q = q.nxt;
+					continue;	# not a match
+			}	}
+
+			# gotcha
+			add_pattern(CWE_131_2, q, q);
+		#	if (terse)
+		#	{	b_cnt++;
+		#	} else
+		#	{
+		#		lock();
+		#		print q.fnm ":" q.lnr ": cwe_131, out of bound array indexing error on " nmm.txt "?\n";
+		#		if (bname.txt != "malloc")
+		#		{	print q.fnm ":" q.lnr ": cwe_131, array " bname.txt;
+		#			print " was allocated at " bname.fnm ":" bname.lnr "\n";
+		#		}
+		#		unlock();
+		#	}
+		}
+		q = q.nxt;
+	}
+	# . points to the place after the malloc() we just checked
+   %}
+end
+
+def cwe_131_wrap
+   %{
+#	if (terse)
+#	{	lock();
+#		if (w_cnt > 0)
+#		{	print "cwe_131: " w_cnt " warnings: missing sizeof() in memory allocation?\n";
+#		}
+#		if (b_cnt > 0)
+#		{	print "cwe_131: " b_cnt " warnings: potential out of bound array indexing\n";
+#		}
+#		unlock();
+#	}
+	w_cnt = 0;
+	b_cnt = 0;
+	Stop;
+   %}
+end
+
+def cwe_131_set
+	ps caption CWE_131_1 Possibly missing sizeof() in memory allocation
+	ps caption CWE_131_2 Potential out of bound array indexing error
+end

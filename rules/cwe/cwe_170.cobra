@@ -1,92 +1,35 @@
 # CWE-170: improper null termination
 
-%{
-	w_cnt = 0;
-	Stop;
-%}
-r
-%{
-	# look for straight character array declarations with known size
-	if (.txt == "{")
-	{	Curly[.curly+1]++;	# block number
-	}
-	if (.txt == "char")
-	{	. = .nxt;
-		if (@ident)
-		{	vnm = .;
-			. = .nxt;
-			if (.txt == "[")
-			{	. = .nxt;
-				if (@const_int)
-				{	isz = .;
-					bnr = Curly[.curly];
-					Strings[.curly , bnr, vnm.txt] = isz.txt;
-	}	}	}	}
+requires 3.9
 
-	if (.txt != "strncpy") { Next; }
+quiet on
+. cwe/cwe_170.def
 
-	. = .nxt;	# (
-	. = .nxt;	# @ident
-	if (!@ident) { Next; }
-	dst = .;
-	while (.txt != ",")
-	{	. = .nxt;
-	}
-	# first ,
-	. = .nxt;		# skip over the first arg, to match the 2nd
-	while (.txt != ",")
-	{	. = .nxt;
-	}
-	# second ,
-	. = .nxt;		# size argument of the strncpy
+cwe_170_start
+cwe_170_main
+# cwe_170_wrap
+cwe_170_set
 
-	if (.txt == "sizeof")	# find sizeof ( what )
-	{	. = .nxt;	# (
-		tlvl = .round;
-		. = .nxt;	# @ident
-		if (@ident && .txt == dst.txt)
-		{	. = .nxt;
-			while (.txt != ")" || .round != tlvl)
-			{	. = .nxt;
-			}
-			. = .nxt;	# should be - 1
-			if (.txt != "-")
-			{	if (terse)
-				{	w_cnt++;
-				} else
-				{	lock();
-					print .fnm ":" .lnr ": cwe_170: '"  dst.txt;
-					print "' in strncpy may not be null terminated\n";
-					unlock();
-		}	}	}
-	} else
-	{	if (@const_int)
-		{	dsz = Strings[.curly , bnr, dst.txt]; # declared size
-			nst = .curly;
-			while (dsz.txt == 0 && nst > 0)
-			{	nst--;
-				dsz = Strings[nst , bnr, dst.txt];
-			}
-			if (dsz.txt > 0 && dsz.txt <= .txt)
-			{	if (terse)
-				{	w_cnt++;
-				} else
-				{	lock();
-					print .fnm ":" .lnr ": cwe_170: '"  dst.txt;
-					print "' in strncpy may not be null terminated\n";
-					unlock();
-			}	}
-		}
-	}
-%}
-%{
-	if (terse && w_cnt > 0)
-	{	lock();
-		print "cwe_170: " w_cnt " warnings: destination in strncpy may not be null terminated\n";
-		unlock();
-	}
-	w_cnt = 0;
-	Stop;
-%}
+ps list CWE_170
 
+!rm -f _CWE_170_.txt
+track start _CWE_170_.txt
+	terse on
+	dp CWE_170
+	terse off
+track stop
 
+!rm -f _CWE_170_detail.txt
+track start _CWE_170_detail.txt
+	r
+	ps convert CWE_170
+	= "Destination in strncpy may not be null terminated"
+	p
+track stop
+
+# report
+!if [ -s _CWE_170_.txt ] ; then echo "results are in _CWE_170_.txt and _CWE_170_detail.txt"; fi
+# cleanup
+!if [ -s _CWE_170_.txt ] ; then true; else rm -f _CWE_170_*.txt; fi
+
+quiet off

@@ -1,8 +1,11 @@
 
 def check_asm(rn)		# asm.cobra
-	# cpp on
 	r;
 	m asm \(
+	%{
+		multiple_files = 0;
+		Stop;
+	%}
 	%{
 		if (ncore > 1
 		&&  . == Begin)
@@ -11,30 +14,36 @@ def check_asm(rn)		# asm.cobra
 			}
 			. = first_t;
 		}
-	
 	More:	if (.mark)
 		{	if (last.lnr > 0
 			&&  last.fnm != .fnm)
-			{	print "=== rn: place all asm calls in a single file\n";
+			{	multiple_files = 1;
 				Stop;
 			}
 			last = .;
 		}
-	
 		if (. != last_t)
 		{	. = .nxt;
 			goto More;
 		}
-	
 		Stop;
 	%}
+	%{
+		if (.mark)
+		{	if (multiple_files)
+			{	Stop;
+			}
+			.mark = 0;
+		}
+	%}
+	ps create Asm
+	ps caption Asm Limit the use of assembly code
 end
 
 def check_braces		# round.cobra
 	# find binary operators in conditions
 	# that may have insufficient parentheses
 	# specifically: a & x == y
-	# cpp on
 	r
 	%{
 		if (.txt == "(")
@@ -67,16 +76,6 @@ def check_braces		# round.cobra
 				}	}	}
 				. = .nxt;
 			}
-	#		if (q.mark == 3)
-	#		{	. = q;
-	#			print q.fnm ":" q.lnr ": (";
-	#			while (.round >= q.round)
-	#			{	print .txt " ";
-	#				. = .nxt;
-	#			}
-	#
-	#			print ")\n";
-	#		}
 			if (q.mark != 3)
 			{	q.mark = 0;
 			} else
@@ -85,10 +84,11 @@ def check_braces		# round.cobra
 			. = q;
 		}
 	%}
+	ps create Braces
+	ps caption Braces Use parentheses around binary operators
 end
 
-def check_side_effect			# side_effect.cobra
-	# cpp on
+def check_side_effect(Rulename)		# side_effect.cobra
 	r
 	# report multiple side effects in parenthesized conditions
 	%{
@@ -125,17 +125,12 @@ def check_side_effect			# side_effect.cobra
 			}
 			if (count > 1)	# more than one side-effect
 			{	q.mark = 1;
-			#	. = q;
-			#	print q.fnm ":" q.lnr ": " r.txt " (";
-			#	while (.round >= q.round)
-			#	{	print .txt " ";
-			#		. = .nxt;
-			#	}
-			#	print ")\n";
 			}
 			. = q;
 		}
 	%}
+	ps create Rulename
+	ps caption Rulename More than one side-effect in expression
 end
 
 def check_ipc
@@ -147,11 +142,10 @@ end
 def check_fct_hdrs
 	r
 	fcts
-	w ( .fnm == /\.h$)
+	w (.fnm == /\.h$)
 end
 
 def check_linelength(lnl)	# linelength.cobra
-	# cpp off
 	r
 	%{
 	# instead of the physical line length,

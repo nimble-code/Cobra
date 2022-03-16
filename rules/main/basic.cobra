@@ -1,60 +1,51 @@
 # simple sanity checks
 
+requires 3.9
+
 quiet on
 
 . basic.def
+. extern.def
+. reverse_null.def
 
 check_shadow
-	= "=== Fct names also used as variables:"
-	d
-			
 check_rval
-	# === consistency of checking return values of functions
-
 check_condition
-	= "=== Assignment in condition not enclosed in round braces:"
-	d
-
 check_empty
-	# === Empty if/else/while/for statements
-
-check_for
-	= "=== Modifying the control variable of a for loop inside the loop body:"
-	d
-
-check_ifelseif
-	= "=== Missing else at end of if-else-if chain:"
-	d
-
-. extern.cobra
-	# === find inconsistent extern declarations
-
+check_for For
+check_ifelseif Ifelseif
+check_extern
 check_switch
-	= "=== Missing default in switch statement:"
-	d
-
 check_braces
-	= "=== Use parentheses around binary operators:"
-	d
-
-check_side_effect
-	= "=== More than one side-effect in expression:"
-	d
-
+check_side_effect SideEffect
 check_asm(asm)
-	= "=== Limit the use of assembly code"
-	d
-
-# the next three turn cpp off
-
-. reverse_null.cobra
-	# === find likely reverse null patterns
-
+check_reverse_null
 check_macro_args
-	= "=== Macro argument not enclosed in parentheses:"
-	d
 
-check_param_count
-	# reports mismatch of formal and actual parameters
+ps list
+
+!rm -f _Basic_.txt
+track start _Basic_.txt
+	terse on
+	dp Shadow
+	dp Rval
+	dp Condition
+	dp Empty
+	dp For
+	dp Ifelseif
+	dp Extern
+	dp Switch
+	dp Braces
+	dp Side_Effect
+	dp Asm
+	dp Reverse_Null
+	dp Macros
+	terse off
+track stop
+
+# report
+!if [ -s _Basic_.txt ] ; then echo "detailed results are in file _Basic_.txt"; fi
+# cleanup
+!if [ -s _Basic_.txt ] ; then true; else rm -f _Basic_.txt; fi
 
 quiet off

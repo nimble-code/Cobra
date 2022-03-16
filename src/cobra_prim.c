@@ -175,7 +175,8 @@ check_args(char *s, const char *c_base)	// single-core
 	{	return s;
 	}
 	if (p)
-	{	n += strlen(c_base) + strlen("/../bin") - strlen("$COBRA");
+	{	n += strlen(c_base) + strlen("/../bin_cygwin") - strlen("$COBRA");
+		// taking bin_cygwin ass the longest named of the bin subdirectories
 	}
 	if (a)
 	{	n += listfiles(0, "") - strlen("$ARGS");
@@ -778,8 +779,8 @@ rescan(void)
 	ini_pre(0);
 	for (n = 0; n < NHASH; n++)
 	for (f = files[n]; f; f = f->nxt)
-	{	if (!no_match)
-		{	printf("rescan '%s'\n", f->s);
+	{	if (!no_match && verbose)
+		{	fprintf(stderr, "rescan '%s'\n", f->s);
 		}
 		(void) add_file(f->s, 0, 1);
 	}

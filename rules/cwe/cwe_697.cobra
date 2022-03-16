@@ -1,121 +1,35 @@
 # cwe_197 - integer coercion errors
-# example of using a state machine encoding
-# to track a specific sequence of matches that should
-# within a function { ... }
-# here we're looking for an int variable that is assigned
-# with a function; the max value is then checked
-# but not the min value, which could be zero
-# if the value is then used as a bound, eg in strncpy, or in a
-# call to a memory allocator, this could be a problem
-# note that we're not following control-flow in this checker
-# but the checker just scans the code sequentially
-# (there are 2 matches of this pattern in 13M lines of linux 5.0 source code
-# in file fs/cifs/sess.c on line 247)
-# we use a series of query commands to narrow down the scope of
-# the search to functions that contain the right patterns to match
 
-r
-m {			# match on all curly braces
-m & (.curly == 0)	# keep only those at top-level, likely fct defs
-c strncpy		# keep only those fcts that contain calls to strncpy
-c int			# and that declare at least one integer variable
-c />[=]*		# and there is at least one comparison > or >= anywhere
+requires 3.9
 
-# next we search the final set of fct bodies for a specific sequence
-# if matches, each match advances the state, starting with state 0
-%{
-	if (.mark == 0) { Next; }
-	.mark = 0;
+quiet on
+. cwe/cwe_697.def
 
-	from = .;
-	upto = .jmp;
-	state = 0;
-# print .fnm ":" .lnr "-" upto.lnr "\n";
-	while (.seq < upto.seq)
-	{	if (state == 0)
-		{	if (.txt == "int")	# find a decl "int nm"
-			{	. = .nxt;
-				if (@ident)
-				{	nm = .;	# remember the name
-					state = 1;
-# print .fnm ":" .lnr ":  state 1\n";
-			}	}
-			. = .nxt;
-			continue;
-		}
-		if (state == 1)
-		{	if (.txt != nm.txt)
-			{	. = .nxt;
-				continue;
-			}
-			. = .nxt;
-			if (.txt != "=")
-			{	. = .nxt;
-				continue;
-			}
-			. = .nxt;
-			if (!@ident)
-			{	. = .nxt;
-				continue;
-			}
-			. = .nxt;
-			if (.txt == "(") # fct call
-			{	state = 2;
-# print .fnm ":" .lnr ":  state 2\n";
-			}
-			. = .nxt;
-			continue;
-		}
-		if (state == 2)
-		{	if (.txt == nm.txt)		# the name is
-			{	. = .nxt;
-				if (.txt == "<")	# never compared with <
-				{	state = 0;
-					break;
-				}
-				if (.txt == ">"
-				||  .txt == ">=")	# but compared with < or <=
-				{	state = 3;
-# print .fnm ":" .lnr ":  state 3\n";
-					cmp = .;
-			}	}
-			. = .nxt;
-			continue;
-		}
-		if (state == 3)
-		{	if (.txt == "strncpy")		# after that comparison
-			{	. = .nxt;		# (, the nm appears as a bound
-				eop = .jmp;		# )
-				eop = eop.prv;		# last symbol before )
-				if (eop.txt == nm.txt)	# nm appears as bound
-				{	.mark = 1;	# problem: it might be <0
-					state = 0;
-					break;
-				}
-				. = .nxt;
-				continue;
-			}
-			if (match(.txt, "/alloc"))
-			{	. = .nxt;
-				if (.txt != "(")
-				{	. = .nxt;
-					continue;
-				}
-				eop = .jmp;
-				while (.seq < eop.seq)
-				{	if (.txt == nm.txt)
-					{	.mark = 1;
-						state = 0;
-						break;
-					}
-					. = .nxt;
-			}	}
-			
-			. = .nxt;
-			continue;
-		}
-		. = .nxt;
-	}
-%}
-= "cwe_697, variable used in strncpy or malloc could have negative value:"
-d
+cwe_697_start
+cwe_697_main
+# cwe_697_wrap
+cwe_697_set
+
+ps list CWE_697
+
+!rm -f _CWE_697_.txt
+track start _CWE_697_.txt
+	terse on
+	dp CWE_697
+	terse off
+track stop
+
+!rm -f _CWE_697_detail.txt
+track start _CWE_697_detail.txt
+	r
+	ps convert CWE_697
+	= "Variable used in strncpy or malloc could have negative value"
+	p
+track stop
+
+# report
+!if [ -s _CWE_697_.txt ] ; then echo "results are in _CWE_697_.txt and _CWE_697_detail.txt"; fi
+# cleanup
+!if [ -s _CWE_697_.txt ] ; then true; else rm -f _CWE_697_*.txt; fi
+
+quiet off

@@ -1,14 +1,16 @@
-# cpp off
-%{	# include directives should not be preceded by code"
-
-	if (.fnm != incode.fnm)
-	{	incode = none;
-	}
-	if (.txt == ";" || .round > 0 || .curly > 0)
-	{	incode = .;
-	}
-	if (@cpp && ~"include")
-	{	if (incode.lnr > 0)
-		{	q.mark++;
-	}	}
-%}
+def jpl_rule31
+	%{
+		if (.fnm != incode.fnm)
+		{	incode = none;
+		}
+		if (.txt == ";" || .round > 0 || .curly > 0)
+		{	incode = .;
+		}
+		if (@cpp && ~"include")
+		{	if (incode.lnr > 0)
+			{	q.mark++;
+		}	}
+	%}
+	ps create R31
+	ps caption R31 Include directives should not be preceded by code
+end

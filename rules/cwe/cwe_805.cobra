@@ -1,97 +1,41 @@
 # CWE-805: buffer access with incorrect length value
-# some simple cases that can be checked quickly
-r
-fcts 0		# collect just fct defs, not also fcts called
-n {
-c return /^[0\-][x0UL]*$	# 0 0x00 0UL or anything preceded by - (minus)
-b )
-j
-b
-%{
-	if (.mark)
-	{	# name of fct that contains return 0 or return -...
-		Names[.txt] = .;	# remember these names
-	}
-%}
-%{
-	# check for use of any of these names in the length field of a strncpy, strncat, or memcpy
-	w_cnt = 0;
-	b_cnt = 0;
-	Stop;
-%}
 
-r
-m /^strnc[pa][yt]$ (		# strcpy or strncat
-m memcpy (
-n
-%{
-	# case 2
+requires 3.9
 
-	if (!.mark)      { Next; }
-	.mark = 0;
-	limit = .jmp;
-	. = .nxt;
-	if (!@ident)     { Next; }
-	dest = .;
-	. = .nxt;
-	if (.txt != ",") { Next; }
+quiet on
+. cwe/cwe_805.def
 
-	fc = .;		# first comma
-	. = .nxt;
-	while (.txt != "," || .round != fc.round)
-	{	. = .nxt;
-	}
-	# second comma
-	. = .nxt;
+cwe_805_start
+cwe_805_main
+cwe_805_wrap
+cwe_805_set
 
-	while (.seq < limit.seq)
-	{	if (.txt == "sizeof")
-		{	. = .nxt;	# (
-			. = .nxt;	# sizeof( ident ...
-			if (@ident
-			&&  .txt != dest.txt)
-			{	.mark = 1;
-				if (terse)
-				{	w_cnt++;
-				} else
-				{	lock();
-					print .fnm ":" .lnr ": cwe_805, suspicious sizeof in strncpy, strncat, ";
-					print "or memcpy for other var than " dest.txt "\n";
-					unlock();
-			}	}
-			Next;
-		}
-		q = .nxt;
-		if (q.txt != "(")
-		{	. = .nxt;
-			continue;
-		}
-		q = Names[.txt];
-		if (q.seq > 0)
-		{	if (terse)
-			{	b_cnt++;
-			} else
-			{	print .fnm ":" .lnr ": cwe_805, fct '" .txt "' may return a zero or negative value\n";
-			}
-			Next;
-		}
-		. = .nxt;
-	}
-%}
-%{
-	if (terse)
-	{	lock();
-		if (w_cnt > 0)
-		{	print "cwe_805: " w_cnt " warnings: suspicious sizeof in strncpy, strncat, or memcpy\n";
-		}
-		if (b_cnt > 0)
-		{	print "cwe_805: " b_cnt " warnings: fct may return zero or negative value (used in array index)\n";
-		}
-		unlock();
-	}
-	w_cnt = 0;
-	b_cnt = 0;
-	Stop;
-%}
+ps list CWE_805_1
+ps list CWE_805_2
 
+!rm -f _CWE_805_.txt
+track start _CWE_805_.txt
+	terse on
+	dp CWE_805_1
+	dp CWE_805_2
+	terse off
+track stop
 
+!rm -f _CWE_805_detail.txt
+track start _CWE_805_detail.txt
+	r
+	ps convert CWE_805_1
+	= "Suspicious sizeof in strncpy, strncat, or memcpy"
+	p
+	r
+	ps convert CWE_805_2
+	= "Function may return zero or negative value (used in array index)"
+	p
+track stop
+
+# report
+!if [ -s _CWE_805_.txt ] ; then echo "results are in _CWE_805_.txt and _CWE_805_detail.txt"; fi
+# cleanup
+!if [ -s _CWE_805_.txt ] ; then true; else rm -f _CWE_805_*.txt; fi
+
+quiet off

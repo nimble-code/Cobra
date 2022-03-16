@@ -1,46 +1,19 @@
 # consistency of extern declarations with the main declaration
 
-%{
-	# collect all basic extern declarations
+. extern.def
 
-	if (@type)
-	{	q = .prv;
-		if (q.txt == "extern")
-		{	q = .nxt;
-			if (q.type == "ident")
-			{	Extern[q.txt] = .;
-	}	}	}
-%}
-%{
-	cnt = 0;
-	Stop;
-%}
-%{
-	# next check non-extern declarations
-	# and compare them with the extern versions
-	if (@type)
-	{	q = .prv;
-		if (q.txt == "extern")
-		{	Next;
-		}
-		q = .nxt;
-		if (q.type != "ident")
-		{	Next;
-		}
-		r = Extern[q.txt];
-		if (r.lnr == 0 || r.txt == .txt)
-		{	Next;
-		}
-		cnt++;
-		.mark = 1;	# mark the location
-		if (!terse)
-		{	print " " cnt ": " .fnm ":" .lnr ": " q.txt " declared as " .type;
-			print " but as extern " r.type " at " r.fnm ":" r.lnr "\n";
-	}	}
-%}
-%{
-	if (terse && cnt > 0)
-	{	print "=== Inconsistent extern declarations: " cnt "\n";
-	}
-	Stop;
-%}
+check_extern
+
+ps list Extern
+
+!rm -f _Extern_.txt
+track start _Extern_.txt
+	terse on
+	dp Extern
+	terse off
+track stop
+
+# report
+!if [ -s _Extern_.txt ] ; then echo "detailed results are in file _Extern_.txt"; fi
+# cleanup
+!if [ -s _Extern_.txt ] ; then true; else rm -f _Extern_.txt; fi

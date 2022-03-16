@@ -43,6 +43,7 @@
 		&&  q.txt != "}"
 		&&  q.txt != "{"
 		&&  q.txt != ")"
+		&&  q.txt != "EOF"
 		&&  q.txt != "EOL")	# end of preprocessor directive
 		{	Next;
 		}

@@ -4,3 +4,8 @@ check_config(void)
 	// for background checkers
 	return 0;
 }
+
+void
+reset_int(const int unused)
+{	return;
+}

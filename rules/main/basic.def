@@ -3,40 +3,44 @@
 . skip.def
 
 def check_shadow	# var name shadows fct name
-r
-fcts
-%{
-	if (cpu != 0)
-	{	Stop;
-	}
-	if (. == Begin)
-	{	. = first_t;
-	}
-
-	while (. != last_t)
-	{	if (.mark)
-		{	Fct[.txt] = 1;
-			.mark = 0;
+	r
+	fcts
+	%{
+		if (cpu != 0)
+		{	Stop;
 		}
-		. = .nxt;
-	}
-
-	. = first_t;		# back to beginning
-
-	while (. != last_t)
-	{	if (.curly > 0
-		&&  @ident
-		&&  Fct[.txt] > 0)
-		{	q = .nxt;
-			if (q.txt != "("
-			&&  Reported[.txt] == 0)
-			{	Reported[.txt]++;
-				.mark = 1;
-		}	}
-		. = .nxt;
-	}
-	Stop;
-%}
+		if (. == Begin)
+		{	. = first_t;
+		}
+	
+		while (. != last_t)
+		{	if (.mark)
+			{	Fct[.txt] = 1;
+				.mark = 0;
+			}
+			. = .nxt;
+		}
+	
+		. = first_t;		# back to beginning
+	
+		while (. != last_t)
+		{	if (.curly > 0
+			&&  @ident
+			&&  Fct[.txt] > 0)
+			{	q = .nxt;
+				if (q.txt != "("
+				&&  q.txt != ","
+				&&  q.txt != ")"
+				&&  Reported[.txt] == 0)
+				{	Reported[.txt]++;
+					.mark = 1;
+			}	}
+			. = .nxt;
+		}
+		Stop;
+	%}
+	ps create Shadow
+	ps caption Shadow Fct names also used as variables
 end
 
 def check_rval	# stats on checking return values ## not multi-core safe yet
@@ -53,13 +57,13 @@ fcts
 	while (. != last_t)
 	{	if (.mark)
 		{	Fct[.txt] = 1;
+			FPos[.txt] = .;
 			.mark = 0;
 		}
 		. = .nxt;
 	}
 
 	. = first_t;		# back to beginning
-
 	while (. != last_t)
 	{	if (.curly > 0
 		&&  @ident
@@ -103,27 +107,17 @@ fcts
 		. = .nxt;
 	}
 
-	cnt = 0;
 	for (i in Checked)	# doesnt handle C++ code very well
 	{	if (NotChecked[i.txt] > 0 && !Reported[i.txt])
-		{	cnt++;
-			if (terse)
-			{	continue;
-			}
-			if (!before)
-			{	print "=== Inconsistent checks of function return values:\n";
-				before=1;
-			}
-			print " " cnt ": " i.txt " checked " Checked[i.txt] " times out of ";
-			print Checked[i.txt] + NotChecked[i.txt] "\n";
-	
+		{	# print i.txt " checked " Checked[i.txt] " times out of ";
+			# print Checked[i.txt] + NotChecked[i.txt] "\n";
+			j = FPos[i.txt];
+			j.mark = 1;
 	}	}
-	if (terse && cnt > 0)
-	{	print "=== Inconsistent checks of function return values: " cnt "\n";
-	}
-	cnt = 0;
 	Stop;
 %}
+	ps create Rval
+	ps caption Rval Inconsistent checking return value of function
 end
 
 def check_fct_ptrs
@@ -140,7 +134,6 @@ end
 def check_condition	# condition.cobra
 	# check for assignments in conditions
 	# that are not enclosed in round braces
-	# cpp on		# check_condition
 	r
 	m if \(
 	m while \(
@@ -156,29 +149,29 @@ def check_condition	# condition.cobra
 	m ir =		# assignment in condition
 	w (.round == 1)	# not in nested braces
 	<|1		# include the other matches
+
+	ps create Condition
+	ps caption Condition Assignment in condition not enclosed in round braces
 end
 
 def check_empty		# empty.cobra
-	# cpp on		# check_empty
 	r; m for; n \(; j
 	e \;
-	= "=== Empty for statements:"
-	d
+	>1
 
 	r; m \; while; n \(; j
 	e \;
 	j; b
-	= "=== Empty while statements:"
-	d
+	>|1
 
 	r; m if; n \(; j
 	e \;
-	= "=== Empty if statements:"
-	d
+	>|1
 
 	r; m else; e \;
-	= "=== Empty else statements:"
-	d
+	<|1
+	ps create Empty
+	ps caption Empty Empty if/else/while/for statements
 end
 
 def check_for1		# for.cobra
@@ -217,25 +210,26 @@ def check_for2		# jpl_rule13a
 	<|1		# add earlier matches
 end
 
-def check_for
-	# cpp on		# check_for
+def check_for(rn)
 	check_for1
 	check_for2
+	ps create rn
+	ps caption rn Modifying the control variable of a for loop inside the loop body
 end
 
 def check_switch	# switch.cobra
-	# cpp on		# check_switch
 	r
 	m switch
 	n {
 	c no top default
 	b switch
+	ps create Switch
+	ps caption Switch Missing default in switch statement
 end
 
 # find if-else-if chains that lack a final else
 
-def check_ifelseif	# ifelseif.cobra
-	# cpp on		# check_ifelseif
+def check_ifelseif(rn)	# ifelseif.cobra
 	r
 	%{
 		expect("else");
@@ -256,10 +250,11 @@ def check_ifelseif	# ifelseif.cobra
 		#	print " saw '" .txt "' at line " .lnr "\n";
 		}
 	%}
+	ps create rn
+	ps caption rn Missing else at end of if-else-if chain
 end
 
 def check_macro_args	# macro_args-m.cobra
-	# cpp off		# check_macro_args
 	r
 	# check if all macro arguments are enclosed in parentheses
 	# cf. jpl_rule20b -- which checks if the macro body is a syntactic unit
@@ -279,10 +274,10 @@ def check_macro_args	# macro_args-m.cobra
 	L2:	if (!@ident) { Next; }		# empty arg list
 	
 		q = .;
-		while (q.txt != ")" && q.txt != "EOL")
+		while (q.txt != ")" && q.txt != "EOL" && q.txt != "EOF")
 		{	q = q.nxt;
 		}
-		while (q.txt != "EOL")
+		while (q.txt != "EOL" && q.txt != "EOF")
 		{	if (q.txt == .txt)	# match
 			{	r = q.prv;
 				s = q.nxt;
@@ -297,26 +292,25 @@ def check_macro_args	# macro_args-m.cobra
 		if (.txt == ",") { . = .nxt; goto L2; }
 		# else: .txt == ")"
 	%}
+	ps create Macros
+	ps caption Macros Macro argument not enclosed in parentheses
 end
 
 def check_param_count	# param_count_check.cobra
-	# cpp off		# check_param_count
-	r
-	## nr of parameters of function calls matches prototype
-	
+	r	# nr of parameters of function calls should match prototype
+		# just as an example, since most compilers check this already
 	# fcts
 	%{	# fct defs # parallelize, so faster than the builtin fcts
 		# but when called from main/stats, fcts is only called once
 		# and this would execute each time
 		if (@cpp)
-		{	while (.txt != "EOL" && .nxt != 0)
+		{	while (.txt != "EOF" && .txt != "EOL" && .nxt != 0)
 			{	. = .nxt;
 			}
 			Next;
 		}
 		if (@ident)
 		{	m = .;
-
 			n = .prv;
 			if (n.txt == "~")	# C++ destructor
 			{	n = n.prv;
@@ -338,7 +332,6 @@ def check_param_count	# param_count_check.cobra
 			}
 			if (.txt == "{")
 			{	# m.mark = 1;	# fct name (mark not used)
-	
 				r.mark = 0;	# start of param list in prototype
 				n = .jmp;
 				. = r;
@@ -369,13 +362,13 @@ def check_param_count	# param_count_check.cobra
 				q = F[m.txt];
 				if (q.lnr > 0 && q.mark != r.mark && q.bound != first_t)
 				{	cnt2++;
-					if (!terse)
-					{	if (!warned)
-						{	print "=== Functions defined more than once:\n";
-							warned = 1;
-						}
-						print " " cnt2 ": " m.txt "():\tat " m.fnm ":" m.lnr ", and at " q.fnm ":" q.lnr "\n";
-					}
+				#	if (!terse)
+				#	{	if (!warned)
+				#		{	print "=== Functions defined more than once:\n";
+				#			warned = 1;
+				#		}
+				#		print " " cnt2 ": " m.txt "():\tat " m.fnm ":" m.lnr ", and at " q.fnm ":" q.lnr "\n";
+				#	}
 					q.bound = first_t;	# mark it as dubious
 					q.mark = 123456;	# leave a unique mark
 					r.mark = 123456;
@@ -383,8 +376,10 @@ def check_param_count	# param_count_check.cobra
 				{	F[m.txt] = r;	# the count
 				}
 				. = n;
-		}	}
+			}
+		}
 	%}
+
 	%{
 		## if the same fct is defined in two different files (eg as static)
 		## and those two files are handled by different cpus
@@ -393,11 +388,12 @@ def check_param_count	# param_count_check.cobra
 		lock();
 		a_unify(cpu);	# one at a time, get all entries for F
 		unlock();	# no need to wait for all to complete this
-		if (cpu == 0 && terse)
-		{	print "=== Functions defined more than once: " cnt2 "\n";
-		}
+	#	if (cpu == 0 && terse)
+	#	{	print "=== Functions defined more than once: " cnt2 "\n";
+	#	}
 		Stop;
 	%}
+
 	%{
 		if (@ident && .curly > 0)	# fct calls
 		{	q = .;
@@ -448,28 +444,31 @@ def check_param_count	# param_count_check.cobra
 				}
 		}	}
 	%}
+
 	%{
 		if (cpu == 0)
 		{	a_unify(0);
 			cnt = 0;
 			for (i in Formal)
 			{	cnt++;
-				if (!terse && !warn2)
-				{	print "=== Mismatch of formal and actual parameter counts:\n";
-					warn2 = 1;
-				}
+			#	if (!terse && !warn2)
+			#	{	print "=== Mismatch of formal and actual parameter counts:\n";
+			#		warn2 = 1;
+			#	}
 				f = Formal[i.txt];
 				a = Actual[i.txt];
-				if (!terse)
-				{	print " " cnt ": fct " i.txt "() expects: " f.mark " [" f.fnm ":" f.lnr "] parameters, saw: " a.mark " [" a.fnm ":" a.lnr "]\n";
-				}
+			#	if (!terse)
+			#	{	print " " cnt ": fct " i.txt "() expects: " f.mark " [" f.fnm ":" f.lnr "] parameters, saw: " a.mark " [" a.fnm ":" a.lnr "]\n";
+			#	}
 				a.mark = 123456;	# leave mark only at caller
 			}
-			if (terse && cnt > 0)
-			{	print "=== Mismatch of formal and actual parameter counts: " cnt "\n";
-		}	}
+		#	if (terse && cnt > 0)
+		#	{	print "=== Mismatch of formal and actual parameter counts: " cnt "\n";
+		#	}
+		}
 		Stop;
 	%}
+
 	%{	# cleanup
 		if (.mark == 123456)	# mark to remember, e.g. for later json report
 		{	.mark = 1;
@@ -477,4 +476,7 @@ def check_param_count	# param_count_check.cobra
 		{	.mark = 0;	# all formals and non-error actuals
 		}
 	%}
+
+	ps create Params
+	ps caption Params Mismatch of formal and actual parameters
 end

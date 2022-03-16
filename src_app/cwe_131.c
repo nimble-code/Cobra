@@ -236,7 +236,7 @@ cwe131_report(void)
 				Prim *b = mycur->bound;
 				Prim *nmm = mycur->jmp;
 				char ample[512];
-				char more[1024];
+				char more[2048];
 
 				sprintf(ample, "out of bound array indexing error on %s?",
 					nmm?nmm->txt:"-");

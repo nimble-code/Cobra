@@ -724,7 +724,7 @@ find_in_list(Prim *v, V_ref *lst, char *s, int n)
 		{	if (strcmp(v->fnm, d->loc->fnm) != 0
 			&&  is_it_static(d->loc))
 			{	if (0)
-				{  fprintf(fd, "XXX %s:%d: '%s'\t%sdeclared at %s:%d (level %d) as %s\n",
+				{  fprintf(fd, "%s:%d: '%s'\t%sdeclared at %s:%d (level %d) as %s\n",
 					v->fnm, v->lnr, v->txt, s,
 					d->loc->fnm, d->loc->lnr, n, d->loc->txt);
 				}

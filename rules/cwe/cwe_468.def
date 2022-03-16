@@ -1,0 +1,68 @@
+# CWE-468: incorrect pointer scaling
+# https://cwe.mitre.org/data/definitions/468.html
+
+# pattern: adding a constant to an identifier, in a parenthesized expression, which is cast to a pointer of some type
+
+def cwe_468_start
+   r
+#  %{
+#	w_cnt = 0;
+#	Stop;
+#  %}
+end
+
+def cwe_468_main
+   # general case: an addition in a
+   # parenthesized expression, which
+   # is cast to a pointer
+   m * )
+   n; n
+   m & (
+   c +
+#  more specific cases, only adding a constant
+#  %{
+#	if (!@const_int || .round == 0)
+#	{	Next;
+#	}
+#	q = .prv;
+#	if (q.txt != "+")
+#	{	Next;
+#	}
+#	while (q.txt != "(")
+#	{	q = q.prv;
+#	}
+#	q = q.prv;	# (... *) ( ... + const_int ...)
+#	if (q.txt != ")")
+#	{	Next;
+#	}
+#	q = q.prv;
+#	if (q.txt != "*")
+#	{	Next;
+#	}
+#	.mark = 1;
+#	if (terse)
+#	{	w_cnt++;
+#	} else
+#	{	lock();
+#		print .fnm ":" .lnr ": cwe_468, risky cast using pointer arithmetic\n";
+#		unlock();
+#	}
+#  %}
+end
+
+def cwe_468_wrap
+#  %{
+#	if (terse && w_cnt > 0)
+#	{	lock();
+#		print "cwe_468: " w_cnt " warnings: risky cast using pointer arithmetic\n";
+#		unlock();
+#	}
+#	w_cnt = 0;
+#	Stop;
+#  %}
+end
+
+def cwe_468_set
+	ps create CWE_468
+	ps caption CWE_468 Risky cast using pointer arithmetic
+end

@@ -1,0 +1,133 @@
+# CWE-120: Buffer Copy without Checking Size of Input ('Classic Buffer Overflow')
+
+def cwe_120_1_start
+   r
+end
+
+def cwe_120_1_main
+   %{
+	# collect information in associative arrays
+	if (.txt == "strcpy"
+	||  .txt == "strcat")
+	{	# check if the src variable was checked earlier
+
+		pm = .;
+		while (.txt != ",")
+		{	. = .nxt;
+		}
+		. = .nxt;	# name
+		if (.typ == "str")
+		{	Next;
+		}
+		if (.txt == "*"
+		||  .txt == "&")
+		{	. = .nxt;
+		}
+		src = .;
+		. = pm;
+	
+		while (.curly > 0)
+		{	. = .prv;
+			if (.txt == src.txt	# did we see this var before in a condition
+			&&  .round > 0)
+			{	while (.txt != "(")
+				{	. = .prv;
+				}
+				. = .prv;		# name (
+				if (.txt == "strlen"
+				||  .txt == "sizeof")
+				{	. = pm;
+					Next;		# no warning
+		}	}	}
+		. = pm;
+		if (.txt == "strcpy")
+		{	Strcpy[.fnm, .lnr] = .;
+			Next;
+		}
+		if (.txt == "strcat")
+		{	Strcat[.fnm, .lnr] = .;
+		}
+		Next;
+	}
+	if (.txt == "gets")
+	{	. = .nxt;
+		if (.txt == "(")
+		{	Gets[.fnm, .lnr] = .;
+		}
+		. = .prv;
+		Next;
+	}
+	if (.txt == "sprintf")
+	{	Sprintf[.fnm, .lnr] = .;
+		Next;
+	}
+   %}
+end
+
+def cwe_120_1_wrap
+   %{
+	# report results, cwe_120_1
+	sz = size(Gets);
+	if (sz > 0)
+	{	lock();
+		if (verbose)
+		{ print "cwe_120_1: " sz " warnings: 'gets' performs no bounds checking, (use fgets)\n";
+		}
+		for (i in Gets)
+		{	dot = Gets[i.txt];
+			dot.mark = 1;
+			if (verbose)
+			{	print "\t" i.txt ": " dot.txt "\n";
+		}	}
+		unlock();
+	}
+	sz = size(Strcpy);
+	if (sz > 0)
+	{	lock();
+		if (verbose)
+		{ print "cwe_120_1: " sz " warnings: 'strcpy' performs no bounds checking, (use strncpy)\n";
+		}
+		for (i in Strcpy)
+		{	dot = Strcpy[i.txt];
+			dot.mark = 1;
+			if (verbose)
+			{	print "\t" i.txt ": " dot.txt "\n";
+		}	}
+		unlock();
+	}
+	sz = size(Strcat);
+	if (sz > 0)
+	{	lock();
+		if (verbose)
+		{ print "cwe_120_1: " sz " warnings: 'strcat' performs no bounds checking, (use strncat)\n";
+		}
+		for (i in Strcat)
+		{	dot = Strcat[i.txt];
+			dot.mark = 1;
+			if (verbose)
+			{	print "\t" i.txt ": " dot.txt "\n";
+		}	}
+		unlock();
+	}
+	sz = size(Sprintf);
+	if (sz > 0)
+	{	lock();
+		if (verbose)
+		{ print "cwe_120_1: " sz " warnings: 'sprintf' performs no bounds checking, (use snprintf)\n";
+		}
+		for (i in Sprintf)
+		{	dot = Sprintf[i.txt];
+			dot.mark = 1;
+			if (verbose)
+			{	print "\t" i.txt ": " dot.txt "\n";
+		}	}
+		unlock();
+	}
+	Stop;
+   %}
+end
+
+def cwe_120_1_set
+   ps create CWE_120_1
+   ps caption CWE_120_1 Dangerous function calls lacking bounds checking
+end

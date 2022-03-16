@@ -1,0 +1,107 @@
+
+requires 3.9
+
+. check.def
+. binop.def
+
+def I1
+	r
+	m char; m int; m short; m long; m float; m double
+	ps create I1
+	ps caption I1 Use u32, i16, etc instead of predefined C data types
+end
+def I2
+	r
+	m taskDelay; m sleep; m /nanosleep$
+	ps create I2
+	ps caption I2 Do not use task delays for task synchronization
+end
+def I3
+	r
+	m /ipc_r		# vxworks
+	m msgrcv		# linux
+	ps create I3
+	ps caption I3 Receive ipc messages in only one place in each task
+end
+def I4
+	check_fct_hdrs
+	ps create I4
+	ps caption I4 Do not define functions in header files
+end
+def I5
+	check_linelength(85)
+	ps create I5
+	ps caption I5 Do not use lines longer than 85 chars (not counting whitespace)
+end
+def I6
+	# (f...)(...);
+	m @type
+	b; unmark const; n
+	n	# move to following typename
+	m & \(	# likely function pointer
+	j
+	n
+	m & \(
+	ps create I6
+	ps caption I6 Do not use non-constant function pointers
+end
+def I7
+	r; m @cpp; m & /pragma
+	ps create I7
+	ps caption I8 Do not stray outside the language definition (do not use pragmas)
+end
+def I8
+	check_asm(IR01)
+	ps create I8
+	ps caption I8 Limit the use of assembly code
+end
+def I9
+	check_braces
+	ps create I9
+	ps caption I9 Always use parentheses around binary operators
+end
+def I10
+	binop I10
+	# creates set and caption
+end
+def I11
+	r
+	m /ASSERT \(
+	m /Assert \(
+	m /assert \(
+	n
+	c /[-+][-+=]
+	>1
+	u
+	c =
+	<|1
+	>1
+	u
+	c /^[a-zA-Z0-9_]+\(
+	<|1
+	ps create I11
+	ps caption I11 Do not allow side-effects in assertions
+end
+def I12
+	r
+	m \(			# all conditions
+	b			# token before the (
+	unmark @ident		# function calls
+	unmark for
+	n
+	c /[-+][-+]		# pre or post incr/decr
+	>1
+	u
+	c =			# assignments
+	<|1
+	>1
+	u
+	c /^[a-zA-Z0-9_]+\(	# fct calls
+	<|1
+	ps create I12
+	ps caption I12 Do not use conditions with side-effects
+end
+def I13
+	check_side_effect I13
+	# creates and captions set
+end

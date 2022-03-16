@@ -1,57 +1,75 @@
+# Misra 2012 guidelines
+
+requires 3.9
+
 quiet on
 . misra/misra2012.def
 
-m12rule1.2
-m12rule3.1
-m12rule3.2
-m12rule4.3
-m12rule4.4
-m12rule4.6
-m12rule4.12
-m12rule2.6
-m12rule2.7
-m12rule4.1
-m12rule4.2
-m12rule6.2
-m12rule7.1
-m12rule7.3
-m12rule8.11
-m12rule8.14
-m12rule12.3
-m12rule13.4
-m12rule13.5
-m12rule13.6
-m12rule15.1
-m12rule15.2
-m12rule15.4
-m12rule15.5
-m12rule15.6
-m12rule15.7
-m12rule16.3
-m12rule16.4
-m12rule16.6
-m12rule17.1
-m12rule17.2
-m12rule17.4
-m12rule17.6
-m12rule17.8
-m12rule18.5
-m12rule18.7
-m12rule19.2
-m12rule20.1
-m12rule20.2
-m12rule20.3
-m12rule20.5
-m12rule20.10
-m12rule21.3
-m12rule21.4
-m12rule21.5
-m12rule21.6
-m12rule21.7
-m12rule21.8
-m12rule21.9
-m12rule21.10
-m12rule21.11
-m12rule21.12
+m12rule1_2
+m12rule3_1
+m12rule3_2
+m12rule4_3
+m12rule4_4
+m12rule4_6
+m12rule4_12
+m12rule2_6
+m12rule2_7
+m12rule4_1
+m12rule4_2
+m12rule6_2
+m12rule7_1
+m12rule7_3
+m12rule8_11
+m12rule8_14
+m12rule12_3
+m12rule13_4
+m12rule13_5
+m12rule13_6
+m12rule15_1
+m12rule15_2
+m12rule15_4
+m12rule15_5
+m12rule15_6
+m12rule15_7
+m12rule16_3
+m12rule16_4
+m12rule16_6
+m12rule17_1
+m12rule17_2
+m12rule17_4
+m12rule17_6
+m12rule17_8
+m12rule18_5
+m12rule18_7
+m12rule19_2
+m12rule20_1
+m12rule20_2
+m12rule20_3
+m12rule20_5
+m12rule20_10
+m12rule21_3
+m12rule21_4
+m12rule21_5
+m12rule21_6
+m12rule21_7
+m12rule21_8
+m12rule21_9
+m12rule21_10
+m12rule21_11
+m12rule21_12
+
+ps list
+
+!rm -f _Misra2012_.txt
+track start _Misra2012_.txt
+	terse on
+	dp *
+	terse off
+track stop
+
+# report
+!if [ -s _Misra2012_.txt ] ; then echo "detailed results are in file _Misra2012_.txt"; fi
+# cleanup
+!if [ -s _Misra2012_.txt ] ; then true; else rm -f _Misra2012_.txt; fi
 
 quiet off

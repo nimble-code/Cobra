@@ -1,5 +1,7 @@
 # Misra 1997 m97_rules
 
+requires 3.9
+
 quiet on
 . misra/misra1997.def
 
@@ -66,5 +68,19 @@ m97_rule124
 m97_rule125
 m97_rule126
 m97_rule127
+
+ps list
+
+!rm -f _Misra1997_.txt
+track start _Misra1997_.txt
+	terse on
+	dp *
+	terse off
+track stop
+
+# report
+!if [ -s _Misra1997_.txt ] ; then echo "detailed results are in file _Misra1997_.txt"; fi
+# cleanup
+!if [ -s _Misra1997_.txt ] ; then true; else rm -f _Misra1997_.txt; fi
 
 quiet off

@@ -1,0 +1,43 @@
+# Power of 10 rules -- original version
+# revised in 3.9 to use pattern sets
+
+requires 3.9
+
+quiet on
+. p10_old.def
+
+p10_rule1		# goto, recursion
+p10_rule2		# loop bounds
+p10_rule3		# dynamic memory allocation
+p10_rule4(75)		# max nr of lines per fct
+p10_rule4_log(75)	# max nr of lines per fct
+p10_rule5(2)		# 2 percent assertion density overall
+p10_rule6		# limit scope
+p10_rule7		# return values of fcts
+p10_rule8		# no ifdef, if, undef
+p10_rule9		# limit pointers and dereferencing
+# p10_rule10		# use a static analyzer
+
+ps list
+!rm -f _P10_old.txt
+track start _P10_old.txt
+	terse on
+	dp P10_R1
+	dp P10_R2
+	dp P10_R3
+	dp P10_R4
+	dp P10_R4_log
+	dp P10_R5
+	dp P10_R6
+	dp P10_R7
+	dp P10_R8
+	dp P10_R9
+	terse off
+track stop
+
+# report
+!if [ -s _P10_old.txt ] ; then echo "detailed results are in file _P10_old.txt"; fi
+# cleanup
+!if [ -s _P10_old.txt ] ; then true; else rm -f _P10_old.txt; fi
+
+quiet off

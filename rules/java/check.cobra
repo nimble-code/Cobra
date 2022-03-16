@@ -1,0 +1,23 @@
+# Java patterns checks
+
+requires 3.9
+
+quiet on
+. Java/check.def
+
+J01
+J02
+J03
+J04
+J05
+
+ps list
+!rm -f _Check.txt
+track start _Check.txt
+terse on
+dp *
+terse off
+track stop
+!echo "detailed results are in file _Check.txt"
+
+quiet off

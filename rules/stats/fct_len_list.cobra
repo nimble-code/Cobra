@@ -1,7 +1,6 @@
 def fct_len_list
-r
-fcts
-track start _cobra_tmp_
+	r
+	fcts
 	%{
 		if (.mark)
 		{	n = .;
@@ -14,15 +13,60 @@ track start _cobra_tmp_
 			if (.txt != "{")
 			{	Next;
 			}
-	
-			print .range "\t" n.txt "\n";
+		#	print .range "\t" n.txt "\n";
+			i = 0;
+			while (i < 10)
+			{	sz = TopTen[i];
+				if (sz == 0)
+				{	TopTen[i] = .range;
+					TopNme[i] = n.txt;
+					break;
+				}
+				i++;
+			}
+			if (i == 10)
+			{	smallest = 0;
+				j = 1;
+				while (j < 10)
+				{	if (TopTen[j] < TopTen[smallest])
+					{	smallest = j;
+					}
+					j++;
+				}
+				if (.range > TopTen[smallest])
+				{	TopTen[smallest] = .range;
+					TopNme[smallest] = n.txt;
+			}	}
 		}
 	%}
-track stop
-
-!sort -n -r _cobra_tmp_ | sed 10q
-!rm -f _cobra_tmp_
-
+	%{
+		# bubblesort....
+		anychange = 1;
+		while (anychange)
+		{	anychange = 0;
+			i = 0;
+			while (i < 9)
+			{	if (TopTen[i] < TopTen[i+1])
+				{	tmp1 = TopTen[i+1];
+					tmp2 = TopNme[i+1];
+					TopTen[i+1] = TopTen[i];
+					TopNme[i+1] = TopNme[i];
+					TopTen[i] = tmp1;
+					TopNme[i] = tmp2;
+					anychange = 1;
+				}
+				i++;
+		}	}
+		i = 0;
+		while (i < 10)
+		{	sz = TopTen[i];
+			if (sz > 0)
+			{	print TopTen[i] "\t" TopNme[i] "\n";
+			}
+			i++;
+		}
+		Stop;
+	%}
 end
 
 fct_len_list

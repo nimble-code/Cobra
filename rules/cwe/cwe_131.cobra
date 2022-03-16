@@ -1,144 +1,44 @@
 # CWE-131: incorrect calculation of buffer size
 # fast check for two common cases
 
-. skip.def
+requires 3.9
 
-%{
-	w_cnt = 0;
-	b_cnt = 0;
-	Stop;
-%}
-r
-fcts
-%{
-	if (.mark != 0)		# start of function definition, mark >0
-	{	# print "function " .txt "\n";
-		skipto("{");
-		start = .;	# start of fct body
-		limit = .jmp;	# end of fct body
-		if (limit.seq == 0) { Next; }
-	}
+quiet on
+. cwe/cwe_131.def
 
-	if (!~malloc || .curly == 0)
-	{	Next;
-	}
-	bname = .;		# as a default value
-	. = .prv;
-	if (.txt == "*")	# its likely a prototype declaration
-	{	. = .nxt;	# undo . = .prv
-		Next;
-	}
-		r = .;			# the token before malloc
-		if (r.txt == ")")	# a cast x = (...) malloc(...)
-		{	r = .jmp;
-			r = r.prv;
-		}
-		if (r.txt == "=")
-		{	r = r.prv;	# match ident assigned
-			if (r.typ == "ident")
-			{	bname = r;	# to match against later
-		}	}		# else it keeps default value "malloc"
+cwe_131_start
+cwe_131_main
+cwe_131_wrap
+cwe_131_set
 
-	. = .nxt;	# undo . = .prv
-	. = .nxt;	# malloc (
-	if (.txt != "(")
-	{	Next;
-	}
-	uptot = .jmp;
-	if (uptot.seq == 0) { Next; }
-	hasizeof = 0;
-	notsimple = 0;
-	while (.seq < uptot.seq)
-	{	if (.txt == "sizeof"
-		||  .txt == "strlen")	# technically strlens should also multiply by sizeof(char)
-		{	hasizeof = 1;
-			. = .nxt;
-			if (.txt == "(")
-			{	. = .jmp;
-		}	}
-		if (.txt == ",")
-		{	break;
-		}
-		if (@ident)
-		{	nmm = .;
-		}
-		if (@oper && .txt != "*")
-		{	notsimple = 1;
-		}
-		. = .nxt;
-	}
-	if (.txt == ",")	# has two args, should have only one
-	{	Next;
-	}
-	if (hasizeof == 0)
-	{	if (terse)
-		{	w_cnt++;
-		} else
-		{	lock();
-			print .fnm ":" .lnr ": cwe_131, missing sizeof() in memory allocation?\n";
-			unlock();
-		}
-		Next;
-	}
+ps list CWE_131_1
+ps list CWE_131_2
 
-	# next: look for the multiplier of sizeof in a ~malloc call
-	#       and check for the use of that identifier standalone as an array index
+!rm -f _CWE_131_.txt
+track start _CWE_131_.txt
+	terse on
+	# best for json output
+	dp CWE_131_1
+	dp CWE_131_2
+	terse off
+track stop
 
-	if (notsimple == 1)
-	{	Next;
-	}
+!rm -f _CWE_131_detail.txt
+track start _CWE_131_detail.txt
+	# highlight token positions
+	r
+	ps convert CWE_131_1
+	= "Possibly missing sizeof() in memory allocation"
+	p
+	r
+	ps convert CWE_131_2
+	= "Potential out of bound array indexing error"
+	p
+track stop
 
-	# nm is the identifier name to check for in the rest of the fct body
-	q = .nxt;	# one token after malloc (...)
-	while (q.seq < limit.seq)	# check from here to end of fct, flow insensitive
-	{	if (q.txt == nmm.txt)
-		{	r = q.nxt;
-			if (r.txt != "]")	# immediately following name
-			{	q = q.nxt;
-				continue;
-			}
-			r = q.prv;
-			if (r.txt != "[")	# immediately preceding name
-			{	q = q.nxt;
-				continue;
-			}
-			if (bname.txt != "malloc")	# not the defaul value
-			{	r = r.prv;		# point at array basename
-				if (r.txt != bname.txt)
-				{	q = q.nxt;
-					continue;	# not a match
-			}	}
+# report
+!if [ -s _CWE_131_.txt ] ; then echo "results are in _CWE_131_.txt and _CWE_131_detail.txt"; fi
+# cleanup
+!if [ -s _CWE_131_.txt ] ; then true; else rm -f _CWE_131_*.txt; fi
 
-			# gotcha
-			if (terse)
-			{	b_cnt++;
-			} else
-			{	lock();
-				print q.fnm ":" q.lnr ": cwe_131, out of bound array indexing error on " nmm.txt "?\n";
-				if (bname.txt != "malloc")
-				{	print q.fnm ":" q.lnr ": cwe_131, array " bname.txt;
-					print " was allocated at " bname.fnm ":" bname.lnr "\n";
-				}
-				unlock();
-			}
-		}
-		q = q.nxt;
-	}
-	# . points to the place after the malloc() we just checked
-%}
-
-%{
-	if (terse)
-	{	lock();
-		if (w_cnt > 0)
-		{	print "cwe_131: " w_cnt " warnings: missing sizeof() in memory allocation?\n";
-		}
-		if (b_cnt > 0)
-		{	print "cwe_131: " b_cnt " warnings: potential out of bound array indexing\n";
-		}
-		unlock();
-	}
-	w_cnt = 0;
-	b_cnt = 0;
-	Stop;
-%}
+quiet off

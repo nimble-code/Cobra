@@ -1,0 +1,145 @@
+# CWE-119_3: Improper Restriction of Operations within the Bounds of a Memory Buffer
+# pattern 3: index is parameter and is not checked before use in array index for < and >
+
+requires 3.9
+
+def cwe_119_3_start
+	r
+	fcts	# mark function definitions
+	n (	# move to start of fct param list
+	
+	%{
+		w_cnt = 0;
+		l_cnt = 0;
+		lastfnm = .;
+		Stop;
+	%}
+end
+
+def cwe_119_3_main
+   %{
+	if (.mark == 0) { Next; }
+	.mark = 0;
+
+	eop = .jmp;
+	while (.seq < eop.seq)
+	{	if (@ident)
+		{	. = .prv;
+			if (.txt != "*"		# pointers need different checks
+			&&  .txt != "struct")
+			{	. = .nxt;
+				if (!match(.txt, "/^yy"))	## yacc output
+				{	Params[.txt] = .;
+				}
+			} else
+			{	. = .nxt;
+		}	}
+		. = .nxt;
+	}
+	maxcnt = 0;
+	while (.txt != "{" && maxcnt < 100)
+	{	 . = .nxt;
+		maxcnt++;
+	}
+	if (maxcnt >= 100)
+	{	# print .fnm ":" .lnr ": exceeded maxcnt\n";	# probably not a real fct
+		Next;
+	}
+	if (.txt != "{") { Next; }
+
+	eob = .jmp;	# end of block
+	while (.seq < eob.seq)
+	{	if (@ident
+		&& !(Params[.txt] == 0)
+		&& .round > 0)
+		{	b = .;
+			. = b.prv;
+			if (.txt == "<" || .txt == "<=")
+			{	Tested[b.txt] = Tested[b.txt] | 2;
+			}
+			if (.txt == "!")
+			{	Tested[b.txt] = 3;
+			}
+			if (.txt == ">" || .txt == ">=")
+			{	Tested[b.txt] = Tested[b.txt] | 1;
+			}
+			. = b.nxt;
+			if (.txt == "<" || .txt == "<=")
+			{	Tested[b.txt] = Tested[b.txt] | 1;
+			}
+			if (.txt == ">" || .txt == ">=")
+			{	Tested[b.txt] = Tested[b.txt] | 2;
+			}
+			if (.txt == "==")
+			{	Tested[b.txt] = 3;
+			}
+		}
+
+		if (.txt == "[")
+		{	eoi = .jmp;	# end of index
+			if (lastfnm.fnm != .fnm)
+			{	l_cnt = 0;
+				lastfnm = .;
+			}
+			while (.seq < eoi.seq)
+			{
+				if (@ident)
+				{	zx = Params[.txt];
+					if (zx == 0 || zx.mark == 11930)
+					{	. = .nxt;
+						continue;
+					}
+					zx.mark = 11930;
+					if (Tested[.txt] != 3)
+					{	.mark = 1;
+				#		if (terse)
+				#		{	w_cnt++;
+				#			l_cnt++;
+				#			if (verbose || w_cnt < 10)
+				#			{	Files[.fnm] = l_cnt;
+				#			}
+				#		} else
+				#		{	lock();
+				#			print .fnm ":" .lnr ": cwe_119_3: min/max unchecked " ;
+				#			print "parameter value '" .txt "' used in array index\n";
+				#			unlock();
+				#		}
+				}	}
+				. = .nxt;
+		}	}
+		. = .nxt;
+	}
+	# end of fct body
+
+	unset Params;
+	unset Tested;
+   %}
+end
+
+def cwe_119_3_wrap
+   %{
+	if (.mark == 11930)
+	{	.mark = 0;
+	}
+   %}
+end
+
+def cwe_119_3_set
+   %{
+#	if (terse && w_cnt > 0)
+#	{	lock();
+#		print "cwe_119_3: " w_cnt " warnings: unchecked parameter value used in array index\n";
+#		if (verbose || w_cnt < 10)
+#		{	for (a in Files)
+#			{	print "\t" a.txt ": " Files[a.txt] " warnings\n";
+#		}	}
+#		unlock();
+#	}
+	w_cnt = 0;
+	l_cnt = 0;
+	unset Files;
+	Stop;
+   %}
+   ps create CWE_119_3
+   ps caption CWE_119_3 Unchecked parameter value used in array index
+end

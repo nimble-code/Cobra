@@ -114,7 +114,6 @@ new_ident(Fcts *sc, Prim *id, int is_static)
 	int h = hash_s(id->txt)&4095;
 
 	assert(h >= 0 && h < 4096);
-
 	for (i = htab[h]; i; i = i->nxt)
 	{	if (strcmp(i->p->txt, id->txt) == 0)
 		{	// same name
@@ -248,7 +247,7 @@ checkit(const int cpu, Ident *i)
 		i->p->mark = 1;
 		i->p->typ = (i->scope && i->scope->p)?i->scope->p->txt:"global";
 		if (verbose)
-		{	printf("%s\tis only used in scope %s\n",
+		{	fprintf(stderr, "%s\tis only used in scope %s\n",
 				i->p->txt, i->scope->p->txt);
 		}
 		return;
@@ -263,7 +262,7 @@ checkit(const int cpu, Ident *i)
 		i->p->mark = 2;
 	//	printf("%s", (x==0)?"fct ":"");
 		if (verbose)
-		{	printf("%s\tis only used in file %s\n",
+		{	fprintf(stderr, "%s\tis only used in file %s\n",
 				i->p->txt, i->fnm);
 	}	}
 }
@@ -301,15 +300,18 @@ cobra_main(void)
 	if (strlen(backend) > 0)
 	{	if (strstr(backend, "json") != NULL)
 		{	json_format = 1;
+		} else if (strstr(backend, "help") != NULL)
+		{	fprintf(stderr, "usage: scope_check [-json] [-runtimes] *.c\n");
+			exit(1);
 		} else
 		{	fprintf(stderr, "scope_check: unrecognized option '%s'\n", backend);
 			exit(1);
 	}	}
 
-	if (json_format)	// can also be set in front-end
-	{	fprintf(stderr, "error: scope_check does not support json-format output\n");
-		exit(1);
-	}
+//	if (json_format)	// can also be set in front-end
+//	{	fprintf(stderr, "error: scope_check does not support json-format output\n");
+//		exit(1);
+//	}
 
 	if (!prim)
 	{	fprintf(stderr, "scope_check: no tokens\n");
@@ -392,26 +394,43 @@ cobra_main(void)
 
 	stop_time = times(&stop_tm);
 
-	if (fct_only + file_only > 0)
+	if (fct_only + file_only > 0
+	&& !json_format)
 	{	printf("=== %s: %s\n", cobra_commands, Rule);
 	}
 
-	printf("	globals used in one scope only: %3d\n", fct_only);
+	if (!json_format)
+	{	printf(" globals used in one scope only: %3d\n", fct_only);
+	}
 	if (!no_display)
 	{	for (cur = prim; cur; NEXT)
 		{	if (cur->mark == 1)
-			{	printf("	%s\tused in only one %s (%s)\n",
-					cur->txt, cur->curly==0?"scope":"function",
-					cur->typ);
-	}	}	}
+			{	if (json_format)
+				{	sprintf(json_msg,"%s is used in only one %s (%s)",
+						cur->txt,
+						cur->curly==0?"scope":"function",
+						cur->typ);
+					json_match(cobra_commands, json_msg, cur, cur);
+				} else
+				{	printf("\t%s\tused in only one %s (%s)\n",
+						cur->txt, cur->curly==0?"scope":"function",
+						cur->typ);
+	}	}	}	}
 
-	printf("	globals used in one file  only: %3d\n", file_only);
+	if (!json_format)
+	{	printf(" globals used in one file only: %3d\n", file_only);
+	}
 	if (!no_display)
 	{	for (cur = prim; cur; NEXT)
 		{	if (cur->mark == 2)
-			{	printf("	%s\tused in only file %s\n",
-					cur->txt, cur->fnm);
-	}	}	}
+			{	if (json_format)
+				{	sprintf(json_msg, "%s is used only in file %s",
+						cur->txt, cur->fnm);
+					json_match(cobra_commands, json_msg, cur, cur);
+				} else
+				{	printf("\t%s\tused in only file %s\n",
+						cur->txt, cur->fnm);
+	}	}	}	}
 
 	delta_time = ((double) (start_time -stop_time))
 		   / ((double) sysconf(_SC_CLK_TCK));
@@ -419,7 +438,7 @@ cobra_main(void)
 	if (runtimes
 	&&  !no_match
 	&&  !no_display)
-	{	printf("    (%.3g sec)\n", delta_time);
+	{	fprintf(stderr, "    (%.3g sec)\n", delta_time);
 	}
 	json_match(0, 0, 0, 0);	// force linkage to cobra_json.o
 

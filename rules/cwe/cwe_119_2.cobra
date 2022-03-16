@@ -2,163 +2,36 @@
 # pattern 2: array indexed with unchecked return value obtained from another function
 # this is where most of the time goes
 
-r
-m @ident
-m & (.curly > 0)
-%{
-	w_cnt = 0;
-	l_cnt = 0;
-	lastfnm = .;
-	Stop;
-%}
+requires 3.9
 
-%{
-	if (.mark == 0)
-	{	if (.curly > 0) { Next; }
-		# in between fcts, process warnings for previous fct
-		# reporting
-		if (lastfnm.fnm != .fnm)
-		{	l_cnt = 0;
-			lastfnm = .;
-		}
-		for (i in Suspect)
-		{
-# print .lnr " .Suspect " i.txt " --- " Suspect[i.txt] " :: " IxVar[i.txt] "\n";
-			if (IxVar[i.txt] != 0)
-			{
-				if (terse)
-				{	w_cnt++;
-					l_cnt++;
-					if (verbose || w_cnt < 10)
-					{	Files[.fnm] = l_cnt;
-					}
-				} else
-				{	x = Suspect[i.txt];	# wherethe var is *last* set
-					zz = IxVar[i.txt];	# where it is used as an index
-# print .lnr " HERE " i.txt " " x.lnr " :: " zz.lnr " --- " IxVar[i.txt] "\n";
-					if (x.seq != 0 && x.lnr <= zz.lnr)
-					{
-					lock();
-					print x.fnm ":" zz.lnr ": cwe_119_2: array-index variable '";
-					print  x.txt "' has unchecked value.\n";
-					unlock();
-		}	}	}	}
+quiet on
+. cwe/cwe_119_2.def
 
-		unset Suspect;
-		unset IxVar;
-# print "UNSET\n";
-		Next;
-	}
-	.mark = 0;
-	pt = .prv;
-	v = .;				# identifier
-	. = .nxt;
-	if (.txt == "=")
-	{	. = .nxt;
-		if (@ident)		# ident = ident ( ... )
-		{	. = .nxt;
-			if (.txt == "(" && pt.txt != "*")
-			{	Suspect[v.fnm, v.txt] = v;	# assigned from fct
-# print .fnm ":" .lnr ": set1 Suspect[ " v.fnm ", " v.txt " ] to v " v.seq "\n";
-				. = v;
-				Next;
-			}
-			. = .prv;
-		}
-		unset Suspect[v.fnm, v.txt];	# its assigned, but not from a fct
-# print "UNSET Suspect[ " v.fnm ", " v.txt "\n";
-		. = v;
-		Next;	# added gh 10/1/18
-	} else
-	{	. = v.prv;
-		nt = v.nxt;
-		pt = .prv;
-		if (.txt == "&"
-		&&  pt.typ != "ident"
-		&&  nt.txt != "->"
-		&&  nt.txt != ".")
-		{	Suspect[v.fnm, v.txt] = v;		# address of var is taken
-# print .fnm ":" .lnr ": set2 Suspect[ " v.fnm ", " v.txt " ] to v\n";
-			. = v.nxt;	# undo .prv
-			Next;
-		}
-		. = v.nxt; # undo .prv
-		# check for idents used in expression or array index
-	}
+cwe_119_2_start
+cwe_119_2_main
+cwe_119_2_wrap
+cwe_119_2_set
 
-	if (v.round > 0)
-	{	. = v.prv;
-		if (@oper)
-		{	unset Suspect[v.fnm, v.txt];
-# print "UNSET1 " v.fnm ", " v.txt "\n";
- 		}
-		. = v.nxt;
-		if (@oper)
-		{	unset Suspect[v.fnm, v.txt];
-# print "UNSET2 " v.fnm ", " v.txt "\n";
-	}	}
+ps list CWE_119_2
 
-	. = v.nxt;		# right after identifier
+!rm -f _CWE_119_2_.txt
+track start _CWE_119_2_.txt
+	terse on
+	dp CWE_119_2
+	terse off
+track stop
 
-	if (.txt == "[")
-	{	eob = .jmp;	# end of array index
-		while (.seq < eob.seq)
-		{	pt = .;
-			. = .nxt;
-			if (@ident)
-			{	nt = .nxt;
-				if (nt.txt != "->"
-				&&  nt.txt != "."
-				&&  nt.txt != "&"
-				&&  pt.txt != "->"
-				&&  pt.txt != "."
-				&&  pt.txt != "&")
-				{	xyx = Suspect[.fnm, .txt];
-# print "PROBE Suspect[ " .fnm ", " .txt "]  ::: " xyx.seq "\n";
-					if (xyx.seq > 0)
-					{	IxVar[.fnm, .txt] = .;
-# print .fnm ":" .lnr ": IxVar[ " .fnm ", " .txt " ] set to .\n";
-	}	}	}	}	}
-%}
+!rm -f _CWE_119_2_detail.txt
+track start _CWE_119_2_detail.txt
+	r
+	ps convert CWE_119_2
+	= "Array-index variable with unchecked min/max value"
+	p
+track stop
 
-%{
-#	w_cnt = 0;
-#	l_cnt = 0;
-	lastfnm = prim;
-	for (i in Suspect)
-	{	if (IxVar[i.txt] != 0)
-		{	if (terse)
-			{	w_cnt++;
-				if (lastfnm.fnm != .fnm)
-				{	l_cnt = 0;
-					lastfnm = .;
-				}
-				l_cnt++;
-				if (verbose || w_cnt < 10)
-				{	Files[.fnm] = l_cnt;
-				}
-			} else
-			{	x = Suspect[i.txt];
-				if (x.seq != 0)
-				{
-				lock();
-				print x.fnm ":" x.lnr ": cwe_119_2: array-index variable '";
-				print  x.txt "' has unchecked value\n";
-				unlock();
-	}	}	}	}
+# report
+!if [ -s _CWE_119_2_.txt ] ; then echo "results are in _CWE_119_2_.txt and _CWE_119_2_detail.txt"; fi
+# cleanup
+!if [ -s _CWE_119_2_.txt ] ; then true; else rm -f _CWE_119_2_*.txt; fi
 
-	if (terse && w_cnt > 0)
-	{	lock();
-		print "cwe_119_2: " w_cnt " warnings: array-index variable has unchecked min/max value\n";
-		if (verbose || w_cnt < 10)
-		{	for (a in Files)
-			{	print "\t" a.txt ": " Files[a.txt] " warnings\n";
-		}	}
-		unlock();
-	}
-	w_cnt = 0;
-	unset IxVar;
-	unset Suspect;
-	unset Files;
-	Stop;
-%}
+quiet off

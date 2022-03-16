@@ -284,3 +284,41 @@ new in december 30, 2021
 
    - improves several rules, and added some more misra rule checkers
      (misra1997, rules 12, 21, 25, and 42).
+
+3.9 march 16, 2022
+   - significant rewrite of the main query libraries to make use of
+     named pattern sets (basic, misra, p10, cwe, etc.)
+   - bug fix in cobra_eval.y (expressions parsing), which was missing
+     support for the .fct token attribute since version 3.8
+   - added support for referring to bound variables in
+     pattern expression constraints, eg for token comparisons
+     works in constraints for == or != of token texts or other attributes
+   - updated src_app/scope_check.c to support -json output format
+     (which is now also used in some query libraries to first 
+     generated the output and then read it into the main cobra
+     tool with a 'seed' command)
+   - added a small java/check query library, to be extended
+   - updated src_app/c_api.h
+   - revised the ps list command to list patterns in order created, rather
+     than in reversed order
+   - added a 'requires version' command to secure that the right version
+     of cobra is used with some of the updated query libraries
+   - added a 'scripts' command to list which inline scripts are defined
+   - added a 'help' option to commands ps, pe, and dp (eg : ps help)
+   - added a 'caption' option to the ps command to give a more
+     descriptive explanatory caption to a pattern set
+     (eg : ps caption Name Message ....)
+   - added a 'rename' option to command ps (eg : ps rename Old New)
+   - added -DALPINE support option to fix an issue with commandline use
+     reported for this version of linux
+   - added a cobra_stub.c file to simplify decoupling of front and backend code
+   - changed the default setting of EOF tokens to on -- command-line option
+     -eof now turns it off (which should rarely be needed)
+   - increased size of bvars and json_msg buffers from 512 to 1024
+     characters (for json format outpur to report bound variables
+     or an error description)
+   - fixed an issue reported by static analysis on potential buffer
+     overflow, by more explicitly indicating buffer sizes (check_bvar)
+   - improved reporting of bound variable matches
+   - similarly, fixed a buffer size issue in check_args()
+   - other small updates and fixes

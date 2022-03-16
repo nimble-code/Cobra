@@ -98,6 +98,7 @@ static Commands table[] = {
   { "back",	back,	  "[p]      move marks back one step, or to a token matching p", 1 },
   { "view",     show_scripts, "         list names of known scripts", 2 },
   { "stretch",	stretch,  "[q] p [p2] add range from current marks upto token matching p", 1 },
+  { "scripts",  show_scripts, "         list names of known scripts", 2 },
   { "inspect",  inspect,  "fnm lnr  show the lexical tokens on this line",              1 },
   { "jump",	jump,	  "         move marks to end of range, if specified", 		1 },
   { "contains",	contains, "[q] p [p2]  clear marked ranges not containing token(s)",	1 },
@@ -135,7 +136,11 @@ regstart(const int p, char *is)
 	int n;
 
 	assert(is && p >= 0 && p < 2);
-	assert(re_set[p] == 0);
+	if (re_set[p] != 0)
+	{	regfree(&rex[p]);
+		re_set[p] = 0;
+	}
+//	assert(re_set[p] == 0);
 	while (*s == ' ')
 	{	s++;
 	}
@@ -1480,11 +1485,14 @@ check_for_setname(char *s)
 	if (isalpha((uchar) *t))
 	{	do {
 			t++;
-		} while (isalpha((uchar) *t));
+		} while (isalnum((uchar) *t) || *t == '_');
 		if (*t == ':')
-		{	*t++ = '\0';
-			setname(s);
-			return t;
+		{	if (*(t+1) == ' ')
+			{	*t++ = '\0';
+				setname(s);
+				return t;
+			}
+			return s;
 	}	}
 
 	setname("");
@@ -1640,7 +1648,7 @@ pre_scan(char *bc)	// non-generic commands
 			return 1;
 		} else if (strncmp(bc, "seed", 4) == 0)
 		{	a = nextarg(bc);
-			json_import(a);	// read Cobra generated json output
+			json_import(a, 0);	// read Cobra generated json output, single-core
 			return 1;
 		} else if (strncmp(bc, "stream", 6) == 0)
 		{	char *qtr;
@@ -1790,6 +1798,13 @@ pre_scan(char *bc)	// non-generic commands
 				} 
 				printf("usage: ps delete name\n");
 				break;
+			} else if (strncmp(a, "help", 4) == 0
+				|| strcmp(a, "?") == 0)
+			{	patterns_help();
+				return 1;
+			} else if (strncmp(a, "caption", 7) == 0)
+			{	patterns_caption(nextarg(a));
+				return 1;
 			} else if (strncmp(a, "json", 4) == 0)
 			{	patterns_json(nextarg(a));		// produce json output
 				return 1;
@@ -1798,6 +1813,9 @@ pre_scan(char *bc)	// non-generic commands
 				return 1;
 			} else if (strncmp(a, "convert", 7) == 0)	// ps convert name
 			{	cnt = json_convert(nextarg(a));
+				return 1;
+			} else if (strncmp(a, "rename", 6) == 0)	// ps renamed name1 name2
+			{	patterns_rename(nextarg(a));
 				return 1;
 			} else if (*a != '\0')	// eg ps C = A & B
 			{	b = a;
@@ -1823,6 +1841,21 @@ pre_scan(char *bc)	// non-generic commands
 		break;
 
 	case 'r':	// runtimes on off,  restore - reset - regular/token expression
+		if (strncmp(bc, "requires", 8) == 0)
+		{	int ma, mi, na, nb, ma2, mi2;
+			na = sscanf(tool_version, "Version %d.%d", &ma, &mi);
+			nb = sscanf(bc, "requires %d.%d", &ma2, &mi2);
+			if (na != 2 || nb != 2)
+			{	fprintf(stderr, "error, usage, e.g.: 'requires 3.8'\n");
+				return 1;
+			}
+			if (ma < ma2
+			|| (ma == ma2 && mi < mi2))
+			{	fprintf(stderr, "error: requires Cobra Version %d.%d -- have %d.%d\n",
+					ma2, mi2, ma, mi);
+			}
+			return 1;
+		}
 		if (strncmp(bc, "runtimes", 8) == 0)
 		{	if (strstr(&bc[5], "on"))
 			{	runtimes = 1;
@@ -1932,7 +1965,7 @@ pre_scan(char *bc)	// non-generic commands
 			return 1;
 		}
 		if (strncmp(bc, "dp", 2) == 0)
-		{	display_patterns(nextarg(bc));
+		{	patterns_display(nextarg(bc));
 			return 1;
 		}
 		// else it maps to 'display'
@@ -1978,13 +2011,16 @@ pre_scan(char *bc)	// non-generic commands
 
 	case '=':
 		if (prep_print(bc))	// extract prefix and suffix
-		{	view_mode = 1;
+		{	(void) nr_marks(0);	// = "string:" or =
+			if (cnt == 0)
+			{	return 1;
+			}
+			view_mode = 1;
 			if (suffix && strlen(suffix) > 0)
 			{	backup(0);
 				with_eval(suffix);	// = "string" $0
 				if (cnt < 0)
-				{	printf("%s %d\n",
-						prefix, -cnt-1);
+				{	printf("%s %d\n", prefix, -cnt-1);
 				}
 				undo("", "");
 			} else if (prefix && *prefix == '(')
@@ -1993,13 +2029,11 @@ pre_scan(char *bc)	// non-generic commands
 				backup(0);
 				with_eval(suffix);	// =
 				if (cnt < 0)
-				{	printf("%s %d\n",
-						prefix, -cnt-1);
+				{	printf("%s %d\n", prefix, -cnt-1);
 				}
 				undo("", "");
 			} else
-			{	(void) nr_marks(0);	// = "string:" or =
-				if (!no_match || cnt > 0)
+			{	if (!no_match || cnt > 0)
 				{	if (scrub)
 					{	scrub_caption = emalloc(strlen(prefix)+1, 65);
 						strcpy(scrub_caption, prefix);
@@ -2029,7 +2063,10 @@ pre_scan(char *bc)	// non-generic commands
 
 			and_mode = 1;
 			with_eval(bc);
-
+			if (cnt == -1)
+			{	extern void reset_int(const int); // cobra_prog.y
+				reset_int(0);
+			}
 			if (cnt < 0)
 			{	if (!no_match)
 				{	printf("value: %d\n", -cnt-1);
@@ -2088,7 +2125,13 @@ pre_scan(char *bc)	// non-generic commands
 			json_plus = (bc[4] == '+');
 			if (cnt > 0)
 			{	if (strlen(bc) > strlen("json "))
-				{	json(bc + strlen("json ") + json_plus);
+				{	char *z = bc + strlen("json ") + json_plus;
+					// intercept 'json NamedSet'
+					if (!strchr(z, ' ') && findset(z, 0, 5))
+					{	patterns_json(z);
+						return 1;
+					}
+					json(z);
 				} else
 				{	json(" ");
 			}	}
@@ -2180,6 +2223,10 @@ one_command(char *bc)
 				fprintf(stderr, " at least %d chars\n",
 					table[i].n);
 				break;
+			}
+			if (strcmp(bc, "scripts") == 0
+			&&  strcmp(table[i].cmd, "stretch") == 0)
+			{	continue;
 			}
 			// handle a special case, e.g.:
 			//   m /.; m & (.fnm == cobra_lib.c && .lnr == 1867)
@@ -3276,6 +3323,19 @@ help(char *s, char *unused)	// 1
 {	int i;
 	int j = 0;
 
+	if (strcmp(s, "ps") == 0)
+	{	patterns_help();
+		return;
+	}
+	if (strcmp(s, "dp") == 0)
+	{	dp_help();
+		return;
+	}
+	if (strcmp(s, "pe") == 0)
+	{	pe_help();
+		return;
+	}
+
 	printf("Command Summary\n");
 	printf("short-hand / full-text / arguments / explanation\n");
 	printf("q is a qualifier (see below), s, t, and f are strings\n");
@@ -3341,7 +3401,7 @@ help(char *s, char *unused)	// 1
 	printf("  %8s  %c %s\n", "track", ' ',		"start fnm|stop temporarily divert all output to fnm");
 	printf("  %8s  %c %s\n", "unmark", ' ',		"p [p2]    alternative syntax for: mark no p [p2]");
 	printf("  %8s  %c %s\n", "verbose", ' ',	"on|off    increas/decrease verbosity");
-	printf("  %8s  %c %s\n", "view", ' ',           "          list known command script names");
+	printf("  %8s  %c %s\n", "view", ' ',           "          list known command script names (also 'scripts')");
 	printf("  %8s  %c %s\n", "=", ' ',		"[string [(expr)]    print nr of matches, with optional string/expr");
 
 	printf("\nFile Browsing\n");
@@ -3520,7 +3580,7 @@ re_enable(void)
 void
 noreturn(void)
 {
-	printf("cobra: fatal error\n");
+	fprintf(stderr, "cobra: fatal error\n");
 	re_enable();
 	exit(1);
 }
@@ -3586,7 +3646,17 @@ cobra_main(void)
 		n_tio.c_lflag |= (ISIG);
 		tcsetattr(STDIN_FILENO, TCSANOW, &n_tio);
 		signal(SIGINT, ihandler);
+		atexit(re_enable);	// new 2/22
 	}
+
+#ifdef ALPINE
+	// looks safe to use by default as well
+	// avoids an issue on alpine linux
+	if (!gui
+	&& isatty(STDOUT_FILENO))
+	{	setbuf(stdout, NULL);
+	}
+#endif
 
 	for (;;)
 	{

@@ -1,7 +1,6 @@
 #### see main/jpl.cobra
 
 def fcts		# helper function
-	# cpp on
 	r
 	m @ident \(; n
 	w (!.curly)	# not inside a fct
@@ -12,16 +11,12 @@ def fcts		# helper function
 end
 
 def jpl_rule1
-	# cpp off		# jpl_rule1 :: cpp off must come before 'r'
 	r; m @cpp; m & /pragma
-
-	#  do not turn cpp back on
-	#  until after a 'd' or '=' command
-	#  is used to report the matches
+	ps create R1
+	ps caption R1 Do not stray outside the language definition (no pragmas)
 end
 
 def jpl_rule3a
-	# cpp on	# must come before the 'r'
 	r
 	m for \(	# mark for
 	n;j;e {; j	# move to (
@@ -38,10 +33,11 @@ def jpl_rule3a
 	b
 	m & /^[-+][-+]$	# pre-increment/decrement
 	<|1
+	ps create R3a
+	ps caption R3a Do not modify the loop counter inside a loop body
 end
 
 def jpl_rule3b
-	# cpp on
 	#  partial check: the loop condition must contain a comparison
 	r
 	m for \(; n
@@ -77,10 +73,11 @@ def jpl_rule3b
 			{	q.mark = 0;	# for (x=ptr;x;x=x->nxt)
 		}	}
 	%}
+	ps create R3b
+	ps caption R3b Loop conditions must contain a comparison
 end
 
 def jpl_rule3c
-	# cpp on
 %{
 	# extract the pattern of every for-statement
 	# complain if:
@@ -128,19 +125,21 @@ def jpl_rule3c
 		. = .nxt;
 	}
 %}
+	ps create R3c
+	ps caption R3c Ssuspicious for-loop increment/decrement
 end
 
 def jpl_rule4
-	# cpp on
 	fcts
 	st {			# tag symbol to {
 	n {			# move to it
 	m ir $$			# match of fct name inside the range
 	e \(			# recursive fct call
+	ps create R4
+	ps caption R4 Do not use direct or indirect recursion
 end
 
 def jpl_rule5
-	# cpp on
 	r
 	m @ident \(
 	n; j; e {; j; b		# fct definitions
@@ -154,88 +153,100 @@ def jpl_rule5
 	unmark /allocated
 	m sbrk
 	<^1			# but not those in fcts ending in _init
+	ps create R5
+	ps caption R5 Do not use dynamic memory allocation after task initialization
 end
 
 def jpl_rule7
-	# cpp on
 	r
 	m taskDelay; m sleep; m /nanosleep$
+	ps create R7
+	ps caption R7 Do not use task delays for task synchronization
 end
 
 def jpl_rule9a
-	# cpp on
 	r
 	m /^sem.*Create$; m /^sem.*Take; m /^sem.*Give
+	ps create R9a
+	ps caption R9a Place restrictions on the use of semaphores
 end
 
 def jpl_rule9b
-	# cpp on
 	r
 	m taskLock;   m intLock;   m taskRtpLock
 	m taskUnlock; m intUnlock; m taskRtpUnlock
 	b; b; unmark extern; n; n
+	ps create R9b
+	ps caption R9b Place restrictions on the use of locks
 end
 
 def jpl_rule11
-	# cpp off			# jpl_rule11
 	r; m goto
 	n; unmark /^yy		# not for yacc generated code
 	b;
 	m /setjmp; m /longjmp	# sometimes defined as macros
+	ps create R11
+	ps caption R11 Do not use goto, setjmp or longjmp
 end
 
 def jpl_rule12a
-	# cpp on
 	r
 	m enum; n; m & {	# nameless enum
 	c =; s =; c ,		# no comma before the first =
+	ps create R12a
+	ps caption R12a Do not use selective value assignments to elements of an enum list
 end
 
 def jpl_rule12b
-	# cpp on
 	r
 	m enum; n; n; m & {
 	c =; s =; c ,		# named enum
+	ps create R12b
+	ps caption R12b Do not use selective value assignments to elements of an enum list
 end
 
 def jpl_rule13a
-	# cpp on
-	# !echo "=== no global single character identifiers
+	# === no global single character identifiers
 	r
 	m @ident; m & (!.curly && !.round); m & /^.$
 	%{	# not in compiler directives
 		if (@cpp)
-		{	while (. != END && .txt != "EOL")
+		{	while (. != END && .txt != "EOL" && .txt != "EOF")
 			{	.mark = 0;
 				. = .nxt;
 		}	}
 	%}
+	ps create R13a
+	ps caption R13a Do not use single-letter global identifiers
 end
 
 def jpl_rule14a
-	# cpp on
-	# !echo "=== R14: Check the return value of non-void functions, or explicitly cast to (void)."
+	# === R14: Check the return value of non-void functions, or explicitly cast to (void)
 	r
 	m @ident \(; m & (!.curly); n; j; e {;
 	j; b; b; mark no void; n {
 	c no return	# should match zero ranges
 	b; j; b
+	ps create R14a
+	ps caption R14a All non-void fcts must return a value
 end
 
 def jpl_rule14b
-	# cpp on
 	r
 	m @ident \(; m & (!.curly); n; j; e {
 	j; b; b; unmark void; n {
 	m ir return	# match all return statements inside range
 	n		# move to the token that follows, which should not be a semicolon
 	m & \;
+	ps create R14b
+	ps caption R14b Return statement without expression
 end
 
 def jpl_rule14c
-	# cpp on
 	r
 	m @ident \(; m & (!.curly); n; j; n; m & {; b; j; b; b; m & /[\;}]
+	ps create R14c
+	ps caption R14c Every fct has an explicit return type (MISRA97, Rule 75)
 end
 
 def jpl_context
@@ -258,7 +269,6 @@ def jpl_context
 end
 
 def jpl_rule14d
-	# cpp on
 	r
 	m @ident \(; m & (!.curly); n; j; e {
 	j; b; b
@@ -267,37 +277,58 @@ def jpl_rule14d
 	n $$ \(			# forward to a use (do multiple times?)
 	m & (.curly)		# inside a fct
 	jpl_context
+	ps create R14d
+	ps caption R14d Caller does not check return value
 end
 
 def jpl_rule14e
-	# cpp on
 	r
 	<1			# non-void fcts
 	n $$ \(; n $$ \(	# two calls forward from def
 	m & (.curly)		# inside a fct
 	jpl_context
+	ps create R14e
+	ps caption R14e Caller does not check return value
 end
 
 def jpl_rule14f
-	# cpp on
 	r
 	<1			# non-void fcts
 	b $$ \(			# backward to a use (do multiple times?)
 	m & (.curly)		# inside a fct
 	jpl_context
+	ps create R14f
+	ps caption R14f Caller does not check return value
 end
 
 def jpl_rule14g
-	# cpp on
 	r
 	<1			# non-void fcts
 	b $$ \(			# backward to a use (do multiple times?)
 	m & (.curly)		# inside a fct
 	jpl_context
+	ps create R14g
+	ps caption R14g Caller does not check return value
+end
+
+def jpl_rule14defg
+	jpl_rule14d	# create set 1
+	jpl_rule14e	# uses a set from 14d
+	jpl_rule14f	# uses a set from 14d
+	jpl_rule14g	# uses a set from 14d
+	ps R14de = R14d + R14e
+	ps R14fg = R14f + R14g
+	ps R14defg = R14de + R14fg
+	ps caption R14defg Caller does not check return value
+	ps delete R14de
+	ps delete R14fg
+	ps delete R14d
+	ps delete R14e
+	ps delete R14f
+	ps delete R14g
 end
 
 def jpl_rule14h
-	# cpp on
 	r
 	m @ident \(
 	m & (!.curly)
@@ -308,10 +339,11 @@ def jpl_rule14h
 	n
 	w (.txt != } || .curly > 1)
 	b return
+	ps create R14h
+	ps caption R14h Use only one return, at end of function (MISRA97, Rule 82)
 end
 
 def jpl_rule15
-	# cpp on
 	# check that each parameter appears in a condition
 	r
 	m @ident \(; n; j; e {; j
@@ -321,10 +353,11 @@ def jpl_rule15
 	n $$		# first use of the parameter
 	m & (!.round)	# use outside (...), i.e., not in a condition
 	# see also p10_rule7b which may be better
+	ps create R15
+	ps caption R15 Check the validity of values passed to functions
 end
 
 def jpl_rule16(nr)
-	# cpp off		# jpl_rule16
 	r
 	m \;		# all statements
 	>1		# save in set 1
@@ -333,21 +366,22 @@ def jpl_rule16(nr)
 	m /Assert
 	m /assert
 	>2
-	w ((1000*size(2))/size(1) < 10 * nr)
-	= "=== R16: Nr of statements:" size(1)
+	w ((1000*size(2))/size(1) < (10 * nr))
 	= "=== R16: Nr of assertions:" size(2)
+	= "=== R16: Nr of statements:" size(1)
 	= "=== R16: the minimum number of assertions is nr% =" ( (nr*size(1))/(100) )
-	r
+	ps create R16
+	ps caption R16 Assertion density
 end
 
 def jpl_rule17
-	# cpp on
 	r
 	m char; m int; m short; m long; m float; m double
+	ps create R17
+	ps caption R17 Use u32, i16, etc instead of predefined C data types such as int, short, etc.
 end
 
 def jpl_rule19a
-	# cpp off		# jpl_rule19a
 	r
 	m /ASSERT \(
 	m /Assert \(
@@ -362,10 +396,11 @@ def jpl_rule19a
 	u
 	c /^[a-zA-Z0-9_]+\(
 	<|1
+	ps create R19a
+	ps caption R19a Do not use side-effects in assertions
 end
 
 def jpl_rule19b
-	# cpp on
 	r
 	m \(			# all conditions
 	b			# token before the (
@@ -381,16 +416,18 @@ def jpl_rule19b
 	u
 	c /^[a-zA-Z0-9_]+\(	# fct calls
 	<|1
+	ps create R19b
+	ps caption R19b Do not use side-effects in conditions
 end
 
 def jpl_rule20a
-	# cpp off		# jpl_rule20a
 	r; m @cpp; m & /if; m no /endif
 	n; unmark /^yy; unmark /^YY; unmark 0; unmark 1
+	ps create R20a
+	ps caption R20a Limit use of the C pre-processor
 end
 
 def jpl_rule20b
-	# cpp off		# jpl_rule20b
 	r
 	%{
 		if (!@cpp || .txt != "#define")
@@ -406,14 +443,14 @@ def jpl_rule20b
 		if (@cmnt)
 		{	. = .nxt;
 		}
-		if (.txt == "EOL")
+		if (.txt == "EOL" || .txt == "EOF")
 		{	Next;
 		}
 		. = .nxt;		# macro body
 		if (@cmnt)
 		{	. = .nxt;
 		}
-		if (.txt == "EOL")	# single token
+		if (.txt == "EOL" || .txt == "EOF")	# single token
 		{	Next;
 		}
 		. = .prv;
@@ -426,41 +463,46 @@ def jpl_rule20b
 			if (@cmnt)
 			{	. = .nxt;
 			}
-			if (.txt == "EOL")
+			if (.txt == "EOL" || .txt == "EOF")
 			{	Next;
 		}	}
 		. = r;
 		.mark = 1;	 # report
 		
 	%}
+	ps create R20b
+	ps caption R20b Macro is not a syntactic unit
 end
 
 def jpl_rule20c
-	# cpp off		# jpl_rule20c
 	r; m @cpp; m & /define[^/]*\#
+	ps create R20c
+	ps caption R20c Use of token pasting or stringification
 end
 
 def jpl_rule21
-	# cpp off		# jpl_rule21
 	r; m @cpp; m & /define
 	m & (.curly>0)
+	ps create R21
+	ps caption R21 Do not define macros within a function or a block
 end
 
 def jpl_rule22
-	# cpp off		# jpl_rule22
 	r; m @cpp; m & /undef
+	ps create R22
+	ps caption R22 Do not undefine or redefine macros
 end
 
 def jpl_rule24
-	# cpp on
 	r
 	m \;
 	st \;
 	m & (.round == 0 && .range == 0)
+	ps create R24
+	ps caption R24 Do not define macros within a function or a block
 end
 
 def jpl_rule25a
-	# cpp on
 	r
 	m @ident \(; n; j; e {; j
 	m & (!.curly)
@@ -484,28 +526,40 @@ def jpl_rule25a
 	n ,		# move to the next
 	st )		# set new range
 	m ir ,		# there are more within this remainder, there are >6
+	ps create R25a
+	ps caption R25a Use short functions with no more than 6 parameters
 end
 
 def jpl_rule25b(nr)	# uses one argument
-	# cpp on
 	r
 	# check fct length < nr lines
 	m @ident \(; n; j; e {; m & (!.curly); n
 	m & (.range > nr)
+	b j b		# fct names
+	ps create R25b
+	ps caption R25b Do not use functions longer than nr lines
+end
+
+def jpl_rule25(nr)
+	jpl_rule25a
+	jpl_rule25b nr
+	ps R25 = R25a + R25b
 end
 
 def jpl_rule26_27
-	# cpp on
 	r; m * *; n; n; m & *
 	>1
 	u; m & @ident; n; m & [
 	<|1
+	ps create R26_27
+	ps caption R26_27 More than the max of two levels of indirection
 end
 
 def jpl_rule28
-	# cpp off		# jpl_rule28
 	r; m typedef
 	st \;
 	c *
 	c no /[Pp]tr
+	ps create R28
+	ps caption R28 Do not hide dereference operations in typedefs
 end

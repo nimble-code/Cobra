@@ -436,6 +436,15 @@ p_comment(const char *s, int cid)
 	char *p;
 	int n, i;
 
+	// avoid overflow on long comments
+	// when comments aren't enabled anyway
+	if (!with_comments)
+	{	do {	n = nextchar(cid);
+		} while (n != '\n' && n != EOF);
+		line(cid);
+		return;
+	}
+
 	assert(cid >= 0 && cid < Ncore);
 	strncpy(Px.lex_yytext, s, MAXYYTEXT);
 	Px.lex_yytext[MAXYYTEXT-1] = '\0';
@@ -465,9 +474,9 @@ p_comment(const char *s, int cid)
 	}
 	strncat(Px.lex_yytext, buf, MAXYYTEXT-1); // was MAXYYTEXT-3, gcc complained
 	Px.lex_yytext[MAXYYTEXT-1] = '\0';
-	if (with_comments)
-	{	show2("cmnt", Px.lex_yytext, cid);
-	}
+
+	show2("cmnt", Px.lex_yytext, cid);
+
 	if (no_cpp)
 	{	Px.lex_lineno++;
 	}

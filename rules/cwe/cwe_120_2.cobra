@@ -1,68 +1,35 @@
 # CWE-120: Buffer Copy without Checking Size of Input ('Classic Buffer Overflow')
 
-r
-%{
-	unset NoWidth;
-	Stop;
-%}
-%{
-	if (.txt == "scanf"
-	||  .txt == "vfscanf"
-	||  .txt == "vscanf"
-	||  .txt == "vprintf")
-	{	. = .nxt;	# (
-		if (.txt != "(") { Next; }
-		. = .nxt;	# "..."
-		if (match(.txt, "/%s"))	# no width specifier or %m
-		{	NoWidth[.fnm, .lnr] = .;
-		}
-		Next;
-	}
-	if (.txt == "sprintf"
-	||  .txt == "vsprintf"
-	||  .txt == "vfprintf"
-	||  .txt == "fscanf"
-	||  .txt == "sscanf"
-	||  .txt == "vfscanf"
-	||  .txt == "vsscanf")
-	{	. = .nxt;	# (
-		if (.txt != "(") { Next; }
-		. = .nxt;	# 1st arg
-		. = .nxt;	# ","
-		. = .nxt;	# 2nd arg
-		if (match(.txt, "/%s"))
-		{	NoWidth[.fnm, .lnr] = .;
-		}
-		Next;
-	}
-	if (.txt == "snprintf"
-	||  .txt == "vsnprintf")
-	{	. = .nxt;	# (
-		if (.txt != "(") { Next; }
-		. = .nxt;	# 1st arg
-		. = .nxt;	# ","
-		. = .nxt;	# 2nd arg
-		. = .nxt;	# ","
-		. = .nxt;	# 3rd arg
-		if (match(.txt, "/%s"))
-		{	NoWidth[.fnm, .lnr] = .;
-		}
-		Next;
-	}
+requires 3.9
 
-%}
-%{
-	sz = size(NoWidth);
-	if (sz > 0)
-	{	lock();
-		print "cwe_120_2: " sz " warnings: printf or scanf  :: missing width limit on %s\n";
-		for (i in Snprintf)
-		{	dot = NoWidth[i.txt];
-			dot.mark = 1;
-			if (verbose || sz < 10)
-			{	print "\t" i.txt ": " dot.txt "\n";
-		}	}
-		unlock();
-	}
-	Stop;
-%}
+quiet on
+. cwe/cwe_120_2.def
+
+cwe_120_2_start
+cwe_120_2_main
+cwe_120_2_wrap
+cwe_120_2_set
+
+ps list CWE_120_2
+
+!rm -f _CWE_120_2_.txt
+track start _CWE_120_2_.txt
+	terse on
+	dp CWE_120_2
+	terse off
+track stop
+
+!rm -f _CWE_120_2_detail.txt
+track start _CWE_120_2_detail.txt
+	r
+	ps convert CWE_120_2
+	= "Printf or scanf missing width limit on %s"
+	p
+track stop
+
+# report
+!if [ -s _CWE_120_2_.txt ] ; then echo "results are in _CWE_120_2_.txt and _CWE_120_2_detail.txt"; fi
+# cleanup
+!if [ -s _CWE_120_2_.txt ] ; then true; else rm -f _CWE_120_2_*.txt; fi
+
+quiet off

@@ -1,0 +1,172 @@
+# CWE-120: Buffer Copy without Checking Size of Input ('Classic Buffer Overflow')
+
+# do a scan where we try to tag every string var with its likely declaration
+# if we can determine a size, eg char s[32] as global, local, or parameter
+# this can then be used in a scan for suspicious strcpy or strncpy calls
+# tokens are marked with .fct scope or "global" but not subscopes
+# looks for declarations of type char []
+
+def cwe_120_3_start
+   r
+   %{
+	w_cnt = 0;
+	unset Var_scope;
+	Stop;
+   %}
+   fcts
+end
+
+def cwe_120_3_main
+   %{	# look for char name[constant]
+	if (.txt != "char")	{ Next; }
+	. = .nxt;
+	if (!@ident)		{ Next; }
+	nmm = .; . = .nxt;
+	if (.txt != "[")	{ Next; }
+	. = .nxt;
+	if (!@const_int)	{ Next; }
+	Var_scope[nmm.txt, .fct] = .;	# remember context
+   %}
+   # use the scope information to check strcpy and strncpy calls
+   m strcpy (
+   %{
+	if (.mark != 1)		# not strncpy, which is bounded
+	{	Next;
+	}
+	.mark = 0;
+
+	fc = .;
+	. = .nxt;	# (
+	. = .nxt;
+	if (!@ident) { Next; }
+	dst = .;
+
+	. = .nxt;	# ,
+	if (.txt != ",") { Next; }
+	. = .nxt;
+	if (!@ident) {	Next; }
+	src = .;
+
+	# src and dst are both string refs - look them up in Var_scope
+	# to see if we know something about their declared sizes
+
+	x = Var_scope[dst.txt, .fct];
+	if (x == 0)
+	{	x = Var_scope[dst.txt, "global"];
+		if (x == 0) { Next; }
+	}
+	dsc = x.txt;	# the array size field of dst
+
+	x = Var_scope[src.txt, .fct];
+	if (x == 0)
+	{	x = Var_scope[src.txt, "global"];
+		if (x == 0) { Next; }
+	}
+	ssc = x.txt;	# the array size field of src
+
+	if (dsc < ssc)
+	{
+src.mark = 120;
+fc.mark = 121;
+		if (terse)
+		{	w_cnt++;
+		} else
+		{ if (verbose)
+		  {	lock();
+			print "cwe_120_3: " .fnm ":" .lnr ": "  fc.txt " :: buffer overrun, ";
+			print dst.txt " is size " dsc ", but " src.txt " is size " ssc "\n";
+			unlock();
+	}	} }
+   %}
+   m strncpy (
+   %{
+	if (.mark != 1)		# check bounds
+	{	Next;
+	}
+	.mark = 0;
+
+	fc = .;
+	. = .nxt;	# (
+	. = .nxt;	# ident
+	if (!@ident) { Next; }
+	dst = .;
+
+	. = .nxt;	# ,
+	if (.txt != ",") { Next; }
+	. = .nxt;
+	if (!@ident) { Next; }
+	src = .;
+	while (.txt != ",")
+	{	. = .nxt;
+	}
+	if (.txt != ",") { Next; }
+	. = .nxt;
+	if (!@const_int) { Next; }
+	bnd = .txt;
+
+	x = Var_scope[dst.txt, .fct];	# do we know something about dst?
+	if (x == 0)
+	{	x = Var_scope[dst.txt, "global"];
+		if (x == 0) { Next; }
+	}
+	dsc = x.txt;	# the array size field of dst
+	if (dsc < bnd)
+	{
+src.mark = 122;
+fc.mark = 123;
+		if (terse)
+		{	w_cnt++;
+		} else
+		{ if (verbose)
+		  {	lock();
+			print "cwe_120_3: " .fnm ":" .lnr ": "  fc.txt " :: buffer overrun, ";
+			print dst.txt " is size " dsc ", but the 3rd arg is " bnd "\n";
+			unlock();
+	}	} }
+
+	x = Var_scope[src.txt, .fct];
+	if (x == 0)
+	{	x = Var_scope[src.txt, "global"];
+		if (x == 0) { Next; }
+	}
+	ssc = x.txt;	# the array size field of src
+
+	if (bnd > ssc)
+	{
+src.mark = 124;
+fc.mark = 125;
+		if (terse)
+		{	w_cnt++;
+		} else
+		{ if (verbose)
+		  {	lock();
+			print "cwe_120_3: " .fnm ":" .lnr ": "  fc.txt " :: buffer overrun, ";
+			print src.txt " is size " ssc ", but the 3rd arg is " bnd "\n";
+			unlock();
+	}	} }
+   %}
+end
+
+def cwe_120_3_wrap
+   %{
+#	if (terse && w_cnt > 0)
+#	{	lock();
+#		print "cwe_120_3: " w_cnt " warnings: potential buffer overrun\n";
+#		unlock();
+#	}
+	unset Var_scope;
+	w_cnt = 0;
+	Stop;
+   %}
+end
+
+def cwe_120_3_set
+   %{
+	if (.mark != 0)
+	{	.mark = 1;
+	#	print .fnm ":" .lnr ": " .txt " " .mark "\n";
+	}
+   %}
+	ps create CWE_120_3
+	ps caption CWE_120_3 Potential buffer overrun
+end

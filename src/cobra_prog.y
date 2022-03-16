@@ -111,7 +111,7 @@ static Var_nm	*check_var(const char *, const int);
 #endif
 
 static Lextok	*add_return(Lextok *);
-static void	check_cmnt(Lextok *);
+//static void	check_cmnt(Lextok *);
 static void	handle_global(Lextok *);
 static void	add_fct(Lextok *);
 static void	fixstr(Lextok *);
@@ -337,7 +337,7 @@ expr	:'(' expr ')'		{ $$ = $2; }
 	| RE_MATCH '(' p_lhs ',' STRING ')' { $1->lft = $3; $1->rgt = $5; $$ = $1; }
 	| RE_MATCH '(' STRING ')' { $1->lft = 0; $1->rgt = $3; $$ = $1; }
 	| NAME '(' actuals ')'  { $$ = new_lex(CALL, $1, $3); }
-	| '@' NAME		{ $1->rgt = $2; $$ = $1; check_cmnt($2); }
+	| '@' NAME		{ $1->rgt = $2; $$ = $1; /* check_cmnt($2); */ }
 	| '@' TYP		{ $1->rgt = $2; $$ = $1; }
 	| '#' NAME		{ $1->rgt = $2; $$ = $1; }
 	| b_name '@' expr	{ $1->core = $3; $$ = $1; /* qualified name */ }
@@ -511,6 +511,10 @@ hash2(const char *s)
 	}
 }
 
+#if 0
+// -comments is off by default
+// meaning we don't need to skip over them
+// if enabled, the checks take effect
 static void
 check_cmnt(Lextok *p)
 {	static int warned = 0;
@@ -520,9 +524,10 @@ check_cmnt(Lextok *p)
 	&& with_comments == 0
 	&& !warned)
 	{	warned = 1;
-		fprintf(stderr, "error: @cmnt requires commandline option -comments\n");
+		fprintf(stderr, "warning: @cmnt requires commandline option -comments\n");
 	}
 }
+#endif
 
 static Lextok *
 add_return(Lextok *p)
@@ -2643,7 +2648,7 @@ set_pre(Prim **ref_p, Lextok *t, int ix, int txt)
 
 
 static int
-re_matches(Prim **ref_p, Lextok *t, int ix)
+re_matches(Prim **ref_p, Lextok *t, int cid)
 {	char *v;
 	char *s = t->rgt->s;
 	int isre = 0;
@@ -2661,9 +2666,9 @@ re_matches(Prim **ref_p, Lextok *t, int ix)
 		istxt = 0;
 	}
 
-	do_lock(ix);
+	do_lock(cid);
 
-	v = set_pre(ref_p, t, ix, istxt);
+	v = set_pre(ref_p, t, cid, istxt);
 	if (isre)
 	{	rv = prog_regmatch(v, s);
 	} else
@@ -2674,7 +2679,7 @@ re_matches(Prim **ref_p, Lextok *t, int ix)
 		{	rv = (strcmp(v, s) == 0);
 	}	}
 
-	do_unlock(ix);
+	do_unlock(cid);
 
 	return rv;
 }
@@ -3211,13 +3216,15 @@ next:
 			u = handle_arg(ref_p, q->rgt->rgt, rv, ix); // upto
 
 			if (f && u)
-			{	printf("%s_pattern to set '%s' from %s:%d upto %s:%d\n",
-					(q->typ == ADD_PATTERN) ? "add" : "del",
-					q->lft->s, f->fnm, f->lnr, u->fnm, u->lnr);
+			{	if (verbose)
+				{	printf("%s_pattern to set '%s' from %s:%d upto %s:%d\n",
+						(q->typ == ADD_PATTERN) ? "add" : "del",
+						q->lft->s, f->fnm, f->lnr, u->fnm, u->lnr);
+				}
 				if (q->typ == ADD_PATTERN)
-				{	add_pattern(q->lft->s, 0, f, u);
+				{	add_pattern(q->lft->s, 0, f, u, ix);
 				} else
-				{	del_pattern(q->lft->s, f, u);
+				{	del_pattern(q->lft->s, f, u, ix);
 			}	}
 			break;
 		}

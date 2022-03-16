@@ -1,0 +1,142 @@
+# CWE-119_1: Improper Restriction of Operations within the Bounds of a Memory Buffer
+# pattern 1: multiple array index increments in loop, without bounds checking
+
+requires 3.9
+
+def cwe_119_1_start
+	r
+	%{
+		w_cnt = 0;
+		l_cnt = 0;
+		unset Files;
+		unset IndexVar;
+		unset Modified;
+		lastfnm = .;
+		Stop;
+	%}
+	m while (
+	m for (
+	n; j
+	m do; n
+	m & {
+end
+
+def cwe_119_1_main
+	%{
+		if (.mark == 0) { Next; }
+		.mark = 0;
+	
+		# loop-body
+		sol = .;	# start of loop
+		eol = .jmp;	# end of loop
+		. = .nxt;
+		while (.seq < eol.seq)
+		{	if (.txt == "[")
+			{	eob = .jmp;	# end of index
+				. = .nxt;
+				while (.seq < eob.seq)	# remember vars used in array index
+				{	if (@ident)
+					{	IndexVar[.txt] = .;
+				# less common, omit for now
+				#		t = .;
+				#		. = .prv; if (.txt == "++" || .txt == "--") { Modified[t.txt]++; } . = .nxt;
+				#		. = .nxt; if (.txt == "++" || .txt == "--") { Modified[t.txt]++; } . = .prv;
+					}
+					. = .nxt;
+				}
+				# now at closing bracket ]
+			} else
+			{	if (@ident)
+				{	. = .prv;
+					if (.txt == "->" || .txt == "*" || @type)
+					{	. = .nxt;
+					} else
+					{	if (.txt == "++"
+						||  .txt == "--")
+						{	. = .nxt;
+							Modified[.txt]++;
+						} else
+						{	. = .nxt;
+						}
+						. = .nxt;
+						if (.txt == "++"
+						||  .txt == "--")	# could add =, if v als appears on rhs
+						{	. = .prv;
+							Modified[.txt]++;
+						} else
+						{	. = .prv;
+			}	}	}	}
+			. = .nxt;
+		}
+	
+		. = sol.nxt;
+		while (.seq < eol.seq)
+		{
+			if (.round > 0 && @ident && Modified[.txt] > 1 && .bracket == 0)
+			{	Modified[.txt] = 0;
+				# in round braces, tested in a conditional
+				# or in control part of for loop
+			}
+			. = .nxt;
+		}
+	
+		if (lastfnm.fnm != .fnm)
+		{	l_cnt = 0;
+			lastfnm = .;
+		}
+	
+		# at the end of each loop
+		for ( i in IndexVar )
+		{	if (Modified[i.txt] > 1)	# modified more than once and never tested
+			{	.mark = 1;
+				if (terse)
+				{	w_cnt++;
+					l_cnt++;
+					if (verbose || w_cnt < 10)
+					{	Files[.fnm] = l_cnt;
+					}
+			#	} else
+			#	{	x = IndexVar[i.txt];
+			#		lock();
+			#		print x.fnm ":" x.lnr ": cwe_119_1: " ;
+			#		print "array-index variable '" i.txt "' modified multiple times in loop ";
+			#		print sol.lnr "-" eol.lnr "\n";
+			#		unlock();
+				}
+				unset Modified[i.txt];
+		}	}
+	
+		. = sol;
+		unset IndexVar;		# keep arrays small
+		unset Modified;
+	%}
+end
+
+def cwe_119_1_wrap
+	%{
+		if (terse && w_cnt > 0)
+		{	lock();
+			print "cwe_119_1: " w_cnt " warnings: ";
+			print "array-index variable modified multiple times in loop\n";
+			if (verbose || w_cnt < 10)
+			{	for (a in Files)
+				{	print "\t" a.txt ": " Files[a.txt] " warnings\n";
+			}	}
+			unlock();
+		}
+		Stop;
+	%}
+end
+
+def cwe_119_1_set
+	%{
+		w_cnt = 0;
+		l_cnt = 0;
+		unset Files;
+		unset IndexVar;
+		unset Modified;
+		Stop;
+	%}
+	ps create CWE_119_1
+	ps caption CWE_119_1 Array-index variable modified multiple times in loop
+end
