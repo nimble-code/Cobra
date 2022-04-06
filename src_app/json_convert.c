@@ -50,7 +50,7 @@ rules(void)
 		printf("                  \"text\": \"%s\"\n", m->msg);
 		printf("                }\n");
 		printf("              }\n");
-		printf("            }%s\n", w->nxt?",":"");
+		printf("            }%s\n", w->nxt || m->nxt?",":"");
 	}
 }
 
@@ -61,10 +61,10 @@ results(void)
 	int cnt = 0;
 
 	for (w = reports; w; w = w->nxt)
-	for (m = w->r; m; m = m->nxt)
+	for (m = w->r; m; m = m->nxt, ++cnt)
 	{	printf("        {\n");
-		printf("          \"ruleId\": \"R%d\",\n", cnt++);
-		printf("          \"ruleIndex\": 0,\n");
+		printf("          \"ruleId\": \"R%d\",\n", cnt);
+		printf("          \"ruleIndex\": %d,\n", cnt);
 		printf("          \"message\": {\n");
 		printf("            \"id\": \"default\",\n");
 		printf("            \"arguments\": [ \"%s\" ]\n", "");
@@ -73,7 +73,7 @@ results(void)
 		printf("            {\n");
 		printf("              \"physicalLocation\": {\n");
 		printf("                \"artifactLocation\": {\n");
-		printf("                  \"uri\": \"%s\",\n", m->fnm);
+		printf("                  \"uri\": \"%s\"\n", m->fnm);
 	//	printf("                  \"uriBaseId\": \"SRCROOT\",\n");
 	//	printf("                  \"index\": 0\n");
 		printf("                },\n");
@@ -88,7 +88,7 @@ results(void)
 	//	printf("              ]\n");
 		printf("            }\n");
 		printf("          ]\n");
-		printf("        }%s\n", w->nxt?",":"");
+		printf("        }%s\n", w->nxt || m->nxt?",":"");
 	}
 }
 
@@ -121,11 +121,14 @@ reformat(const int mode)
 
 		printf("{\n");
 		printf("  \"version\": \"2.1.0\",\n");
+		printf("  \"$schema\": \"http://json.schemastore.org/sarif-2.1.0-rtm.5\",\n");
 		printf("  \"runs\": [\n");
 		printf("   {\n");
 		printf("    \"tool\": {\n");
 		printf("      \"driver\": {\n");
 		printf("        \"name\": \"Cobra\",\n");
+		printf("        \"version\": \"3.9\",\n");
+		printf("        \"informationUri\": \"https://github.com/nimble-code/Cobra\",\n");
 		printf("        \"rules\": [\n");
 			rules();
 		printf("        ]\n");
