@@ -16,8 +16,8 @@ P10_8
 P10_9
 
 ps list
-!rm -f _P10.txt
-track start _P10.txt
+!rm -f _P10_.txt
+track start _P10_.txt
 	terse on
 	dp P10_1
 	dp P10_2
@@ -32,8 +32,8 @@ track start _P10.txt
 track stop
 
 # report
-!if [ -s _P10.txt ] ; then echo "detailed results are in file _P10.txt"; fi
+!if [ -s _P10_.txt ] ; then echo "detailed results are in file _P10_.txt"; fi
 # cleanup
-!if [ -s _P10.txt ] ; then true; else rm -f _P10.txt; fi
+!if [ -s _P10_.txt ] ; then true; else rm -f _P10_.txt; fi
 
 quiet off
