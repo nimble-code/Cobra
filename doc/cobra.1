@@ -134,6 +134,7 @@ Implies \f3\-quiet\f1.
 .BI "-F \f2file_list\f1"
 Read files to process from a file named \f2file_list\f1 instead of
 from command arguments.
+.br
 So the following three alternatives have the same effect
 (assuming for this example that there are no additional .[ch] files in subdirectories):
 .br
@@ -148,6 +149,13 @@ $ cobra -recursive '*.[ch]'
 .in -5
 .br
 See also -recursive.
+.br
+Optionally, starting with Cobra version 3.10, the filenames in the
+\f2file_list\f1 textfile can be preceded with compiler directives
+that should be used when the file is preprocessed (see \fBx_make\f1).
+The compiler directives must be -I, -D, or -U directives only.
+Lines in the \f2file_list\f1 textfile that start with a pound sign (#)
+are treated as comments and skipped.
 
 .\" .TP
 .\" .B \-g
@@ -623,7 +631,7 @@ files are not automatically removed when \*C exits.
 Gerard Holzmann, gholzmann@acm.org
 .sp
 .SH SEE ALSO
-\fBcwe\f1
+\fBcwe\f1, \fBfind_taint\f1, \fBjson_convert\f1, \fBx_make\f1.
 .sp
 Online manual pages and tutorials with more detail,
 reference materials, and examples:

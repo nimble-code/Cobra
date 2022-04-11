@@ -510,6 +510,40 @@ def m97_rule70
 	ps caption M97_R70 (Required) Functions shall not call themselves, either directly or indirectly
 end
 
+def m97_rule73
+	r
+	pe  [@type *] @ident <1> ( .* ) \; @1 (.curly == 0)
+	m & (
+	m & (.round == 0)
+	>1
+	c @ident ,	# param list contains at least one @ident
+	%{
+		if (.mark)
+		{	p = .;	# move to end of param list
+			while (p.round > 0)
+			{	p.mark = 0;
+				p = p.nxt;
+			}
+			p = p.nxt;
+			z = p;
+			while (p != .)
+			{	if ((p.txt == ","
+				&&   p.round == 1)
+				||  (p.txt == ")"
+				&&   p.round == 0))
+				{	q = p.prv;
+					if (q.typ != "ident")
+					{	q.mark = 1;
+				}	}
+				p = p.prv;
+			}
+			. = z;
+		}
+	%}
+	ps create M97_R73
+	ps caption M97_R73 (Required) Identifiers shall either be given for all of the parameters in a fct prototype declaration, or for none
+end
+
 def m97_rule75
 	r; m @ident \(; m & (!.curly); n; j; n; m & {; b; j; b; b; m & /[\;}]
 	ps create M97_R75

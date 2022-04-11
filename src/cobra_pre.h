@@ -85,11 +85,13 @@ extern Pre	*pre;
 extern void	line(int);
 extern void	par_scan(void);
 extern void	process_line(char *, int);
-extern void	rem_file(const char *);
+extern void	rem_file(char *, int);
 extern void	clr_files(void);
 
-extern char	*anypp(void);
-extern char	*get_file(void);
+extern char	*get_file(int);
+extern char	*strip_directives(char *, int);
+extern char	*get_preproc(int);
+extern void	 set_preproc(char *, int);
 extern Files	*seenbefore(const char *, int);
 
 #endif

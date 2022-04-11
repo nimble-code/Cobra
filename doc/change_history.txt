@@ -322,3 +322,13 @@ new in december 30, 2021
    - improved reporting of bound variable matches
    - similarly, fixed a buffer size issue in check_args()
    - other small updates and fixes
+
+3.9 april 11, 2022
+   - intermediate update to fix assertion error, and to add
+     preliminary support for a new gui for cobra (icobra) that
+     is in development
+   - this version also supports defining file-specific compiler
+     directives when a file-list is provided with the -F argument
+     the new tool xmake (in the bin_... directories) extracts
+     the right format from a makefile -- new manpages added
+   - other minor fixes

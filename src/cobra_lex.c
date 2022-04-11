@@ -394,7 +394,7 @@ setlineno(const char *s, int cid)
 	}
 	if (strcmp(Px.lex_fname, b) != 0)
 	{	check_recall(cid);
-		Px.lex_fname = (char *) hmalloc(n+1, cid, 118);	// XXX setlineno
+		Px.lex_fname = (char *) hmalloc(n+1, cid, 118);	// setlineno
 		strcpy(Px.lex_fname, b);
 		if (seenbefore(b, 0))
 		{	Px.lex_dontcare = 1;

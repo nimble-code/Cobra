@@ -633,7 +633,13 @@ do_markups(const char *setname)
 						b->bdef?b->bdef->lnr:0);
 	}	}	}	}
 
-	if (!json_format && !no_match && !no_display)
+	if (gui)
+	{	if (strlen(setname) == 0)
+		{	printf("%d matches\n", p);
+		} else
+		{	printf("%d matches stored in %s\n", p, setname); // do_markups
+		}
+	} else if (!json_format && !no_match && !no_display)
 	{	if (strlen(setname) == 0)
 		{	printf("%d patterns\n", p);
 		}
@@ -674,7 +680,7 @@ matches2marks(int doclear)
 	{	clear_matches();
 	}
 	if (verbose
-	|| (!json_format && !no_match && !no_display))
+	|| (!json_format && !no_match && !no_display && !gui))
 	{	printf("%d token%s marked\n", loc_cnt, (loc_cnt==1)?"":"s");
 	}
 

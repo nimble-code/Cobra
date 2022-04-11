@@ -149,6 +149,8 @@ static PrimStack *prim_free;
 static int	current;
 static int	nr_states;
 static int	nrtok = 1;
+static int	opened;		// opened json object
+static int	closed;		// closed json object
 static int	Seq   = 1;
 static int	ncalls;
 static int	nerrors;
@@ -1854,12 +1856,15 @@ patterns_create(void)		// convert marks to pattern matchess in SetName
 	}
 	matches = om;	// restore
 
-	if (verbose
-	||  (!json_format
-	 &&  !no_match
-	 &&  !no_display))
-	{	printf("%d marks -> %d patterns stored in %s\n", m_cnt, p_cnt, SetName);
-	}
+	if (gui)
+	{	printf("%d matches stored in %s (patterns_create)\n", p_cnt, SetName);
+	} else
+	{	if (verbose
+		||  (!json_format
+		 &&  !no_match
+		 &&  !no_display))
+		{	printf("%d marks -> %d patterns stored in %s\n", m_cnt, p_cnt, SetName);
+	}	}
 }
 
 void
@@ -1903,13 +1908,19 @@ patterns_show(Named *q, int cnt)
 	for (r = q->m; r; r = r->nxt)
 	{	sz++;
 	}
-	if (cnt >= 0)
-	{	fprintf(fd, "%3d: ", cnt);
+	if (!gui)
+	{	if (cnt >= 0)
+		{	fprintf(fd, "%3d: ", cnt);
+		}
+		fprintf(fd, "%s, %d patterns", q->nm, sz);
 	}
-	fprintf(fd, "%s, %d patterns", q->nm, sz);
 	if (q->msg && strlen(q->msg) > 0)
-	{	fprintf(fd, " :: %s", q->msg);
-	}
+	{	if (gui)
+		{	fprintf(fd, "%d title %s = %s",
+				cnt, q->nm, q->msg);
+		} else
+		{	fprintf(fd, " :: %s", q->msg);
+	}	}
 	fprintf(fd, "\n");
 }
 
@@ -2002,7 +2013,10 @@ preserve_matches(int n)
 	if (strlen(SetName) > 0 && p > 0)
 	{	new_named_set(SetName);		// preserve_matches end of pe
 		matches = (Match *) 0;
-		if (!json_format && !no_match && !no_display)
+		if (gui)
+		{	// printf("%d matches stored in %s (preserve_matches)\n", p, SetName);
+			// do_markups already reported the matches
+		} else if (!json_format && !no_match && !no_display)
 		{	printf("%d patterns stored in set '%s'\n", p, SetName);
 		}
 		return p;	// dont convert patterns to marks
@@ -2052,7 +2066,6 @@ pattern_matched(Named *curset, int which, int N, int M)
 	int r, n = 0, p = 0, a, b;
 	FILE *fd = track_fd?track_fd:stdout;
 	char *t;
-	int opened = 0;
 
 	for (m = matches; m; m = m->nxt)
 	{	if (!m->from
@@ -2112,12 +2125,22 @@ pattern_matched(Named *curset, int which, int N, int M)
 			t = curset->msg?curset->msg:curset->nm;
 			if (!opened)
 			{	fprintf(fd, "[\n");
-				opened++;
+				opened = 1;
+				closed = 0;
+			} else if (closed)
+			{	fprintf(fd, ",[\n"); // add separator
+				opened = 1;
+				closed = 0;
 			}
 			json_match(t, json_msg, m->from, m->upto);
 		} else
 		{	if (p == 1 && curset->msg)
-			{	fprintf(fd, "%s:\n", curset->msg);
+			{	fprintf(fd, "%s=== %s ===\n",
+					gui?"\n":"",
+					curset->msg);
+			}
+			if (p > 1)
+			{	fprintf(fd, "\n");
 			}
 			fprintf(fd, "%d: %s:%d..%d", p,
 				m->from?m->from->fnm : "?",
@@ -2125,8 +2148,6 @@ pattern_matched(Named *curset, int which, int N, int M)
 				m->upto?m->upto->lnr:0);
 			if (r > 0)
 			{	fprintf(fd, " (%d lines)\n", r);
-			} else
-			{	fprintf(fd, "\n");
 			}
 	
 			if (m->bind)
@@ -2156,24 +2177,51 @@ pattern_matched(Named *curset, int which, int N, int M)
 					fprintf(fd, ", :%s (ln %d)",
 						q->ref->txt, q->ref->lnr);
 			}	}
-	
 			fprintf(fd, "\n");
-	
+
 			a = m->from->lnr;
 			b = m->upto->lnr;
 			if (no_display && r > 5)	// terse mode
-			{	show_line(fd, m->from->fnm, 0, a, a+1, 0);
-				fprintf(fd, " ...\n");
-				show_line(fd, m->from->fnm, 0, b-1, b, 0);
+			{	if (gui)
+				{	show_line(fd, m->from->fnm, 0, a, a+2, 0);
+					fprintf(fd, " ...\n");
+					show_line(fd, m->from->fnm, 0, b-2, b, 0);
+				} else
+				{	show_line(fd, m->from->fnm, 0, a, a+1, 0);
+					fprintf(fd, " ...\n");
+					show_line(fd, m->from->fnm, 0, b-1, b, 0);
+				}
 			} else
-			{	show_line(fd, m->from->fnm, 0, a, b, 0);
-		}	}
+			{	if (r == 0 && gui)
+				{	int omark;
+
+					cur = m->from;
+					omark = cur->mark;
+					cur->mark = 1;
+
+					switch (display_mode) {
+					case 1: // tok
+						list("0", "");
+						break;
+					case 3: // pre
+						reproduce(n, "0");
+						break;
+					case 2: // src
+					default:
+						show_line(fd, m->from->fnm, 0, a-5, a+5, a);
+						break;
+					}
+					m->from->mark = omark; // cur can change
+				} else
+				{	show_line(fd, m->from->fnm, 0, a, b, 0);
+		}	}	}
 	}
 	if (opened)
 	{	fprintf(fd, "]\n");
+		closed = 1;
 	}
-	if (!no_display)
-	{	fprintf(fd, "%d pattern%s\n", p, p!=1?"s":"");
+	if (!gui && !no_display)
+	{	fprintf(fd, "\n%d pattern%s\n", p, p!=1?"s":"");
 	}
 }
 
@@ -3488,8 +3536,7 @@ cobra_te(char *te, int and, int inv)	// fct is too long...
 		rx = 0;
 	} else if (stream <= 0)	// not streaming
 	{	if (preserve_matches(0) > 0)
-		{
-			if (json_format)
+		{	if (json_format)
 			{	json(te);	// te reporting, not streaming
 			} else
 			{
@@ -3503,6 +3550,7 @@ cobra_te(char *te, int and, int inv)	// fct is too long...
 		{	if (json_format)
 			{	if (nr_json > 0)
 				{	printf("]\n");
+					closed = 1;
 				}
 			} else if (!no_display && !no_match)
 			{	printf("0 patterns matched\n");
@@ -3511,6 +3559,7 @@ cobra_te(char *te, int and, int inv)	// fct is too long...
 	{	if (json_format)
 		{	if (nr_json > 0)
 			{	printf("]\n");
+				closed = 1;
 			}
 		} else if (!no_display && !no_match)
 		{	printf("%d pattern%s matched\n",

@@ -7,7 +7,7 @@
 #ifndef COBRA_FE
 #define COBRA_FE
 
-#define tool_version	"Version 3.9 - 16 March 2022"
+#define tool_version	"Version 3.9 - 11 April 2022"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -67,6 +67,7 @@ struct Bound {
 struct Files {
 	int	 imbalance;
 	char	*s;
+	char	*pp;	// optional file-specific preprocessing directives
 	Prim	*first_token;
 	Prim	*last_token;
 	Files	*nxt;

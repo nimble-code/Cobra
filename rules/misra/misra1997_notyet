@@ -68,9 +68,6 @@
 !echo "Rule 72 (Required) For each function parameter the type given in the declaration and definition shall be identical, and the return types shall also be identical."
 # compiler checks?
 
-!echo "Rule 73 (Required) Identifiers shall either be given for all of the parameters in a function prototype declaration, or for none."
-# XXX add check
-
 !echo "Rule 74 (Required) If identifiers are given for any of the parameters, then the identifiers used in the declaration and definition shall be identical."
 # XXX add check
 

@@ -190,7 +190,7 @@ check_args(char *s, const char *c_base)	// single-core
 		if (no_display)
 		{	n += strlen(" -terse ");
 		}
-		n += strlen(anypp());	// new 12/2019
+		n += strlen(get_preproc(0));	// single-core
 		// should also check java/C++,python etc.
 	}
 
@@ -216,7 +216,7 @@ check_args(char *s, const char *c_base)	// single-core
 
 		if (q)
 		{	if (!no_cpp)
-			{	char *x = anypp();
+			{	char *x = get_preproc(0); // single-core
 				strcat(c, " -cpp ");
 				assert(strlen(c)+strlen(x) < n);
 				strcat(c, x);
@@ -663,8 +663,11 @@ void
 remember(const char *s, int imbalance, int cid)
 {	Files *r;
 	int n = fhash(s)&(NHASH-1);
+	char *op;
 
 	assert(cid >= 0 && cid < Ncore);
+
+	op = get_preproc(cid);
 
 	for (r = Px.lex_files[n]; r; r = r->nxt)
 	{	if (strcmp(r->s, s) == 0)
@@ -674,6 +677,8 @@ remember(const char *s, int imbalance, int cid)
 	r    = (Files *) hmalloc(sizeof(Files), cid, 130);
 	r->s =  (char *) hmalloc(strlen(s)+1, cid, 130);
 	strcpy(r->s, s);
+	r->pp = (char *) hmalloc(strlen(op)+1, cid, 130);
+	strcpy(r->pp, op);
 	r->last_token = Px.lex_plst;
 	r->imbalance = imbalance;
 	if (Px.lex_last)
@@ -771,9 +776,9 @@ process_line(char *buf, int cid)
 void
 rescan(void)
 {	int n;
+	char *op = get_preproc(0); // rescan
 #ifdef PC
 	// cygwin crashes on multi-core calls to gcc
-
 	Files *f;
 	extern void do_typedefs(int);
 	ini_pre(0);
@@ -782,7 +787,11 @@ rescan(void)
 	{	if (!no_match && verbose)
 		{	fprintf(stderr, "rescan '%s'\n", f->s);
 		}
+		if (f->pp && strlen(f->pp) > 1)
+		{	set_preproc(f->pp, 0);	// single-core
+		}
 		(void) add_file(f->s, 0, 1);
+		set_preproc(op, 0);		 // restore
 	}
 	do_typedefs(0);
 #else
@@ -793,6 +802,7 @@ rescan(void)
 	reset_fp();
 	par_scan();
 	clr_files();
+	set_preproc(op, 0);
 #endif
 	post_process(1);
 }
@@ -812,28 +822,41 @@ prep_pre(void)
 }
 
 void
-rem_file(const char *s)
+rem_file(char *s, int cid)
 {	Files *r;
+	char *fn;
+	char *op = get_preproc(cid);	// rem_file
+
+	fn = strip_directives(s, cid);	// can modify preproc
 
 	r = (Files *) emalloc(sizeof(Files), 72);
-	r->s = (char *) s;	// comes from argv
+	r->s = (char *) fn;
+	r->pp = get_preproc(cid);
 	r->nxt = files[0];
 	files[0] = r;
+
+	set_preproc(op, cid);		// restore
 }
 
 char *
-get_file(void)
+get_file(int cid)
 {
 	if (!frr || !frr->nxt)
 	{	while (++nfh < NHASH)
 		{	frr = files[nfh];
 			if (frr)
-			{	return frr->s;
+			{	if (frr->pp && strlen(frr->pp) > 1)
+				{	set_preproc(frr->pp, cid);
+				}
+				return frr->s;
 		}	}
 		return (char *) 0;
 	}
 	if (frr->nxt)
 	{	frr = frr->nxt;
+		if (frr->pp && strlen(frr->pp) > 1)
+		{	set_preproc(frr->pp, cid);
+		}
 		return frr->s;
 	}
 	return (char *) 0;

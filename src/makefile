@@ -30,8 +30,8 @@ CC?=gcc
 CFLAGS=-I. -Wall ${F} -pedantic -Werror -Wshadow -std=c99 -DYY_NO_INPUT
 
 # adding -DPC uses "dotty" instead of "dot -Tx11" for dot displays
-# and adjusts the memory allocator to be more PC friendly
-# -DPC is automatically defined on Windows/Cygwin builds
+# adjusts the memory allocator to be more PC friendly
+# and sidesteps a cygwin bug that prevents gcc from being called in multicore mode
 
 .PHONY:	linux cygwin mac install clean man
 

@@ -1,0 +1,64 @@
+.ds X X_make
+.\" nroff -man x_make.1
+.\" place in (depending on your system):
+.\"    /usr/local/man/man1
+.\" or /usr/man/man1
+.\" or /usr/share/man/man1
+.TH X_MAKE 1
+.SH NAME
+x_make \- extract compiler directives and file targets for Cobra from a makefile
+.SH SYNOPSIS
+.br
+.B x_make
+.SH DESCRIPTION
+\*X looks for a makefile in the current directory, and if found it
+will look at the output of a \fBmake -n -B\f1 command to see which
+files are compiled and what compiler directives used in that compilation
+can be relevant to a Cobra analysis. Generally that will only be
+directives -I, -D, or -U.
+<br>
+\*X then prints each filename, preceded by the relevant directives,
+on the standard output.  The result can be saved in a file which can
+then be used to initialize a Cobra session with the \fB-F\f1 command.
+<br>
+The directives will only be relevant if preprocessing is enabled
+in the Cobra session, either at startup or subsequently with a "cpp on"
+command.
+
+.SH EXAMPLES
+.br
+$ x_make > TargetFiles
+.br
+$ cobra -cpp -F TargetFiles
+.br
+1 core, 22 files, 150773 tokens
+.br
+: ...
+.br
+: q
+.br
+$
+.br
+$ cobra -F TargetFiles
+.br
+1 core, 15 files, 133588 tokens
+.br
+: cpp on
+.br
+preprocessing: enabled
+.br
+1 core, 22 files, 150773 tokens
+.br
+: ...
+.br
+: q
+.br
+$
+.br
+.sp
+.SH AUTHOR
+Gerard Holzmann, gholzmann@acm.org
+.sp
+.SH SEE ALSO
+\fBcobra\f1, \fBcwe\f1, \fBfind_taint\f1, \fBjson_convert\f1.
+.br

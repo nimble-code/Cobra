@@ -63,8 +63,8 @@ TokRange  **tokrange;
 static Pass	*pass_arg;
 static char	*CPP       = "gcc";
 static char	*lang      = "c";
-static char	*preproc   = "";
 static char	*file_list;	// file with filenames to process
+static char	**Preproc;
 static int	 handle_typedefs = 1;
 static char	*recursive;	// use find to populate file_list
 static char	*seedfile;
@@ -72,6 +72,7 @@ static int	 textmode;
 static char	 tmpf[32];
 static int	 with_qual = 1;
 static int	 with_type = 1;
+static int	 N_max = 128;
 
 extern Prim	*prim, *plst;
 extern int	 json_plus;
@@ -104,15 +105,18 @@ process(int cid)
 static void
 add_preproc(const char *s)	// before parsing
 {
-	if (strlen(preproc) == 0)
-	{	preproc = (char *) emalloc(strlen(s) + 1, 16);
-		strcpy(preproc, s);
+	// initial add is to Preproc[0], which is
+	// later copied to the other elements
+
+	if (strlen(Preproc[0]) == 0)
+	{	Preproc[0] = (char *) emalloc(strlen(s) + 1, 16);
+		strcpy(Preproc[0], s);
 		no_cpp = 0;
 	} else
-	{	char *op = preproc; // emalloc uses sbrk
+	{	char *op = Preproc[0]; // emalloc uses sbrk
 		int    n = strlen(op) + strlen(s) + 2;
-		preproc = emalloc(n*sizeof(char), 17);
-		snprintf(preproc, n, "%s %s", op, s);
+		Preproc[0] = emalloc(n*sizeof(char), 17);
+		snprintf(Preproc[0], n, "%s %s", op, s);
 	}
 }
 
@@ -155,7 +159,7 @@ add_file(char *f, int cid, int slno)
 	char tfn[32];
 	int imbalance;
 	int lncnt = 0;
-
+	// printf("%d: Add file '%s' preproc '%s'\n", cid, f, preproc);
 	assert(cid >= 0 && cid < Ncore);
 	Px.lex_lineno = slno;
 	Px.lex_fname  = f;
@@ -216,10 +220,11 @@ add_file(char *f, int cid, int slno)
 		int   n;
 
 		set_tmpname(fnm, "af2", sizeof(fnm));
+		assert(cid < N_max);
 
 		n = strlen(CPP)
 			    + strlen(" ")
-			    + strlen(preproc)
+			    + strlen(Preproc[cid])
 			    + strlen(" -w -E -x c ")	// suppress warnings
 			    + strlen(f)
 			    + strlen(" > ")
@@ -228,7 +233,7 @@ add_file(char *f, int cid, int slno)
 
 		buf = (char *) hmalloc(n, cid, 124);
 		snprintf(buf, n, "%s %s -w -E -x %s %s > %s",
-			    CPP, preproc, lang, f, fnm);
+			    CPP, Preproc[cid], lang, f, fnm);
 
 		if (verbose == 1)
 		{	printf("%s\n", buf);
@@ -241,13 +246,11 @@ add_file(char *f, int cid, int slno)
 			return 0;
 		}
 		efree(buf);
-
 		if ((Px.lex_yyin = open(fnm, O_RDONLY)) < 0)
 		{	fprintf(stderr, "cannot open '%s'\n", fnm);
 			unlink(fnm);
 			return 0;
-		}
-	}
+	}	}
 
 	imbalance = process(cid);
 	assert(Px.lex_pcnt == 0);
@@ -276,6 +279,15 @@ set_ranges(Prim *a, Prim *b)
 	int i, j, span = count/Ncore;
 	Prim *x;
 
+	if (!a || !b)
+	{	if (verbose)
+		{	fprintf(stderr, "set_ranges: %p -> %p\n",
+				(void *) a, (void *) b);
+		}
+		return;
+	}
+
+	// printf("set_ranges %d -> %d count %d span %d\n", a->seq, b->seq, count, span);
 	if (verbose == 1 && count == 0)
 	{	fprintf(stderr, "cobra: no input?\n");
 	}
@@ -317,11 +329,12 @@ set_ranges(Prim *a, Prim *b)
 
 	if (Ncore > 1)
 	{	for (i = 0; verbose == 1 && i < Ncore; i++)
-		{	printf("set %d: %d-%d <%d> (%s:%d - %s:%d)\n",
+		{	printf("set %d: %d-%d <%d> (%s:%d - %s:%d) -- %p -> %p\n",
 				i, tokrange[i]->from->seq, tokrange[i]->upto->seq,
 				(int)(tokrange[i]->upto->seq - tokrange[i]->from->seq),
 				tokrange[i]->from->fnm, tokrange[i]->from->lnr,
-				tokrange[i]->upto->fnm, tokrange[i]->upto->lnr);
+				tokrange[i]->upto->fnm, tokrange[i]->upto->lnr,
+				(void *) tokrange[i]->from, (void *) tokrange[i]->upto);
 	}	}
 }
 
@@ -391,6 +404,27 @@ add_stream(Prim *pt)
 	return 1;
 }
 
+void
+Nthreads_set(int n)
+{
+	if (n < 1)
+	{	fprintf(stderr, "error: the number of cores must be positive\n");
+		return;
+	}
+	Ncore = n;
+	if (Ncore > N_max)
+	{	int i;
+		char **Npre;
+		Npre = (char **) emalloc(Ncore * sizeof(char *), 16);
+
+		for (i = 0; i < Ncore; i++)
+		{	Npre[i] = (i < N_max) ? Preproc[i] : "";
+		}
+		N_max = Ncore;
+		Preproc = Npre;
+	}
+}
+
 static void
 Nthreads(char *s)
 {
@@ -398,10 +432,15 @@ Nthreads(char *s)
 	{	fprintf(stderr, "error: usage -N[0-9]+\n");
 		exit(1);
 	}
-	Ncore = atoi(s);
-	if (Ncore < 1)
-	{	fprintf(stderr, "error: usage -N[0-9]+\n");
-		exit(1);
+	Nthreads_set(atoi(s));
+}
+
+static void
+preproc_setdefault(void)
+{	int i;
+
+	for (i = 1; i < N_max; i++)
+	{	Preproc[i] = Preproc[0];
 	}
 }
 
@@ -560,6 +599,7 @@ usage(char *s)
 	fprintf(stderr, "\t-comments           -- include comments as tokens (unless -cpp is also used)\n");
 	fprintf(stderr, "\t-configure dir      -- set and remember the name for the Cobra installation directory\n");
 	fprintf(stderr, "\t-cpp                -- enable C preprocessing%s\n", no_cpp?"":" (default)");
+	fprintf(stderr, "\t-cpp=clang          -- enable C preprocessing and use clang instead of gcc\n");
 	fprintf(stderr, "\t-d and -v -d        -- debug cobra inline program executions\n");
 	fprintf(stderr, "\t-eof                -- omit EOF tokens at the end of files\n");
 	fprintf(stderr, "\t-eol                -- add EOL tokens at all newlines\n");
@@ -638,7 +678,7 @@ get_work(int cid)
 {	char *s;
 
 	do_lock(cid);
-	s = get_file();
+	s = get_file(cid);
 	do_unlock(cid);
 	return s;
 }
@@ -647,12 +687,17 @@ static void *
 one_core(void *arg)
 {	int  *i, cid;
 	char *s;
+	char *op;
 
 	i = (int *) arg;
 	cid = *i;
 
+	assert(cid < N_max);
+	op = Preproc[cid];
+
 	while ((s = get_work(cid)) != NULL)
 	{	(void) add_file(s, cid, 1);
+		Preproc[cid] = op;	// get_work/get_file may change it
 	}
 
 	if (handle_typedefs)
@@ -683,14 +728,30 @@ renumber(void *arg)
 
 static void
 ini_files(int argc, char *argv[])
-{
+{	char *op = Preproc[0];
+
 	if (verbose)
 	{	printf("%d files, using %d cores\n", argc, Ncore);
 	}
 	argv++;
 	while (--argc > 0)
-	{	rem_file(*argv++);
+	{	rem_file(*argv++, 0);	// may change Preproc
+		Preproc[0] = op;	// restore
 	}
+}
+
+char *
+get_preproc(int cid)
+{
+	assert(cid >= 0 && cid < N_max);
+	return Preproc[cid];
+}
+
+void
+set_preproc(char *s, int cid)
+{
+	assert(cid >= 0 && cid < N_max);
+	Preproc[cid] = s;
 }
 
 void
@@ -742,30 +803,80 @@ par_scan(void)
 		pass_arg[cid].start_nr = n_s;
 		n_s += (Px.lex_plst)?Px.lex_plst->seq + 1:0;
 	}
-	// printf("total:	%d\n", n_s);
+	if (verbose>1) { printf("total:	%d\n", n_s); }
 
 	for (i = 1; i < Ncore; i++)
 	{	pass_arg[i].who = i;
-	//	start_timer(i);
-		(void) pthread_create(&t_id[i], 0, renumber,
+		(void) pthread_create(&t_id[i], 0, renumber,	// XXXX renumber
 			(void *) &(pass_arg[i].who));
 	}
 	for (i = 1; i < Ncore; i++)
 	{	(void) pthread_join(t_id[i], 0);
-	//	stop_timer(i, 0, "F");
 	}
+}
+
+char *
+strip_directives(char *f, int cid)
+{	char *ptr = f;
+	int n = strlen(f);
+
+	// skip any leading and trailing whitespace
+	assert(cid >= 0 && cid < N_max);
+
+	while (*ptr == ' ' || *ptr == '\t')
+	{	ptr++;
+	}
+	n--;
+	while (n >= 0 && (f[n] == ' ' || f[n] == '\t'))
+	{	f[n--] = '\0';
+	}
+
+	// compilation directives, if any,
+	// precede the filename, which is last
+	// but the filename may contain spaces
+	// provided they are escaped with a backslash
+
+	do {	ptr = strrchr(ptr, ' ');
+		if (!ptr)
+		{	break;
+		}
+		if (*(ptr-1) == '\\')
+		{	ptr--;
+		}
+	} while (*ptr == '\\');
+
+	if (ptr && *ptr == ' ')
+	{	*ptr = '\0';
+		// there must be at least
+		// one of these recognized
+		// directives
+		if (strstr(f, "-D")
+		||  strstr(f, "-I")
+		||  strstr(f, "-U"))
+		{	Preproc[cid] = f; // to be saved
+		}
+		// point at filename proper
+		f = ptr+1;
+	}
+	if (verbose)
+	{	printf("prep: '%s' file: '%s'\n", Preproc[cid], f);
+	}
+	return f;
 }
 
 static void
 seq_scan(int argc, char *argv[])
 {	int i;
+	char *fn, *op = Preproc[0];
 
 	if (verbose>1)
 	{	printf("parse\n");
 	}
 	start_timer(0);
 	for (i = 1; i < argc; i++)
-	{	(void) add_file(argv[i], 0, 1);
+	{	fn = strip_directives(argv[i], 0);	// single-core
+		(void) add_file(fn, 0, 1);
+		Preproc[0] = op;			// restore
 	}
 	stop_timer(0, 0, "G");
 }
@@ -784,12 +895,18 @@ prep_args(const char *f, int *ac)
 	{	return NULL;
 	}
 	while (fgets(buf, sizeof(buf), fd))
-	{	cnt++;	// count nr of files
-	}
+	{	if (buf[0] != '#')	// not a comment line
+		{	cnt++;		// count nr of files
+	}	}
 	fclose(fd);
 
 	aa = (char **) emalloc((cnt+1) * sizeof(char *), 111);
 	aa[0] = progname;
+
+	if (cnt == 0)			// no files
+	{	*ac = 1;
+		return aa;
+	}
 
 	if ((fd = fopen(f, "r")) == NULL)
 	{	return NULL;
@@ -799,10 +916,13 @@ prep_args(const char *f, int *ac)
 		{	fclose(fd);
 			return NULL;
 		}
+		if (buf[0] == '#')	// skip comment line
+		{	n--;
+			continue;
+		}
 		while ((q = strchr(buf, '\n')) || (q = strchr(buf, '\r')))
 		{	*q = '\0';
 		}
-
 		aa[n] = (char *) emalloc(strlen(buf)+1, 111);
 		strcpy(aa[n], buf);
 	}
@@ -1118,9 +1238,15 @@ F:		fprintf(stderr, "cobra: configuration failed\n");
 
 int
 main(int argc, char *argv[])
-{
+{	int i;
+
 	progname = (char *) emalloc(strlen(argv[0]) + 1, 112);
 	strcpy(progname, argv[0]);
+
+	Preproc = (char **) emalloc(N_max * sizeof(char *), 112);
+	for (i = 0; i < N_max; i++)
+	{	Preproc[i] = "";
+	}
 
 	while (argc > 1 && argv[1][0] == '-')
 	{	switch (argv[1][1]) {
@@ -1148,10 +1274,15 @@ main(int argc, char *argv[])
 			  }
 			  return usage(argv[1]);
 
-		case 'c': if (strcmp(argv[1], "-cpp") == 0)
+		case 'c': if (strncmp(argv[1], "-cpp", 4) == 0)
 			  {	no_cpp = 0;
 				if (with_comments)
 				{	fprintf(stderr, "warning: -cpp overrides -comments\n");
+				}
+				if (argv[1][4] == '='
+				&&  strlen(argv[1]) > 6)
+				{	fprintf(stderr, "setting preprocessor to '%s'\n", &argv[1][5]);
+					CPP = &argv[1][5];
 				}
 				break;
 			  }
@@ -1423,6 +1554,16 @@ RegEx:			  no_match = 1;		// -e -expr -re or -regex
 		argv++;
 		argc--;
 	}
+#ifdef PC
+	if (no_cpp == 0
+	&&  Ncore > 1)	// triggers cygwin bug
+	{	fprintf(stderr, "cobra: on cygwin (only), -cpp -N%d triggers a cygwin multi-threading bug\n", Ncore);
+		fprintf(stderr, "       instead, start with -cpp -N1 and type \"ncore %d\" ", Ncore);
+		fprintf(stderr, "once running\n");
+		exit(1);
+	}
+#endif
+	preproc_setdefault();
 
 	if (strstr(backend, "help") != NULL)
 	{	// means progname != cobra
@@ -1473,8 +1614,8 @@ cwe_mode:	no_match = 1;	// for consistency with -f
 			cobra_target = (char *) 0;
 	}	}
 
-	if (strlen(preproc) > 0 && no_cpp)
-	{	fprintf(stderr, "warning: ignoring '%s'\n", preproc);
+	if (strlen(Preproc[0]) > 0 && no_cpp)
+	{	fprintf(stderr, "warning: cpp is off, ignoring '%s'\n", Preproc[0]);
 	}
 
 	if (cobra_texpr)
@@ -1532,7 +1673,7 @@ cwe_mode:	no_match = 1;	// for consistency with -f
 	}	}
 
 	if (Ncore > 1 && argc > 2)	// at least 2 files and cores
-	{	ini_files(argc, argv);
+	{	ini_files(argc, argv);	// seed files[0] temporarily
 		par_scan();
 		clr_files();
 	} else
@@ -1612,12 +1753,6 @@ clear_file_list(void)
 	&&  file_list)
 	{	unlink(file_list);
 	}
-}
-
-char *
-anypp(void)
-{
-	return preproc;
 }
 
 void

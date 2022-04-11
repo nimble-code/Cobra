@@ -19,6 +19,7 @@ int		global_n;
 int		inside_range;	// search qualifiers
 int		inverse;
 int		and_mode;
+int		display_mode;
 int		view_mode;
 int		top_only;
 int		top_up;
@@ -69,16 +70,15 @@ static Stack	*free_stack;
 
 static int  one_line(char *);
 static void back(char *, char *);
-static void clear(char *, char *);
 static void contains(char *, char *);
-static void ctokens(void);
+static void clear(char *, char *);
+static void ctokens(int);
 static void eval(char *, char *);
 static void extend(char *, char *);
 static void findtype(char *, char *);
 static void help(char *, char *);
 static void history(char *, char *);
 static void jump(char *, char *);
-static void list(char *, char *);
 static void mark(char *, char *);
 static void inspect(char *, char *);
 static void next(char *, char *);
@@ -230,7 +230,7 @@ r_apply(const Prim *ref, const Prim *p, char *s, const int w)
 	||      (*s != '/' && apply(ref, p, s, w)));
 }
 
-static void
+void
 reproduce(const int seq, const char *s)
 {	Prim *q = cur;
 	Prim *r = cur;
@@ -465,9 +465,12 @@ backup_range(void *arg)
 	int e, n, *i = (int *) arg;
 
 	if (verbose == 1)
-	{	assert(*i >= 0 && *i < Ncore && tokrange[*i]);
+	{	printf("i=%d from %d upto %d (%p -- %p)\n",
+			*i, tokrange[*i]->from->seq, tokrange[*i]->upto->seq,
+			(void *) tokrange[*i]->from, (void *) tokrange[*i]->upto);
+		assert(*i >= 0 && *i < Ncore && tokrange[*i]);
 		assert(tokrange[*i]->from && tokrange[*i]->upto);
-		assert(tokrange[*i]->upto > tokrange[*i]->from);
+//		assert(tokrange[*i]->upto > tokrange[*i]->from);
 	}
 	n = global_n;
 	r = tokrange[*i];
@@ -597,7 +600,10 @@ clear_range(void *arg)	// folds in backup(0)
 	if (verbose == 1)
 	{	assert(*i >= 0 && *i < Ncore && z);
 		assert(z->from && z->upto);
-		assert(z->upto > z->from);
+		printf("core %d: from %d upto %d (%p -- %p)\n",
+			*i, z->from->seq, z->upto->seq,
+			(void *) z->from, (void *) z->upto);
+	//	assert(z->upto > z->from);
 	}
 	for (q = tokrange[*i]->from; q && q->seq <= tokrange[*i]->upto->seq; q = q->nxt)
 	{	q->mset[0] = (short) q->mark;
@@ -611,9 +617,9 @@ clear_range(void *arg)	// folds in backup(0)
 }
 
 static void
-clear(char *unused1, char *unused2)
+clear(char *f, char *unused)
 {
-	if (strcmp(unused1, "all") == 0)
+	if (strcmp(f, "all") == 0)
 	{	clearbounds = 1;
 		clear_seen();
 	}
@@ -1566,12 +1572,11 @@ set_ncore(int n)
 		return;
 	}
 	if (n == Ncore)
-	{	ctokens();
+	{	ctokens(0);
 		return;
 	}
-
-	Ncore = n;
-	ctokens(); // calls set_ranges
+	Nthreads_set(n);
+	ctokens(0); // calls set_ranges
 	ini_lock();
 	ini_heap();
 	ini_timers();
@@ -1994,6 +1999,20 @@ pre_scan(char *bc)	// non-generic commands
 			}
 			return 1;
 		}
+		if (strncmp(bc, "mode", strlen("mode")) == 0
+		&&  is_blank((uchar) bc[4]))	// relevant in gui mode only
+		{	char *s = nextarg(bc);
+			if (strncmp(s, "tok", 3) == 0)
+			{	display_mode = 1;
+			} else if (strncmp(s, "src", 3) == 0)
+			{	display_mode = 2;
+			} else if (strncmp(s, "pre", 3) == 0)
+			{	display_mode = 3;
+			} else
+			{	fprintf(stderr, "usage: mode tok|src|pre\n");
+			}
+			return 1;
+		}
 		break;
 
 	case 'n':
@@ -2355,7 +2374,7 @@ one_line(char *buf)
 	return 1;
 }
 
-static void
+void
 list(char *s, char *t)
 {	char *lstfnm = NULL;
 	int lstlnr = 0;
@@ -2364,7 +2383,6 @@ list(char *s, char *t)
 //	int from=0, upto=0;
 	char *c, *lastfnm = "";
 	FILE *fd = (track_fd) ? track_fd : stdout;
-
 
 	if (strcmp(s, "*") != 0)
 	{	if (strchr(s, '-'))
@@ -2407,7 +2425,6 @@ list(char *s, char *t)
 		lastfnm = cobra_bfnm();
 		lastn = cobra_lnr();
 		lcnt++;
-
 		if (n != 0 && lcnt != n)
 		{	continue;
 		}
@@ -3111,7 +3128,7 @@ readf(char *s, char *t)
 	strcpy(as, s);
 	if (add_file(as, 0, 1))	// cid: single-core
 	{	post_process(0);
-		ctokens();
+		ctokens(1);
 	}
 }
 
@@ -3453,9 +3470,10 @@ help(char *s, char *unused)	// 1
 }
 
 static void
-ctokens(void)
+ctokens(int talk)
 {
-	if (!no_match
+	if (talk
+	&& !no_match
 	&& !cobra_commands
 	&& !cobra_target
 	&& !cobra_texpr)
@@ -3511,7 +3529,7 @@ fix_eol(void)
 	prim = plst = (Prim *) 0;
 	count = 0;
 	rescan();
-	ctokens();
+	ctokens(1);
 //	fct_defs();
 }
 
@@ -3591,7 +3609,7 @@ cobra_main(void)
 	char buf[MAXYYTEXT];
 	History *h_ptr = (History *) 0;
 
-	ctokens();	// calls set_ranges
+	ctokens(1);	// calls set_ranges
 
 	if (cobra_target && cobra_texpr)
 	{	printf("cobra: cannot specify both -f and -expr or -pattern\n");
@@ -3821,12 +3839,19 @@ xchange(char *s)
 	}
 
 	if (!o_prim || !o_plst)
-	{	o_prim = prim;
+	{	int oncore = Ncore;
+		o_prim = prim;
 		o_plst = plst;
 		o_count = count;
 		prim = plst = (Prim *) 0;
 		count = 0;
+		if (Ncore > 1)
+		{	set_ncore(1); // else fails 3/25/2022
+		}
 		rescan();
+		if (oncore != Ncore)
+		{	set_ncore(oncore);
+		}
 	} else
 	{	tmp = o_prim;
 		o_prim = prim;
@@ -3839,6 +3864,6 @@ xchange(char *s)
 		o_count = o_tmp;
 	}
 
-	ctokens();
+	ctokens(1);
 	fct_defs();
 }
