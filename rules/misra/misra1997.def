@@ -1,5 +1,7 @@
-
+# Misra 1997 original guidelines
 # 60 of 127 rules have at least a partial check
+
+requires 4.0
 
 . basic.def
 
@@ -34,19 +36,21 @@ def m97_rule8
 end
 
 def m97_rule9
+	comments
 	r
 	m /^/\*.*/\*			# nested C comments
 	m /^//.*/\*
 	ps create M97_R9
 	ps caption M97_R9 (Required) Comments shall not be nested
+	source
 end
 
 def m97_rule10
-	r
-	m @cmnt
-	m & /\;				# stmnt separator in comment
+	comments
+	r; m /\;		# stmnt separator in comment
 	ps create M97_R10
 	ps caption M97_R10 (Advisory) Sections of code should not be commented out
+	source
 end
 
 def m97_rule11
@@ -383,9 +387,18 @@ def m97_rule54
 	>1
 	r; m else; n;       m & \;	# semi-colon directly following else
 	<|1
-	r; m @cmnt; n;      m & \;	# semi-colon directly following comment (cobra -nocpp)
 	ps create M97_R54
 	ps caption M97_R54 (Required) A null stmnt shall only occur on a line by itself, and shall not have any other text (e.g., a comment) on the same line
+	comments
+	%{
+		if (.bound)
+		{	q = .bound;
+			if (q.txt == ";")
+			{	add_pattern(M97_R54a, q, q);
+		}	}
+	%}
+	source
+	ps caption M97_R54a (Required) Null statement cannot immediately follow a comment.
 end
 
 def m97_rule55
@@ -684,7 +697,7 @@ def m97_rule112
 end
 
 def m97_rule118
-	r; m /alloc; m free; m no @cmnt; m no @str
+	r; m /alloc; m free; m no @str
 	ps create M97_R118
 	ps caption M97_R118 (Required) Dynamic heap memory allocation shall not be used
 end

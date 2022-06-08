@@ -250,7 +250,7 @@ add_pattern(const char *s, const char *msg, Prim *from, Prim *upto, int cid)
 {	Named *x;
 	Match *om;
 
-	do_lock(cid);
+	do_lock(cid);		// could be a lock on just s
 
 	om = matches;		// save old value
 
@@ -259,7 +259,14 @@ add_pattern(const char *s, const char *msg, Prim *from, Prim *upto, int cid)
 	if (!x)
 	{	new_named_set((const char *) s);	// add_pattern
 		x = namedset;
-	}
+	} else	// set exists and is non-empty
+	{	if (x->m		// no repeated adds of same token range
+		&&  x->m->from == from
+		&&  x->m->upto == upto)	// same target token
+		{	matches = om;	// restore
+			do_unlock(cid);
+			return;
+	}	}
 	add_match(from, upto, NULL);	// new pattern now only one in matches
 	matches->nxt = x->m;		// if we're adding to the set
 	if (msg)
@@ -660,9 +667,9 @@ matches2marks(int doclear)
 	loc_cnt = 0;
 	for (m = matches; m; m = m->nxt)
 	{	p = m->from;
-		p->bound = m->upto;
 		if (p)
-		{	if (!p->mark)
+		{	p->bound = m->upto;
+			if (!p->mark)
 			{	loc_cnt++;
 			}
 			p->mark |= 2;	// start of pattern
@@ -803,7 +810,9 @@ show_line(FILE *fdo, const char *fnm, int n, int from, int upto, int tag)
 	}	}
 
 	if ((fdi = fopen(fnm, "r")) == NULL)
-	{	fprintf(stderr, "cannot open '%s'\n", fnm);
+	{	if (verbose)
+		{	fprintf(stderr, "show_line, cannot open '%s'\n", fnm);
+		}
 		return;
 	}
 

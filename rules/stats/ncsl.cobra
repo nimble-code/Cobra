@@ -1,27 +1,59 @@
 # ncsl / phys
-# not as precise at the ncsl app, but pretty close
+# not as precise at the ncsl.c app, but close
+# executes single-core
 
-# assumes a single-core run
+requires 4.0
 
-%{
-	if (@cmnt)
-	{	comments++;
-		Next;
+ncore 1
+ %{
+	function prnr(x)
+	{	x--;
+		if (x < 10) { print " "; }
+		if (x < 100) { print " "; }
+		if (x < 1000) { print " "; }
+		if (x < 10000) { print " "; }
+		if (x < 100000) { print " "; }
+		print x "\t";
 	}
-	if (phys[.fnm] < .lnr)
-	{	phys[.fnm] = .lnr;
+	unset comments;
+	unset semicols;
+	unset physlns;
+	unset max;
+	lastlnr = -1;
+	Stop;
+ %}
+comments # comments stream
+ %{
+	comments[.fnm]++; # counts comments, not lines with comments
+ %}
+source	 # source code
+ %{
+	if (.txt == ";")
+	{	semicols[.fnm]++;	# approx nr of statements
+	}
+	if (physlns[.fnm] < .lnr)
+	{	physlns[.fnm] = .lnr;	# nr of raw lines in this file
 	}
 	if (lastlnr != .lnr)
-	{	ncsl++;	# counts all lines with code
-		lastlnr = .lnr;
+	{	lastlnr = .lnr;
 	}
-%}
-%{
-	for (i in phys)
-	{	max = max + phys[i.txt];
-	#	print i.txt "\t" phys[i.txt] "\t" max "\n";
+ %}
+ %{
+	# unset i;
+	print "  sloc\t  ncsl\t  comments\n";
+	for (i in physlns)
+	{	max[0] = max[0] + comments[i.txt] - 1;
+		max[1] = max[1] + semicols[i.txt] - 1;
+		max[2] = max[2] + physlns[i.txt] - 1;
+
+		prnr(physlns[i.txt]);
+		prnr(semicols[i.txt]);
+		prnr(comments[i.txt]);
+		print i.txt "\n";
 	}
-	print "\tsloc\tncsl\tcomments\n";
-	print "\t" max "\t" ncsl "\t" comments "\n";
+	prnr(max[2]+1);
+	prnr(max[1]+1);
+	prnr(max[0]+1);
+	print "total\n";
 	Stop;
-%}
+ %}

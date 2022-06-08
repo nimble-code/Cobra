@@ -1,15 +1,15 @@
 ## multi-core safe
+## icobra support fct
 
 ## print the number of parameters per function
 # cpp on
 r
 fcts
- %{
+%{
 	unset Counts;
 	Stop;
- %}
-def fct_params(detail)
- %{
+%}
+%{
 	if (!.mark)
 	{	Next;
 	}
@@ -43,27 +43,19 @@ def fct_params(detail)
 	{	maxpar = pcnt;
 		maxfct = q;
 	}
- %}
- %{
+%}
+%{
 	# all cpus have completed part-1
-
-	if (cpu != 0)
-	{	Stop;
-	}
+	if (cpu != 0) { Stop; }
 	a_unify(0);	# all indices available
-
-	print "largest nr of fct params: " maxpar " (eg: " maxfct.txt "())\n";
-
-	for (i in Counts)
-	{	nr = sum(Counts[i.txt]);
-		print nr "\tfunction";
+	# print "largest nr of fct params: " maxpar " (eg: " maxfct.txt "())\n";
+	i = 0;
+	while (i <= maxpar)
+	{	nr = sum(Counts[i]);
 		if (nr != 0)
-		{	print "s have ";
-		} else
-		{	print "  has  ";
+		{	print i "	" nr "\n";
 		}
-		print i.txt " parameters\n";
+		i++;
 	}
 	Stop;
- %}
-end
+%}

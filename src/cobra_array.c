@@ -732,7 +732,7 @@ ini_arrays(void)
 		statstring = (char **) emalloc(NCORE * sizeof(char *), 6);
 		int i;
 		for (i = 0; i < NCORE; i++)
-		{	statstring[i] = (char *) emalloc(512 * sizeof(char), 7); // shouldnt be fixed
+		{	statstring[i] = (char *) emalloc(SZ_STATS * sizeof(char), 7); // shouldnt be fixed
 		}
 	}
 }

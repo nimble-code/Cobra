@@ -15,6 +15,8 @@
 #define H_SIZE		(1<<H_BITS)
 #define H_MASK		((H_SIZE)-1)
 
+#define SZ_STATS	512
+
 enum Renum { UNDEF = 0, VAL = 1, STR, PTR, STP, PRCD };
 
 typedef enum	Renum	Renum;

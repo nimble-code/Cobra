@@ -1,5 +1,7 @@
 #### see main/jpl.cobra
 
+requires 4.0
+
 def fcts		# helper function
 	r
 	m @ident \(; n
@@ -126,7 +128,7 @@ def jpl_rule3c
 	}
 %}
 	ps create R3c
-	ps caption R3c Ssuspicious for-loop increment/decrement
+	ps caption R3c Suspicious for-loop increment/decrement
 end
 
 def jpl_rule4
@@ -440,16 +442,10 @@ def jpl_rule20b
 		{	. = .jmp;
 			. = .nxt;
 		}
-		if (@cmnt)
-		{	. = .nxt;
-		}
 		if (.txt == "EOL" || .txt == "EOF")
 		{	Next;
 		}
 		. = .nxt;		# macro body
-		if (@cmnt)
-		{	. = .nxt;
-		}
 		if (.txt == "EOL" || .txt == "EOF")	# single token
 		{	Next;
 		}
@@ -460,9 +456,6 @@ def jpl_rule20b
 		if (.txt == "(" || .txt == "{" || .txt == "[")
 		{	. = .jmp;
 			. = .nxt;
-			if (@cmnt)
-			{	. = .nxt;
-			}
 			if (.txt == "EOL" || .txt == "EOF")
 			{	Next;
 		}	}

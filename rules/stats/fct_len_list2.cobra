@@ -1,0 +1,83 @@
+r
+fcts
+def fct_len_list2
+ %{
+	unset TopTen;
+	unset TopNme;
+	Stop;
+ %}
+ %{
+	if (!.mark)
+	{	Next;
+	}
+	n = .;
+	. = .nxt;
+	if (.txt != "(")
+	{	Next;
+	}
+	. = .jmp;
+	. = .nxt;
+	if (.txt != "{")
+	{	Next;
+	}
+	i = 0;
+	while (i < 10)
+	{	sz = TopTen[i];
+		if (sz == 0)
+		{	TopTen[i] = .range;
+			TopNme[i] = n.txt;
+			Next;
+		}
+		i++;
+	}
+
+	smallest = 0;
+	j = 1;
+	while (j < 10)
+	{	if (TopTen[j] < TopTen[smallest])
+		{	smallest = j;
+		}
+		j++;
+	}
+	if (.range > TopTen[smallest])
+	{	TopTen[smallest] = .range;
+		TopNme[smallest] = n.txt;
+	}
+ %}
+ %{
+	# bubblesort....
+	anychange = 1;
+	i = 0;
+	while (anychange)
+	{	anychange = 0;
+		i = 0;
+		while (i < 9)
+		{	if (TopTen[i] < TopTen[i+1])
+			{	tmp1 = TopTen[i+1];
+				tmp2 = TopNme[i+1];
+				TopTen[i+1] = TopTen[i];
+				TopNme[i+1] = TopNme[i];
+				TopTen[i] = tmp1;
+				TopNme[i] = tmp2;
+				anychange = 1;
+			}
+			i++;
+	}	}
+	i = 0;
+	if (topten)
+	{	print "the ten longest functions:\n";
+		while (i < 10)
+		{	sz = TopTen[i];
+			if (sz > 0)
+			{	print i+1 " " TopNme[i] " " sz " lines\n";
+			}
+			i++;
+		}
+	} else
+	{	print "longest function: " TopNme[0] " (" TopTen[0] " lines)\n";
+	}
+	Stop;
+ %}
+end
+
+fct_len_list2

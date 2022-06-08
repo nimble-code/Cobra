@@ -121,7 +121,9 @@ fct_defs_range(void *arg)
 
 	for (r = from; r && r->seq <= upto->seq; r = r->nxt)
 	{	if (strcmp(r->typ, "cpp") == 0 && !parse_macros)
-		{	while (r && r->nxt && strcmp(r->txt, "EOL") != 0)
+		{	while (r && r->nxt && r != r->nxt
+			&&    strcmp(r->txt, "EOL") != 0
+			&&    strcmp(r->txt, "EOF") != 0)
 			{	r = r->nxt;
 			}
 			continue;	// skip over preprocessing stuff
@@ -135,11 +137,21 @@ fct_defs_range(void *arg)
 		{	if (r->round > 0)
 			{	continue;
 			}
-			if (r->prv
-			&& (strcmp(r->prv->txt, ",") == 0
-			||  (r->prv->prv
-			&&   strcmp(r->prv->prv->txt, ">") == 0)))
-			{	continue;		// C++ confusion
+			if (r->prv)
+			{	t = r->prv;
+				if (strcmp(t->txt, ",") == 0
+				||  strcmp(t->txt, ".") == 0)
+				{	continue;
+				}
+				while (t && t->seq > 0 && strcmp(t->txt, "*") == 0)
+				{	t = t->prv;
+				}
+				if (t
+				&&  strcmp(t->typ, "type") != 0
+				&&  t->prv
+				&&  strcmp(t->prv->txt, ">") == 0)
+				{	continue;		// C++ confusion
+				}
 			}
 			if (strcmp(r->txt, "throw") == 0)
 			{	continue;
@@ -147,7 +159,6 @@ fct_defs_range(void *arg)
 		} else if (r->curly > 0)
 		{	// continue;	// allow, to get caller info
 		}
-
 		ptr = r;		// points at fct name candidate
 		r = r->nxt;		// look-ahead
 		if (!r
@@ -182,7 +193,7 @@ fct_defs_range(void *arg)
 		} else
 		{	preansi = 0;
 		}
-// printf("%2d -- %3d: %s -- preansi: %d\n", r->curly, ptr->lnr, ptr->txt, preansi);
+// 		printf("%2d -- %3d: %s -- preansi: %d\n", r->curly, ptr->lnr, ptr->txt, preansi);
 		if (cplusplus)
 		{	while (q && q->nxt && strcmp(q->nxt->typ, "qualifier") == 0)
 			{	q = q->nxt;
@@ -215,8 +226,13 @@ fct_defs_range(void *arg)
 		// find { ... }
 
 		z = q->nxt;
-		while (z && strcmp(z->typ, "cmnt") == 0)
-		{	z = z->nxt;	// skip over cmnts
+		if (cplusplus)
+		{	while (z && z != z->nxt && strcmp(z->typ, "specifier") == 0)
+			{	z = z->nxt;	// eg noexcept [( ... )]
+				if (strcmp(z->txt, "(") == 0
+				&&  z->jmp != NULL)
+				{	z = z->jmp->nxt;
+			}	}
 		}
 
 		// skip over pre-ansi param decls
@@ -225,15 +241,20 @@ fct_defs_range(void *arg)
 		&&  (strcmp(z->typ, "type") == 0
 		||   strcmp(z->txt, "struct") == 0
 		||   strcmp(z->txt, "register") == 0))
-		{	while (z && strcmp(z->txt, "{") != 0)
+		{	while (z && z != z->nxt && strcmp(z->txt, "{") != 0)
 			{	z = z->nxt;
 		}	}
 
 		// z points to first token after param list
 		if (z && strcmp(z->txt, "{") == 0)
 		{	add_def(z, ptr, *i);
+//			printf("%s	def\n", ptr->txt);
 		} else if (r->curly > 0 && !no_caller_info)
 		{	add_caller(r, ptr, *i); // must be a fct call
+//			printf("%s	call\n", ptr->txt);
+		} else
+		{
+//			printf("%s	no fct (%p)\n", ptr->txt, (void *) z);
 	}	}
 
 	return NULL;

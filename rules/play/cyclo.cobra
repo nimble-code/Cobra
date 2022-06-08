@@ -89,7 +89,7 @@ fcts	# most of the time goes here
 	{	print "nr fcts: " nr_total "\tavg cc: " cum_total/nr_total "\tavg lns: " cum_ln_total/nr_total "\n";
 	}
 	a_unify(0);
-	print "there\n";
+	# print "there\n";
 	i = 1; while (i < ncore)
 	{	if (max_cc_all[i] > max_cc)
 		{	max_cc = max_cc_all[i];

@@ -1,0 +1,57 @@
+# fct lengths in 10 ranges
+# icobra support fct
+
+def fct_len_list0
+	r
+	fcts
+	%{
+		unset Bucket;
+		Range[1] = 20;
+		Range[2] = 40;
+		Range[3] = 60;
+		Range[4] = 80;
+		Range[5] = 100;
+		Range[6] = 120;
+		Range[7] = 140;
+		Range[8] = 160;
+		Range[9] = 180;
+		Range[10] = 200;
+		Stop;
+	%}
+	%{
+		if (.mark)
+		{	n = .;
+			. = .nxt;
+			if (.txt != "(")
+			{	Next;
+			}
+			. = .jmp;
+			. = .nxt;
+			if (.txt != "{")
+			{	Next;
+			}
+		#	print .range "\t" n.txt "\n";
+			i = 1;
+			while (i < 10) {
+				if (.range < Range[i]) {
+					Bucket[i]++;
+					break;
+				}
+				i++;
+			}
+			if (i >= 10) {
+				Bucket[10]++;
+		}	}
+	%}
+	%{
+		i = 1;
+		while (i < 10) {
+			print Range[i] "	" Bucket[i] "\n";
+			i++;
+		}
+		print Range[i-1] "	" Bucket[i] "\n";
+		Stop;
+	%}
+end
+
+fct_len_list0

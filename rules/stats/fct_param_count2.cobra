@@ -1,0 +1,68 @@
+## multi-core safe
+
+## check the number of parameters per function
+
+r
+fcts
+def fct_params2(detail)
+ %{
+	if (!.mark)
+	{	Next;
+	}
+
+	q = .;
+	. = .nxt;
+	if (.txt != "(")
+	{	Next;
+	}
+	. = .nxt;	# inside param list
+	pcnt = 0;
+	nonempty = 0;
+	while (.round > 0)		# in param list
+	{	if (.round == 1)	# top-level
+		{	if (.txt == ",")
+			{	pcnt++;
+			} else
+			{	if (.txt != "void")
+				{	nonempty = 1;	# list non-empty
+		}	}	}
+		. = .nxt;
+	}
+	if (pcnt > 0)
+	{	pcnt++;		# add first parameter
+	} else
+	{	if (nonempty)
+		{	pcnt = 1;
+	}	}
+	Counts[pcnt]++;
+	if (pcnt > maxpar)
+	{	maxpar = pcnt;
+		maxfct = q;
+	}
+	if (detail == 0)
+	{	Next;
+	}
+
+	if (pcnt == 1) { add_pattern(NrParams1, q, q); Next; }
+	if (pcnt == 2) { add_pattern(NrParams2, q, q); Next; }
+	if (pcnt == 3) { add_pattern(NrParams3, q, q); Next; }
+	if (pcnt == 4) { add_pattern(NrParams4, q, q); Next; }
+	if (pcnt == 5) { add_pattern(NrParams5, q, q); Next; }
+	if (pcnt == 6) { add_pattern(NrParams6, q, q); Next; }
+	if (pcnt == 7) { add_pattern(NrParams7, q, q); Next; }
+	if (pcnt == 8) { add_pattern(NrParams8, q, q); Next; }
+	if (pcnt == 9) { add_pattern(NrParams9, q, q); Next; }
+	if (pcnt >= 10 && pcnt < 20) { add_pattern(NrParams10s, q, q); Next; }
+	if (pcnt >= 20 && pcnt < 30) { add_pattern(NrParams20s, q, q); Next; }
+	if (pcnt >= 30) { add_pattern(NrParams30up, q, q); Next; }
+ %}
+ %{
+	if (cpu == 0)
+	{	a_unify(0);
+		print "fct with the largest nr of params: " sum(maxpar) " (eg: " maxfct.txt "())\n";
+	}
+	Stop;
+ %}
+end
+
+fct_params2 0

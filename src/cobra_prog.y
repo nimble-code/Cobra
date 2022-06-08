@@ -111,7 +111,6 @@ static Var_nm	*check_var(const char *, const int);
 #endif
 
 static Lextok	*add_return(Lextok *);
-//static void	check_cmnt(Lextok *);
 static void	handle_global(Lextok *);
 static void	add_fct(Lextok *);
 static void	fixstr(Lextok *);
@@ -144,6 +143,7 @@ extern int	stream_override;
 %token  ADD_PATTERN DEL_PATTERN CP_PSET
 %token	ADD_TOP ADD_BOT POP_TOP POP_BOT TOP BOT
 %token	OBTAIN_EL RELEASE_EL UNLIST LLENGTH GLOBAL
+%token	DISAMBIGUATE
 
 %right	'='
 %left	OR
@@ -336,8 +336,9 @@ expr	:'(' expr ')'		{ $$ = $2; }
 	| RETRIEVE '(' NAME ',' expr ')' { $1->rgt = $3; $1->lft = $5; $$ = $1; }
 	| RE_MATCH '(' p_lhs ',' STRING ')' { $1->lft = $3; $1->rgt = $5; $$ = $1; }
 	| RE_MATCH '(' STRING ')' { $1->lft = 0; $1->rgt = $3; $$ = $1; }
+	| DISAMBIGUATE '(' NAME ')' { $1->rgt = $3; $$ = $1; }
 	| NAME '(' actuals ')'  { $$ = new_lex(CALL, $1, $3); }
-	| '@' NAME		{ $1->rgt = $2; $$ = $1; /* check_cmnt($2); */ }
+	| '@' NAME		{ $1->rgt = $2; $$ = $1; }
 	| '@' TYP		{ $1->rgt = $2; $$ = $1; }
 	| '#' NAME		{ $1->rgt = $2; $$ = $1; }
 	| b_name '@' expr	{ $1->core = $3; $$ = $1; /* qualified name */ }
@@ -400,6 +401,7 @@ static struct Keywords {
 	{ "cpu",	CPU },
 	{ "curly",	CURLY },
 	{ "del_pattern", DEL_PATTERN },
+	{ "disambiguate", DISAMBIGUATE },
 	{ "else",	ELSE },
 	{ "End",	END },
 	{ "false",	FALSE },
@@ -511,24 +513,6 @@ hash2(const char *s)
 	}
 }
 
-#if 0
-// -comments is off by default
-// meaning we don't need to skip over them
-// if enabled, the checks take effect
-static void
-check_cmnt(Lextok *p)
-{	static int warned = 0;
-
-	if (p && p->s
-	&& strcmp(p->s, "cmnt") == 0
-	&& with_comments == 0
-	&& !warned)
-	{	warned = 1;
-		fprintf(stderr, "warning: @cmnt requires commandline option -comments\n");
-	}
-}
-#endif
-
 static Lextok *
 add_return(Lextok *p)
 {	Lextok *e;
@@ -579,7 +563,8 @@ mk_for(Lextok *a, Lextok *nm, Lextok *ar, Lextok *body)
 	//	 goto loop
 
 	for (ix = 0; ix < Ncore; ix++)
-	{	(void) mk_var(nm->s, PTR, ix);		// nm
+	{	Var_nm *vn = mk_var(nm->s, PTR, ix);		// nm
+		if (vn) { vn->rtyp = PTR; } // in case its an older var
 	}	// so that we can use the var to cnt in nm.mark and nm.seq
 
 	one  = new_lex(NR, 0, 0); one->val = 1;		// 1
@@ -1590,6 +1575,58 @@ nr_marks_int(int a, const int ix)
 	return tokrange[ix]->param;
 }
 
+static char *
+disambiguate(const char *s, const int ix)	// autosar checker support fct, rule M2-10-1
+{	char *m, *om;
+	const char *os = s;
+
+	if (!s || *s == '\0') { return ""; }
+
+	om = m = (char *) hmalloc(strlen(s)+1, ix, 69);
+
+	while (*s != '\0')
+	{	*m = (char) tolower((int) *s);
+		switch (*s) {
+		case '_': // skip
+			m--;
+			break;
+		case 'O':		// uppercase O
+		case 'o':		// lowercase o
+			*m = '0';	// zero
+			break;
+		case 'I':
+		case 'l':
+			*m = '1';
+			break;
+		case 'S':
+			*m = '5';
+			break;
+		case 'Z':
+			*m = '2';
+			break;
+		case 'B':
+			*m = '8';
+			break;
+		case 'r':
+			if (*(s+1) == 'n')
+			{	*m = 'm';
+				s++;
+			}
+			break;	
+		default:
+			break;
+		}
+		m++;
+		s++;
+	}
+	*m = '\0';
+
+	if (verbose)
+	{	printf("disambiguate: '%s' -> '%s'\n", os, om);
+	}
+	return om;
+}
+
 static void
 print_args(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)
 {	FILE *tfd = (track_fd) ? track_fd : stdout;
@@ -1608,6 +1645,12 @@ print_args(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)
 		return;
 	case SIZE:
 		fprintf(tfd, "%d", q->rgt?array_sz(q->rgt->s, ix):0);
+		return;
+	case DISAMBIGUATE:
+		{ Var_nm *n = get_var(ref_p, q->rgt, rv, ix);
+		  Assert("disambiguate", rv->rtyp == STR, q->rgt);
+		  fprintf(tfd, "%s",  disambiguate((char *) n->s, ix));
+		}
 		return;
 	case RETRIEVE:
 		eval_prog(ref_p, q->lft, rv, ix);
@@ -2448,7 +2491,7 @@ convert2string(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)
 }
 
 char *
-derive_string(Prim **ref_p, Lextok *q, const int ix, const char *usethis)	// q: comma separated list
+derive_string(Prim **ref_p, Lextok *q, const int ix, const char *usethis) // q: comma separated list
 {	Rtype tmp;
 	char *s, *t, *r;
 	int   n;
@@ -2457,7 +2500,7 @@ derive_string(Prim **ref_p, Lextok *q, const int ix, const char *usethis)	// q: 
 
 	if (q->typ != ',')	// leaf
 	{	convert2string(ref_p, q, &tmp, ix);
-		if (usethis && strlen(tmp.s) < 512)	// XXX should not be a constant
+		if (usethis && strlen(tmp.s) < SZ_STATS)
 		{	r = (char *) usethis;
 		} else
 		{	r = (char *) hmalloc(strlen(tmp.s) + 1, ix, 137);	// derive_string 1
@@ -2992,7 +3035,7 @@ next:
 			eval_prog(ref_p, q->rgt, rv, ix);	// upto
 			Assert("set_range2", rv->rtyp == PTR, q->rgt);
 			b = rv->ptr;
-			set_ranges(a, b);
+			set_ranges(a, b, 10);
 		}
 		rv->rtyp = VAL;
 		rv->val  = 0;
@@ -3346,6 +3389,15 @@ next:
 		rv->ptr->txt = rv->ptr->typ = rv->ptr->fnm = "";
 		rv->ptr->len = 0;
 		rv->rtyp = PTR;
+		break;
+
+	case DISAMBIGUATE:
+		// q->rgt->s is of type NAME (a variable)
+		// a variable that should be of type STR
+		{ Var_nm *n = get_var(ref_p, q->rgt, rv, ix);
+		  Assert("disambiguate", rv->rtyp == STR, q->rgt);
+		  rv->s = disambiguate((char *) n->s, ix);
+		}
 		break;
 
 	// list functions

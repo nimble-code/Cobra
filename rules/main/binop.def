@@ -130,21 +130,23 @@ r
 		{	pm.mark = 1;	# remember it
 			if (!terse)
 			{	lock();
-				print "=== rn: " pm.fnm ":" pm.lnr "\tprecedence high to low: ";
-				if (L1.txt != "") { print L1.txt ", "; }
-				if (L2.txt != "") { print L2.txt ", "; }
-				if (L3.txt != "") { print L3.txt ", "; }
-				if (L4.txt != "") { print L4.txt ", "; }
-				if (L5.txt != "") { print L5.txt ", "; }
-				if (L6.txt != "") { print L6.txt ", "; }
-				if (L7.txt != "") { print L7.txt ", "; }
-				if (L8.txt != "") { print L8.txt ", "; }
-				if (L9.txt != "") { print L9.txt ", "; }
-				if (L10.txt != "") { print L10.txt ", "; }
-				if (L11.txt != "") { print L11.txt ", "; }
-				if (L12.txt != "") { print L12.txt ", "; }
-				if (L13.txt != "") { print L13.txt ", "; }
-				print "\n";
+				if (verbose)
+				{	print "=== rn: " pm.fnm ":" pm.lnr "\tprecedence high to low: ";
+					if (L1.txt != "") { print L1.txt ", "; }
+					if (L2.txt != "") { print L2.txt ", "; }
+					if (L3.txt != "") { print L3.txt ", "; }
+					if (L4.txt != "") { print L4.txt ", "; }
+					if (L5.txt != "") { print L5.txt ", "; }
+					if (L6.txt != "") { print L6.txt ", "; }
+					if (L7.txt != "") { print L7.txt ", "; }
+					if (L8.txt != "") { print L8.txt ", "; }
+					if (L9.txt != "") { print L9.txt ", "; }
+					if (L10.txt != "") { print L10.txt ", "; }
+					if (L11.txt != "") { print L11.txt ", "; }
+					if (L12.txt != "") { print L12.txt ", "; }
+					if (L13.txt != "") { print L13.txt ", "; }
+					print "\n";
+				}
 				unlock();
 		}	}
 

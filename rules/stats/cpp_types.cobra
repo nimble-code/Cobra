@@ -1,5 +1,9 @@
+requires 4.0
+
 def cpp_types
-	r; m @cmnt; = "cmnt	:"
+	comments
+	r; m /.; = "cmnt	:"
+	source
 	r; m @cpp; m & /define; = "define	:"
 	r; m @cpp; m & /elif;   = "elif	:"
 	r; m @cpp; m & /else;   = "else	:"
@@ -13,5 +17,5 @@ def cpp_types
 	        u; m & /define.*\#\#; = "tokenpaste	:"
 	r; m @cpp; m & /undef; = "undef	:"
 end
-# cpp off
+
 cpp_types

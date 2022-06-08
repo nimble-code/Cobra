@@ -1,0 +1,22 @@
+requires 4.0
+
+def cpp_types2
+	comments
+	r; m /.;                 ps create Comment; ps caption Comment comments
+	source
+	r; m @cpp; m & /define;  ps create Define;  ps caption Define  macro definitions
+	r; m @cpp; m & /pragma;  ps create Pragma;  ps caption Program pragma directives
+	r; m @cpp; m & /include; ps create Include; ps caption Include include directives
+	r; m @cpp; m & /ifdef; 	 ps create Ifdef;   ps caption Ifdef   ifdef directives
+	r; m @cpp; m & /ifndef;  ps create Ifndef;  ps caption Ifndef  ifndef directives
+	r; m @cpp; m & /elif;    ps create Elif;    ps caption Elif    elif directives
+	r; m @cpp; m & /endif;   ps create Endif;   ps caption Endif   endif directives
+	r; m @cpp; m & /undef;   ps create Undef;   ps caption Undef   undef directives
+	r; m @cpp; m & /else;    ps create Else;    ps caption Else    else directive
+	r; m @cpp; m & /if; m no /endif; m no /def; m no /elif; ps create If; ps caption If if directives
+
+	r; m @cpp; m & /define.*[^\#]\#[^\#]; ps create Stringify; ps caption Stringify use of stringification in macros
+	u; m & /define.*\#\#;    ps create Tokenpasting; ps caption Tokenpasting use of tokenpasting in macros
+end
+
+cpp_types2

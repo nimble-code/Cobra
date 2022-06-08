@@ -2,6 +2,11 @@ def fct_len_list
 	r
 	fcts
 	%{
+		unset TopTen;
+		unset TopNme;
+		Stop;
+	%}
+	%{
 		if (.mark)
 		{	n = .;
 			. = .nxt;

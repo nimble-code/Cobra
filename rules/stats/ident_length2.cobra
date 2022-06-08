@@ -1,0 +1,25 @@
+def ident_length2
+	# cpp on
+	r; m @ident
+	w (.len == 1);    ps create L1; ps caption L1  1 char
+	u; w (.len == 2); ps create L2; ps caption L2  2 chars
+	u; w (.len == 3); ps create L3; ps caption L3  3 chars
+	u; w (.len == 4); ps create L4; ps caption L4  4 chars
+	u; w (.len == 5); ps create L5; ps caption L5  5 chars
+	u; w (.len == 6); ps create L6; ps caption L6  6 chars
+	u; w (.len == 7); ps create L7; ps caption L7  7 chars
+	u; w (.len == 8); ps create L8; ps caption L8  8 chars
+	u; w (.len == 9); ps create L9; ps caption L9  9 chars
+	u; w (.len >= 10 && .len < 20); ps create L10s; ps caption L10s 10-20 chars
+	u; w (.len >= 20 && .len < 30); ps create L20s; ps caption L20s 20-29 chars
+	u; w (.len >= 30 && .len < 40); ps create L30s; ps caption L30s 30-39 chars
+	u; w (.len >= 40 && .len < 50); ps create L40s; ps caption L40s 40-49 chars
+	u; w (.len >= 50 && .len < 60); ps create L50s; ps caption L50s 50-59 chars
+	u; w (.len >= 60 && .len < 70); ps create L60s; ps caption L60s 60-69 chars
+	u; w (.len >= 70 && .len < 80); ps create L70s; ps caption L70s 70-79 chars
+	u; w (.len >= 80 && .len < 90); ps create L80s; ps caption L80s 80-89 chars
+	u; w (.len >= 90 && .len < 100); ps create L90s; ps caption L90s 90-99 chars
+	u; w (.len >= 100); ps create L100s; ps caption L100s 100-... chars
+end
+
+ident_length2

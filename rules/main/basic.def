@@ -327,9 +327,6 @@ def check_param_count	# param_count_check.cobra
 			r = .;
 			. = .jmp;
 			. = .nxt;
-			while (@cmnt)
-			{	. = .nxt;
-			}
 			if (.txt == "{")
 			{	# m.mark = 1;	# fct name (mark not used)
 				r.mark = 0;	# start of param list in prototype

@@ -1,6 +1,6 @@
 . basic.def
 
-requires 3.9
+requires 4.0
 
 def m12rule1_2
 	r; m @cpp; m & /pragma
@@ -49,25 +49,28 @@ def m12rule2_7
 end
 
 def m12rule3_1
-	r; m @cmnt; m & //\*.*/\*
+	comments
+	r; m //\*.*/\*
 	>1
-	r; m @cmnt; m & //\*.*//
+	r; m //\*.*//
 	<|1
 	>1
-	r; m @cmnt; m & ///.*/\*
+	r; m ///.*/\*
 	<|1
 	>1
-	r; m @cmnt; m & ///.*//
+	r; m ///.*//
 	<|1
 	ps create M12_R3_1
 	ps caption M12_R3_1 (Required) The character sequences /* and // shall not be used within a comment
+	source
 end
 
 def m12rule3_2
-	r
-	m @cmnt; m & ///.*\\$
+	comments
+	r; m ///.*\\$
 	ps create M12_R3_2
 	ps caption M12_R3_2 (Required) Line-splicing shall not be used in // comments
+	source
 end
 
 def m12rule4_1

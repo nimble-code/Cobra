@@ -52,9 +52,6 @@
 		}
 		. = .jmp;
 		. = .nxt;
-		while (@cmnt)
-		{	. = .nxt;
-		}
 		if (.txt == "{")
 		{	remember[n] = breakdest;
 			breakdest = .jmp;
@@ -72,9 +69,6 @@
 	}
 	if (.txt == "do")
 	{	. = .nxt;
-		while (@cmnt)
-		{	. = .nxt;
-		}
 		if (.txt == "{")
 		{	remember[n] = breakdest;
 			breakdest = .jmp;

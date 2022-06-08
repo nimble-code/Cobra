@@ -7,7 +7,7 @@
 #ifndef COBRA_FE
 #define COBRA_FE
 
-#define tool_version	"Version 3.9 - 11 April 2022"
+#define tool_version	"Version 4.0 - 8 June 2022"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -110,6 +110,11 @@ struct Typedef {
 	Typedef	*up;
 };
 
+enum TokenStream {
+	CMNT = 1,
+	SRC
+};
+
 extern char	*C_BASE;
 extern char	*glob_te;
 extern char	*scrub_caption;
@@ -143,7 +148,6 @@ extern int	stream;
 extern int	stream_lim;
 extern int	stream_margin;
 extern int	verbose;
-extern int	with_comments;
 
 extern int	json_format;
 extern int	json_plus;
@@ -192,6 +196,7 @@ extern void	remember(const char *, int, int);
 extern void	show_line(FILE *, const char *, int, int, int, int);
 extern void	start_timer(int);
 extern void	stop_timer(int, int, const char *);
+extern void	strip_comments_and_renumber(int);
 extern void	t_lex(int);	// text only mode
 extern void	unlock_print(int);
 

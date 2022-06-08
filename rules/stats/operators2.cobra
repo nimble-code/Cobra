@@ -1,0 +1,43 @@
+
+def operators2
+	# cpp on
+	r; m +; ps create Plus; ps caption Plus +
+	r; m -; ps create Minus; ps caption Minus -
+	r; m *; ps create Times; ps caption Times *
+	r; m \/; ps create Divide; ps caption Divide /
+	r; m %; ps create Module; ps caption Modulo %
+	r; m ++; ps create Increment; ps caption Increment ++
+	r; m --; ps create Decrement; ps caption Decrement --
+	r; m +=; ps create PlusEq; ps caption PlusEq +=
+	r; m -=; ps create MinusEq; ps caption MinusEq -=
+	r; m *=; ps create TimesEq; ps caption TimesEq *=
+	r; m \/=; ps create DivideEq; ps caption DivideEq /=
+	r; m %=; ps create ModEq; ps caption ModEq %=
+	r; m !; ps create Not; ps caption Not !
+	r; m &&; ps create L_AND; ps caption L_AND &&
+	r; m ||; ps create L_OR; ps caption L_OR ||
+	r; m ~; ps create Tilde; ps caption Tilde ~
+	r; m \&; ps create B_AND; ps caption B_AND &
+	r; m |; ps create B_OR; ps caption B_OR |
+	r; m ^; ps create B_NEG; ps caption B_NEG ^
+	r; m <<; ps create L_Shift; ps caption L_Shift <<
+	r; m >>; ps create R_Shift; ps caption R_Shift >>
+	r; m ~=; ps create TildeEq; ps caption TildeEq ~=
+	r; m &=; ps create B_AndEq; ps caption B_AndEq &=
+	r; m |=; ps create B_OrEq; ps caption B_OrEq |=
+	r; m ^=; ps create B_NegEq; ps caption B_NegEq ^=
+	r; m <<=; ps create L_ShiftEq; ps caption L_ShiftEq <<=
+	r; m >>=; ps create R_ShiftEq; ps caption R_ShiftEq >>=
+	r; m ==; ps create Equals; ps caption Equals ==
+	r; m !=; ps create NotEquals; ps caption NotEquals !=
+	r; m <; ps create LessThan; ps caption LessThan <
+	r; m >; ps create GreaterThan; ps caption GreaterThan >
+	r; m <=; ps create LesThanEquals; ps caption LesThanEquals <=
+	r; m >=; ps create GreaterThanEquals; ps caption GreaterThanEquals >=
+	r; m =; ps create Assign; ps caption Asign =
+	r; m .; ps create Dot; ps caption Dot .
+	r; m ->; ps create Deref; ps caption Deref ->
+	r; m ?; ps create Question; ps caption Question ?
+end
+
+operators2

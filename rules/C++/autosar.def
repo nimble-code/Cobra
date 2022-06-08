@@ -1,0 +1,3083 @@
+# Autosar coding guilines
+# fast but not exhaustive checks for common types of rule deviations
+# Nimble Research, for BlueOrigin, June 2022
+
+requires 4.0
+
+def Select_Bound_Vars(nm, tags)		# 4=matched only, 20=(4|16)matched or defined
+	%{
+		if (.mark & tags)	# bound variable matched or defined
+		{	.mark = 321;	# remember it
+		}
+	%}
+	%{
+		if (.mark == 321)
+		{	add_pattern( nm , ., .);
+		}
+		.mark = 0;
+	%}
+end
+
+def M0_1_1	#  (RI+) A project shall not contain unreachable code.
+	r
+	pe M0_1_1: [if while] ( [0 false] ) { .* }
+	ps caption M0_1_1 (Required) A project shall not contain unreachable code.
+end
+
+def M0_1_2	#  (RI+) A project shall not contain infeasible paths.
+	# included in M0_1_1
+end
+
+def M0_1_3	#  (RI+) A project shall not contain unused variables.
+	r
+        pe ^[struct union] ^[struct union] { ^[( )]* @type ^[\; ( ) =]*  x:@ident ^:x* }
+	Select_Bound_Vars(M0_1_3, 16)	# 16=defined bound vars
+	ps caption M0_1_3 (Required) A project shall not contain unused variables.
+end
+
+def M0_1_4	#  (RI+) A project shall not contain non-volatile POD (plain old data) variables having only one use.
+	r
+	pe ^[struct union] ^[struct union] { .* @type ^\;* x:@ident ^:x* :x ^:x* }
+	Select_Bound_Vars(M0_1_4, 4)
+	ps caption M0_1_4 (Required) A project shall not contain non-volatile POD (plain old data) variables having only one use.
+end
+
+def M0_1_5	#  (RI+) A project shall not contain unused type declarations.
+	r
+	pe using x:@ident = ^:x*
+	Select_Bound_Vars(M0_1_5, 16)
+	pe typedef ^\;* x:@ident \; ^:x*
+	Select_Bound_Vars(M0_1_5, 16)
+	ps caption M0_1_5 (Required) A project shall not contain unused type declarations.
+end
+
+def A0_1_1	#  (RI+) A project shall not contain instances of non-volatile variables being given values that are not subsequently used.
+	r
+	symbols
+	pe ^[struct union] ^[struct union] { .* ^static @type x:@ident .* ^-> :x = ^:x* }	# but only of not global...
+	Select_Bound_Vars(A0_1_1, 4)
+	ps caption A0_1_1 (Required) A project shall not contain instances of non-volatile variables being given values that are not subsequently used.
+end
+
+def A0_1_2	#  (RI+) The value returned by a function having a non-void return type that is not an overloaded operator shall be used.
+	r
+	fcts
+	= "functions"
+	%{
+		unset NonVoid;
+		Stop;
+	%}
+	b
+	m no void
+	n
+	%{
+		if (.mark == 0) { Next; }
+		.mark = 0;
+		NonVoid[.txt] = .;
+	%}
+	m @ident (
+	m & (.curly > 0) # mark possible fct calls
+	%{
+		if (.mark == 0) { Next; }
+		.mark = 0;
+		q = NonVoid[.txt];
+		if (q.seq <= 0) { Next; }
+		b = .prv;
+		if (b.round == 0		# not used in conditions or as param (also 0 at ( itself)
+		&&  b.bracket == 0		# not used in an array index
+		&&  b.type != "oper"		# +-= etc not used as a value
+		&&  b.txt != ")"		# cast not preceded by a cast
+		&&  b.txt != "return")	
+		{	add_pattern(A0_1_2, ., .);
+		}
+	%}
+	ps caption A0_1_2 (Required) The value returned by a function having a non-void return type that is not an overloaded operator shall be used.
+end
+
+def M0_1_8	#  (RI+, C2) All functions with void return type shall have external side effect(s).
+	# modify global variables, call other fcts, change data via pointer parameters?
+	# seems obvious: why else would one use such a fct..
+	# tbd if it makes sense to build a complex check for this
+end
+
+def M0_1_9	#  (RI+, C2) There shall be no dead code.
+	# cf wth M0_1_1 (no unreachable code) and M0_1_2 (no infeasible paths)
+	# but could also be interpreted to mean code with no effect (redundant code)
+	# or with results that are never used (cf M0_1_3)
+	# good compilers eliminate dead code, so this seems low priority
+	# for now, just look for #if 0 blocks
+	r
+	m /ifdef
+	m & @cpp
+	n
+	m & 0
+	ps create M0_1_9
+	ps caption M0_1_9 (Required) There shall be no dead code.
+end
+
+def M0_1_10	#  (AI+) Every defined function should be called at least once.
+	r
+	fcts
+	%{
+		unset Fcts;
+		Stop;
+	%}
+	%{
+		if (.mark)
+		{	Fcts[.txt] = .;
+			.mark = 0;
+		}
+	%}
+	# we now have a list of all defined functions
+	m @ident (
+	m & (.curly > 0)
+	%{
+		if (.mark == 0) { Next; }
+		.mark = 0;
+		q = Fcts[.txt];
+		if (q.seq > 0)
+		{	unset Fcts[.txt]; # fct called at least once
+		}
+	%}
+	%{
+		for (i in Fcts)
+		{	q = Fcts[i.txt];
+			add_pattern(M0_1_10, q, q);
+		}
+		Stop;
+	%}
+	ps caption M0_1_10 (Advisory) Every defined function should be called at least once.
+end
+
+def A0_1_3	#  (RI+) Every static function or private method of a class shall be used.
+	# tbd
+end
+
+def M0_1_11	#  (RI+) There shall be no unused parameters (named or unnamed) in non-virtual functions.
+	r
+	pe @ident ( .* x:@ident .* ) { ^:x* }
+	Select_Bound_Vars(M0_1_11, 16)
+	ps caption M0_1_11 (Required) There shall be no unused parameters (named or unnamed) in non-virtual functions.
+end
+
+def M0_1_12	#  (RI+) There shall be no unused parameters (named or unnamed) in the set of parameters for a virtual function and all the functions that override it.
+	# covered by syntax of M0_1_11
+end
+
+def M0_2_1	#  (RI+, C2) An object shall not be assigned to an overlapping object.
+	# interpreted to mean not to use unions, which misra also does
+	# this is not precise, but sufficient
+	r; m union
+	ps create M0_2_1
+	ps caption M0_2_1 (Required) Do not use unions\; An object shall not be assigned to an overlapping object.
+end
+
+def M0_3_1	#  (RIV-, C0) Minimization of run-time failures shall be ensured by the use of at least one of: (a) static analysis tools/techniques; (b) dynamic analysis tools/techniques; (c) explicit coding of checks to handle run-time faults.
+	# not in scope
+end
+
+def M0_3_2	#  (RI-, C2) If a function generates error information, then that error information shall be tested.
+	# more broadly: if a function returns something that something must be used by the caller
+	# which is checked by A0_1_2
+end
+
+def M0_4_1	#  (RI-, C0) Use of scaled-integer or fixed-point arithmetic shall be documented.
+	# not in scope
+end
+
+def M0_4_2	#  (RI-, C0) Use of floating-point arithmetic shall be documented.
+	# not in scope
+end
+
+def A0_4_1	#  (RT-, C0) Floating-point implementation shall comply with IEEE 754 standard.
+	# not in scope
+end
+
+def A0_4_2	#  (RI+) Type long double shall not be used.
+	r; m long double
+	ps create A0_4_2
+	ps caption A0_4_2 (Required) Type long double shall not be used.
+end
+
+def A0_4_3	#  (RT+, C0) The implementations in the chosen compiler shall strictly comply with the C++14 Language Standard.
+	# not in scope
+end
+
+def A1_1_1	#  (RI+, C2) All code shall conform to ISO/IEC 14882:2014 -Programming Language C++ and shall not use deprecated features.
+	# based on: https://cognitivewaves.wordpress.com/modern-cpp-features/
+	r
+	m __try
+	m __finally
+	m deprecated
+	m export
+	m register
+	m throw
+	m auto_ptr
+	m unary_function
+	m binary_function
+	m bind1st
+	m bind2nd
+	m ptr_fun
+	m pointer_to_unary_function
+	m pointer_to_binary_function
+	m mem_fun
+	m Implicit lambda
+	pe < ccomplex >
+	pe < ciso646 >
+	pe < cstdalign >
+	pe < cstdbool >
+	pe < ctgmath >
+	ps create A1_1_1
+	ps caption A1_1_1 (Required) All code shall conform to ISO/IEC 14882:2014 -Programming Language C++ and shall not use deprecated features.
+end
+
+def M1_0_2	#  (RI-, C0) Multiple compilers shall only be used if they have a common, defined interface.
+	# not in scope
+end
+
+def A1_1_2	#  (RT-, C0) A warning level of the compilation process shall be set in compliance with project policies.
+	# not in scope
+end
+
+def A1_1_3	#  (RI+, C0) An optimization option that disregards strict standard compliance shall not be turned on in the chosen compiler.
+	# not in scope
+end
+
+def A1_2_1	#  (RI-, C0) When using a compiler toolchain (including preprocessor, compiler itself, linker, C++ standard libraries) in safety-related software, the tool confidence level (TCL) shall be determined. In case of TCL2 or TCL3, the compiler shall undergo a Qualification of a software tool, as per ISO 26262-8.11.4.6 [5].
+	# not in scope
+end
+
+def A1_4_1(N, M)	#  (RI-, C2 [gh: JPL bounds?]) Code metrics and their valid boundaries shall be defined.
+	# eg:	no more than N=60 lines in a fct body
+	#	no more than M=6 parameters in fct calls
+	#	no more than P=3 levels of indirection on ptrs
+
+	r
+	fcts
+	>1
+	n {
+	m & (.range > N)
+	ps create A1_4_1a
+	ps caption A1_4_1a (Required) Limit functions to no more than N lines.
+
+	r
+	<1
+	n (
+	c ,
+	%{
+		if (.mark == 0 || .jmp == 0 || .range == 0) { Next; }
+		.mark = 0;
+		q = .nxt;
+		e = .jmp;
+		cnt = 0;
+		while (q.seq < e.seq)
+		{	if (q.txt == ",")
+			{	cnt++;
+			}
+			q = q.nxt;
+		}
+		if (cnt > M)	# XXX check that M is set XXX
+		{	add_pattern(A1_4_1b, ., .);
+		}
+	%}
+	ps caption A1_4_1b (Required) Use no more than M parameters per function.
+
+	r
+	# ****ptr, ***ptr->, ***ptr[..] **ptr[..]->
+	pe * * * *
+	pe * * * @ident [-> \[]
+	pe * * @ident [ .* ] ->
+	## can rewrite as an inline program if a parameter value P is better
+	ps create A1_4_1c
+	ps caption A1_4_1c (Required) Use no more than 3 levels of indirection.
+end
+
+def A1_4_2	#  (RI-, C2) All code shall comply with defined boundaries of code metrics.
+	# defined and checked in A1_4_1
+end
+
+def A2_2_1	#  (RI+) Only those characters specified in the C++ Language Standard basic source character set shall be used in the source code.
+	# The basic source character set consists of 96 characters: the space character, the
+	# control characters representing horizontal tab, vertical tab, form feed, and new-line,
+	# ' ', \t, \v, \f, \n
+	# plus the 91 characters: [a-z] [A-Z] [0-9]  _ { } [ ] # ( ) < > % : ; . ? * + - / ^ & | ~ ! = , \ " '
+	# out of scope: applies to source text, not lexical tokens - check by compiler
+end
+
+def A2_5_1	#  (RI+) Trigraphs shall not be used.
+	# The Trigraphs are: ??=, ??/, ??', ??(, ??), ??!, ??<, ??>, ??-.
+	r
+	m /\?\?[=/'()!<>-]
+	ps create A2_5_1
+	ps caption A2_5_1 (Required) Trigraphs shall not be used
+end
+
+def A2_6_1	#  (RI+) Digraphs shall not be used.
+	# The digraphs are: <%, %>, <:, :>, %:, %:%:.
+	r
+	m < %
+	m % >
+	m < :
+	m : >
+	m % :
+	m : %
+	ps create A2_6_1
+	ps caption A2_6_1 (Required) Digraphs shall not be used.
+end
+
+def A2_8_1	#  (RI+) The character \ shall not occur as a last character of a C++ comment.
+	comments
+	r; m /\\$
+	ps create A2_8_1
+	ps caption A2_8_1 (Required) The character \\ shall not occur as a last character of a C++ comment.
+	source
+end
+
+def A2_8_2	#  (RI-) Sections of code shall not be "commented out".
+	comments
+	r; m /\;	# semi-colons in comment are a good indicator of code fragments
+	ps create A2_8_2
+	ps caption A2_8_2 (Required) Sections of code shall not be commented out.
+	source
+end
+
+def A2_8_3	#  (RI+) All declarations of user-defined types, static and non-static data members, functions and methods shall be preceded by documentation using "///" comments and "@tag" tags.
+	r
+	fcts
+	b	# mark token before fctnm
+	%{
+		if (.mark == 0) { Next; }
+		.mark = 0;
+		while (.txt == "*" || .txt == "const")
+		{	. = .prv;
+		}
+		if (.typ != "type") { Next; }
+		q = .prv;
+		if (q.txt == "::")	# std::int32_t fct() ...
+		{	q = q.prv;
+			if (q.typ == "ident")
+			{	q.mark = 1;
+		}	}
+	%}
+	m using
+	m typedef
+	m static
+	>1
+	r
+	pe @type [*]* @ident ( .* ) @specifier* \;
+	m & (.mark == 3)	# first token of pattern
+	%{
+		if (.mark == 0) { Next; }
+		q = .prv;
+		if (q.txt != "::") { Next; }
+		q = q.prv;
+		if (q.typ != "ident") { Next; }	# std :: @type
+		.mark = 0;
+		q.mark = 3;	# move mark
+	%}
+	<|1
+	comments
+	%{
+		if (match(.txt, "////") == 0)
+		{	Next;
+		}
+		q = .bound;	# next token in source stream
+		if (q.seq > 0)
+		{	q.mark = 0; # remove the mark, if set
+			# preceded by /// comment
+			# if (match(q.txt, "/\/\/\/") == 0)
+			# { print q.lnr ": rm mark on " q.txt "\n";
+			# }
+		}
+		# all remaining marks do not follow a comment
+	%}
+	source
+	ps create A2_8_3
+	ps caption A2_8_3 (Required) Declarations of user-defined types, static and non-static data members, functions and methods shall be preceded by documentation using "///" comments and "@tag" tags.
+end
+
+def A2_8_4	#  (RI+) C-style comments shall not be used.
+	r
+	comments
+	r
+	m /\/\*
+	%{
+		if (.mark == 0) { Next; }
+		.mark = 0;
+		add_pattern(A2_8_4, ., .);
+		# using ps create would combine sequences of c-style comments
+	%}
+	ps caption A2_8_4 (Required)  C-style comments shall not be used.
+	source
+end
+
+def A2_9_1	#  (RI+) A header file name shall be identical to a type name declared in it if it declares a type.
+	# TBD, requires preprocessing
+end
+
+def M2_10_1	#  (RI+) Different identifiers shall be typographically unambiguous.
+	# not only differ in case
+	# not only differ in use or placement of underscores
+	# not just swap 0 and O, I and 1 or l, S and 5, Z and 2, B and 8, rn and m
+	## mine names from declarations only
+	## 1. map tolower, omit all _, check for equal names
+	## 2. map all O's to zeros,
+	##	  all I's and l's to 1's,
+	##	  all S's to 5's,
+	##	  all Z's to 2's,
+	##	  all B's to 8's and
+	##	  all 'rn's to m's,
+	##		check for equal
+	%{
+		unset Mapped;
+		function check_m2_10_1(t) {
+			g = t.txt;
+			s = disambiguate(g); # XXX new builtin fct 4.0
+			q = Mapped[s];
+			if (q.seq > 0)
+			{	add_pattern(M2_10_1, t, t);
+			} else
+			{	Mapped[s] = q;
+			}
+		}
+		Stop;
+	%}
+	%{
+		if (!@type) { Next; }
+		if (.round > 0) # likely parameter
+		{	while (.round != 0 && .txt != "EOF")
+			{	if (@ident)
+				{	check_m2_10_1(.);
+				}
+				. = .nxt;
+			}
+			Next;
+		}
+		. = .nxt;
+		if (.txt == "(") { Next; } # likely function
+		# likely declaration
+		while (.txt != ";" && .txt != "EOF")
+		{	if (@ident)
+			{	check_m2_10_1(.);
+			}
+			. = .nxt;
+		}
+	%}
+	ps caption M2_10_1 (Required) Different identifiers shall be typographically unambiguous.
+end
+
+def A2_11_1	#  (RI+) An identifier declared in an inner scope shall not hide an identifier declared in an outer scope.
+	# conservative, reports more cases than strictly required
+	r
+	pe @type x:@ident .* { .* @type <1> :x .* } @1 (.fnm == :x.fnm)
+	Select_Bound_Vars(A2_11_1, 4)
+	ps caption A2_11_1 (Required) An identifier declared in an inner scope shall not hide an identifier declared in an outer scope.
+end
+
+def M2_10_3	#  (RI+) A typedef name (including qualification, if any) shall be a unique identifier.
+	r; m typedef; n \;; b # navigate to typedef'ed names
+	%{
+		unset Reserved;
+		Stop;
+	%}
+	%{
+		if (.mark) { Reserved[.txt] = .; }
+	%}
+	r; fcts
+	%{	if (.mark)
+		{	q = Reserved[.txt];
+			if (q.seq > 0)		# reused typedef name as fct name
+			{	add_pattern(M2_10_3, q, .);
+			}
+			.mark = 0;
+		}
+	%}
+	m @type @ident; n
+	%{
+		if (.mark)
+		{	q = Reserved[.txt];
+			if (q.seq > 0)		# reused typedef name as variable
+			{	add_pattern(M2_10_3, q, .);
+			}
+			.mark = 0;
+		}
+	%}
+	ps caption M20_10_3 (Required) A typedef name (including qualification, if any) shall be a unique identifier.
+end
+
+def A2_11_2	#  (RI+) A "using" name shall be a unique identifier within a namespace.
+	r
+	pe namespace @ident { .* using x:@ident = .* using :x .* }
+	Select_Bound_Vars(A2_11_2, 4)
+	ps caption A2_11_2 (Required) A using name shall be a unique identifier within a namespace.
+end
+
+def A2_11_3	#  (RI+) A "user-defined" type name shall be a unique identifier within a namespace.
+	r
+	%{
+		unset ClassNames;
+		Stop;
+	%}
+	m class @ident; n
+	%{
+		if (.mark)
+		{	ClassNames[.txt] = .;
+			.mark = 0;
+		}
+	%}
+	m struct
+	m union
+	m enum
+	n
+	m & @ident
+	%{
+		if (.mark)
+		{	q = ClassNames[.txt];
+			if (q.seq > 0)
+			{	if (q.seq > .seq)
+				{	add_pattern(A2_11_3, ., q);
+				} else
+				{	add_pattern(A2_11_3, q, .);
+			}	}
+			.mark = 0;
+		}
+	%}
+	ps caption A2_11_3 (Required) A user-defined type name shall be a unique identifier within a namespace.
+end
+
+def A2_11_4	#  (RI+) The identifier name of a non-member object with static storage duration or static function shall not be reused within a namespace.
+	r
+	pe namespace @ident { .* static .* }	# mark all namespaces with a static declaration inside
+	%{
+		unset NameSpace;
+		Stop;
+	%}
+	m & namespace
+	%{
+		if (.mark == 0)
+		{	.mark = 0;
+			Next;
+		}
+		.mark = 0;
+		. = .nxt;
+		if (!@ident)
+		{	Next;
+		}
+		ns = .;			# the namespace name
+		. = .nxt;
+		r = .jmp;
+		if (.txt != "{" || r.seq == 0) { Next; }
+
+		q = .;
+		while (q.seq < r.seq)	# search rest of pattern for the statics
+		{	if (q.txt == "static")
+			{
+				while (q.typ != "type"
+				&&     q.curly > r.curly
+				&&     q.txt != "EOF")
+				{	q = q.nxt;
+				}
+				q = q.nxt;
+				if (q.typ == "ident")	# name of static var
+				{	s = NameSpace[ns.txt, q.txt];
+					if (s.seq > 0)
+					{	add_pattern(A2_11_4, q, q); # keep patterns short
+					} else
+					{	NameSpace[ns.txt, q.txt] = q;
+			}	}	}
+			q = q.nxt;
+		}
+	%}
+	ps caption A2_11_4 (Required)  The identifier name of a non-member object with static storage duration or static function shall not be reused within a namespace.
+end
+
+def A2_11_5	#  (AI+) An identifier name of a non-member object or function with static storage duration should not be reused.
+	%{
+		unset SF;
+		unset SV;
+		Stop;
+	%}
+	r
+	fcts
+	%{
+		if (.mark == 0) { Next; }
+		.mark = 0;
+		q = .;
+		. = .prv;
+		while (.seq > 0 && .curly == q.curly && .fnm == q.fnm && .txt != ";" && .txt != "EOL")
+		{	if (.txt == "static")	# static fct def
+			{	r = SF[q.txt];
+				if (r.seq > 0)
+				{
+					if (r.seq > q.seq)
+					{  add_pattern(A2_11_5, q, r);
+					} else
+					{  add_pattern(A2_11_5, r, q);
+					}
+				} else
+				{	SF[q.txt] = q;
+					break;
+			}	}
+			. = .prv;
+		}
+		. = q;
+	%}
+	r
+	m static @type; n; n
+	m & @ident 
+	n
+	m no (
+	b
+	>1
+	r
+	m static @ident; n; n
+	m & ::; n
+	m & @ident
+	n
+	m no (
+	b
+	<|1
+	%{
+		if (.mark == 0) { Next; }
+		.mark = 0;
+		r = SV[.txt];
+		if (r.seq > 0)
+		{	add_pattern(A2_11_5, ., .);
+			add_pattern(A2_11_5, r, r);	# avoid long patterns
+		} else
+		{	SV[.txt] = .;
+		}
+	%}
+	ps caption A2_11_5 (Advisory) An identifier name of a non-member object or function with static storage duration should not be reused.
+end
+
+def M2_10_6	#  (RI+) If an identifier refers to a type, it shall not also refer to an object or a function in the same scope.
+	# checking for reuse anywhere, not necessarily in the same scope...
+	m using @ident; n; n
+	m & =; b
+	m & @ident
+	>1
+	r
+	m typedef; n \;; b
+	m & @ident
+	<|1
+	%{
+		unset UN;
+		Stop;
+	%}
+	%{	# collect all using and typedef names
+		if (.mark) { UN[.txt] = .; .mark = 0; }
+	%}
+	r; fcts
+	>1
+	r; m @type @ident; n
+	<|1
+	%{
+		if (.mark)
+		{	q = UN[.txt];
+			if (q.seq > 0)
+			{	add_pattern(M2_10_6, ., .);
+				add_pattern(M2_10_6, q, q);
+			}
+			. mark = 0;
+		}
+	%}
+	ps caption M2_10_6 (Required) If an identifier refers to a type, it shall not also refer to an object or a function [in the same scope].
+end
+
+def A2_14_1	#  (RI+) Only those escape sequences that are defined in ISO/IEC 14882:2014 shall be used.
+	# The defined escape sequences (ISO/IEC 14882:2014) [gh: used in strings]:
+	# \', \", \?, \\, \a, \b, \f, \n, \r, \t, \v, 
+	# \<OctalNumber>, \x<Hexadecimal Number>, \U<Unicode Character Name>
+	r; m @str
+	m & /\\
+	%{
+		if (.mark == 0) { Next; }
+		.mark = 0;
+		n = strlen(.txt);
+		m = 0;
+		while (m <= n)
+		{	s = substr(.txt, m, 1);
+			if (match(s, "/\\"))	# XXX pm: s == "\\" doesn't work here, nor does s == "\""
+			{	m++;
+				s = substr(.txt, m, 1);
+				if (match(s, "/['nrtv?abfUOx\"\\]") == 0)
+				{	add_pattern(A2_14_1, ., .);
+					Next;
+				}
+			}
+			m++;
+		}
+	%}
+	ps caption A2_14_1 (Required) Only those escape sequences that are defined in ISO/IEC 14882:2014 shall be used.
+end
+
+def M2_13_2	#  (RI+) Octal constants (other than zero) and octal escape sequences (other than "\0" ) shall not be used.
+	r; m @const_oct
+	ps create M2_13_2
+	ps caption M2_13_2 (Required) Octal constants (other than zero) and octal escape sequences (other than "\0" ) shall not be used.
+	# other cases already reported in A2_14_1
+end
+
+def M2_13_3	#  (RI+) A "U" suffix shall be applied to all octal or hexadecimal integer literals of unsigned type.
+	r; m @const_oct
+	m @const_hex
+	m no /[uU]
+	ps create M2_13_3
+	ps caption M2_13_3 (Required) A "U" suffix shall be applied to all octal or hexadecimal integer literals of unsigned type. (Double-Check)
+end
+
+def M2_13_4	#  (RI+) Literal suffixes shall be upper case.
+	r; m @const
+	m & /[ul]
+	ps create M2_13_4
+	ps caption M2_13_4 (Required)  Literal suffixes shall be upper case.
+end
+
+def A2_14_2	#  (RI+) String literals with different encoding prefixes shall not be concatenated.
+	r
+	m U
+	m u
+	m L
+	m l
+	n
+	m & @str
+	b	# back to prefix
+	%{
+		if (.mark == 0) { Next; }
+		.mark = 0;
+		cnt = 0;
+		q = .;	# remember first prefix
+		while ((@ident || @str) && .txt != "EOF" )
+		{	if (@ident && .len == 1)	# prefix
+			{	if (.txt != q.txt)
+				{	add_pattern(A2_14_2, q, .);
+					break;
+			}	}
+			. = .nxt;
+		}
+	%}
+	ps caption A2_14_2 (Required) String literals with different encoding prefixes shall not be concatenated.
+
+end
+
+def A2_14_3	#  (RI+) Type wchar_t shall not be used.
+	r
+	m wchar_t
+	ps create A2_14_3
+	ps caption A2_14_3 (Required) Type wchar_t shall not be used.
+end
+
+def A3_1_1	#  (RI+) It shall be possible to include any header file in multiple translation units without violating the One Definition Rule.
+	# TBD, doesn't forbid anything, but allows something
+end
+
+def A3_1_2	#  (RI+) Header files, that are defined locally in the project, shall have a file name extension of one of: ".h", ".hpp" or ".hxx".
+	r
+	m @cpp
+	m & /include
+	n
+	m & @str
+	%{
+		if (.mark == 0) { Next; }
+		.mark = 0;
+		if (match(.txt, "/\.h\"")
+		||  match(.txt, "/\.hpp")
+		||  match(.txt, "/\.hxx"))
+		{	Next;
+		}
+		add_pattern(A3_1_2, ., .);
+	%}
+	ps caption A3_1_2 (Required) Header files, that are defined locally in the project, shall have a file name extension of one of: ".h", ".hpp" or ".hxx".
+end
+
+def A3_1_3	#  (AI+) Implementation files, that are defined locally in the project, should have a file name extension of ".cpp".
+	# out of scope
+end
+
+def M3_1_2	#  (RI+) Functions shall not be declared at block scope.
+	r
+	fcts
+	n {	# body of a fct definition
+	%{
+		if (.mark == 0) { Next; }
+		.mark = 0;
+		q = .;
+		while (.curly >= q.curly && .txt != "EOF")		# fct body
+		{	if (@type)
+			{	while (!@ident && .txt != "EOF")
+				{	 . = .nxt;	# fct name
+				}
+				. = .nxt;
+				if (.txt != "(")
+				{	break;
+				}
+				. = .jmp;		# end  of params
+				. = .nxt;
+				if (.txt == ";" || .txt == ",")
+				{	add_pattern(M3_1_2, q, .);
+					break;	# fct declaration
+				}
+			}
+			. = .nxt;
+		}
+	%}
+	ps caption M3_1_2 (Required) Functions shall not be declared at block scope.
+end
+
+def A3_1_4	#  (RI+) When an array with external linkage is declared, its size shall be stated explicitly.
+	r
+	m extern
+	n
+	%{
+		if (.mark == 0 || !@ident) { Next; }
+		.mark = 0;
+		. = .nxt;
+		if (.txt == "::") { . = .nxt; }
+		. = .nxt;
+		while (.txt == "*") { . = .nxt; }
+		# var name
+		. = .nxt;
+		if (.txt == "[")
+		{	 . = .nxt;
+			if (.txt == "]")
+			{	add_pattern(A3_1_4, ., .);
+		}	}
+	%}
+	ps caption A3_1_4 (Required) When an array with external linkage is declared, its size shall be stated explicitly.
+end
+
+def M3_2_1	#  (RI+) All declarations of an object or function shall have compatible types.
+	# TBD
+end
+
+def M3_2_2	#  (RI+) The One Definition Rule shall not be violated.
+	# TBD compiler check
+end
+
+def M3_2_3	#  (RI+) A type, object or function that is used in multiple translation units shall be declared in one and only one file.
+	# TBD compiler check
+end
+
+def M3_2_4	#  (RI+) An identifier with external linkage shall have exactly one definition.
+	# TBD compiler check
+end
+
+def A3_3_1	#  (RI+) Objects or functions with external linkage (including members of named namespaces) shall be declared in a header file.
+	r
+	m extern
+	%{
+		if (.mark == 0) { Next; }
+		.mark = 0;
+		if (!match(.fnm, "/\.h"))
+		{	add_pattern(A3_3_1, ., .);
+		}
+	%}
+	ps caption A3_3_1 (Required) Objects or functions with external linkage (including members of named namespaces) shall be declared in a header file.
+end
+
+def A3_3_2	#  (RI+) Non-POD type objects with static storage duration shall not be used.
+	# POD = Plain Old Data
+	r
+	m static
+	n
+	m no @type	# weak, since we cannot distinguish basic types from user-defined type yet, eg use @utype?
+	n
+	%{
+		if (.mark == 0) { Next; }
+		.mark = 0;
+		if (.txt == "::") { . = .nxt; }
+		if (@type) { Next; }
+		add_pattern(A3_3_2, ., .);
+	%}
+	ps caption A3_3_2 (Required) Non-POD type objects with static storage duration shall not be used.
+end
+
+def M3_3_2	#  (RI+) If a function has internal linkage then all re-declarations shall include the static storage class specifier.
+	# compiler check
+end
+
+def M3_4_1	#  (RI+) An identifier declared to be an object or type shall be defined in a block that minimizes its visibility.
+	# TBD call bin/scopecheck here?
+end
+
+def M3_9_1	#  (RI+) The types used for an object, a function return type, or a function parameter shall be token-for-token identical in all declarations and re-declarations.
+	# TBD
+end
+
+def A3_9_1	#  (RI+) Fixed width integer types from <cstdint>, indicating the size and signedness, shall be used in place of the basic numerical types.
+	r
+	pe A3_9_1: [char int short long]
+	ps caption A3_9_1 (Required) Fixed width integer types from <cstdint>, indicating the size and signedness, shall be used in place of the basic numerical types.
+end
+
+def M3_9_3	#  (RI+) The underlying bit representations of floating-point values shall not be used.
+	r
+	symbols
+	m |
+	m \&
+	m ~
+	m <<
+	m >>
+	%{
+		if (.mark == 0) { Next; }
+		.mark = 0;
+		p = .prv;
+		q = p.bound;
+		if (q.seq > 0 && q.txt == "float")
+		{	add_pattern(M3_9_3, q, p);
+			Next;
+		}
+		p = .nxt;
+		q = p.bound;
+		if (q.seq > 0 && q.txt == "float")
+		{	add_pattern(M3_9_3, q, p);
+		}
+	%}
+	ps caption M3_9_3 (Required) The underlying bit representations of floating-point values shall not be used.
+end
+
+def M4_5_1	#  (RI+) Expressions with type bool shall not be used as operands to built-in operators other than the assignment operator =, the logical operators &&, ||, !, the equality operators == and !=, the unary & operator, and the conditional operator.
+	# tbd
+end
+
+def A4_5_1	#  (RI+) Expressions with type enum or enum class shall not be used as operands to built-in and overloaded operators other than the subscript operator [ ], the assignment operator =, the equality operators == and ! =, the unary & operator, and the relational operators <, <=, >, >=.
+	# tbd
+end
+
+def M4_5_3	#  (RI+) Expressions with type (plain) char and wchar_t shall not be used as operands to built-in operators other than the assignment operator =, the equality operators == and !=, and the unary & operator.
+	r
+	symbols
+	m @oper
+	m no *	# confusion with unary ptr deref
+	m no :
+	m no =
+	m no \&
+	m no ==
+	m no !=
+	%{
+		if (.mark == 0) { Next; }
+		.mark = 0;
+		p = .prv;
+		q = p.bound;
+		if (q.seq > 0 && (q.txt == "char" || q.txt == "w_char_t"))
+		{	if (p.seq > q.seq)
+			{	add_pattern(M4_5_3, q, p);
+			} else
+			{	add_pattern(M4_5_3, p, q);
+			}
+			Next;
+		}
+		p = .nxt;
+		q = p.bound;
+		if (q.seq > 0 && (q.txt == "char" || q.txt == "w_char_t"))
+		{	if (p.seq > q.seq)
+			{	add_pattern(M4_5_3, q, p);
+			} else
+			{	add_pattern(M4_5_3, p, q);
+			}
+		}
+	%}
+	ps caption M4_5_3 (Required) Expressions with type (plain) char and wchar_t shall not be used as operands to built-in operators other than the assignment operator =, the equality operators == and !=, and the unary & operator.
+end
+
+def A4_7_1	#  (RI+) An integer expression shall not lead to data loss.
+	# outside scope
+end
+
+def M4_10_1	#  (RI+) NULL shall not be used as an integer value.
+	r
+	m NULL
+	%{
+		if (.mark == 0) { Next; }
+		.mark = 0;
+		p = .prv;
+		if (p.type == "oper" && !match(p.txt, "/="))
+		{	add_pattern(M4_10_1, p, .);
+			Next;
+		}
+		p = .nxt;
+		if (p.type == "oper" && !match(p.txt, "/="))
+		{	add_pattern(M4_10_1, ., p);
+		}
+	%}
+	ps caption M4_10_1 (Required) NULL shall not be used as an integer value.
+end
+
+def A4_10_1	#  (RI+) Only nullptr literal shall be used as the null-pointer-constant.
+	r; m NULL
+	ps create A4_10_1
+	ps caption A4_10_1 (Required) Only nullptr literal shall be used as the null-pointer-constant. (Verify)
+	# likely broader than the rule intents
+end
+
+def M4_10_2	#  (RI+) Literal zero (0) shall not be used as the null-pointer-constant.
+	r
+	m * @ident
+	n; n; n
+	m & /=
+	n
+	m & 0
+	ps create M4_10_2
+	ps caption M4_10_2 (Required) Literal zero (0) shall not be used as the null-pointer-constant.
+end
+
+def A5_0_1	#  (RI+) The value of an expression shall be the same under any order of evaluation that the standard permits.
+	r
+	pe = ^\;* x:@ident ^\;* @ident [++ --]
+	pe = ^\;* x:@ident [++ --] ^\;* @ident
+	ps create A5_0_1a
+	. binop.def
+	binop A5_0_1b
+	ps A5_0_1 = A5_0_1a + A5_0_1b
+	ps caption A5_0_1 (Required) The value of an expression shall be the same under any order of evaluation that the standard permits.
+	# checking common case of misinterpretation of precedence levels of binary operators
+	ps delete A5_0_1a
+	ps delete A5_0_1b
+end
+
+def M5_0_2	#  (AI+-) Limited dependence should be placed on C++ operator precedence rules in expressions.
+	# checked in A5_0_1
+end
+
+def M5_0_3	#  (RI+) A cvalue expression shall not be implicitly converted to a different underlying type.
+	# tbd: unclear
+end
+
+def M5_0_4	#  (RI+) An implicit integral conversion shall not change the signedness of the underlying type.
+	# outside scope of cobra
+end
+
+def M5_0_5	#  (RI+) There shall be no implicit floating-integral conversions.
+	# outside scope
+end
+
+def M5_0_6	#  (RI+) An implicit integral or floating-point conversion shall not reduce the size of the underlying type.
+	# outside scope
+end
+
+def M5_0_7	#  (RI+) There shall be no explicit floating-integral conversions of a cvalue expression.
+	# outside scope
+end
+
+def M5_0_8	#  (RI+) An explicit integral or floating-point conversion shall not increase the size of the underlying type of a cvalue expression.
+	# outside scope
+end
+
+def M5_0_9	#  (RI+) An explicit integral conversion shall not change the signedness of the underlying type of a cvalue expression.
+	# outside scope
+end
+
+def M5_0_10	#  (RI+) If the bitwise operators ~and << are applied to an operand with an underlying type of unsigned char or unsigned short, the result shall be immediately cast to the underlying type of the operand.
+	# tbd
+end
+
+def M5_0_11	#  (RI+) The plain char type shall only be used for the storage and use of character values.
+	# tbd, hard to check statically
+end
+
+def M5_0_12	#  (RI+) Signed char and unsigned char type shall only be used for the storage and use of numeric values.
+	# tbd, hard to check statically
+end
+
+def A5_0_2	#  (RI+) The condition of an if-statement and the condition of an iteration statement shall have type bool.
+	# meaning, should contain one or more boolean operators?
+	r
+	pe A5_0_2a: [if while] ( ^[== != > < >= <=]* )
+	pe A5_0_2b: for ( ^\;* \; ^[== != > < >= <= \;]* \; .*)
+	ps A5_0_2 = A5_0_2a + A5_0_2b The condition of an if-statement and the condition of an iteration statement shall have type bool.
+	ps caption A5_0_2 (Required) The condition of an if-statement and the condition of an iteration statement shall have type bool.
+	ps delete A5_0_2a
+	ps delete A5_0_2b
+end
+
+def M5_0_14	#  (RI+) The first operand of a conditional-operator shall have type bool.
+	# tbd -- x?y:z
+end
+
+def M5_0_15	#  (RI+) Array indexing shall be the only form of pointer arithmetic.
+	r; m * )	# cast to ptr type
+	n; n
+	m & (
+	c +	# contains addition
+	ps create M5_0_15
+	ps caption M5_0_15 (Required) Array indexing shall be the only form of pointer arithmetic.
+end
+
+def M5_0_16	#  (RI+) A pointer operand and any pointer resulting from pointer arithmetic using that operand shall both address elements of the same array.
+	# tbd, statically impossible to check where a ptr points after arithmetic was done
+end
+
+def M5_0_17	#  (RI+) Subtraction between pointers shall only be applied to pointers that address elements of the same array.
+	# tbd, statically impossible to check where a ptr points after arithmetic was done
+end
+
+def M5_0_18	#  (RI+) >, >=, <, <= shall not be applied to objects of pointer type, except where they point to the same array.
+	# tbd 
+end
+
+def A5_0_3	#  (RI+) The declaration of objects shall contain no more than two levels of pointer indirection.
+	r
+	m @type *
+	n; n
+	m & *
+	n
+	m & *
+	ps create A5_0_3
+	ps caption A5_0_3 (Required) The declaration of objects shall contain no more than two levels of pointer indirection.
+end
+
+def M5_0_20	#  (RI+) Non-constant operands to a binary bitwise operator shall have the same underlying type.
+	r
+	symbols
+	m |
+	m \&
+	n
+	m & @ident
+	b; b
+	m & @ident
+	n
+	%{
+		if (.mark == 0) { Next; }
+		.mark = 0;
+		p = .prv;
+		q = p.bound;
+		if (q.seq == 0)
+		{	Next;
+		}
+		p = .nxt;
+		r = p.bound;
+		if (r.seq == 0)
+		{	Next;
+		}
+		if (q.txt != r.txt)
+		{	add_pattern(M5_0_20, ., .);
+		}
+	%}
+	ps caption M5_0_20 (Required) Non-constant operands to a binary bitwise operator shall have the same underlying type.
+end
+
+def M5_0_21	#  (RI+) Bitwise operators shall only be applied to operands of unsigned underlying type.
+	# tbd
+end
+
+def A5_1_1	#  (RI+-) Literal values shall not be used apart from type initialization, otherwise symbolic names shall be used instead.
+	# ie no magic numbers, other than in declarations, but this catches a lot of things
+	r
+	m @const_int
+	m no /^[01]$	# allow zero and one
+	%{
+		if (.mark == 0) { Next; }
+		.mark = 0;
+		q = .;
+		while (q.txt != ";" && q.txt != ","
+		   && q.curly == .curly
+		   && q.round == .round
+		   && q.bracket == .bracket
+		   && q.txt != "EOF")
+		{	if (q.type == "type"
+			||  q.type == "modifier"
+			||  q.type == "qualifier"
+			||  q.txt  == "cout")
+			{	Next;	# declaration or logging
+			}
+			q = q.prv;
+		}
+		add_pattern(A5_1_1, ., .);
+	%}
+	ps caption A5_1_1 (Required) Literal values shall not be used apart from type initialization, otherwise symbolic names shall be used instead.
+end
+
+def A5_1_2	#  (RI+) Variables shall not be implicitly captured in a lambda expression.
+	# tbd, coverage of lambda expressions pending
+end
+
+def A5_1_3	#  (RI+) Parameter list (possibly empty) shall be included in every lambda expression.
+	# tbd, coverage of lambda expressions pending
+end
+
+def A5_1_4	#  (RI+) A lambda expression object shall not outlive any of its reference-captured objects.
+	# tbd, coverage of lambda expressions pending
+end
+
+def A5_1_5	#  (AI-) If a lambda expression is used in the same scope in which it has been defined, the lambda should capture objects by reference.
+	# out-of-scope, cannot be automated
+end
+
+def A5_1_6	#  (AI+) Return type of a non-void return type lambda expression should be explicitly specified.
+	r
+	pe A5_1_6: = [ ] ( ) {
+	ps caption A5_1_6  (Advisory) Return type of a non-void return type lambda expression should be explicitly specified.
+end
+
+def A5_1_7	#  (RI+) The underlying type of lambda expression shall not be used.
+	# tbd, coverage of lambda expressions pending
+end
+
+def A5_1_8	#  (AI+) Lambda expressions should not be defined inside another lambda expression.
+	r
+	pe A5_1_8: = [ .* ] ( .* ) { .* = [ .* ] ( .* ) { .* } .* }
+	ps caption A5_1_8 (Advisory) Lambda expressions should not be defined inside another lambda expression.
+end
+
+def M5_2_1	#  (RI+) Each operand of a logical &&, || shall be a postfix expression.
+	r	# the two most important cases
+	pe M5_2_1a: [if while] ( .* && ^[( )]* || .* )
+	pe M5_2_1b: [if while] ( .* || ^[( )]* && .* )
+	ps M5_2_1 = M5_2_1a + M5_2_1b
+	ps caption M5_2_1 (Required) Each operand of a logical &&, || shall be a postfix expression.
+	ps delete M5_2_1a
+	ps delete M5_2_1b
+end
+
+def M5_2_2	#  (RI+) A pointer to a virtual base class shall only be cast to a pointer to a derived class by means of dynamic_cast.
+	# tbd
+end
+
+def M5_2_3	#  (AI+) Casts from a base class to a derived class should not be performed on polymorphic types.
+	# tbd
+end
+
+def A5_2_1	#  (AI+) dynamic_cast should not be used.
+	r; m dynamic_cast
+	ps create A5_2_1
+	ps caption A5_2_1 (Advisory) Dynamic_cast should not be used.
+end
+
+def A5_2_2	#  (RI+) Traditional C-style casts shall not be used.
+	r
+	pe A5_2_2: = ( .* ) [@ident (]
+	ps caption A5_2_2 (Required) Traditional C-style casts shall not be used.
+end
+
+def A5_2_3	#  (RI+) A cast shall not remove any const or volatile qualification from the type of a pointer or reference.
+	# tbd
+end
+
+def M5_2_6	#  (RI+) A cast shall not convert a pointer to a function to any other pointer type, including a pointer to function type.
+	# tbd
+end
+
+def A5_2_4	#  (RI+) reinterpret_cast shall not be used.
+	r; m reinterpret_cast
+	ps create A5_2_4
+	ps caption A5_2_4 (Required) reinterpret_cast shall not be used.
+end
+
+def M5_2_8	#  (RI+) An object with integer type or pointer to void type shall not be converted to an object with pointer type.
+	# tbd
+end
+
+def M5_2_9	#  (RI+) A cast shall not convert a pointer type to an integral type.
+	# tbd
+end
+
+def M5_2_10	#  (RI+) The increment (++) and decrement (--) operators shall not be mixed with other operators in an expression.
+	r
+	m =	# check rhs of assignments
+	%{	# everything up to a ; or ,
+		if (.mark == 0) { Next; }
+		.mark = 0;
+		q = .;
+		cnt1 = 0; cnt2 = 0;
+		while (.txt != ";" && .txt != "," && .txt != "EOF")
+		{	if (@oper)
+			{	if (.txt == "++"
+				||  .txt == "--")
+				{	cnt1++;
+					if (cnt2 > 0)
+					{	add_pattern(M5_2_10, q, .);
+						Next;
+					}
+				} else
+				{	if (.txt == "+"
+					||  .txt == "-"
+					||  .txt == "*"
+					||  .txt == "/"
+					||  .txt == "%")
+					{	cnt2++;
+						if (cnt1 > 0)
+						{	add_pattern(M5_2_10, q, .);
+							Next;
+			}	}	}	}
+			. = .nxt;
+		}
+	%}
+	ps caption M5_2_10 (Required) The increment (++) and decrement (--) operators shall not be mixed with other operators in an expression.
+end
+
+def M5_2_11	#  (RI+) The comma operator, && operator and the || operator shall not be overloaded.
+	# an attempt to catch this:
+	r
+	pe M5_2_11: operator [, && ||] ( .* )
+	ps caption M5_2_11 (Required) The comma operator, && operator and the || operator shall not be overloaded.
+end
+
+def A5_2_5	#  (RI+) An array shall not be accessed beyond its range.
+	# tbd, only a runtime test can be accurate here
+	# but we could check for the simple cases where an array size is known and an index value can be deduced
+	# similar to the check that the uno tool performs
+end
+
+def M5_2_12	#  (RI+) An identifier with array type passed as a function argument shall not decay to a pointer.
+	r
+	fcts
+	n
+	c *
+	b	# fcts with at least on ptr parameter
+	%{
+		unset Fcts;
+		unset Cnts;
+		unset PArgs;
+		Stop;
+	%}
+	%{
+		if (.mark == 0) { Next; }
+		.mark = 0;
+		Fcts[.txt] = .;	# remember these fcts
+		q = .nxt;
+		if (q.jmp == 0) { Next; }
+		s = q.nxt;
+		r = q.jmp;
+		cnt_commas = 0;
+		while (q.seq != r.seq && q.txt != "EOF")
+		{	if (q.round == s.round)
+			{	if (q.txt == ",")
+				{	cnt_commas++;
+				} else
+				{	if (q.txt == "*")
+					{	Pargs[.seq , cnt_commas] = q;
+			}	}	}
+			q = q.nxt;
+		}
+		Cnts[.seq] = cnt_commas;
+	%}
+	# find places where these fcts are called
+	m @ident (	# likely fct calls
+	symbols
+	%{
+		if (.mark == 0) { Next; }
+		.mark = 0;
+
+		p = Fcts[.txt];
+		if (p.seq == 0) { Next; }
+
+		q = .nxt;	# start of params
+		if (q.jmp == 0) { Next; }
+
+		s = q.nxt;	# first param
+		r = q.jmp;	# end of param list
+		cnt_commas = 0;
+		ref_cnt = Cnts[p.seq];
+		if (ref_cnt == 0) { Next; }
+
+		atleastone = 0;
+		while (q.seq != r.seq && q.txt != "EOF")			# for all actual params
+		{ if (q.round == s.round)		# not in embedded fct calls
+		  { if (q.txt == ",")
+		    {	cnt_commas++;
+		    } else
+		    {	if (q.typ == "ident")
+			{ z = q.nxt;
+			  if (z.txt != "[")
+			  { t = Pargs[p.seq , cnt_commas]; # is this a ptr arg
+			    if (t.seq > 0)		 # yes
+			    { t = q.bound; 		 # find declaration
+			      if (t.seq > 0)
+			      { while (t.txt != ";" && t.txt != ")" && t.txt != "EOF")
+			        { if (t.txt == q.txt)
+			          { t = t.nxt;
+			            if (t.txt == "[") # array
+			            { atleastone++;
+			          } }
+			  	  t = t.nxt;
+			  } } } }
+		  } } }	
+		  q = q.nxt;
+		}
+		if (atleastone == 0		# at least one array param
+		||  cnt_commas != ref_cnt)	# nr actuals doesnt match formals
+		{	Next;
+		}
+		add_pattern(M5_2_12, ., .);	# likely match
+	%}
+	ps caption M5_2_12 (Required) An identifier with array type passed as a function argument shall not decay to a pointer.
+end
+
+def M5_3_1	#  (RI+) Each operand of the ! operator, the logical && or the logical || operators shall have type bool.
+	r	# partial check
+	pe M5_3_1a: [if while] ( ^[! != == > < >= <=]* )
+	pe M5_3_1b: [if while] ( .* [&& ||] @const [&& ||] .* )
+	pe M5_3_1c: [if while] ( ! @ident )
+	ps M5_3_1ab = M5_3_1a + M5_3_1b
+	ps M5_3_1 = M5_3_1ab + M5_3_1c
+	ps caption M5_3_1 (Required) Each operand of the ! operator, the logical && or the logical || operators shall have type bool.
+	ps delete M5_3_1a
+	ps delete M5_3_1b
+	ps delete M5_3_1c
+	ps delete M5_3_1ab
+end
+
+def M5_3_2	#  (RI+) The unary minus operator shall not be applied to an expression whose underlying type is unsigned.
+	# tbd
+end
+
+def M5_3_3	#  (RI+) The unary & operator shall not be overloaded.
+	r
+	pe M5_3_3: operator & ( .* )
+	ps caption M5_3_3 (Required) The unary & operator shall not be overloaded.
+end
+
+def M5_3_4	#  (RI+) Evaluation of the operand to the sizeof operator shall not contain side effects.
+	r
+	pe M5_3_4: sizeof ( .* [++ -- = += -= *= /= %=] .* )
+	ps caption M5_3_4 (Required) Evaluation of the operand to the sizeof operator shall not contain side effects.
+end
+
+def A5_3_1	#  (RI-) Evaluation of the operand to the typeid operator shall not contain side effects.
+	r
+	pe A5_3_1: typeid ( .* [++ -- = += -= *= /= %=] .* )
+	ps caption A5_3_1 (Required) Evaluation of the operand to the sizeof operator shall not contain side effects.
+end
+
+def A5_5_1	#  (RI+) The right hand operand of the integer division or remainder operators shall not be equal to zero.
+	# triggers a runtime error (divide by zero), uno catches some of the traceable cases
+end
+
+def M5_8_1	#  (RI+-) The right hand operand of a shift operator shall lie between zero and one less than the width in bits of the underlying type of the left hand operand.
+	# out-of-scope, compiler warns if this can be statically determined
+end
+
+def A5_10_1	#  (RI+) A pointer to member virtual function shall only be tested for equality with null-pointer-constant.
+	# tbd
+end
+
+def M5_14_1	#  (RI+) The right hand operand of a logical &&, || operators shall not contain side effects.
+	r
+	pe M5_14_1: ( .* && .* [++ --] .* )
+	ps caption M5_14_1 (Required) The right hand operand of a logical &&, || operators shall not contain side effects.
+end
+
+def A5_16_1	#  (RI+) The ternary conditional operator shall not be used as a sub-expression.
+	r
+	pe A5_16_1a: = ^[\; ,]* [+ - * / %] ^[\; ,]* ? ^[\; ,]* : ^[\; ,]* \;
+	pe A5_16_1b: = ^[\; ,]* ? ^[\; ,]* : ^[\; ,]* [+ - * / %] ^[\; ,]* \;
+	pe A5_16_1c: ? ^[\; ,]* ? ^[\; ,]* \;	# nested ternary
+	ps A5_16_1ab = A5_16_1a + A5_16_1b
+	ps A5_16_1   = A5_16_1ab + A5_16_1c
+	ps caption A5_16_1 (Required) The ternary conditional operator shall not be used as a sub-expression.
+	ps delete A5_16_1a
+	ps delete A5_16_1b
+	ps delete A5_16_1c
+	ps delete A5_16_1ab
+end
+
+def M5_17_1	#  (RI-) The semantic equivalence between a binary operator and its assignment operator form shall be preserved.
+	# out-of-scope, cannot be automated
+end
+
+def M5_18_1	#  (RI+) The comma operator shall not be used.
+	# other than in parameter lists, enums, initializers etc?
+	r
+	m ,
+	m & (.round == 0)	# also rules out the control portion of for-stmnts
+	>1
+	r
+	m for (			# add them
+	n
+	c & ,
+	m & (.round == 1)
+	<|1
+	pe create M5_18_1a
+	r
+	m enum; n {; c & ,	# enum initializers
+	>2
+	r
+	m [ ] = {; n {; c & ,	# array initializers
+	<|2
+	ps create M5_18_1b
+	ps M5_18_1 = M5_18_1a - M15_18_1b	# omit enum list commas
+	ps caption M5_18_1 (Required) The comma operator shall not be used.
+	ps delete M5_18_1a
+	ps delete M5_18_1b
+end
+
+def M5_19_1	#  (RI+) Evaluation of constant unsigned integer expressions shall not lead to wrap-around.
+	# out of scope, runtime issue
+end
+
+def M6_2_1	#  (RI+) Assignment operators shall not be used in sub-expressions.
+	r
+	pe [= += -= *= /= %=] ^[\; ) ( :]* [= += -= *= /= %=] ^[\;] \;
+	%{	# dont match comma expressions in for-loops
+		if (.txt == "for")
+		{	. = .nxt;
+			if (.txt != "(")
+			{	Next;
+			}
+			r = .jmp;
+			while (.seq < r.seq)
+			{	.mark = 0;
+				. = .nxt;
+		}	}
+	%}
+	ps create M6_2_1
+	ps caption M6_2_1 (Required) Assignment operators shall not be used in sub-expressions.
+end
+
+def M6_2_2	#  (RI+-) Floating-point expressions shall not be directly or indirectly tested for equality or inequality.
+	r
+	symbols
+	m ==
+	m !=
+	%{
+		if (.mark == 0) { Next; }
+		.mark = 0;
+		p = .prv;
+		p = p.bound;
+		if (p.seq > 0 && p.txt == "float")
+		{	add_pattern(M6_2_2, p, .);
+			Next;
+		}
+		p = .nxt;
+		p = p.bound;
+		if (p.seq > 0 && p.txt == "float")
+		{	add_pattern(M6_2_2, p, .);
+		}
+	%}
+	ps caption M6_2_2 Floating-point expressions shall not be directly or indirectly tested for equality or inequality.
+end
+
+def M6_2_3	#  (RI+) Before preprocessing, a null statement shall only occur on a line by itself; it may be followed by a comment, provided that the first character following the null statement is a white-space character.
+	r
+	pe M6_2_3: x:\; <1> \; @1 (:x.lnr == .lnr)
+	ps caption M6_2_3 (Required) A null statement shall only occur on a line by itself.
+end
+
+def M6_3_1	#  (RI+) The statement forming the body of a switch, while, do ... while or for statement shall be a compound statement.
+	r
+	m if (
+	m switch (
+	n; j
+	m do
+	n
+	m no {
+	>1
+
+	r
+	m for (; n; j; n
+	m no {
+	<|1
+	m no {
+	>1
+
+	r
+	m while (
+	b	# token before the while
+	m no }	# if this, its a do-while
+	n; n; j; n
+	m no {
+	<|1
+
+	ps create M6_3_1
+	ps caption M6_3_1 (Required) The statement forming the body of a switch, while, do ... while or for statement shall be a compound statement.
+end
+
+def M6_4_1	#  (RI+) The else keyword shall be followed by either a compound statement, or another if statement.
+	r
+	m else; n
+	m no {
+	m no if
+	ps create M6_4_1
+	ps caption M6_4_1 (Required) The else keyword shall be followed by either a compound statement, or another if statement.
+end
+
+def M6_4_2	#  (RI+) All if ... else if constructs shall be terminated with an else clause.
+	r
+	pe M6_4_2 else if ( .* ) { .* } ^else
+	ps caption M6_4_2 (Required) All if ... else if constructs shall be terminated with an else clause.
+end
+
+def M6_4_3	#  (RI+) A switch statement shall be a well-formed switch statement.
+	# covered mostly by the following more specific rules
+end
+
+def M6_4_4	#  (RI+) A switch-label shall only be used when the most closely-enclosing compound statement is the body of a switch statement.
+	r
+	pe case . :	# marked: 3 1 9
+	%{
+		if (.mark != 3) { .mark = 0; Next; }
+		.mark = 0;		# find start of block
+		q = .prv;
+		while (q.txt != "{" && q.seq > 0 && q.curly == .curly && q.txt != "EOF" && q.seq > 0)
+		{	q = q.prv;
+		}
+		if (q.txt != "{") { Next; }
+
+		q = q.prv;		# filter out: switch (...) { ... }
+		if (q.txt != ")")	# not a switch stmnt
+		{	add_pattern(M6_4_4, ., .);
+		} else
+		{	r = q.jmp;
+			if (r.seq == 0) { Next; }
+			q = r.prv;
+			if (q.txt != "switch")
+			{	add_pattern(M6_4_4, ., .);
+		}	}
+	%}
+	ps caption M6_4_4 (Required) A switch-label shall only be used when the most closely-enclosing compound statement is the body of a switch statement.
+end
+
+def M6_4_5	#  (RI+) An unconditional throw or break statement shall terminate every non-empty switch-clause.
+	r
+	pe M6_4_5: case . : ^[break throw case switch default] ^[break throw case switch default]* case
+	ps caption M6_4_5 (Required) An unconditional throw or break statement shall terminate every non-empty switch-clause.
+end
+
+def M6_4_6	#  (RI+) The final clause of a switch statement shall be the default-clause.
+	r
+	pe M6_4_5a: switch ( .* ) { .* default .* case .* }	# default not last
+	pe M6_4_5b: switch ( .* ) { ^default* }			# default missing
+	ps M6_4_5 = M6_4_5a + M6_4_5b
+	ps caption M6_4_5 The final clause of a switch statement shall be the default-clause.
+	ps delete M6_4_5a
+	ps delete M6_4_5b
+end
+
+def M6_4_7	#  (RI+) The condition of a switch statement shall not have bool type.
+	r
+	pe M6_4_7: switch ( .* [> < >= <= == !=] .* )
+	ps caption M6_4_7 (Required) The condition of a switch statement shall not have bool type.
+end
+
+def A6_4_1	#  (RI+) A switch statement shall have at least two case-clauses, distinct from the default label.
+	r
+	pe A6_4_1: switch ( .* ) { case ^case* }
+	ps caption A6_4_1 (Required) A switch statement shall have at least two case-clauses, distinct from the default label.
+end
+
+def A6_5_1	#  (RI+) A for-loop that loops through all elements of the container and does not use its loop-counter shall not be used.
+	r	# a bit too broad, but safe and fast
+	pe for ( ^\;* x:@ident = .* ) { ^:x* }
+	Select_Bound_Vars(A6_5_1, 16)
+	ps caption A6_5_1 (Required) A for-loop that loops through all elements of the container and does not use its loop-counter shall not be used.
+end
+
+def A6_5_2	#  (RI+) A for loop shall contain a single loop-counter which shall not have floating- point type.
+	r
+	m for (
+	n
+	>1
+	# check the condition part
+	n \;	# end of initialization
+	s \;	# end of condition
+	%{
+		unset last;
+		if (.mark == 0) { Next; }
+		q = .bound;
+		while (.seq < q.seq)
+		{	if (@ident)
+			{	n = .nxt;
+				if (match(n.txt, "/[<>]"))
+				{	if (last.seq == 0)
+					{	last = .;
+					} else
+					{	if (last.txt != .txt)
+						{	add_pattern(A6_5_2a, ., .);
+			}	}	}	}
+			. = .nxt;
+		}
+	%}
+#	r
+#	<1
+#	n
+#	m & float
+#	ps create A6_5_2b
+
+	r
+	<1
+	c & @const_flt	# floating pt constant anywhere
+	ps create A6_5_2c
+
+	ps A6_5_2ab = A6_5_2a + A6_5_2b
+	ps A6_5_2 = A6_5_2ab + A6_5_2c
+	ps caption A6_5_2 (Required) A for loop shall contain a single loop-counter which shall not have floating- point type.
+	ps delete A6_5_2a
+#	ps delete A6_5_2b
+	ps delete A6_5_2c
+	ps delete A6_5_2ab
+end
+
+def M6_5_2	#  (RI+) If loop-counter is not modified by -- or ++, then, within condition, the loop- counter shall only be used as an operand to <=, <, > or >=.
+	# tbd; unclear
+end
+
+def M6_5_3	#  (RI+) The loop-counter shall not be modified within condition or statement.
+	r
+	pe for ( ^\;* x:@ident = ^\;* \; ^\;* :x [++ -- =] .* )
+	Select_Bound_Vars(M6_5_3, 4)
+	pe for ( ^\;* x:@ident = .* ) { .* :x [++ -- = += -= *= /= %=] .* }
+	Select_Bound_Vars(M6_5_3, 4)
+	ps caption M6_5_3 (Required) The loop-counter shall not be modified within condition or statement.
+end
+
+def M6_5_4	#  (RI+) The loop-counter shall be modified by one of: --, ++, -= n, or += n; where n remains constant for the duration of the loop.
+	r
+	pe M6_5_4: for ( ^\;* \; ^\;* \; ^[++ -- -= +=]* )
+	ps caption M6_5_4 (Required) The loop-counter shall be modified by one of: --, ++, -= n, or += n\; where n remains constant for the duration of the loop.
+end
+
+def M6_5_5	#  (RI+) A loop-control-variable other than the loop-counter shall not be modified within condition or expression.
+	r
+	pe for ( ^\;* x:@ident = ^\;* \; ^\;* \; ^:x [++ -- -= +=]* )
+	Select_Bound_Vars(M6_5_5, 16)
+	ps caption M6_5_5 (Required) A loop-control-variable other than the loop-counter shall not be modified within condition or expression.
+end
+
+def M6_5_6	#  (RI+) A loop-control-variable other than the loop-counter which is modified in statement shall have type bool.
+	# tbd
+end
+
+def A6_6_1	#  (RI+) The goto statement shall not be used.
+	r
+	m goto
+	ps create A6_6_1
+	ps caption A6_6_1 (Required) The goto statement shall not be used.
+end
+
+def M6_6_1	#  (RI+) Any label referenced by a goto statement shall be declared in the same block, or in a block enclosing the goto statement.
+	r
+	m goto
+	%{
+		unset BackJumps;
+	%}
+	%{
+		if (.mark == 0 || .curly <= 0) { Next; }
+		.mark = 0;
+		ln = .nxt;	# labelname
+		q = .prv;
+		# search backwards for matching label within this block
+		while (q.curly == .curly && q.seq > 0)
+		{	if (q.txt == ":")
+			{	q = q.prv;
+				if (q.txt == ln.txt)
+				{	BackJumps[ln.txt] = q; # for M6_6_2
+					Next;	# found
+			}	}
+			q = q.prv;
+		}
+		# reached start of enclosing block
+		# label didn't preceed the goto jump
+		# now search forward for it
+		q = .nxt;
+		while (q.curly == .curly && q.seq > 0)
+		{	if (q.txt == ln.txt)
+			{	q = q.nxt;
+				if (q.txt == ":")
+				{	Next;	# found
+			}	}
+			q = q.nxt;
+		}
+		.mark = 1;	# label not in same block
+	%}
+	ps create M6_6_1
+	ps caption M6_6_1 (Required) Any label referenced by a goto statement shall be declared in the same block, or in a block enclosing the goto statement.
+end
+
+def M6_6_2	#  (RI+) The goto statement shall jump to a label declared later in the same function body.
+	r
+	%{
+		for (ii in BackJumps)
+		{	q = BackJumps[ii.txt];
+			add_pattern(M6_6_2, ii, q);
+		}
+		Stop;
+	%}
+	ps caption M6_6_2 (Required) The goto statement shall jump to a label declared later in the same function body.
+end
+
+def M6_6_3	#  (RI+) The continue statement shall only be used within a well-formed for loop.
+	# A well-formed for loop is one "which satisfies MISRA C++ Rules M6_5_1 to M6_5_6"
+	# these are required rules so they are already complied with
+end
+
+def A7_1_1	#  (RI+) Constexpr or const specifiers shall be used for immutable data declaration.
+	# tbd
+end
+
+def A7_1_2	#  (RI+) The constexpr specifier shall be used for values that can be determined at compile time.
+	# tbd
+end
+
+def M7_1_2	#  (RI+) A pointer or reference parameter in a function shall be declared as pointer to const or reference to const if the corresponding object is not modified.
+	# tbd
+end
+
+def A7_1_3	#  (RI+) CV-qualifiers shall be placed on the right hand side of the type that is a typedef or a using name.
+	# tbd, XXX pending extension, need to know which names are typedef/using names:  pe A7_1_3: const tdnm
+end
+
+def A7_1_4	#  (RI+) The register keyword shall not be used.
+	r
+	m register
+	ps create A7_1_4
+	ps caption A7_1_4 (Required) The register keyword shall not be used.
+end
+
+def A7_1_5	#  (RI+) The auto specifier shall not be used apart from following cases:
+		# (1) to declare that a variable has the same type as return type of a function call,
+		# (2) to declare that a variable has the same type as initializer of non-fundamental type,
+		# (3) to declare parameters of a generic lambda expression, 
+		# (4) to declare a function template using trailing return type syntax.
+	# tbd
+end
+
+def A7_1_6	#  (RI+) The typedef specifier shall not be used.
+	r
+	m typedef
+	ps create A7_1_6
+	ps caption A7_1_6 (Required) The typedef specifier shall not be used.
+end
+
+def A7_1_7	#  (RI+) Each identifier shall be declared on a separate line.
+	r
+	pe @type ** x:@ident ^[( ) \; ,]* , ** @ident  <1> @1 (.lnr == :x.lnr)
+	Select_Bound_Vars(A7_1_7, 20)
+	ps caption A7_1_7 (Required) Each identifier shall be declared on a separate line.
+end
+
+def A7_1_8	#  (RI+) A non-type specifier shall be placed before a type specifier in a declaration.
+	r
+	pe A7_1_8: @type [typedef friend constexpr static extern thread_local mutable inline virtual explicit]
+	ps caption A7_1_8 (Required) A non-type specifier shall be placed before a type specifier in a declaration.
+end
+
+def A7_2_1	#  (RI+) An expression with enum underlying type shall only have values corresponding to the enumerators of the enumeration.
+	# tbd
+end
+
+def A7_2_2	#  (RI+) Enumeration underlying base type shall be explicitly defined.
+	r
+	pe A7_2_2: enum class @ident {
+	ps caption A7_2_2 (Required) Enumeration underlying base type shall be explicitly defined.
+end
+
+def A7_2_3	#  (RI+) Enumerations shall be declared as scoped enum classes.
+	r
+	pe A7_2_3: enum [@ident @oper @type :]* {
+	ps caption A7_2_3 (Required) Enumerations shall be declared as scoped enum classes.
+end
+
+def A7_2_4	#  (RI+) In an enumeration, either (1) none, (2) the first or (3) all enumerators shall be initialized.
+	r
+	m enum; n {
+	c =; s =; c ,	# initializes some element other than the first
+	pe enum ^{* { .* = .* , ^=* , .* }	# some but not all elements initialized
+	ps create A7_2_4
+	ps caption A7_2_4 (Required) In an enumeration, either (1) none, (2) the first or (3) all enumerators shall be initialized.
+end
+
+def M7_3_1	#  (RI+) The global namespace shall only contain main, namespace declarations and extern "C" declarations.
+	r
+	pe M7_3_1: ^@str @type @ident <1> @1 (.curly == 0 && .round == 0 && .txt != "main")	# extern "C" void foo() is allowed
+	ps caption M7_3_1 The global namespace shall only contain main, namespace declarations and extern "C" declarations.
+end
+
+def M7_3_2	#  (RI+) The identifier main shall not be used for a function other than the global function main.
+	r
+	m main
+	%{	mcnt = 0;
+		unset Mains;
+		Stop;
+	%}
+	%{
+		if (.mark)
+		{	Mains[mcnt] = .;
+			mcnt++;
+			.mark = 0;
+		}
+	%}
+	%{
+		if (mcnt > 1)
+		{	ii = 0;
+			while (ii < mcnt)
+			{	q = Mains[ii];
+				add_pattern(M7_3_2, q, q);
+				ii++;
+		}	}
+		unset Mains;
+		Stop;
+	%}
+	ps caption M7_3_2 (Required) The identifier main shall not be used for a function other than the global function main.
+end
+
+def M7_3_3	#  (RI+) There shall be no unnamed namespaces in header files.
+	r
+	m namespace {
+	m & (.fnm != "/.h")
+	ps create M7_3_3 (Required) There shall be no unnamed namespaces in header files.
+end
+
+def M7_3_4	#  (RI+) Using-directives shall not be used.
+	r
+	m using namespace
+	ps create M7_3_4
+	ps caption M7_3_4 (Required) Using-directives shall not be used.
+end
+
+def M7_3_5	#  (RI+) Multiple declarations for an identifier in the same namespace shall not straddle a using-declaration for that identifier.
+	# tbd
+end
+
+def M7_3_6	#  (RI+) Using-directives and using-declarations (excluding class scope or function scope using-declarations) shall not be used in header files.
+	# see M7_3_4
+end
+
+def A7_4_1	#  (RI+) The asm declaration shall not be used.
+	r
+	m asm (
+	ps create A7_4_1
+	ps caption A7_4_1 (Required) The asm declaration shall not be used.
+end
+
+def M7_4_1	#  (RI-) All usage of assembler shall be documented.
+	# out-of-scope, and see A7_4_1
+end
+
+def M7_4_2	#  (RI+) Assembler instructions shall only be introduced using the asm declaration.
+	# see A7_4_1 (conflicting requirements)
+end
+
+def M7_4_3	#  (RI+) Assembly language shall be encapsulated and isolated.
+	# outside scope, and see A7_4_1
+end
+
+def M7_5_1	#  (RI-) A function shall not return a reference or a pointer to an automatic variable (including parameters), defined within the function.
+	r
+	pe @ident ( .* ) { @type x:@ident .* return & :x .* }
+	Select_Bound_Vars(M7_5_1, 4)
+	pe @ident ( .* @type @ident .* ) { .* return & :x .* }
+	Select_Bound_Vars(M7_5_1, 4)
+	ps caption M7_5_1 (Required) A function shall not return a reference or a pointer to an automatic variable (including parameters), defined within the function.
+end
+
+def M7_5_2	#  (RI-) The address of an object with automatic storage shall not be assigned to another object that may persist after the first object has ceased to exist.
+	# out-of-scope, cannot be automated
+end
+
+def A7_5_1	#  (RI+) A function shall not return a reference or a pointer to a parameter that is passed by reference to const.
+	# tbd
+end
+
+def A7_5_2	#  (RI+) Functions shall not call themselves, either directly or indirectly.
+	r	# direct calls
+	pe x:@ident ( .* ) { .* :x ( .* ) .* }
+	Select_Bound_Vars(A7_5_2, 4)
+	ps caption A7_5_2 (Required) Functions shall not call themselves, either directly or indirectly.
+end
+
+def M8_0_1	#  (RI+) An init-declarator-list or a member-declarator-list shall consist of a single init-declarator or member-declarator respectively.
+	# tbd
+end
+
+def A8_2_1	#  (RI+) When declaring function templates, the trailing return type syntax shall be used if the return type depends on the type of parameters.
+	# tbd
+end
+
+def M8_3_1	#  (RI+) Parameters in an overriding virtual function shall either use the same default arguments as the function they override, or else shall not specify any default arguments.
+	# tbd
+end
+
+def A8_4_1	#  (RI+) Functions shall not be defined using the ellipsis notation.
+	r
+	fcts
+	n (
+	c & ...
+	ps create A8_4_1
+	ps caption A8_4_1 (Required) Functions shall not be defined using the ellipsis notation.
+end
+
+def M8_4_2	#  (RI+) The identifiers used for the parameters in a re-declaration of a function shall be identical to those in the declaration.
+	# tbd, fcts followed by a scan for re-declarations etc
+end
+
+def A8_4_2	#  (RI+) All exit paths from a function with non-void return type shall have an explicit return statement with an expression.
+	# compiler likely warns
+	r
+	fcts
+	b
+	m no void
+	n {
+	>1
+	c & return
+	n
+	m & \;
+	ps create A8_4_2a
+	r
+	<1
+	c no return
+	ps create A8_4_2b
+	ps A8_4_2 = A8_4_2a + A8_4_2b
+	ps caption A8_4_2 (Required) All exit paths from a function with non-void return type shall have an explicit return statement with an expression.
+	ps delete A8_4_2a
+	ps delete A8_4_2b
+end
+
+def M8_4_4	#  (RI+) A function identifier shall either be used to call the function or it shall be preceded by &.
+	r
+	fcts
+	%{
+		unset Fnames;
+		Stop;
+	%}
+	%{
+		if (.mark == 0) { Next; }
+		.mark = 0;
+		Fnames[.txt] = .;
+	%}
+	m @ident
+	n
+	m no (
+	b; b
+	m no \&
+	n
+	%{
+		if (.mark == 0) { Next; }
+		q = Fnames[.txt];
+		if (q.seq == 0)	# not a function name
+		{	.mark = 0;
+		}
+	%}
+	ps create M8_4_4
+	ps caption M8_4_4 (Required) A function identifier shall either be used to call the function or it shall be preceded by &
+end
+
+def M8_5_1	#  (RI+) All variables shall have a defined value before they are used.
+	r
+	pe { .* @type x:@ident ^= ^:x* :x ^=
+	Select_Bound_Vars(M8_5_1, 4)
+	ps caption M8_5_1 (Required) All variables shall have a defined value before they are used.
+end
+
+def A8_5_1	#  (RI+) In an initialization list, the order of initialization shall be following: (1) virtual base classes in depth and left to right order of the inheritance graph, (2) direct base classes in left to right order of inheritance list, (3) non-static data members in the order they were declared in the class definition.
+	# tbd
+end
+
+def M8_5_2	#  (RI+) Braces shall be used to indicate and match the structure in the non-zero initialization of arrays and structures.
+	# tbd
+end
+
+def A8_5_2	#  (RI+) Braced-initialization {}, without equals sign, shall be used for variable initialization.
+	# tbd
+end
+
+def A8_5_3	#  (RI+) A variable of type auto shall not be initialized using {} or ={} braced- initialization.
+	r
+	m auto @ident
+	n; n
+	m & {
+	>1
+	u
+	m & =
+	n 
+	m & {
+	<|1
+	ps create A8_5_3
+	ps caption A8_5_3 (Required) A variable of type auto shall not be initialized using {} or ={} braced- initialization.
+end
+
+def A8_5_4	#  (AI-) A constructor taking parameter of type std::initializer_list shall only be defined in classes that internally store a collection of objects.
+	# out-of-scope, cannot be automated
+end
+
+def M9_3_1	#  (RI+) Const member functions shall not return non-const pointers or references to class-data.
+	# tbd
+end
+
+def A9_3_1	#  (RI+) Member functions shall not return non-const "raw" pointers or references to private or protected data owned by the class.
+	# tbd
+end
+
+def M9_3_3	#  (RI+) If a member function can be made static then it shall be made static, otherwise if it can be made const then it shall be made const.
+	# tbd
+end
+
+def M9_5_1	#  (RI+) Unions shall not be used.
+	r
+	m union
+	ps create M9_5_1
+	ps caption M9_5_1 (Required) Unions shall not be used.
+end
+
+def M9_6_1	#  (RI-) When the absolute positioning of bits representing a bit-field is required, then the behavior and packing of bit-fields shall be documented.
+	# out-of-scope, cannot be automated
+end
+
+def A9_6_1	#  (RI+) Bit-fields shall be either unsigned integral, or enumeration (with underlying type of unsigned integral type).
+	r
+	pe A9_6_1: @type @ident : @const ^[U UL]
+	ps caption A9_6_1 (Required) Bit-fields shall be either unsigned integral, or enumeration (with underlying type of unsigned integral type).
+end
+
+def A10_1_1	#  (RI+) Class shall not be derived from more than one base class which is not an interface class.
+	# tbd
+end
+
+def M10_1_1	#  (AI+) Classes should not be derived from virtual bases.
+	# tbd
+end
+
+def M10_1_2	#  (RI+) A base class shall only be declared virtual if it is used in a diamond hierarchy.
+	# tbd
+end
+
+def M10_1_3	#  (RI+) An accessible base class shall not be both virtual and non-virtual in the same hierarchy.
+	# tbd
+end
+
+def M10_2_1	#  (AI+) All accessible entity names within a multiple inheritance hierarchy should be unique.
+	# tbd
+end
+
+def A10_2_1	#  (RI+) Non-virtual member functions shall not be redefined in derived classes.
+	# tbd
+end
+
+def A10_3_1	#  (RI+) Virtual function declaration shall contain exactly one of the three specifiers: (1) virtual, (2) override, (3) final.
+	r
+	pe A10_3_1: virtual @type @ident ( .* ) noexcept* [override final] 
+	ps caption A10_3_1 (Required) Virtual function declaration shall contain exactly one of the three specifiers: (1) virtual, (2) override, (3) final.
+end
+
+def A10_3_2	#  (RI+) Each overriding virtual function shall be declared with the override or final specifier.
+	# tbd
+end
+
+def A10_3_3	#  (RI+) Virtual functions shall not be introduced in a final class.
+	r
+	pe A10_3_3: class @ident final : ^{* { .* virtual .* }
+	ps caption A10_3_3 (Required) Virtual functions shall not be introduced in a final class.
+end
+
+def A10_3_5	#  (RI+) A user-defined assignment operator shall not be virtual.
+	r
+	pe A10_3_5: virtual @ident [&]* operator [+= = -= *= /= %=]
+	ps caption A10_3_5 (Required) A user-defined assignment operator shall not be virtual.
+end
+
+def M10_3_3	#  (RI+) A virtual function shall only be overridden by a pure virtual function if it is itself declared as pure virtual.
+	# tbd
+end
+
+def M11_0_1	#  (RI+) Member data in non-POD class types shall be private.
+	# tbd
+end
+
+def A11_0_1	#  (AI+) A non-POD type should be defined as class.
+	# tbd
+end
+
+def A11_0_2	#  (RI+) A type defined as struct shall: (1) provide only public data members, (2) not provide any special member functions or methods, (3) not be a base of another struct or class, (4) not inherit from another struct or class.
+	# tbd
+end
+
+def A11_3_1	#  (RI+) Friend declarations shall not be used.
+	r
+	m friend
+	ps create A11_3_1
+	ps caption A11_3_1 (Required) Friend declarations shall not be used.
+end
+
+def A12_0_1	#  (RI+) If a class defines any special member function "=default", "=delete" or with a function definition, then all of the special member functions shall be defined.
+	# tbd
+end
+
+def A12_1_1	#  (RI+) Constructors shall explicitly initialize all virtual base classes, all direct non- virtual base classes and all non-static data members.
+	# tbd
+end
+
+def M12_1_1	#  (RI+) An object"s dynamic type shall not be used from the body of its constructor or destructor.
+	# tbd
+end
+
+def A12_1_2	#  (RI+) Both NSDMI and a non-static member initializer in a constructor shall not be used in the same type.
+	# tbd
+end
+
+def A12_1_3	#  (RI+) If all user-defined constructors of a class initialize data members with constant values that are the same across all constructors, then data members shall be initialized using NSDMI instead.
+	# tbd
+end
+
+def A12_1_4	#  (RI+) All constructors that are callable with a single argument of fundamental type shall be declared explicit.
+	r	# catch a common case
+	pe class x:@ident { public : ^[private protected explicit]* :x ( ^,* @type ^,* ) .* }
+	Select_Bound_Vars(A12_1_4, 4)
+	ps caption A12_1_4 (Required) All constructors that are callable with a single argument of fundamental type shall be declared explicit.
+end
+
+def A12_4_1	#  (RI+) Destructor of a base class shall be public virtual, public override or protected non-virtual.
+	r
+	pe class x:@ident { public :  ^[private virtual override protected]* ~ :x ( .* ) .* }
+	Select_Bound_Vars(A12_4_1, 4)
+	ps caption A12_4_1 (Required) Destructor of a base class shall be public virtual, public override or protected non-virtual.
+end
+
+def A12_4_2	#  (AI+) If a public destructor of a class is non-virtual, then the class should be declared final.
+	# tbd
+end
+
+def A12_6_1	#  (RI+) All class data members that are initialized by the constructor shall be initialized using member initializers.
+	# tbd
+end
+
+def A12_7_1	#  (RI+) If the behavior of a user-defined special member function is identical to implicitly defined special member function, then it shall be defined "=default" or be left undefined.
+	# tbd
+end
+
+def A12_8_1	#  (RI+) Move and copy constructors shall only move and respectively copy base classes and data members of a class, without any side effects.
+	# tbd
+end
+
+def A12_8_2	#  (AI+) User-defined copy and move assignment operators should use user-defined no-throw swap function.
+	# tbd
+end
+
+def A12_8_3	#  (RI+-) Moved-from object shall not be read-accessed.
+	# out-of-scope, cannot be automated
+end
+
+def A12_8_4	#  (RI+) Move constructor shall not initialize its class members and base classes using copy semantics.
+	# tbd
+end
+
+def A12_8_5	#  (RI+) A copy assignment and a move assignment operators shall handle self-assignment.
+	# tbd
+end
+
+def A12_8_6	#  (RI+) Copy and move constructors and copy assignment and move assignment operators shall be declared protected or defined "=delete" in base class.
+	# tbd
+end
+
+def A12_8_7	#  (AI+) Assignment operators should be declared with the ref-qualifier &.
+	r
+	# constraint is placed on token after @key, so that the binding is in effect
+	pe class @ident { .* x:@key [= *= /= += -= %=] <1> ( .* ) ^&* { .* } } @1 (:x =="operator")
+	Select_Bound_Vars(A12_8_7, 16)
+	ps caption A12_8_7 (Advisory) Assignment operators should be declared with the ref-qualifier &.
+end
+
+def A13_1_1	#  (RI+) User-defined literals shall not be used.
+	r
+	pe A13_1_1: operator @str <1> @1 (.len == 2)	# or /^$
+	ps caption A13_1_1 (Required) User-defined literals shall not be used.
+end
+
+def A13_1_2	#  (RI+) User defined suffixes of the user defined literal operators shall start with underscore followed by one or more letters.
+	r
+	pe A13_1_2: operator @str <1> @ident <2> @1 (.len == 2) @2 ( .txt == /^[^_][a-zA-z][a-zA-z]* )
+	ps caption A13_1_2 (Required) User defined suffixes of the user defined literal operators shall start with underscore followed by one or more letters.
+end
+
+def A13_1_3	#  (RI+) User defined literals operators shall only perform conversion of passed parameters.
+	# tbd
+end
+
+def A13_2_1	#  (RI+) An assignment operator shall return a reference to "this".
+	# tbd
+end
+
+def A13_2_2	#  (RI+) A binary arithmetic operator and a bitwise operator shall return a "prvalue".
+	# tbd prvalue: pure-value expression
+end
+
+def A13_2_3	#  (RI+) A relational operator shall return a boolean value.
+	r
+	pe A13_2_3: @type operator [> < >= <= == !=] ( .* ) @specifier* { .* return [-]* [@const @ident] \; .* }
+	ps caption A13_2_3 (Required) A relational operator shall return a boolean value.
+end
+
+def A13_3_1	#  (RI+) A function that contains "forwarding reference" as its argument shall not be overloaded.
+	# tbd
+end
+
+def A13_5_1	#  (RI+) If "operator[]" is to be overloaded with a non-const version, const version shall also be implemented.
+	# tbd
+end
+
+def A13_6_1	#  (RI+) Digit sequences separators ' shall only be used as follows: (1) for decimal, every 3 digits, (2) for hexadecimal, every 2 digits, (3) for binary, every 4 digits.
+	r
+	pe @const_int @1 (.len > 3 && .txt == /'[0-9][0-9]')
+	pe @const_int @1 (.len > 3 && .txt == /'[0-9][0-9]$)
+	pe @const_int @1 (.len > 2 && .txt == /'[0-9]')
+	pe @const_int @1 (.len > 2 && .txt == /'[0-9]$)
+
+	pe @const_hex @1 (.len > 3 && .txt == /'[A-F0-9][A-F0-9][A-F0-9]')
+	pe @const_hex @1 (.len > 3 && .txt == /'[A-F0-9][A-F0-9][A-F0-9]$)
+	pe @const_hex @1 (.len > 2 && .txt == /'[A-F0-9]')
+	pe @const_hex @1 (.len > 2 && .txt == /'[A-F0-9]$)
+
+	pe @const_bin @1 (.len > 3 && .txt == /'[01]')
+	pe @const_bin @1 (.len > 3 && .txt == /'[01]$)
+	pe @const_bin @1 (.len > 3 && .txt == /'[01][01]')
+	pe @const_bin @1 (.len > 3 && .txt == /'[01][01]$)
+	pe @const_bin @1 (.len > 3 && .txt == /'[01][01][01]')
+	pe @const_bin @1 (.len > 3 && .txt == /'[01][01][01]$)
+
+	ps create A13_6_1
+	ps caption A13_6_1 (Required) Digit sequences separators ' shall only be used as follows: (1) for decimal, every 3 digits, (2) for hexadecimal, every 2 digits, (3) for binary, every 4 digits.
+end
+
+def A14_1_1	#  (AI-) A template should check if a specific template argument is suitable for this template.
+	# out-of-scope, cannot be automated
+end
+
+def M14_5_2	#  (RI+) A copy constructor shall be declared when there is a template constructor with a single parameter that is a generic parameter.
+	# tbd
+end
+
+def M14_5_3	#  (RI+) A copy assignment operator shall be declared when there is a template assignment operator with a parameter that is a generic parameter.
+	# tbd
+end
+
+def M14_6_1	#  (RI+) In a class template with a dependent base, any name that may be found in that dependent base shall be referred to using a qualified-id or this->.
+	# tbd
+end
+
+def A14_7_1	#  (RI+) A type used as a template argument shall provide all members that are used by the template.
+	# tbd
+end
+
+def M14_7_3	#  (RI+) All partial and explicit specializations for a template shall be declared in the same file as the declaration of their primary template.
+	# tbd
+end
+
+def M14_8_1	#  (RI+) Overloaded function templates shall not be explicitly specialized.
+	# tbd
+end
+
+def A14_8_1	#  (AI+) The set of function overloads should not contain function templates, functions specializations and non-template overloading functions.
+	# tbd
+end
+
+def A15_0_1	#  (RI-) A function shall not exit with an exception if it is able to complete its task.
+	# out-of-scope, cannot be automated
+end
+
+def A15_0_2	#  (RI+-) At least the basic guarantee for exception safety shall be provided for all operations. In addition, each function may offer either the strong guarantee or the nothrow guarantee
+	# out-of-scope, cannot be automated
+end
+
+def A15_0_3	#  (RI-) Exception safety guarantee of a called function shall be considered.
+	# out-of-scope, cannot be automated
+end
+
+def A15_0_4	#  (RI-) Unchecked exceptions shall be used to represent errors from which the caller cannot reasonably be expected to recover.
+	# out-of-scope, cannot be automated
+end
+
+def A15_0_5	#  (RI-) Checked exceptions shall be used to represent errors from which the caller can reasonably be expected to recover.
+	# out-of-scope, cannot be automated
+end
+
+def A15_0_6	#  (RV-) An analysis shall be performed to analyze the failure modes of exception handling. In particular, the following failure modes shall be analyzed: (a) worst time execution time not existing or cannot be determined, (b) stack not correctly unwound, (c) exception not thrown, other exception thrown, wrong catch activated, (d) memory not available while exception handling.
+	# out-of-scope, cannot be automated
+end
+
+def A15_0_7	#  (RI+-) Exception handling mechanism shall guarantee a deterministic worst-case time execution time.
+	# out-of-scope, cannot be automated
+end
+
+def A15_0_8	#  (RI-) A worst-case execution time (WCET) analysis shall be performed to determine maximum execution time constraints of the software, covering in particular the exceptions processing.
+	# out-of-scope, cannot be automated
+end
+
+def A15_1_1	#  (RI+) Only instances of types derived from std::exception shall be thrown.
+	r
+	pe A15_1_1: throw [@const nullptr NULL]
+	ps caption A15_1_1 (Required) Only instances of types derived from std::exception shall be thrown.
+end
+
+def A15_1_2	#  (RI+) An exception object shall not be a pointer.
+	r
+	pe A15_1_2: throw [new &] @ident
+	ps caption A15_1_2 (Required) An exception object shall not be a pointer.
+end
+
+def M15_0_3	#  (RI+) Control shall not be transferred into a try or catch block using a goto or a switch statement.
+	r
+	pe { .* goto x:@ident .* try { .* :x : .* }
+	Select_Bound_Vars(M15_0_3a, 4)
+	pe { .* goto x:@ident .* catch ( .* ) { .* :x .* } .* }
+	Select_Bound_Vars(M15_0_3a, 4)
+	pe M15_0_3b: switch ( .* ) { .* [try catch] .* }
+	ps M15_0_3 = M15_0_3a + M15_0_3b
+	ps caption M15_0_3 (Required) Control shall not be transferred into a try or catch block using a goto or a switch statement.
+	ps delete M15_0_3a
+	ps delete M15_0_3b
+end
+
+def M15_1_1	#  (RI+) The assignment-expression of a throw statement shall not itself cause an exception to be thrown.
+	# tbd
+end
+
+def M15_1_2	#  (RI+) NULL shall not be thrown explicitly.
+	r
+	m throw NULL
+	ps create M15_1_2
+	ps caption M15_1_2 (Required) NULL shall not be thrown explicitly.
+end
+
+def M15_1_3	#  (RI+) An empty throw (throw;) shall only be used in the compound statement of a catch handler.
+	r
+	m throw \;
+	%{
+		if (.mark == 0) { Next; }
+		.mark = 0;
+		q = .;
+		while (q.curly == .curly && q.seq > 0)
+		{	q = q.prv;
+		}
+		q = q.prv;
+		if (q.txt != ")") { Next; }
+		q = q.jmp;
+		q = q.prv;
+		if (q.txt != "catch")
+		{	add_pattern(M15_1_3, q, .);
+		}
+	%}
+	ps caption M15_1_3 (Required) An empty throw (throw\;) shall only be used in the compound statement of a catch handler.
+end
+
+def A15_1_3	#  (AI+) All thrown exceptions should be unique.
+	# tbd, can build table of all throw expressions and check for duplicates
+end
+
+def A15_1_4	#  (RI+-) If a function exits with an exception, then before a throw, the function shall place all objects/resources that the function constructed in valid states or it shall delete them.
+	# out-of-scope, cannot be automated
+end
+
+def A15_1_5	#  (RI-) Exceptions shall not be thrown across execution boundaries.
+	# out-of-scope, cannot be automated
+end
+
+def A15_2_1	#  (RI+) Constructors that are not noexcept shall not be invoked before program startup.
+	# tbd
+end
+
+def A15_2_2	#  (RI+-) If a constructor is not noexcept and the constructor cannot finish object initialization, then it shall deallocate the object"s resources and it shall throw an exception.
+	# out-of-scope, cannot be automated
+end
+
+def M15_3_1	#  (RI+) Exceptions shall be raised only after start-up and before termination.
+	# tbd
+end
+
+def A15_3_1	#  (AI+) Unchecked exceptions should be handled only in main or thread"s main functions.
+	# tbd
+end
+
+def A15_3_2	#  (RI-) If a function throws a checked exception, it shall be handled when meaningful actions can be taken, otherwise it shall be propagated.
+	# out-of-scope, cannot be automated
+end
+
+def A15_3_3	#  (RI+) There shall be at least one exception handler to catch all otherwise unhandled exceptions.
+	r
+	%{
+		unset Fcts;
+		Stop;
+	%}
+	fcts
+	m & /[mM]ain	# main fcts
+	n {
+	%{
+		if (.mark == 0) { Next; }
+		if (.jmp == 0) { Next; }
+		Fcts[.lnr] = .;
+	%}
+	c try
+	c & catch 	# catch ( ... )	# must be present
+	%{
+		if (.mark == 0) { Next; }
+		.mark = 0;
+		q = .nxt;
+		if (q.txt != "(") { Next; }
+		q = q.nxt;
+		if (q.txt == "...") # compliant
+		{	.mark = 123;	# report fcts that dont have this mark
+		}
+	%}
+	%{
+		for (i in Fcts)
+		{	q = Fcts[i.txt];
+			# print q.lnr " " q.txt "\n";
+			s = q;
+			r = q.jmp;
+			compliant = 0;
+			while (q.seq < r.seq)
+			{	if (q.mark == 123)
+				{	compliant = 1;
+					break;
+				}
+				q = q.nxt;
+			}
+			r = s.prv;
+			if (r.txt == ")" && r.jmp != 0)
+			{	r = r.jmp;
+				s = r.prv;
+			}
+			if (!compliant)
+			{	add_pattern(A15_3_3, s, s);
+		}	}
+		Stop;
+	%}
+	ps caption A15_3_3 (Required) There shall be at least one exception handler to catch all otherwise unhandled exceptions.
+end
+
+def A15_3_4	#  (RI-) Catch-all (ellipsis and std::exception) handlers shall be used only in (a) main, (b) task main functions, (c) in functions that are supposed to isolate independent components and (d) when calling third-party code that uses exceptions not according to AUTOSAR C++14 guidelines.
+	# out-of-scope, cannot be automated
+end
+
+def M15_3_3	#  (RI+) Handlers of a function-try-block implementation of a class constructor or destructor shall not reference non-static members from this class or its bases.
+	# tbd
+end
+
+def M15_3_4	#  (RI+) Each exception explicitly thrown in the code shall have a handler of a compatible type in all call paths that could lead to that point.
+	# tbd - control-flow sensitive
+end
+
+def A15_3_5	#  (RI+) A class type exception shall be caught by reference or const reference.
+	# tbd
+end
+
+def M15_3_6	#  (RI+) Where multiple handlers are provided in a single try-catch statement or function-try-block for a derived class and some or all of its bases, the handlers shall be ordered most-derived to base class.
+	# tbd
+end
+
+def M15_3_7	#  (RI+) Where multiple handlers are provided in a single try-catch statement or function-try-block, any ellipsis (catch-all) handler shall occur last.
+	# tbd
+end
+
+def A15_4_1	#  (RI+) Dynamic exception-specification shall not be used.
+	r
+	pe A15_4_1: void @ident ( .* ) throw ( .* ) \;
+	ps caption A15_14_1 (Required) Dynamic exception-specification shall not be used.
+end
+
+def A15_4_2	#  (RI+) If a function is declared to be noexcept, noexcept(true) or noexcept(<true condition>), then it shall not exit with an exception.
+	r
+	fcts
+	n (
+	j
+	n
+	m & noexcept
+	n
+	%{
+		if (.mark == 0) { Next; }
+		if (.txt == "(")
+		{	q = .nxt;
+			if (q.txt != "true")
+			{	.mark = 0;
+				Next;
+			}
+			. = .jmp;
+			. = .nxt;
+		}
+	%}
+	m & {
+	c & throw	# must be contained in a try block
+	%{
+		if (.mark == 0) { Next; }
+		.mark = 0;
+		q = .;
+		while (q.curly == .curly && q.seq > 0)
+		{	q = q.prv;
+		}
+		q = q.prv;
+		if (q.txt != "try")
+		{	add_pattern(A15_4_2, q, .);
+		}
+	%}
+	ps caption A15_4_2 If a function is declared to be noexcept, noexcept(true) or noexcept(<true condition>), then it shall not exit with an exception.
+end
+
+def A15_4_3	#  (RI+) Function"s noexcept specification shall be either identical or more restrictive across all translation units and all overriders.
+	# tbd
+end
+
+def A15_4_4	#  (RI+) A declaration of non-throwing function shall contain noexcept specification.
+	# tbd
+end
+
+def A15_4_5	#  (RI+) Checked exceptions that could be thrown from a function shall be specified together with the function declaration using the "@throw ExceptionName description" syntax, and they shall be identical in all function declarations and for all its overriders.
+	# tbd
+end
+
+def A15_4_6	#  (AI+) Unchecked exceptions should not be specified together with a function declaration.
+	# tbd -- autosar document contains inconsistent example code
+end
+
+def A15_5_1	#  (RI+) A class destructor, "delete" operators, move constructor, move assignment operator and "swap" function shall not exit with an exception. They shall be all specified as "noexcept".
+	# tbd
+end
+
+def A15_5_2	#  (RI+-) Program shall not be abruptly terminated. In particular, an implicit or explicit invocation of std::abort(), std::quick_exit(), std::_Exit(), std::terminate() shall not be done.
+	r
+	m abort (
+	m quick_exit (
+	m _Exit (
+	m terminate (
+	ps create A15_5_2
+	ps caption A15_5_2 (Required) Program shall not be abruptly terminated. In particular, an implicit or explicit invocation of std::abort(), std::quick_exit(), std::_Exit(), std::terminate() shall not be done.
+end
+
+def A15_5_3	#  (RI+) The std::terminate() function shall not be called implicitly.
+	# tbd
+end
+
+def A16_0_1	#  (RI+) The pre-processor shall only be used for unconditional and conditional file inclusion and include guards, and using the following directives: (1) #ifndef, (2) #ifdef, (3) #if, (4) #if defined, (5) #elif, (6) #else, (7) #define, (8) #endif, (9) #include.
+	r
+	m @cpp
+	m & /undef
+	>1
+	u
+	m & /error
+	<|1
+	>1
+	u
+	m & /warning
+	<|1
+	ps create A16_0_1
+	u
+	%{
+		if (.mark == 0) { Next; }
+		.mark = 0;
+		if (match(.txt, "/if")
+		&& !match(.txt, "/endif"))
+		{	q = .nxt;
+			while (q.txt != "endif" && q.txt != "else" && .txt == q.txt)
+			{	if (match(q.txt, "/include"))
+				{	Next; # conditional file inclusion
+				}
+				q = q.nxt;
+			}
+			add_pattern(A16_0_1, ., q);
+		}
+	%}
+	ps caption A16_0_1 (Required) The pre-processor shall only be used for unconditional and conditional file inclusion and include guards, and using the following directives: (1) \#ifndef, (2) \#ifdef, (3) \#if, (4) \#if defined, (5) \#elif, (6) \#else, (7) \#define, (8) \#endif, (9) \#include.
+end
+
+def M16_0_1	#  (RI+) #include directives in a file shall only be preceded by other pre-processor directives or comments.
+	r
+	m @cpp
+	m & /include
+	%{
+		if (.mark == 0) { Next; }
+		.mark = 0;
+		q = .;
+		while (q.seq > 0 && q.fnm == .fnm)
+		{	if (q.txt == "EOL")	# end of directive "EOL" == @cpp
+			{	q = q.prv;
+				while (q.type != "cpp" && q.fnm == .fnm && q.seq > 0)
+				{	q = q.prv;
+			}	}
+			if (q.type != "cpp")
+			{	add_pattern(M16_0_1, q, .);
+				Next;
+			}
+			q = q.prv;
+		}
+	%}
+	ps caption M16_0_1 (Required) \#include directives in a file shall only be preceded by other pre-processor directives or comments.
+end
+
+def M16_0_2	#  (RI+) Macros shall only be #define"d or #undef"d in the global namespace.
+	r
+	m @cpp
+	m & /define
+	m & (.curly > 1)	# or > 0?
+	ps create M16_0_2
+	ps caption M16_0_2 (Required) Macros shall only be \#define"d or #undef"d in the global namespace.
+end
+
+def M16_0_5	#  (RI+) Arguments to a function-like macro shall not contain tokens that look like pre-processing directives.
+	r
+	pe M16_0_5: /\#define @ident ( .* [include if ifdef ifndef else endif define include defined warning error] .* )
+	ps caption M16_0_5 (Required) Arguments to a function-like macro shall not contain tokens that look like pre-processing directives.
+end
+
+def M16_0_6	#  (RI+) In the definition of a function-like macro, each instance of a parameter shall be enclosed in parentheses, unless it is used as the operand of # or ##.
+	r
+	pe /define @ident ( .* x:@ident .* ) ^[EOL EOF]* ^[( \# \##] :x ^[\# \##]
+	Select_Bound_Vars(M16_0_6, 4)
+	ps caption M16_0_6 (Required) In the definition of a function-like macro, each instance of a parameter shall be enclosed in parentheses, unless it is used as the operand of \# or \##.
+end
+
+def M16_0_7	#  (RI+) Undefined macro identifiers shall not be used in #if or #elif pre-processor directives, except as operands to the defined operator.
+	# tbd
+end
+
+def M16_0_8	#  (RI+) If the # token appears as the first token on a line, then it shall be immediately followed by a pre-processing token.
+	r
+	m \#
+	%{
+		if (.mark == 0) { Next; }
+		b = .prv;
+		if (b.lnr == .lnr)
+		{	.mark = 0;
+		} else	# lexer got it wrong
+		{	b = .nxt;
+			if (b.txt == "define"
+			||  b.txt == "ifdef"
+			||  b.txt == "ifndef"
+			||  b.txt == "else"
+			||  b.txt == "endif"
+			||  b.txt == "include")
+			{	.mark = 0;
+			}
+		#	print .fnm ":" .lnr ": " .txt " " .typ  " >> " b.txt " :: " b.typ "\n";
+		}
+	%}
+	ps create M16_0_8
+	ps caption M16_0_8 (Required) If the \# token appears as the first token on a line, then it shall be immediately followed by a pre-processing token.
+end
+
+def M16_1_1	#  (RI+) The defined pre-processor operator shall only be used in one of the two standard forms.
+	r	# check on typical deviation
+	m @cpp
+	m & /if
+	n
+	m & defined
+	n
+	m no @ident
+	ps create M16_1_1
+	ps caption M16_1_1 (Required) The defined pre-processor operator shall only be used in one of the two standard forms.
+end
+
+def M16_1_2	#  (RI+) All #else, #elif and #endif pre-processor directives shall reside in the same file as the #if or #ifdef directive to which they are related.
+	r
+	m @cpp
+	m & /else
+	>1
+	u
+	m & /elif
+	<|1
+	>1
+	u
+	m & /endif
+	<|1
+	%{
+		if (.mark == 0) { Next; }
+		.mark = 0;
+		q = .;
+		while (q.seq > 0 && q.fnm == .fnm)
+		{	if (match(q.txt, "/if"))
+			{	Next;
+			}
+			q = q.prv;
+		}
+		add_pattern(M16_1_2, ., .);
+	%}
+	ps caption M16_1_2 (Required) All \#else, \#elif and \#endif pre-processor directives shall reside in the same file as the \#if or \#ifdef directive to which they are related.
+end
+
+def M16_2_3	#  (RI+) Include guards shall be provided.
+	r
+	%{
+		last = newtok();
+		last.fnm = "--";
+		Stop;
+	%}
+	%{
+		if (.lnr == 1 && match(.fnm, "/.h"))
+		{	q = .;
+			while (q.lnr == 1)
+			{	q = q.nxt;
+			}
+			if (q.txt != "/ifdef")
+			{	add_pattern(M16_2_3, ., q);
+		}	}
+	%}
+	ps caption M16_2_3 (Required) Include guards shall be provided.
+end
+
+def A16_2_1	#  (RI+) The ', ", /*, //, \ characters shall not occur in a header file name or in #include directive.
+	r
+	m @cpp
+	m & /include
+	n
+	>1
+	m & <		# include < ... >
+	n
+	%{
+		if (.mark == 0) { Next; }
+		.mark = 0;
+		q = .;
+		while (q.seq > 0 && q.txt != ">")
+		{	if (match(q.txt, "/[\'\"\\]")	# ', ", or \\
+			||  match(q.txt, "/\/\*")	# /*
+			||  match(q.txt, "/\/\/"))	# //
+			{	add_pattern(A16_2_1, ., q);
+				break;
+			}
+			q = q.nxt;
+		}
+	%}
+	r
+	<1
+	m & @str	# include "...."
+	%{
+		if (.mark == 0) { Next; }
+		.mark = 0;
+		
+		if (match(.txt, "/[\'\\]")	# ', or \\
+		||  match(.txt, "/\/\*")	# /*
+		||  match(.txt, "/\/\/"))	# //
+		{	add_pattern(A16_2_1, ., .);
+		}
+	%}
+	ps caption A16_2_1 (Required) The \', \", /*, //, \\ characters shall not occur in a header file name or in \#include directive.
+end
+
+def A16_2_2	#  (RI+) There shall be no unused include directives.
+	# out of scope
+end
+
+def A16_2_3	#  (RI-) All used include directives shall be explicitly stated.
+	# out-of-scope, cannot be automated
+end
+
+def M16_3_1	#  (RI+) There shall be at most one occurrence of the \# or \#\# operators in a single macro definition.
+	r
+	m @cpp
+	m & /define
+	n; n
+	%{
+		if (.mark == 0) { Next; }
+		.mark = 0;
+		if (.txt == "(")
+		{	. = .jmp;
+			. = .nxt;
+		}
+		q = .;
+		count1 = 0;
+		count2 = 0;
+		while (q.txt != "EOL")
+		{	if (q.txt == "\#")
+			{	add_pattern(M16_3_2, ., q);	# see below
+				if (count1 > 0)
+				{	add_pattern(M16_3_1, ., q);
+					Next;
+				}
+				count1++;
+			}
+			if (q.txt == "\#\#")
+			{	add_pattern(M16_3_2, ., q);	# see below
+				if (count2 > 0)
+				{	add_pattern(M16_3_1, ., q);
+					Next;
+				}
+				count2++;
+			}
+			q = q.nxt;
+		}
+	%}
+	ps caption M16_3_1 (Required) There shall be at most one occurrence of the \# or \#\# operators in a single macro definition.
+	ps caption M16_3_2 (Required) The \# and \#\# operators should not be used.
+end
+
+def M16_3_2	#  (AI+) The # and ## operators should not be used.
+	# checked in M16_3_1
+end
+
+def A16_6_1	#  (RI+) #error directive shall not be used.
+	r
+	m @cpp
+	m & /error
+	ps create A16_6_1
+	ps caption A16_6_1 (Required) The \#error directive shall not be used.
+end
+
+def A16_7_1	#  (RI+) The #pragma directive shall not be used.
+	r
+	m @cpp
+	m & /pragma
+	ps create A16_7_1
+	ps caption A16_7_1 (Required) The \#pragma directive shall not be used
+end
+
+def A17_0_1	#  (RI+) Reserved identifiers, macros and functions in the C++ standard library shall not be defined, redefined or undefined.
+	r
+	pe A17_0_1: [\#define \#undef] [__LINE__ __FILE__ __DATE__ __TIME__ __STDC__ errno assert]
+	ps caption A17_0_1 (Required) Reserved identifiers, macros and functions in the C++ standard library shall not be defined, redefined or undefined.
+end
+
+def M17_0_2	#  (RI+) The names of standard library macros and objects shall not be reused.
+	# tbd, collect list of names to check
+end
+
+def M17_0_3	#  (RI+) The names of standard library functions shall not be overridden.
+	# tbd, collect list of names to check
+end
+
+def A17_0_2	#  (RI+) All project"s code including used libraries (including standard and user-defined libraries) and any third-party user code shall conform to the AUTOSAR C++14 Coding Guidelines.
+	# outside scope
+end
+
+def M17_0_5	#  (RI+) The setjmp macro and the longjmp function shall not be used.
+	r
+	pe M17_0_5: [setjmp longjmp]
+	ps caption M17_0_5 (Required) The setjmp macro and the longjmp function shall not be used.
+end
+
+def A17_1_1	#  (RI-) Use of the C Standard Library shall be encapsulated and isolated.
+	# out-of-scope, cannot be automated
+end
+
+def A18_0_1	#  (RI+) The C library facilities shall only be accessed through C++ library headers.
+	# outside scope
+end
+
+def A18_0_2	#  (RI+) The library functions atof, atoi and atol from library <cstdlib> shall not be used.
+	r
+	pe A18_0_2: [atof atoi atol]
+	ps caption A18_0_2 (Required) The library functions atof, atoi and atol from library <cstdlib> shall not be used.
+end
+
+def M18_0_3	#  (RI+) The library functions abort, exit, getenv and system from library <cstdlib> shall not be used.
+	r
+	pe M18_0_3: [abort exit getenv system]
+	ps caption M18_0_3 (Required) The library functions abort, exit, getenv and system from library <cstdlib> shall not be used.
+end
+
+def M18_0_4	#  (RI+) The time handling functions of library <ctime> shall not be used.
+	r
+	pe M18_0_4: /\#include < ctime 
+	ps caption M18_0_4 (Required) The time handling functions of library <ctime> shall not be used.
+end
+
+def M18_0_5	#  (RI+) The unbounded functions of library <cstring> shall not be used.
+	# tbd, collect list of functions to exclude
+end
+
+def A18_0_3	#  (RI+) The library <clocale> (locale.h) and the setlocale function shall not be used.
+	r
+	pe A18_0_3: /\#include < clocale
+	ps caption A18_0_3 (Required) The library <clocale> (locale.h) and the setlocale function shall not be used.
+end
+
+def A18_1_1	#  (AI+) C-style arrays should not be used.
+	r
+	pe A18_1_1: @type @ident [ .* ]
+	ps caption A18_1_1 (Advisory) C-style arrays should not be used.
+end
+
+def A18_1_2	#  (RI+) The std::vector<bool> shall not be used.
+	r
+	pe A18_1_2: std @oper vector < bool >	# @oper = ::
+	ps caption A18_1_2 (Required) The std::vector<bool> shall not be used.
+end
+
+def A18_1_3	#  (RI+) The std::auto_ptr shall not be used.
+	r
+	pe A18_1_3: std @oper auto_ptr		# @oper = ::
+	ps caption A18_1_3 (Required) The std::auto_ptr shall not be used.
+end
+
+def A18_1_4	#  (RI+) The std::shared_ptr shall not refer to an array type.
+	# tbd
+end
+
+def A18_1_5	#  (RI+) The std::unique_ptr shall not be passed to a function by const reference.
+	r
+	pe A18_1_5: ( .* const std @oper unique_ptr < .* > & .* )	# @oper = ::
+	ps caption A18_1_5 (Required) The std::unique_ptr shall not be passed to a function by const reference.
+end
+
+def M18_2_1	#  (RI+) The macro offsetof shall not be used.
+	r
+	m offsetof
+	ps create M18_2_1
+	ps caption M18_2_1 (Required) The macro offsetof shall not be used.
+end
+
+def A18_5_1	#  (RI+) Functions malloc, calloc, realloc and free shall not be used.
+	r
+	pe A18_5_1: [malloc calloc realloc free]
+	ps caption A18_5_1 (Required) Functions malloc, calloc, realloc and free shall not be used.
+end
+
+def A18_5_2	#  (RI+-) Operators new and delete shall not be called explicitly.
+	# out-of-scope, cannot be automated
+end
+
+def A18_5_3	#  (RI+) The form of delete operator shall match the form of new operator used to allocate the memory.
+	# tbd
+end
+
+def A18_5_4	#  (RI+) If a project has sized or unsized version of operator "delete" globally defined, then both sized and unsized versions shall be defined.
+	# tbd
+end
+
+def A18_5_5	#  (RI+-) Memory management functions shall ensure the following: (a) deterministic behavior resulting with the existence of worst-case execution time, (b) avoiding memory fragmentation, (c) avoid running out of memory, (d) avoiding mismatched allocations or deallocations, (e) no dependence on non-deterministic calls to kernel.
+	# out-of-scope, cannot be automated
+end
+
+def A18_5_6	#  (RI-) An analysis shall be performed to analyze the failure modes of dynamic memory management. In particular, the following failure modes shall be analyzed: (a) non-deterministic behavior resulting with nonexistence of worst-case execution time, (b) memory fragmentation, (c) running out of memory, (d) mismatched allocations and deallocations, (e) dependence on non-deterministic calls to kernel.
+	# out-of-scope, cannot be automated
+end
+
+def A18_5_7	#  (RI-) If non-realtime implementation of dynamic memory management functions is used in the project, then memory shall only be allocated and deallocated during non-realtime program phases.
+	# out-of-scope, cannot be automated
+end
+
+def M18_7_1	#  (RI+) The signal handling facilities of <csignal> shall not be used.
+	r
+	pe M18_7_1: /\#include < csignal >
+	ps caption M18_7_1 (Required) The signal handling facilities of <csignal> shall not be used.
+end
+
+def A18_9_1	#  (RI+) The std::bind shall not be used.
+	r
+	pe A18_9_1: std @oper bind	# @oper = ::
+	ps caption A18_9_1 (Required) The std::bind shall not be used.
+end
+
+def A18_9_2	#  (RI+) Forwarding values to other functions shall be done via: (1) std::move if the value is an rvalue reference, (2) std::forward if the value is forwarding reference.
+	# tbd
+end
+
+def A18_9_3	#  (RI+) The std::move shall not be used on objects declared const or const&.
+	# tbd
+end
+
+def A18_9_4	#  (RI+) An argument to std::forward shall not be subsequently used.
+	r
+	pe { .* std @oper forward < .* > ( x:@ident ) .* :x .* }	# @oper = ::
+	Select_Bound_Vars(A18_9_4, 4)
+	ps caption A18_9_4 (Required) An argument to std::forward shall not be subsequently used.
+end
+
+def M19_3_1	#  (RI+) The error indicator errno shall not be used.
+	r
+	m errno
+	ps create M19_3_1
+	ps caption M19_3_1 (Rquired) The error indicator errno shall not be used.
+end
+
+def A23_0_1	#  (RI+) An iterator shall not be implicitly converted to const_iterator.
+	# tbd
+end
+
+def M27_0_1	#  (RI+) The stream input/output library <cstdio> shall not be used.
+	r
+	pe M27_0_1: /\#include < cstdio >
+	ps caption M27_0_1 (Required) The stream input/output library <cstdio> shall not be used.
+end
+
+def A27_0_1	#  (RI-) Inputs from independent components shall be validated.
+	# out-of-scope, cannot be automated
+end
+
+def A27_0_2	#  (RI+) A C-style string shall guarantee sufficient space for data and the null terminator.
+	# outside scope
+end

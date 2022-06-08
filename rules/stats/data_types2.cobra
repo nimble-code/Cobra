@@ -1,0 +1,30 @@
+def datatypes2
+	r; m auto; 	ps create Auto;  ps caption Auto auto
+	r; m char; 	ps create Char;  ps caption Char char
+	r; m const; 	ps create Const; ps caption Const const
+	r; m @const_flt; ps create Const_flt; ps caption Const_flt flt_num
+	r; m @const_hex; ps create Const_hex; ps caption Const_hex hex_num
+	r; m @const_int; ps create Const_int; ps caption Const_int int_num
+	r; m @const_oct; ps create Const_oct; ps caption Const_oct oct_num
+	r; m double; 	ps create Double;  ps caption Double double
+	r; m enum; 	ps create Enum;    ps caption Enum enum
+	r; m extern; 	ps create Extern;  ps caption Extern extern
+	r; m FILE; 	ps create File;    ps caption File FILE
+	r; m float; 	ps create Float;   ps caption Float float
+	r; m int; 	ps create Int;     ps caption Int int
+	r; m long; 	ps create Long;    ps caption Long long
+	r; m register; 	ps create Register; ps caption Register register
+	r; m short; 	ps create Short;    ps caption Short short
+	r; m signed; 	ps create Signed;   ps caption Signed signed
+	r; m static; 	ps create Static;   ps caption Static static
+	r; m @str; 	ps create String;   ps caption String string
+	r; m struct; 	ps create Struct;   ps caption Struct struct
+	r; m typedef; 	ps create Typedef;  ps caption Typedef typedef
+	r; m ulong; 	ps create Ulong;    ps caption Ulong ulong
+	r; m union; 	ps create Union;    ps caption Union union
+	r; m unsigned; 	ps create Unsigned; ps caption Unsigned unsigned
+	r; m void; 	ps create Void;     ps caption Void void
+	r; m volatile; 	ps create Volatile; ps caption Volatile volatile
+end
+
+datatypes2

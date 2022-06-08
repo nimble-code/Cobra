@@ -1,0 +1,67 @@
+# ncsl / phys
+# not as precise at the ncsl.c app, but close
+# executes single-core
+
+# icobra support version of stats/ncsl.cobra
+
+requires 4.0
+
+ncore 1
+ %{
+	function prnr(x)
+	{	x--;
+		if (x < 10) { print " "; }
+		if (x < 100) { print " "; }
+		if (x < 1000) { print " "; }
+		if (x < 10000) { print " "; }
+		if (x < 100000) { print " "; }
+		print x "\t";
+	}
+	unset comments;
+	unset tokens;
+	unset pbin;
+	Stop;
+ %}
+comments # comments stream
+ %{
+	comments[.fnm]++; # counts comments, not lines with comments
+ %}
+source	 # source code
+ %{
+	tokens[.fnm]++;
+	# drawbacks of different counts:
+	#  semicols undercounts actual code and preprocessor directives
+	#  physlns counts blank lines and comment lines (i.e., it overcounts)
+	#  tokens counts multiple items per stmnt (i.e., it also overcounts)
+	# as a compromise, we assume 10 tokens per stmnt to cumpute p3 below
+ %}
+ %{
+	nfiles = size(tokens);
+	if (size(comments) > nfiles)
+	{	nfiles = size(comments);
+	}
+
+	i = 0;
+	while (i < nfiles)
+	{	fn = retrieve(tokens, i);   T = tokens[fn];
+		fn = retrieve(comments, i); C = comments[fn];
+		i++;
+
+		if (T > 0 && C > 0)	# bin by approx percentage
+		{	p3 = ((1000 * C) / T);
+			n = 10;
+			while (n <= 100)
+			{	if (p3 < n)
+				{	pbin[n/10]++;
+					break;
+				}
+				n = n + 10;
+	}	}	}
+
+	n = 1;
+	while (n <= 10)
+	{	print n*10 " " pbin[n] "\n";
+		n++;
+	}
+	Stop;
+ %}

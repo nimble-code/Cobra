@@ -1,0 +1,113 @@
+# crude way to calculate cyclomatic complexity numbers
+# this version is an icobra support fct
+# runs single core
+
+fcts
+ncore 1
+%{
+	unset counts;
+	max_cc = 1;
+	max_ln = 0;
+	nr = 0;
+	cum = 0;
+	cum_ln = 0;
+	# max_cc_nm = .;
+	# max_ln_nm = .;
+	Stop;
+%}
+%{
+	if (!.mark) { Next; }	# for each function
+
+	nm = .;
+	. = .nxt;
+	while (.curly == nm.curly
+	    && nm.fnm == .fnm
+	    && .mark == 0)
+	{	# in case it's not 0
+		. = .nxt;
+	}
+
+	if (.fnm != nm.fnm)	# into another file, not same fct
+	{	. = nm.nxt;
+		Next;
+	}
+	cc = 1;
+	while (.curly > nm.curly
+	    && .mark == 0
+	    && .fnm == nm.fnm)	# scan fct body
+	{
+		if (.txt == "if"
+		||  .txt == "while"
+		||  .txt == "for")
+		{
+			cc++;
+		}
+		if (.txt == "case"
+		||  .txt == "default")
+		{	q = .prv;
+			if (q.txt != ":")
+			{	cc++; # not a fallthru
+		}	}
+		q = .;
+		. = .nxt;
+		if (q.seq == .seq) { break; }
+	}
+	if (cc > max_cc)
+	{	max_cc = cc;
+		# max_cc_nm = nm;
+	}
+	nl = .lnr - nm.lnr;
+	if (nl > max_ln)
+	{	max_ln = nl;
+	#	max_ln_nm = nm;
+	}
+	if (nl < 0)
+	{	# print nm.fnm ":" nm.lnr ": error: ";
+		# print nm.txt " " cc " " nl " ";
+		# print nm.curly " " .curly "\n";
+		# icobra should ignore these
+		. = nm.nxt;
+		Next;
+	}
+	counts[cc]++;
+	cum_ln = cum_ln + nl;
+	cum = cum + cc;
+	nr++;
+
+	# print cc "	" nl "	" nm.txt  "\n";	# for correlation plot
+
+	if (.mark) { . = .prv; }	# correct overshoot
+%}
+%{
+	i = 0;
+	unset pbin;
+	while (i <= max_cc)
+	{	n = retrieve(counts, i);
+		i++;
+		if (n != "" && n > 0)
+		{	m = 10;
+			while (m <= 100)
+			{	if (n < m)
+				{	pbin[m/10] = pbin[m/10] + counts[n];
+					break;
+				}
+				m = m + 10;
+			}
+			if (m > 100)
+			{	pbin[10]++;
+	}	}	}
+
+	i = 1;
+	while (i <= 10)
+	{	print i*10 " " pbin[i] "\n";
+		i++;
+	}
+
+	# if (nr > 0)
+	# {	print "nr fcts: " nr "\tavg cc: " cum/nr "\tavg lns: " cum_ln/nr "\n";
+	# }
+	# print "max cc: "	max_cc "\t" max_cc_nm.fnm ":" max_cc_nm.lnr ":\t" max_cc_nm.txt"\n";
+	# print "max ln: "	max_ln "\t" max_ln_nm.fnm ":" max_ln_nm.lnr ":\t" max_ln_nm.txt"\n";
+	Stop;
+%}
+

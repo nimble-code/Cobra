@@ -1,0 +1,24 @@
+
+. basic.def
+
+requires 3.9
+
+quiet on
+terse on
+
+. stats/cpp_types2.cobra
+. stats/data_types2.cobra
+. stats/stmnt_types2.cobra
+. stats/operators2.cobra
+. stats/ident_length2.cobra
+
+ps list
+
+# the following calls print a text summary only
+%{ print "\n"; Stop; %}
+. stats/fct_param_count2.cobra
+. stats/fct_per_file2.cobra
+. stats/fct_len_list2.cobra
+
+terse off
+quiet off

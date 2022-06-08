@@ -1,18 +1,23 @@
 # check 13 of the misra 2004 rules with a cobra inline program
 
+requires 4.0
+
 # cpp off
+
+comments
+%{
+	if (~"//")
+	{	print .fnm ":" .lnr ": R2.2: C++ style comment\n";
+	}
+	if (~"/*" > 1)
+	{	print .fnm ":" .lnr ": R2.3: nested /* comment\n";
+	}
+%}
+source
+
 %{
 	if (.fnm != incode.fnm)
 	{	incode = none;
-	}
-	if (@cmnt)
-	{	if (~"//")
-		{	print .fnm ":" .lnr ": R2.2: C++ style comment\n";
-		}
-		if (~"/*" > 1)
-		{	print .fnm ":" .lnr ": R2.3: nested /* comment\n";
-		}
-		Next;
 	}
 	if (@chr)
 	{	if (.txt == "\\")

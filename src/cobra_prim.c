@@ -43,6 +43,7 @@ static	int	 nfh = -1;
 
 extern	int	 read_stdin;
 extern	int	 stream;
+extern	void	 do_typedefs(int);
 
 // utility functions for use in standalone checkers:
 
@@ -725,7 +726,7 @@ sanitycheck(int cid)
 void
 process_line(char *buf, int cid)
 {	int y;
-	char z[1024], *n;
+	char z[3000], *n;	// size larger than largest comment (2048)
 
 	if (Ctok)
 	{	printf("%s\n", buf);
@@ -780,7 +781,7 @@ rescan(void)
 #ifdef PC
 	// cygwin crashes on multi-core calls to gcc
 	Files *f;
-	extern void do_typedefs(int);
+
 	ini_pre(0);
 	for (n = 0; n < NHASH; n++)
 	for (f = files[n]; f; f = f->nxt)

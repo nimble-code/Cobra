@@ -51,30 +51,36 @@ static const struct {
 	{ "sizeof",	"key",	c_t },
 	{ "switch",	"key",	c_t },
 	{ "while",	"key",	c_t },
-	{ "alignas",	"key",	cpp_t },		// C++
+
+	{ "alignas",	"key",	cpp_t },	// C++
 	{ "alignof",	"key",	cpp_t },
 	{ "and_eq",	"key",	cpp_t },
 	{ "asm",	"key",	cpp_t },
 	{ "bitand",	"key",	cpp_t },
 	{ "bitor",	"key",	cpp_t },
 	{ "bool",	"key",	cpp_t },
-	{ "char16_t",	"key",	cpp_t },
-	{ "char32_t",	"key",	cpp_t },
+	{ "char8_t",	"type",	cpp_t },	// C++20
+	{ "char16_t",	"type",	cpp_t },
+	{ "char32_t",	"type",	cpp_t },
 	{ "compl",	"key",	cpp_t },
 	{ "concept",	"key",	cpp_t },
 	{ "constexpr",	"key",	cpp_t },
 	{ "const_cast",	"key",	cpp_t },
 	{ "decltype",	"key",	cpp_t },
 	{ "delete",	"key",	cpp_t },
-	{ "dynamic_cast", "key",	cpp_t },
+	{ "dynamic_cast", "key", cpp_t },
 	{ "explicit",	"key",	cpp_t },
 	{ "export",	"key",	cpp_t },
 	{ "false",	"key",	cpp_t },
 	{ "friend",	"key",	cpp_t },
 	{ "inline",	"key",	cpp_t },
+	{ "int8_t",	"type",	cpp_t },
+	{ "int16_t",	"type",	cpp_t },
+	{ "int32_t",	"type",	cpp_t },
+	{ "int64_t",	"type",	cpp_t },
 	{ "mutable",	"key",	cpp_t },
 	{ "namespace",	"key",	cpp_t },
-	{ "noexcept",	"key",	cpp_t },
+	{ "noexcept",	"specifier",	cpp_t },
 	{ "not_eq",	"key",	cpp_t },
 	{ "nullptr",	"key",	cpp_t },
 	{ "operator",	"key",	cpp_t },
@@ -88,11 +94,17 @@ static const struct {
 	{ "true",	"key",	cpp_t },
 	{ "typeid",	"key",	cpp_t },
 	{ "typename",	"key",	cpp_t },
+	{ "uchar_t",	"type",	cpp_t }, 	// uchar_t is technically not in the standard
+	{ "uint8_t",	"type",	cpp_t },
+	{ "uint16_t",	"type",	cpp_t },
+	{ "uint32_t",	"type",	cpp_t },
+	{ "uint64_t",	"type",	cpp_t },
 	{ "using",	"key",	cpp_t },
 	{ "virtual",	"key",	cpp_t },
-	{ "wchar_t",	"key",	cpp_t },
+	{ "wchar_t",	"type",	cpp_t },
 	{ "xor_eq",	"key",	cpp_t },
-	{ "abort",	"key",	ada_t },		// Ada
+
+	{ "abort",	"key",	ada_t },	// Ada
 	{ "abs",	"key",	ada_t },
 	{ "accept",	"key",	ada_t },
 	{ "access",	"key",	ada_t },
@@ -104,6 +116,7 @@ static const struct {
 	{ "body",	"key",	ada_t },
 	{ "constant",	"key",	ada_t },
 	{ "declare",	"key",	ada_t },
+
 	{ "def",	"key",	python_t },
 	{ "del",	"key",	python_t },
 	{ "except",	"key",	python_t },
@@ -114,6 +127,7 @@ static const struct {
 	{ "pass",	"key",	python_t },
 	{ "print",	"key",	python_t },
 	{ "elif",	"key",	python_t },
+
 	{ "delay",	"key",	ada_t },
 	{ "delta",	"key",	ada_t },
 	{ "digits",	"key",	ada_t },
@@ -124,6 +138,8 @@ static const struct {
 	{ "exit",	"key",	ada_t },
 	{ "function",	"key",	ada_t },
 	{ "generic",	"key",	ada_t },
+	{ "is",		"key",	ada_t | python_t },
+	{ "in",		"key",	ada_t | python_t },
 	{ "limited",	"key",	ada_t },
 	{ "loop",	"key",	ada_t },
 	{ "mod",	"key",	ada_t },
@@ -135,6 +151,7 @@ static const struct {
 	{ "procedure",	"key",	ada_t },
 	{ "range",	"key",	ada_t },
 	{ "record",	"key",	ada_t },
+	{ "raise",	"key",	ada_t | python_t },
 	{ "rem"	,	"key",	ada_t },
 	{ "renames",	"key",	ada_t },
 	{ "requeue",	"key",	ada_t },
@@ -152,40 +169,39 @@ static const struct {
 	{ "use"	,	"key",	ada_t },
 	{ "with",	"key",	ada_t },
 	{ "when",	"key",	ada_t },
-	{ "raise",	"key",	ada_t | python_t },		// ada, python
-	{ "is",		"key",	ada_t | python_t },
-	{ "in",		"key",	ada_t | python_t },
-	{ "and",	"key",	cpp_t | ada_t | python_t },	// C++, ada, python
+
+	{ "abstract",	"key",  ada_t | java_t },
+	{ "and",	"key",	cpp_t | ada_t | python_t },
+	{ "catch",	"key",  cpp_t | java_t },
+	{ "class",	"key",  cpp_t | java_t | python_t },
+	{ "interface",	"key",  ada_t | java_t },
+	{ "new",	"key",	cpp_t | ada_t | java_t },
 	{ "not",	"key",	cpp_t | ada_t | python_t },
-	{ "xor",	"key",	cpp_t | ada_t | python_t },
 	{ "or",		"key",	cpp_t | ada_t | python_t },
-	{ "new",	"key",	cpp_t | ada_t | java_t },	// C++, ada, java
-	{ "protected",	"key",	cpp_t | ada_t | java_t },
-	{ "private",	"key",	cpp_t | ada_t | java_t },
-	{ "catch",	"key",  cpp_t | java_t },		// C++, java
-	{ "public",	"key",  cpp_t | java_t },
+	{ "package",	"key",  ada_t | java_t },
+	{ "private",	"specifier",	cpp_t | ada_t | java_t },
+	{ "protected",	"specifier",	cpp_t | ada_t | java_t },
+	{ "public",	"specifier",  cpp_t | java_t },
 	{ "this",	"key",  cpp_t | java_t },
 	{ "throw",	"key",  cpp_t | java_t },
-	{ "class",	"key",  cpp_t | java_t | python_t },	// C++, python, java
 	{ "try",	"key",  cpp_t | java_t | python_t },
-	{ "abstract",	"key",  ada_t | java_t },		// ada, java
-	{ "interface",	"key",  ada_t | java_t },
 	{ "synchronized",	"key",  ada_t | java_t },
-	{ "package",	"key",  ada_t | java_t },
-	{ "boolean",	"key",  java_t },			// java
+	{ "xor",	"key",	cpp_t | ada_t | python_t },
+
+	{ "assert",	"key",  java_t | python_t },
+	{ "boolean",	"key",  java_t },	
 	{ "byte",	"key",  java_t },
 	{ "extends",	"key",  java_t },
+	{ "finally",	"key",  java_t | python_t },
 	{ "final",	"key",  java_t },
 	{ "implements",	"key",  java_t },
+	{ "import",	"key",  java_t | python_t },
 	{ "instanceof",	"key",  java_t },
 	{ "native",	"key",  java_t },
 	{ "strictfp",	"key",  java_t },
 	{ "super",	"key",  java_t },
 	{ "throws",	"key",  java_t },
 	{ "transient",	"key",  java_t },
-	{ "import",	"key",  java_t | python_t },		// python, java
-	{ "finally",	"key",  java_t | python_t },
-	{ "assert",	"key",  java_t | python_t },
 	{ 0, 0, 0 }
 };
 
@@ -420,10 +436,9 @@ c_comment(int cid)	/* c comment */
 		}
 		m = append_char(n, m, cid);
 		if (n == '/')
-		{	if (with_comments)
-			{	Px.lex_yytext[m] = '\0';
-				show2("cmnt", Px.lex_yytext, cid);
-			}
+		{	assert(m < MAXYYTEXT);
+			Px.lex_yytext[m] = '\0';
+			show2("cmnt", Px.lex_yytext, cid);
 			break;
 	}	}
 	assert(m < MAXYYTEXT);
@@ -436,28 +451,22 @@ p_comment(const char *s, int cid)
 	char *p;
 	int n, i;
 
-	// avoid overflow on long comments
-	// when comments aren't enabled anyway
-	if (!with_comments)
-	{	do {	n = nextchar(cid);
-		} while (n != '\n' && n != EOF);
-		line(cid);
-		return;
-	}
-
 	assert(cid >= 0 && cid < Ncore);
 	strncpy(Px.lex_yytext, s, MAXYYTEXT);
 	Px.lex_yytext[MAXYYTEXT-1] = '\0';
-#if 0
-	if (fgets(buf, sizeof(buf), Px.lex_yyin) == NULL)
-	{	pushback(EOF, cid);
-		return;
-	}
-#else
+
 	i = 0;
 	do {	n = nextchar(cid);
-		assert(i < MAXYYTEXT);
-		buf[i++] = n;
+		// assert(i < MAXYYTEXT); // version 4.0
+		if (i < MAXYYTEXT-8)	  // leave 8 byte margin
+		{	buf[i++] = n;
+		} else
+		{	static int lwarned = 0;
+			if (!lwarned)
+			{	lwarned = 1;
+				fprintf(stderr, "warning: truncating comment longer than %d chars\n",
+					MAXYYTEXT);
+		}	}
 	} while (n != '\n' && n != EOF);
 
 	Px.lex_lineno--;
@@ -467,7 +476,9 @@ p_comment(const char *s, int cid)
 		return;
 	}
 	buf[i] = '\0';
-#endif
+
+	pushback('\n', cid);	// 4.0, was missing
+
 	if ((p = strchr(buf, '\r')) != NULL
 	||  (p = strchr(buf, '\n')) != NULL)
 	{	*p = '\0';
@@ -530,18 +541,29 @@ number(int c, int cid)
 		if (n == '.')
 		{	goto F;
 		}
-		if (n == 'x' || n == 'X')	// hex
+		if (cplusplus
+		&& (n == 'b' || n == 'B'))	// binary
+		{	m = append_char(n, m, cid);
+			n = nextchar(cid);
+			while (n == '0' || n == '1' || n == '\'')
+			{	m = append_char(n, m, cid);
+				n = nextchar(cid);
+			}
+			s = "const_bin";
+		} else if (n == 'x' || n == 'X')	// hex
 		{	m = append_char(n, m, cid);
 			n = nextchar(cid);
 			while ((n >= '0' && n <= '9')
 			   ||  (n >= 'a' && n <= 'f')
-			   ||  (n >= 'A' && n <= 'F'))
+			   ||  (n >= 'A' && n <= 'F')
+			   ||  (cplusplus && n == '\''))
 			{	m = append_char(n, m, cid);
 				n = nextchar(cid);
 			}
 			s = "const_hex";
 		} else				// oct
-		{	while (n >= '0' && n <= '7')
+		{	while ((n >= '0' && n <= '7')
+			   || (cplusplus && n == '\''))
 			{	m = append_char(n, m, cid);
 				n = nextchar(cid);
 			}
@@ -559,7 +581,14 @@ number(int c, int cid)
 
 	while ((n = nextchar(cid)) != EOF)
 	{	if (!isdigit((uchar) n))
-		{	if (n == '.')
+		{
+			if (cplusplus
+			&&  n == '\'') 		// C++ sequence separator
+			{	m = append_char(n, m, cid);
+				continue;
+			}
+
+			if (n == '.')
 			{
 F:				m = append_char(n, m, cid);
 				s = "const_flt";
@@ -610,6 +639,7 @@ name(int c, int cid)
 	}
 	assert(m < MAXYYTEXT);
 	Px.lex_yytext[m] = '\0';
+
 	if (Px.lex_preprocessing == 1)
 	{	int a = isdirective(cid);
 		if (a)
@@ -1001,6 +1031,7 @@ c_lex(int cid)	// called in cobra_prep.c
 			n = nextchar(cid);
 			switch (n) {
 			case '"':
+				show2("ident", "L", cid);	// 4.0, was missing
 			case '\'':
 				char_or_str(n, cid);
 				show2((n=='"')?"str":"chr", Px.lex_yytext, cid);
@@ -1035,7 +1066,7 @@ c_lex(int cid)	// called in cobra_prep.c
 						}
 					} while (n != EOF && n != '\n');
 				}
-				setlineno(buf, cid); // XYXYXY possible fnm change, flags set
+				setlineno(buf, cid); // possible fnm change, flags set
 				line(cid);
 				Px.lex_preprocessing = 0;
 				memset(Px.lex_cpp, 0, sizeof(Px.lex_cpp));

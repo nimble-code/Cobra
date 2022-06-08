@@ -1,0 +1,67 @@
+## list the number of functions per file
+## multi-core safe
+## icobra support fct
+
+r
+fcts
+%{
+	unset count;
+	unset total;
+	nrfiles = 0;
+	Stop;
+%}
+%{
+	if (.mark)
+	{	if (count[.fnm] == 0) { nrfiles++; }
+		count[.fnm]++;
+	}
+%}
+%{
+	if (cpu != 0)
+	{	Stop;
+	}
+
+	# the files can straddle cpu-ranges
+	# so we must add the individual counts
+	# per filename
+	a_unify(0);
+
+	## XXX:	for (i in count) doesn't seem to work
+	## XXX:	when this script is called from within icobra
+	## XXX:	so we use a different method to iterate the
+	## XXX:	array elements for now
+
+	i = 0; maxcnt = 0;
+	while (i < nrfiles)
+	{	f = retrieve(count, i);
+		n = sum(count[f]);
+		total[n]++;	# true count for file f
+		if (maxcnt < n) { maxcnt = n; }
+		i++;
+	}
+
+	unset Bin;
+	i = 0;
+	while (i < maxcnt)
+	{	n = retrieve(total, i);
+		if (n != "")
+		{	if (n <= 10) { Bin[1] = Bin[1] + total[n]; goto L; }
+			if (n <= 20) { Bin[2] = Bin[2] + total[n]; goto L; }
+			if (n <= 30) { Bin[3] = Bin[3] + total[n]; goto L; }
+			if (n <= 40) { Bin[4] = Bin[4] + total[n]; goto L; }
+			if (n <= 50) { Bin[5] = Bin[5] + total[n]; goto L; }
+			if (n <= 60) { Bin[6] = Bin[6] + total[n]; goto L; }
+			if (n <= 70) { Bin[7] = Bin[7] + total[n]; goto L; }
+			if (n <= 80) { Bin[8] = Bin[8] + total[n]; goto L; }
+			if (n <= 90) { Bin[9] = Bin[9] + total[n]; goto L; }
+			if (n >  90) { Bin[10] = Bin[10] + total[n]; }
+		}
+	L:	i++;
+	}
+	i = 1;
+	while (i <= 10)
+	{	print 10*i "	" Bin[i] "\n";
+		i++;
+	}
+	Stop;
+%}

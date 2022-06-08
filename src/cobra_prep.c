@@ -21,7 +21,8 @@ int across_file_match;
 int all_headers;
 int cplusplus;
 int Ctok;
-int eol = 0;
+int echo;
+int eol;
 int eof = 1;	// new default v 3.9
 int gui;
 int java;
@@ -45,7 +46,6 @@ int runtimes;
 int scrub;
 int verbose;
 int view;
-int with_comments;
 
 ArgList		*cl_var;	// -var name=xxx, cobra_lib.c
 pthread_t	*t_id;
@@ -77,7 +77,7 @@ static int	 N_max = 128;
 extern Prim	*prim, *plst;
 extern int	 json_plus;
 
-extern void	 set_ranges(Prim *, Prim *);
+extern void	 set_ranges(Prim *, Prim *, int);
 extern void	 recycle_token(Prim *, Prim *);
 extern void	 add_eof(int);
 
@@ -120,7 +120,113 @@ add_preproc(const char *s)	// before parsing
 	}
 }
 
+static Prim *cmnt_head;
+static Prim *cmnt_tail;
+static Prim *s_prim = 0;
+static Prim *s_plst = 0;
+
 // externally visible functions:
+
+void
+strip_comments_and_renumber(int reset_ranges)
+{	int scnt = 0, ccnt = 0;
+	Prim *ptr, *ct, *lst = 0, *nxt;
+
+	// can be called repeatedly when files are added
+
+	for (ptr = prim; ptr; ptr = nxt)
+	{	nxt = ptr->nxt;
+		if (strcmp(ptr->typ, "cmnt") != 0)
+		{	lst = ptr;
+			continue;
+		}
+		scnt++;
+		ct = ptr;
+		// remove from stream
+		if (!lst)
+		{	prim = ct->nxt;
+			if (prim)
+			{	prim->prv = 0;
+			}
+		} else
+		{	lst->nxt = ct->nxt;
+			if (ct->prv)
+			{	lst = ct->prv;
+			}
+			if (nxt)
+			{	nxt->prv = lst;
+		}	}
+
+		if (ct == plst) // next == 0
+		{	plst = ct->prv;
+			plst->nxt = 0;
+		}
+
+		ct->bound = nxt; // preserve a link to source
+		// add to separate list
+		ct->nxt = 0;
+		ct->prv = 0;
+		if (!cmnt_tail)
+		{	cmnt_head = cmnt_tail = ct;
+		} else
+		{	cmnt_tail->nxt = ct;
+			ct->prv = cmnt_tail;
+			cmnt_tail = ct;
+	}	}
+	if (verbose>1)
+	{	printf("%d comments stripped\n", scnt);
+	}
+
+	// renumber
+	scnt = 0;
+	for (ptr = prim; ptr; ptr = ptr->nxt)
+	{	ptr->seq = scnt++;
+	}
+	ccnt = 0;
+	for (ct = cmnt_head; ct; ct = ct->nxt)
+	{	ct->seq = ccnt++;
+	}
+
+	if (reset_ranges)
+	{	set_ranges(prim, plst, 1);
+	}
+
+	if (verbose)
+	{	printf("%d source tokens and %d comments\n", scnt, ccnt);
+	}
+}
+
+int
+is_comments_or_source(void)
+{
+	return (int) ((s_prim)?CMNT:SRC);
+}
+
+void
+comments_or_source(int to_comments)	// switch between these
+{
+	if (!s_prim && !cmnt_head)	// neither stream exists
+	{	fprintf(stderr, "error: no tokens defined\n");
+		return;
+	}
+	if (to_comments)
+	{	if (s_prim)
+		{	return;		// already set
+		}
+		s_prim = prim;
+		s_plst = plst;
+		prim = cmnt_head;
+		plst = cmnt_tail;
+	} else
+	{	if (!s_prim)
+		{	return;		// already set
+		}
+		prim = s_prim;
+		plst = s_plst;
+		s_prim = s_plst = 0;
+	}
+	set_ranges(prim, plst, 2);
+}
 
 void
 set_textmode(void)
@@ -274,7 +380,7 @@ add_file(char *f, int cid, int slno)
 }
 
 void
-set_ranges(Prim *a, Prim *b)
+set_ranges(Prim *a, Prim *b, int who)
 {	static short tokmaxrange = 0;
 	int i, j, span = count/Ncore;
 	Prim *x;
@@ -384,7 +490,9 @@ add_stream(Prim *pt)
 
 	if (pre[0].lex_plst)
 	{	post_process(notnew?0:1);
-		set_ranges(prim, plst);
+		set_ranges(prim, plst, 4);
+		// when streaming we cannot separate comment tokens
+		// from the main stream
 	}
 
 	if (verbose > 1)
@@ -596,11 +704,12 @@ usage(char *s)
 	fprintf(stderr, "\t-C++                -- recognize C++ keywords\n");
 	fprintf(stderr, "\t-c \"commands\"       -- execute commands and stop (cf -e, -f)\n");
 	fprintf(stderr, "\t-c \"m /regex; p\"     -- find tokens matching a regular expr\n");
-	fprintf(stderr, "\t-comments           -- include comments as tokens (unless -cpp is also used)\n");
+	fprintf(stderr, "\t-comments           -- deprecated (see Comment Handling in the command 'help' response)\n");
 	fprintf(stderr, "\t-configure dir      -- set and remember the name for the Cobra installation directory\n");
 	fprintf(stderr, "\t-cpp                -- enable C preprocessing%s\n", no_cpp?"":" (default)");
 	fprintf(stderr, "\t-cpp=clang          -- enable C preprocessing and use clang instead of gcc\n");
 	fprintf(stderr, "\t-d and -v -d        -- debug cobra inline program executions\n");
+	fprintf(stderr, "\t-echo               -- echo script command names when called (eg from query libraries)\n");
 	fprintf(stderr, "\t-eof                -- omit EOF tokens at the end of files\n");
 	fprintf(stderr, "\t-eol                -- add EOL tokens at all newlines\n");
 	fprintf(stderr, "\t-e name             -- print lines with tokens matching name\n");
@@ -807,7 +916,7 @@ par_scan(void)
 
 	for (i = 1; i < Ncore; i++)
 	{	pass_arg[i].who = i;
-		(void) pthread_create(&t_id[i], 0, renumber,	// XXXX renumber
+		(void) pthread_create(&t_id[i], 0, renumber,	// renumber
 			(void *) &(pass_arg[i].who));
 	}
 	for (i = 1; i < Ncore; i++)
@@ -1276,9 +1385,6 @@ main(int argc, char *argv[])
 
 		case 'c': if (strncmp(argv[1], "-cpp", 4) == 0)
 			  {	no_cpp = 0;
-				if (with_comments)
-				{	fprintf(stderr, "warning: -cpp overrides -comments\n");
-				}
 				if (argv[1][4] == '='
 				&&  strlen(argv[1]) > 6)
 				{	fprintf(stderr, "setting preprocessor to '%s'\n", &argv[1][5]);
@@ -1287,9 +1393,8 @@ main(int argc, char *argv[])
 				break;
 			  }
 			  if (strcmp(argv[1], "-comments") == 0)
-			  {	with_comments = 1;
-				if (no_cpp == 0)
-				{	fprintf(stderr, "warning: -cpp overrides -comments\n");
+			  {	if (verbose)
+				{	fprintf(stderr, "warning: -comments is decprecated\n");
 				}
 				break;
 			  }
@@ -1324,6 +1429,10 @@ main(int argc, char *argv[])
 			  }
 			  if (strcmp(argv[1], "-eof") == 0)
 			  {	eof = 1 - eof;	// default value is 1
+				break;
+			  }
+			  if (strcmp(argv[1], "-echo") == 0)
+			  {	echo = 1;
 				break;
 			  }
 RegEx:			  no_match = 1;		// -e -expr -re or -regex
@@ -1687,7 +1796,7 @@ cwe_mode:	no_match = 1;	// for consistency with -f
 			stop_timer(0, 0, "H");
 	}	}
 
-	if (argc == 1)
+	if (argc == 1 && !gui)
 	{	read_stdin = 1;
 		if (stream == 0) // no override with -nostream
 		{	stream = 1;
@@ -1732,7 +1841,8 @@ cwe_mode:	no_match = 1;	// for consistency with -f
 	if (Ctok)
 	{	return 0;
 	}
-	post_process(1);	// collect info from cores
+	post_process(1);		// collect info from cores
+	strip_comments_and_renumber(1);	// set cmnt_head/cmnt_tail
 
 	if (seedfile)
 	{	json_import(seedfile, 0);

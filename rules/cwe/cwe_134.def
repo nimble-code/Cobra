@@ -1,6 +1,6 @@
 # CWE-134: Use of Externally-Controlled Format String
 
-requires 3.9
+requires 4.0
 
 # memcpy with 2nd arg unchecked param
 
@@ -45,7 +45,7 @@ def cwe_134_main
 
 	while (.seq < eob.seq)
 	{
-		if (match(.txt, "/printf") && !@cmnt)
+		if (match(.txt, "/printf"))
 		{	if (.txt == "fprintf"
 			||  .txt == "sprintf")
 			{	while (.txt != ",")

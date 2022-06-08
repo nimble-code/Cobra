@@ -1,5 +1,6 @@
 . basic.def
 
+quiet on
 terse on
 
 !echo "=== preprocessor directives"
@@ -18,7 +19,7 @@ terse on
 . stats/operators.cobra
 
 !echo "=== identifier lengths"
-. stats/ident_length.cobra
+. stats/ident_length0.cobra
 
 !echo "=== function parameters"
 . stats/fct_param_count.cobra
@@ -32,3 +33,4 @@ nr_functions 1	# with detail
 . stats/fct_len_list.cobra
 
 terse off
+quiet off

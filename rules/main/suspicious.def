@@ -49,12 +49,12 @@ def C12
 	ps caption C12 match gotos immediately followed by the target label
 end
 def C13
-	pe C13: for ( .* ) ^[{ @cmnt for switch if]			
-	ps caption C13 for loop body is not a compound stmnt
+	pe C13: for ( .* ) ^[{ for switch if]			
+	ps caption C13 loop body is not enclosed in { }
 end
 def C14
-	pe C14: if ( .* ) ^[{ @cmnt for switch if]			
-	ps caption C14 the body of if-statement not enclosed in { }
+	pe C14: if ( .* ) ^[{ for switch if]			
+	ps caption C14 body of if-statement is not enclosed in { }
 end
 def C15
 	pe C15: switch ( .* ) { ^default* }				

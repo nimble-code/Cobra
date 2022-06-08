@@ -26,7 +26,9 @@ int		top_up;
 int		no_caller_info;	// mode of fcts
 
 extern TokRange	**tokrange;
+
 extern char	*C_TMP;
+extern int	echo;
 extern int	runtimes;
 extern int	read_stdin;
 extern char	*pattern(char *);
@@ -34,6 +36,8 @@ extern char	*unquoted(char *);
 extern char	*progname;
 extern void	clear_file_list(void);
 extern void	clear_seen(void);
+extern void	comments_or_source(int);
+extern int	is_comments_or_source(void);
 extern int	has_stop(void);
 
 static FILE	*prog_fd;
@@ -808,6 +812,12 @@ void
 run_threads(void *(*f)(void*), int which)
 {	int i;
 
+
+	if (tokrange == NULL)
+	{	fprintf(stderr, "error: no tokens\n");
+		return;
+	}
+
 	if (Ncore == 1)
 	{	i = 0;
 		start_timer(0);
@@ -861,7 +871,7 @@ findtype(char *s, char *t)
 }
 
 void
-fcts(char *unused1, char *unused2)
+fcts(char *used1, char *unused2)
 {	FList *f;
 	Prim *z;
 	static int o_caller_info = 0;
@@ -869,8 +879,8 @@ fcts(char *unused1, char *unused2)
 	assert(no_cpp == 0 || no_cpp == 1);
 	flist = flst[no_cpp];
 
-	if (unused1
-	&&  strcmp(unused1, "0") == 0)
+	if (used1
+	&&  strcmp(used1, "0") == 0)
 	{	no_caller_info = 1;
 	}
 
@@ -1203,7 +1213,7 @@ do_script(char *fnd, char *a, char *b)
 	inscript++;
 	for (s = scripts; s; s = s->nxt)
 	{	if (strcmp(s->nm, f) == 0)	// found script
-		{	if (verbose == 1)
+		{	if (echo || verbose == 1)
 			{	printf(":%s\n", s->nm);
 			}
 			for (i = 0, x = s->arg; x; i++) // count formal params
@@ -1641,7 +1651,7 @@ pre_scan(char *bc)	// non-generic commands
 		}
 		return 1;
 
-	case 's':	// save, setlinks, stream
+	case 's':	// save, seed, setlinks, source, stream
 		if (strncmp(bc, "save", strlen("save")) == 0)
 		{	bc += strlen("save") - 1;
 			while (isspace((uchar) *bc))
@@ -1654,6 +1664,10 @@ pre_scan(char *bc)	// non-generic commands
 		} else if (strncmp(bc, "seed", 4) == 0)
 		{	a = nextarg(bc);
 			json_import(a, 0);	// read Cobra generated json output, single-core
+			return 1;
+		} else if (strncmp(bc, "source", 6) == 0)
+		{	comments_or_source(0);
+			cur = prim;
 			return 1;
 		} else if (strncmp(bc, "stream", 6) == 0)
 		{	char *qtr;
@@ -1769,7 +1783,8 @@ pre_scan(char *bc)	// non-generic commands
 		{	// printf("pattern expression: '%s'\n", bc+3);
 			a = check_qualifiers(bc+3);
 			if (a)
-			{	cobra_te(pattern(a), and_mode, inverse);
+			{	regstop();
+				cobra_te(pattern(a), and_mode, inverse);
 			}
 			return 1;
 		}
@@ -1777,7 +1792,8 @@ pre_scan(char *bc)	// non-generic commands
 		{	// printf("pattern expression: '%s'\n", bc+2);
 			a = check_qualifiers(bc+2);
 			if (a)
-			{	cobra_te(pattern(a), and_mode, inverse);
+			{	regstop();
+				cobra_te(pattern(a), and_mode, inverse);
 			}
 			return 1;
 		}
@@ -1943,6 +1959,11 @@ pre_scan(char *bc)	// non-generic commands
 		break;
 
 	case 'c':	// context - function context
+		if (strncmp(bc, "comments", strlen("comments")) == 0)
+		{	comments_or_source(1);
+			cur = prim;
+			return 1;
+		}
 		if (strncmp(bc, "context", strlen("context")) == 0)
 		{	context(nextarg(bc), "");
 			return 1;
@@ -2138,7 +2159,23 @@ pre_scan(char *bc)	// non-generic commands
 		}
 		break;
 
-	case 'j':	// json [msg]
+	case 'j':	// json [msg] or json_format or json_plus
+		if (strncmp(bc, "json_format", strlen("json_format")) == 0)
+		{	if (strstr(&bc[11], "off"))
+			{	json_format = 0;
+			} else
+			{	json_format = 1;
+			}
+			return 1;
+		}
+		if (strncmp(bc, "json_plus", strlen("json_plus")) == 0)
+		{	if (strstr(&bc[11], "off"))
+			{	json_plus = json_format = 0;
+			} else
+			{	json_plus = json_format = 1;
+			}
+			return 1;
+		}
 		if (strncmp(bc, "json", 4) == 0)
 		{	nr_marks(0);
 			json_plus = (bc[4] == '+');
@@ -2576,17 +2613,24 @@ undo(char *s, char *t)
 
 static char *
 preamble(char *s, int n)
-{
+{	static int warned = 0;
+
 	if (*s == '/')
 	{	(void) regstart(n, s+1);
 	}
-	if (strcmp(s, "@cmnt") == 0
-	&&  with_comments == 0)
-	{	static int warned = 0;
-		if (!warned)
-		{	warned = 1;
-			fprintf(stderr, "error: @cmnt requires command-line option -comments\n");
-	}	}
+
+	if (strcmp(s, "@cmnt") == 0)
+	{	if (no_cpp == 0)
+		{	if (!(warned&1))
+			{	warned |= 1;
+				fprintf(stderr, "error: -cpp removed @cmnt tokens\n");
+			}
+		} else if (is_comments_or_source() == (int) SRC)
+		{	if (!(warned&2))
+			{	warned |= 2;
+				fprintf(stderr, "error: to see @cmnt tokens, use the 'comments' command first\n");
+	}	}	}
+
 	return s;
 }
 
@@ -3117,7 +3161,7 @@ back(char *s, char *t)
 }
 
 static void
-readf(char *s, char *t)
+readf(char *s, char *t)		// append command
 {	char *as;
 	if (!*s || *t)
 	{	printf("invalid command - append f.c\n");
@@ -3127,9 +3171,17 @@ readf(char *s, char *t)
 	as = (char *) emalloc(strlen(s)+1, 66);
 	strcpy(as, s);
 	if (add_file(as, 0, 1))	// cid: single-core
-	{	post_process(0);
-		ctokens(1);
-	}
+	{	do_typedefs(0);	// new 4/26/2022
+		if (gui && !prim)
+		{	post_process(1);
+		} else
+		{	post_process(0);
+		}
+		strip_comments_and_renumber(0);
+		ctokens(1); // calls set_ranges
+		if (gui)
+		{	printf("opened file %s\n", s);
+	}	}
 }
 
 static void
@@ -3453,10 +3505,23 @@ help(char *s, char *unused)	// 1
 	printf("    @storage   (static, extern, register, auto)\n");
 	printf("    @type      (int, char, float, double, void)\n");
 	printf("    @ident (identifier), @chr, @str (string), @key (C keyword), @oper (operator)\n");
-	printf("    @const (or more specific: @const_int, @const_hex, @const_oct, const_flt),\n");
-	printf("    @cmnt (when using command-line option -comments)\n");
+	printf("    @const (or more specific: @const_int, @const_hex, @const_oct, const_flt, const_bin),\n");
+	printf("    @cmnt (see Comment Handling below)\n");
 	printf("  struct, union, and enum are categorized as @key (i.e., keywords)\n");
 	printf("  commands can be separated by newlines or semi-colons\n");
+
+	printf("\nComment Handling\n");
+	printf("  Comments (counting as white-space) are removed from the main token sequence, but\n");
+	printf("  preserved in a separate token sequence. You can switch to that token seqience\n");
+	printf("  with the 'comments' command, and switch back to the main sequence with the 'source'\n");
+	printf("  command\n");
+	printf("  (unless -cpp preprocessing is defined, which removes all comments\n");
+	printf("  or when reading streaming input from stdin, which leaves all comments in place\n");
+	printf("  all comment tokens keep their filename and linenumber attributes\n");
+	printf("  the comment tokens also contain a .bound field that points to the sucessor token in\n");
+	printf("  the original source text (which could of course still be another comment)\n");
+	printf("  if starting cobra without the -cpp flag and you later enable preprocessing\n");
+	printf("  with a 'cpp on' command, the separate token stream is preserved and remains accessible\n");
 
 	printf("\nExpressions\n");
 	printf("  expressions are boolean clauses enclosed in round braces\n");
@@ -3480,7 +3545,7 @@ ctokens(int talk)
 	{	printf("%d core%s, %d files, %d tokens\n",
 			Ncore, (Ncore > 1)?"s":"", Nfiles, count);
 	}
-	set_ranges(prim, plst);
+	set_ranges(prim, plst, 3);
 }
 
 static void
@@ -3569,6 +3634,9 @@ int
 regex_match(const int n, const char *s)
 {
 	assert(n >= 0 && n < 2);
+	if (!re_set[n])
+	{	return 0;
+	}
 	return regexec(&rex[n], s, 0,0,0);
 }
 
@@ -3675,7 +3743,6 @@ cobra_main(void)
 	{	setbuf(stdout, NULL);
 	}
 #endif
-
 	for (;;)
 	{
 		if (gui)
@@ -3802,6 +3869,13 @@ static void
 xchange(char *s)
 {	static Prim *o_prim, *o_plst, *tmp;
 	static int o_count = 0, o_tmp;
+
+	if (is_comments_or_source() == (int) CMNT)
+	{	// switch back from to source
+		fprintf(stderr, "warning: switching back to source stream\n");
+		comments_or_source(0);
+		cur = prim;
+	}
 
 	if (s)					// else swap
 	{	if (strcmp(s, "off") == 0)	// want no_cpp

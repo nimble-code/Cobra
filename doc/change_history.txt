@@ -332,3 +332,22 @@ new in december 30, 2021
      the new tool xmake (in the bin_... directories) extracts
      the right format from a makefile -- new manpages added
    - other minor fixes
+
+4.0 june 8, 2022
+   - an update to support a new graphical interface (not yet
+     part of the distribution) -- improved support for C++14,
+     revisions of query libraries, and some bug fixes
+   - extension of constraint syntax in pattern expressions to
+     support a broader range of comparisons of token attributes
+   - separates the token stream into two parts now by default:
+     one stream with just comments and the other with just the
+     actual source code -- this simplifies writing patterns to
+     match on the code, because without this comments could
+     appear anywhere in the code and would need to be handled.
+     two new related query commands: 'comments' and 'source' to
+     switch between the two streams.  every comment token is
+     linked to its original successor in the main token stream
+     through its .bound field.   -- the original -comments
+     command-line argument is now deprecated as no longer needed.
+   - added constant type @const_bin (also part of @const)
+   - more consistent behavior of the pe pattern matching algorithm

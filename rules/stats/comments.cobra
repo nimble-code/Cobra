@@ -1,23 +1,45 @@
 # comments
 
-%{
-	if (cpu != 0) { Stop; }
-	# use just one core
+requires 4.0
 
-	. = first_t;
-	while (. != last_t)
-	{	if (@cmnt)
-		{	nr_comments++;
-			cum_len = cum_len + .len;
-			if (maxlen < .len)
-			{	maxlen = .len;
-		}	}
-		. = .nxt;
+ncore 1		# use just one core
+%{
+	nr_comments = 0;
+	cum_len = 0;
+	maxlen = .;
+	m = newtok();
+	m.len = 1000000;
+	minlen = .;
+	Stop;
+%}
+comments
+%{
+	nr_comments++;
+	cum_len = cum_len + .len;
+	if (maxlen.len < .len)
+	{	maxlen = .;
 	}
+	if (minlen.len > .len)
+	{	minlen = .;
+	}
+%}
+%{
 	print "nr comments:\t" nr_comments "\n";
-	print "longest cmnt:\t" maxlen " char\n";
+	print "longest  cmnt:\t";
+	if (maxlen.len <  10) { print " "; }
+	if (maxlen.len < 100) { print " "; }
+	print maxlen.len " char (" maxlen.fnm ":" maxlen.lnr ")\n";
+	print "shortest cmnt:\t";
+	if (minlen.len <  10) { print " "; }
+	if (minlen.len < 100) { print " "; }
+	print minlen.len " char (" minlen.fnm ":" minlen.lnr ")\n";
+
 	if (nr_comments > 0)
-	{	print "avg length:\t" cum_len / nr_comments " char\n";
+	{	print "avg length:\t";
+		if (cum_len / nr_comments <  10) { print " "; }
+		if (cum_len / nr_comments < 100) { print " "; }
+		print cum_len / nr_comments " char\n";
 	}
 	Stop;
 %}
+source

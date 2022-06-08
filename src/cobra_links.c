@@ -1043,7 +1043,7 @@ hasher(const char *s)
 #endif
 
 void
-var_links(char *unused1, char *unused2)
+var_links(char *unused1, char *unused2)	// symbols command
 {	int h, level = 0;
 	Prim *x;
 

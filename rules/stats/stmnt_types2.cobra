@@ -1,0 +1,18 @@
+
+def stmnt_types2
+	r; m break;	ps create Break;    ps caption Break break statements
+	r; m case;	ps create Case;     ps caption Case case clauses
+	r; m continue;	ps create Continue; ps caption Continue continue statements
+	r; m default;	ps create Default;  ps caption Default default clauses
+	r; m do;	ps create Do;       ps caption Do do keywords
+	r; m else;	ps create Else;     ps caption Else else keywords
+	r; m for;	ps create For;      ps caption For for keywords
+	r; m goto;	ps create Goto;     ps caption Goto goto statements
+	r; m if;	ps create If;       ps caption If if keywords
+	r; m return;	ps create Return;   ps caption Return return statements
+	r; m sizeof;	ps create Sizeof;   ps caption Sizeof sizeof calls
+	r; m switch;	ps create Switch;   ps caption Switch switch statements
+	r; m while;	ps create While;    ps caption While while statements
+end
+
+stmnt_types2

@@ -1,27 +1,15 @@
 ## multi-core safe
 
-## print the number of functions per file
+## check the number of functions per file
 
-# cpp off
 r
 fcts
- %{
-	unset count;
-	unset total;
-	unset mincnt;
-	unset minfle;
-	unset maxcnt;
-	unset maxfle;
-	Stop;
- %}
-
-def nr_functions(detail)
+def nr_functions2
  %{
 	if (.mark)
 	{	count[.fnm]++;
 	}
  %}
- # we have the totals per cpu range
  %{
 	if (cpu != 0)
 	{	Stop;
@@ -51,16 +39,8 @@ def nr_functions(detail)
 
 	print "file with largest  nr of fcts: " maxfle " (" maxcnt " fcts)\n";
 	print "file with smallest nr of fcts: " minfle " (" mincnt " fcts)\n";
-
-	for (i in total)
-	{	print total[i.txt] "\t";
-		if (total[i.txt] == 1)
-		{ print "file  has  ";
-		} else
-		{ print "files have ";
-		}
-		print i.txt " functions\n";
-	}
 	Stop;
  %}
 end
+
+nr_functions2
