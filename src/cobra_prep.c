@@ -945,7 +945,7 @@ strip_directives(char *f, int cid)
 	// but the filename may contain spaces
 	// provided they are escaped with a backslash
 
-	do {	ptr = strrchr(ptr, ' ');
+	do {	ptr = strrchr(ptr, ' '); // last space on line
 		if (!ptr)
 		{	break;
 		}
@@ -956,17 +956,20 @@ strip_directives(char *f, int cid)
 
 	if (ptr && *ptr == ' ')
 	{	*ptr = '\0';
-		// there must be at least
-		// one of these recognized
-		// directives
-		if (strstr(f, "-D")
-		||  strstr(f, "-I")
-		||  strstr(f, "-U"))
-		{	Preproc[cid] = f; // to be saved
-		}
-		// point at filename proper
-		f = ptr+1;
-	}
+		if (strchr(f, '-'))	// really a directive?
+		{	// there must be at least
+			// one of these recognized
+			// directives
+			if (strstr(f, "-D")
+			||  strstr(f, "-I")
+			||  strstr(f, "-U"))
+			{	Preproc[cid] = f; // to be saved
+			}
+			// point at filename proper
+			f = ptr+1;
+		} else
+		{	*ptr = ' ';	// restore
+	}	}
 	if (verbose)
 	{	printf("prep: '%s' file: '%s'\n", Preproc[cid], f);
 	}
@@ -983,7 +986,9 @@ seq_scan(int argc, char *argv[])
 	}
 	start_timer(0);
 	for (i = 1; i < argc; i++)
-	{	fn = strip_directives(argv[i], 0);	// single-core
+	{
+printf("%d '%s'\n", i, argv[i]);
+		fn = strip_directives(argv[i], 0);	// single-core
 		(void) add_file(fn, 0, 1);
 		Preproc[0] = op;			// restore
 	}
