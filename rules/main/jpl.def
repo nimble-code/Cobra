@@ -536,13 +536,21 @@ end
 def jpl_rule25(nr)
 	jpl_rule25a
 	jpl_rule25b nr
-	ps R25 = R25a + R25b
+	# ps R25 = R25a + R25b
 end
 
 def jpl_rule26_27
-	r; m * *; n; n; m & *
+	r
+	m * *
+	n
+	n
+	m & *
 	>1
-	u; m & @ident; n; m & [
+	r
+	u
+	m & @ident
+	n
+	m & [
 	<|1
 	ps create R26_27
 	ps caption R26_27 More than the max of two levels of indirection

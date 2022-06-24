@@ -8,7 +8,7 @@ quiet on
 cwe_120_2_start
 cwe_120_2_main
 cwe_120_2_wrap
-cwe_120_2_set
+cwe_120_2_set		# creates CWE_120_2
 
 ps list CWE_120_2
 

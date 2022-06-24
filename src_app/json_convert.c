@@ -246,7 +246,11 @@ again:
 			}
 			if (*q == '"')
 			{	char *r = q+1;
-				while (*r != '\0' && *r != '"' && !isspace((int) *r))
+				while (*r != '\0' && *r != '"'
+#ifdef TRUNCATE
+				&& !isspace((int) *r)	// truncates at first space in "type" field
+#endif
+				)
 				{	r++;
 				}
 				*r = '\0';

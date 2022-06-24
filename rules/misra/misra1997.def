@@ -128,6 +128,32 @@ def m97_rule14
 	ps caption M97_R14 (Required) The type char shall be declared as unsigned or signed char
 end
 
+def m97_rule16
+	r
+	symbols
+	m |
+	m \&
+	m ~
+	m <<
+	m >>
+	%{
+		if (.mark == 0) { Next; }
+		.mark = 0;
+		p = .prv;
+		q = p.bound;
+		if (q.seq > 0 && q.txt == "float")
+		{	add_pattern(M97_R16, q, p);
+			Next;
+		}
+		p = .nxt;
+		q = p.bound;
+		if (q.seq > 0 && q.txt == "float")
+		{	add_pattern(M97_R16, q, p);
+		}
+	%}
+	ps caption M97_R16 (Required) The underlying bit representations of floating-point values shall not be used.
+end
+
 def m97_rule19
 	r
 	m /^0[0-9]			# octal constant
@@ -498,6 +524,13 @@ def m97_rule64
 	r; m switch \(; n; j; n; unmark no {; c top no case
 	ps create M97_R64
 	ps caption M97_R64 (Required) Every switch stmnt shall have at least one case
+end
+
+def m97_rule65
+	r; m for (; n
+	c @const_flt
+	ps create M97_R65
+	ps caption M97_R65 (Required) Floating point variables shall not be used as loop counters.
 end
 
 def m97_rule67

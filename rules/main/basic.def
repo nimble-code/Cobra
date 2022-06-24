@@ -155,21 +155,10 @@ def check_condition	# condition.cobra
 end
 
 def check_empty		# empty.cobra
-	r; m for; n \(; j
-	e \;
-	>1
-
-	r; m \; while; n \(; j
-	e \;
-	j; b
-	>|1
-
-	r; m if; n \(; j
-	e \;
-	>|1
-
-	r; m else; e \;
-	<|1
+	pe for ( .* ) \;
+	pe ^} while ( .* ) \;
+	pe else \;
+	pe if ( .* ) \;
 	ps create Empty
 	ps caption Empty Empty if/else/while/for statements
 end
@@ -192,6 +181,9 @@ def check_for1		# for.cobra
 	c $$ /^[^!><=]*=$	# match for the bound symbol followed
 				# by an assignment operator +=, -=, =, etc
 	n $$ /^[^!><=]*=$	# move to that symbol
+	b
+	m no ->
+	n
 	>1
 end
 
@@ -205,6 +197,9 @@ def check_for2		# jpl_rule13a
 	st {		# tag symbol to {
 	n {		# to loop body
 	m ir $$		# should not match
+	b
+	m no ->
+	n
 	n
 	m & /^[-+][-+]$	# increment or decrement
 	<|1		# add earlier matches

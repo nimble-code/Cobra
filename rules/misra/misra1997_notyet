@@ -1,7 +1,4 @@
 
-!echo "Rule 16 (Required) The underlying bit representations of floating point numbers shall not be used in any way by the programmer."
-# unlikely to be violated, could check for bit-operators used on floating point vars
-
 !echo "Rule 17 (Required) Typedef names shall not be reused for any other purpose in the application."
 # eg as a structure name, labelname -- compiler likely checks this
 
@@ -56,9 +53,6 @@
 !echo "Rule 53 (Required) All non-null statements either have a side-effect or change the flow of control."
 # dubious
 
-!echo "Rule 65 (Required) Floating point variables shall not be used as loop counters."
-# XXX could try to check
-
 !echo "Rule 66 (Advisory) Only expressions concerned with loop control should appear within a for statement."
 # XXX could add check
 
@@ -72,7 +66,7 @@
 # XXX add check
 
 !echo "Rule 78 (Required) The number of parameters passed to a function shall match the function prototype."
-# compiler checks -- but XXX could add check
+# compiler checks
 
 !echo "Rule 79 (Required) The values returned by void functions shall not be used."
 # checked by compiler
@@ -81,7 +75,7 @@
 # XXX add a check for params that aren't modifed in fct body, and recommend const qualifiers
 
 !echo "Rule 84 (Required) For functions with void return type, return statements shall not have an expression."
-# XXX could check similar to 83
+# checked by compiler
 
 !echo "Rule 85 (Advisory) Functions called with no parameters should have empty parentheses."
 # checked by compiler
