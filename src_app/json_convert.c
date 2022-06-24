@@ -246,7 +246,7 @@ again:
 			}
 			if (*q == '"')
 			{	char *r = q+1;
-				while (*r != '\0' && *r != '"' && !isspace((int) *r))
+				while (*r != '\0' && *r != '"')
 				{	r++;
 				}
 				*r = '\0';
