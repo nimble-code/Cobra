@@ -1844,16 +1844,16 @@ pre_scan(char *bc)	// non-generic commands
 				{	b++;
 				}
 				*b++ = '\0';
-				setname(a);
 				while (isspace((uchar) *b))
 				{	b++;
 				}
 				if (*b == '=')
-				{	set_operation(nextarg(b));
+				{	setname(a);
+					set_operation(nextarg(b));
+					setname("");
 				} else
-				{	printf("usage: ps name = name [& | ^] name\n");
+				{	printf("usage: ps name = name [& + -] name\n");
 				}
-				setname("");
 				return 1;
 			}
 			printf("usage: ps [create delete list [name]]\n");
@@ -1981,6 +1981,10 @@ pre_scan(char *bc)	// non-generic commands
 		break;
 
 	case 'd':	// default action on empty command
+		if (strncmp(bc, "dp", 2) == 0)
+		{	patterns_display(nextarg(bc));
+			return 1;
+		}
 		if (strncmp(bc, "declarations", strlen("declarations")) == 0)
 		{	extern void declarations(void);
 			declarations();
@@ -1988,10 +1992,6 @@ pre_scan(char *bc)	// non-generic commands
 		}
 		if (strncmp(bc, "default", strlen("default")) == 0)
 		{	set_default(nextarg(bc));
-			return 1;
-		}
-		if (strncmp(bc, "dp", 2) == 0)
-		{	patterns_display(nextarg(bc));
 			return 1;
 		}
 		// else it maps to 'display'
@@ -2151,7 +2151,9 @@ pre_scan(char *bc)	// non-generic commands
 		{	if (strstr(&bc[7], "on"))
 			{	verbose++;
 			} else if (strstr(&bc[7], "off"))
-			{	verbose--;
+			{	if (verbose > 0)
+				{	verbose--;
+				}
 			} else
 			{	printf("usage: verbose [on|off]\n");
 			}
@@ -3076,6 +3078,7 @@ next_range(void *arg)
 	from = tokrange[*i]->from;
 	upto = tokrange[*i]->upto;
 
+	// backwards
 	for (r = upto; r && r->seq >= from->seq; r = r->prv)
 	{	if (!r->mark)
 		{	continue;

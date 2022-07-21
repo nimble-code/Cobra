@@ -181,11 +181,15 @@ strip_comments_and_renumber(int reset_ranges)
 	scnt = 0;
 	for (ptr = prim; ptr; ptr = ptr->nxt)
 	{	ptr->seq = scnt++;
-	}
+		if (ptr->nxt && ptr->nxt->prv != ptr)
+		{	ptr->nxt->prv = ptr;
+	}	}
 	ccnt = 0;
 	for (ct = cmnt_head; ct; ct = ct->nxt)
 	{	ct->seq = ccnt++;
-	}
+		if (ct->nxt && ct->nxt->prv != ct)
+		{	ct->nxt->prv = ct;
+	}	}
 
 	if (reset_ranges)
 	{	set_ranges(prim, plst, 1);
@@ -987,7 +991,7 @@ seq_scan(int argc, char *argv[])
 	start_timer(0);
 	for (i = 1; i < argc; i++)
 	{
-printf("%d '%s'\n", i, argv[i]);
+// printf("%d '%s'\n", i, argv[i]);
 		fn = strip_directives(argv[i], 0);	// single-core
 		(void) add_file(fn, 0, 1);
 		Preproc[0] = op;			// restore

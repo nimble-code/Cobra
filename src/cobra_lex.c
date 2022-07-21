@@ -50,6 +50,7 @@ static const struct {
 	{ "return",	"key",	c_t },
 	{ "sizeof",	"key",	c_t },
 	{ "switch",	"key",	c_t },
+	{ "uint",	"type",	c_t },		// technically not a type, but common
 	{ "while",	"key",	c_t },
 
 	{ "alignas",	"key",	cpp_t },	// C++

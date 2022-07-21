@@ -319,7 +319,7 @@ expr	:'(' expr ')'		{ $$ = $2; }
 	| '~' expr %prec UMIN	{ $1->rgt = $2; $$ = $1; }
 	| '^' expr %prec UMIN	{ $1->rgt = $2; $$ = $1; }
 	| STRING		{ fixstr($1); $$ = $1; }
-	| CP_PSET '(' NAME ')'	{ $$->lft = $3; $$ = $1; }
+	| CP_PSET '(' s_ref ')'	{ $$->lft = $3; $$ = $1; }
 	| SUBSTR '(' expr ',' expr ',' expr ')' {
 				  $1->lft = $3;
 				  $1->rgt = new_lex(0, $5, $7);
@@ -352,6 +352,9 @@ expr	:'(' expr ')'		{ $$ = $2; }
 	| NR
 	| TRUE
 	| FALSE
+	;
+s_ref	: NAME
+	| '*'			{ $$ = new_lex(NAME, 0, 0); $$->s = "*"; }
 	;
 p_ref	: BEGIN
 	| END
@@ -2868,7 +2871,9 @@ new_scalar(char *s, int ix)
 {	Var_nm *g = mk_var(s, 0, ix);
 
 	if (g)
-	{	printf("global scalar %s\n", s);
+	{	if (verbose)
+		{	printf("global scalar %s\n", s);
+		}
 		g->cdepth = 0;
 	} else
 	{	fprintf(stderr, "error: global decl of %s failed, cpu %d\n", s, ix);
@@ -3647,6 +3652,7 @@ rm_var(const char *s, int one, const int ix)
 static void
 ini_vars(void)
 {	static int vmax = 0;
+	int i;
 
 	if (Ncore > vmax)
 	{	vmax = Ncore;
@@ -3673,16 +3679,17 @@ ini_vars(void)
 	if (!t_stop)
 	{	t_stop = (int *) emalloc(NCORE * sizeof(int), 84);
 	}
-
 	if (!sep)
-	{	int i;
-		sep = (Separate *) emalloc(NCORE * sizeof(Separate), 84);
+	{	sep = (Separate *) emalloc(NCORE * sizeof(Separate), 84);
 		for (i = 0; i < NCORE; i++)
-		{	sep[i].Verbose = verbose;
-			sep[i].P_debug = p_debug;
-			sep[i].Nest    = nest;
+		{	sep[i].Nest    = nest;
 			sep[i].T_stop  = t_stop[i];
 	}	}
+	// the following can change during a run
+	for (i = 0; i < NCORE; i++)
+	{	sep[i].Verbose = verbose;
+		sep[i].P_debug = p_debug;
+	}
 	ini_arrays();
 	ini_lists();
 }

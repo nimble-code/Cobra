@@ -1091,7 +1091,7 @@ var_links(char *unused1, char *unused2)	// symbols command
 			}
 			continue;
 		}
-
+		// printf("%s:%d: at '%s' (%s)\n", cur->fnm, cur->lnr, cur->txt, cur->typ);
 		if ((strcmp(cur->typ, "type") == 0	// mine declarations
 		||   strcmp(cur->typ, "modifier") == 0)
 		&&  cur->bracket == 0)
@@ -1120,6 +1120,7 @@ var_links(char *unused1, char *unused2)	// symbols command
 			{	// tag all identifiers between here and the first semi-colon
 				// with typename (x) and add to current scope
 X:				x = cur;
+				// printf("%s:%d: in '%s'\n", x->fnm, x->lnr, x->txt);
 				while (cur && cur->txt[0] != ';')
 				{	if (strcmp(cur->txt, "=") == 0)	// initializer, skip ahead
 					{	cur = cur->nxt;

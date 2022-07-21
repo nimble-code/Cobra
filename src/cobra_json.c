@@ -644,7 +644,7 @@ do_markups(const char *setname)
 	{	if (strlen(setname) == 0)
 		{	printf("%d matches\n", p);
 		} else
-		{	printf("%d matches stored in %s\n", p, setname); // do_markups
+		{	printf("%d matches stored in %s (json)\n", p, setname); // do_markups
 		}
 	} else if (!json_format && !no_match && !no_display)
 	{	if (strlen(setname) == 0)

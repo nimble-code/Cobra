@@ -709,7 +709,9 @@ new_array(char *s, int ix)
 {	Arr_var *a = find_array(s, ix, 1);
 
 	if (a)
-	{	printf("global array %s[]\n", s);
+	{	if (verbose)
+		{	printf("global array %s[]\n", s);
+		}
 		a->cdepth = 0;
 	} else
 	{	fprintf(stderr, "error: global decl of %s[] failed\n", s);

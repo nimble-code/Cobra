@@ -3,8 +3,8 @@
 # (c) 2015-2016 California Institute of Technology NASA/JPL
 # see License file in this directory
 #
-# Version 2 and 3:
-# (c) 2017-2021 Gerard Holzmann, Nimble Research
+# Version 2, 3 and 4:
+# (c) 2017-2022 Gerard Holzmann, Nimble Research
 # same licensing
 
 MAN?=/usr/share/man/man1
@@ -59,17 +59,20 @@ install:
 
 install_linux: linux c.ar man
 	cp -f cobra ../bin_linux
-	cp -f ../gui/* ../bin_linux
+	cp -f ../gui/window.tcl ../bin_linux
+	cp -f ../gui/icobra.tcl ../bin_linux/icobra
 	cd $(APP); make clean install_linux
 
 install_cygwin: cygwin c.ar man
 	cp -f cobra.exe ../bin_cygwin
-	cp -f ../gui/* ../bin_cygwin
+	cp -f ../gui/window.tcl ../bin_cygwin
+	cp -f ../gui/icobra.tcl ../bin_cygwin/icobra
 	cd $(APP); make clean install_cygwin
 
 install_mac: mac c.ar man
 	cp -f cobra ../bin_mac
-	cp -f ../gui/* ../bin_mac
+	cp -f ../gui/window.tcl ../bin_mac
+	cp -f ../gui/icobra.tcl ../bin_mac/icobra
 	cd $(APP); make clean install_mac
 
 ${OS}:	cobra.h cobra_fe.h

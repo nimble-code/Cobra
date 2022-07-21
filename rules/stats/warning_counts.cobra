@@ -1,0 +1,112 @@
+## quiet on
+## . basic
+## quiet off
+%{
+	function sort_file_counts()
+	{	# inefficient (n!), but the list is short
+		largest = 0;
+		for (i in FileCount) {
+			if (FileCount[i.txt] > largest)
+			{	largest = FileCount[i.txt];
+				which = i.txt;
+		}	}
+		print largest "\t" cnt0 "\t" which;
+		if (cnt0 > 0)
+		{	print "\t" (100*largest) / cnt0 " %";
+		}
+		print "\n";
+		FileCount[which] = 0;
+	}
+	function sort_set_counts()
+	{	# inefficient (n!), but the list is short
+
+		largest = 0;
+		for (i in SetNames) {
+			if (SetNames[i.txt] > largest)
+			{	largest = SetNames[i.txt];
+				which = i.txt;
+		}	}
+		print largest "\t" which;
+		if (cnt1 > 0)
+		{	print "\t" (100*largest) / cnt1 " %";
+		}
+		print "\n";
+		SetNames[which] = 0;
+	}
+
+	unset FileCount;
+	unset FileSets;
+	unset SetNames;
+	unset Names;
+	n = pset(*);
+	while (n.seq != 0) {
+		m = n.p_start;		# setname is n.typ
+		FileCount[m.fnm]++;
+		FileSets[m.fnm, n.typ]++;
+		SetNames[n.typ]++;
+		n = n.nxt;
+	}
+	print "\n";
+	cnt0 = 0;
+	for (i in FileCount)
+	{	cnt0 = cnt0 + FileCount[i.txt];
+	}
+	cnt1 = 0;
+	for (i in SetNames)
+	{	cnt1 = cnt1 + SetNames[i.txt];
+	}
+	if (unsorted)
+	{	for (i in FileCount)
+		{	print i.txt "\t" FileCount[i.txt];
+			if (cnt0 > 0)
+			{	print "\t" (100*FileCount[i.txt]) / cnt0;
+			}
+			print "\n";
+		}
+	} else
+	{	cnt = size(FileCount);
+		while (cnt > 0)
+		{	print "PerFile\t";
+			sort_file_counts();
+			cnt--;
+	}	}
+	print "\n";
+	if (unsorted)
+	{	nr = 1;
+		for (i in SetNames)
+		{	print i.txt "\t" SetNames[i.txt] "\n";
+		}
+	} else
+	{	cnt = size(SetNames);
+		while (cnt > 0)
+		{	print "PerSet\t";
+			sort_set_counts();
+			cnt--;
+	}	}
+
+	print "\n";
+	cnt = 1;
+	for (j in SetNames)
+	{	print "Order\t" cnt "\t" j.txt "\n";	# j.txt;
+		cnt++;
+	}
+
+	cnt = 1;
+	print "\n\t\t\t";
+	for (j in SetNames)
+	{	print "\t" cnt;	# j.txt;
+		cnt++;
+	}
+	print "\n";
+
+	for (i in FileCount)
+	{	print "Sets\t" i.txt "\t";
+		for (j in SetNames)
+		{	print "\t" FileSets[i.txt,j.txt];
+		}
+		print "\n";
+	}
+	
+
+	Stop;
+%}

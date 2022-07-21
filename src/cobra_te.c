@@ -143,6 +143,7 @@ static Store	*free_stored;
 static State	*free_state;
 static Rlst	*re_list;
 static char	SetName[256];	// for a new named set of pattern matches
+static char	*pattern_filter;	// filename filter on dp output, pattern_full and pattern_matched
 
 static PrimStack *prim_stack;
 static PrimStack *prim_free;
@@ -723,9 +724,27 @@ push(Nd_Stack *t)
 }
 
 static void
+strip_backslash(Node *n)
+{	char *q, *p = n->tok;
+
+	// if there's a backslash before a +, * or ?
+	// inside the token text (not at the start)
+	// we should now remove it, because we've
+	// already passed interpretation of meta-symbols
+
+	while (p)
+	{	q = ++p;
+		if ((p = strstr(q, "\\+")) != NULL	// eg ++
+		||  (p = strstr(q, "\\*")) != NULL)	// eg **
+		{	strcpy(p, p+1);
+	}	}
+}
+
+static void
 push_node(Node *n)
 {	Nd_Stack *t;
 
+	strip_backslash(n);
 	t = mk_el(n, "push_node");
 	push(t);
 }
@@ -1997,10 +2016,29 @@ patterns_rename(char *s)
 	}
 }
 
+static void
+reverse_delete(Named *q)
+{	Match *r;
+
+	if (q)
+	{	reverse_delete(q->nxt);
+		r = q->m;
+		while (r)
+		{	r = free_m(r);	// recycle
+	}	}
+}
+
 void
 patterns_delete(void)
 {	Named *q, *pq = NULL;
 	Match *r;
+
+	if (strcmp(SetName, "*") == 0
+	||  strcmp(SetName, "all") == 0)
+	{	reverse_delete(namedset);
+		namedset = 0;
+		return;
+	}
 
 	for (q = namedset; q; pq = q, q = q->nxt)	// delete
 	{	if (strcmp(q->nm, SetName) == 0
@@ -2012,8 +2050,9 @@ patterns_delete(void)
 			}
 			q->nxt = NULL;		// recycle Named items q as well?
 			r = q->m;
-			do {	r = free_m(r);	// recycle the Match elements
-			} while (r);		// and bindings
+			while (r)
+			{	r = free_m(r);	// recycle Match elements
+			}			// and bindings
 			if (!json_format && !no_match && !no_display)
 			{	printf("pattern set '%s' deleted\n", SetName);
 			}
@@ -2100,6 +2139,10 @@ pattern_matched(Named *curset, int which, int N, int M)
 		||  !m->upto)
 		{	continue;
 		}
+		if (pattern_filter != NULL
+		&&  strcmp(pattern_filter, m->from->fnm) != 0)
+		{	continue;
+		}
 		if (m->from->seq > m->upto->seq)
 		{	Prim *tmp = m->from;
 			m->from = m->upto;
@@ -2135,6 +2178,15 @@ pattern_matched(Named *curset, int which, int N, int M)
 		&&  n != which)
 		{	continue;
 		}
+
+		if (gui && pattern_filter)
+		{	fprintf(fd, "tagged %d %d %d %s\n",
+				m->from->lnr, m->upto->lnr,
+				r, curset->nm);
+			// if r > (upto-from) then it's cross file
+			continue;
+		}
+
 		p++;
 		if (json_format)
 		{	if (m->msg)
@@ -2304,11 +2356,18 @@ pattern_full(int which, int N, int M)
 	{	if (!(cur->mark & 2))	// find start of match
 		{	continue;
 		}
+
 		if (!cur->bound)
 		{	fprintf(fd, "%s:%d: bound not set, skipping\n",
 				cur->fnm, cur->lnr);
 			continue;
 		}
+
+		if (pattern_filter != NULL
+		&&  strcmp(pattern_filter, cur->fnm) != 0)
+		{	continue;
+		}
+
 		total++;
 		if (N >= 0)
 		{	k = cur->lnr;
@@ -2387,8 +2446,10 @@ dp_help(void)
 	printf("dp [setname *] n		# display only the n-th match\n");
 	printf("dp [setname *] N M	# display only matches of between N and M lines long (inclusive)\n");
 	printf("dp [setname *] n N M	# display only the n-th match within the given length range\n");
+	printf("dp filter file.c	# restrict output of dp commands to matches in file.c\n");
+	printf("dp filter off		# remove filter from dp output\n");
 	printf("dp help			# print this message\n");
-	printf("optionally use in 'terse' mode to print only the first and last 2 lines of each match\n");
+	printf("when used in 'terse' mode dp prints only the first and last 2 lines of each multi-line match\n");
 }
 
 static void
@@ -2414,14 +2475,14 @@ dp_all(int a, int b, int c)
 		{	// if (!json_format)
 			// {	fprintf(fd, "%s:\n", x->msg?x->msg:"Matches");
 			// }
-			pattern_matched(x, a, b, c);
+			pattern_matched(x, a, b, c); // checks named sets
 	}	}
 
 	matches = pm; // restore
 }
 
 void
-patterns_display(const char *te)	// dp [name] [n [N [M]]]
+patterns_display(const char *te)	// dp [name help *] [n [N [M]]]
 {	int j = 0;
 	int nr, a, b, c;
 	Named *ns;
@@ -2431,9 +2492,30 @@ patterns_display(const char *te)	// dp [name] [n [N [M]]]
 	while (te[j] == ' ' || te[j] == '\t')
 	{	j++;
 	}
-	if (strcmp(te, "help") == 0
+	if (strncmp(te, "help", strlen("help")) == 0
 	||  strcmp(te, "?") == 0)
 	{	dp_help();
+		return;
+	}
+	if (strncmp(te, "filter", strlen("filter")) == 0)
+	{	FILE *tfd;
+		int k = j + strlen("filter");
+		nr = sscanf(&te[k], "%s", nm);
+		if (nr != 1)
+		{	fprintf(stderr, "usage: dp filter filename.c\n");
+			return;
+		}
+		if (strcmp(nm, "off") == 0)
+		{	pattern_filter = NULL;
+			return;
+		}
+		if ((tfd = fopen(nm, "r")) == NULL)
+		{	fprintf(stderr, "error: no such file '%s'\n", nm);
+			return;
+		}
+		fclose(tfd);
+		pattern_filter = (char *) emalloc(strlen(nm)+1, 143);
+		strcpy(pattern_filter, nm);
 		return;
 	}
 
@@ -2444,14 +2526,14 @@ patterns_display(const char *te)	// dp [name] [n [N [M]]]
 		case 2: b = -1;
 		case 3: c = -1;
 		case 4:
-			if (te[j] == '*')	// dp *
-			{	dp_all(a, b, c);
+			if (te[j] == '*')	 // dp * -- all sets
+			{	dp_all(a, b, c); // all named sets
 				break;
 			}
 			ns = findset(nm, 1, 2);
 			if (ns && ns->m)
 			{	matches = ns->m;
-				pattern_matched(ns, a, b, c);
+				pattern_matched(ns, a, b, c); // checks named sets
 				matches = pm; // restore
 			}
 			break;
@@ -2464,13 +2546,13 @@ patterns_display(const char *te)	// dp [name] [n [N [M]]]
 		switch (nr) {
 		case  1: b = -1;	// fall thru
 		case  2: c = -1;	// fall thru
-		case  3: pattern_full(a, b, c);
+		case  3: pattern_full(a, b, c);	// checks token markings, not pattern sets
 			 break;
 		default: dp_usage(&te[j], nr);
 			 break;
 		}
 	} else if (te[j] == '\0')
-	{	pattern_full(0, -1, -1);
+	{	pattern_full(0, -1, -1);	// checks token markings, not pattern sets
 	} else
 	{	dp_usage(&te[j], 0);
 	}
@@ -2735,7 +2817,7 @@ set_difference(Match *a, Match *b, int how)	// how==1: a-b, how==0: a&b
 }
 
 static void
-clone_set(const char *s)
+copy_set(const char *s)
 {	Match *m, *p;
 	Named *n, *x;
 	Match *om = matches;
@@ -2765,6 +2847,188 @@ clone_set(const char *s)
 	} else if (!json_format && !no_match && !no_display)
 	{	fprintf(stderr, "%d patterns stored in set %s\n", cnt, SetName);
 	}
+}
+
+static int
+a_contains_b(Match *a, Match *b)	// a contains at least one b
+{	Match *n;
+
+	for (n = b; n; n = n->nxt)
+	{	if (n->from >= a->from
+		&&  n->upto <= a->upto)
+		{	return 1;
+	}	}
+	return 0;
+}
+
+static int
+a_meets_b(Match *a, Match *b)		// a meets at least one b
+{	Match *n;
+	Prim *p;
+
+	if (!a->upto)
+	{	return 0;
+	}
+	p = a->upto->nxt;
+	for (n = b; n; n = n->nxt)
+	{	if (n->from == p)
+		{	return 1;
+	}	}
+	return 0;
+}
+
+static int
+a_precedes_b(Match *a, Match *b)	// (all of) a precedes at least one of (all of) b
+{	Match *n;
+
+	for (n = b; n; n = n->nxt)
+	{	if (n->upto
+		&&  n->upto < a->from)
+		{	return 1;
+	}	}
+	return 0;
+}
+
+static int
+a_overlaps_b(Match *a, Match *b)	//  a starts before and ends during at least one b
+{	Match *n;
+
+	for (n = b; n; n = n->nxt)
+	{	if (a->from < n->from
+		&&  a->upto >= n->from
+		&&  a->upto <= n->upto)
+		{	return 1;
+	}	}
+	return 0;
+}
+
+static void
+set_during(Match *a, Match *b)		// a contains (all of) b
+{	Match *m, *p, *om = matches;
+	Named *n;
+	int cnt = 0;
+
+	matches = (Match *) 0;
+	new_named_set(SetName);
+	n = namedset;
+
+	for (m = a; m; m = m->nxt)
+	{	if (!a_contains_b(m, b))
+		{	continue;
+		}
+		p = (Match *) emalloc(sizeof(Match), 100);
+		p->from = m->from;
+		p->upto = m->upto;
+		p->bind = m->bind;
+		p->nxt = n->m;
+		n->m = p;
+		cnt++;
+	}
+	matches = om;
+
+	if (gui)
+	{	printf("%d patterns stored in %s\n", cnt, SetName);
+	} else if (!json_format && !no_match && !no_display)
+	{	fprintf(stderr, "%d patterns stored in set %s\n", cnt, SetName);
+	}
+}
+
+static void
+set_meets(Match *a, Match *b)		// the end of a is immediately followed by the start of b
+{	Match *m, *p, *om = matches;
+	Named *n;
+	int cnt = 0;
+
+	matches = (Match *) 0;
+	new_named_set(SetName);
+	n = namedset;
+
+	for (m = a; m; m = m->nxt)
+	{	if (!a_meets_b(m, b))
+		{	continue;
+		}
+		p = (Match *) emalloc(sizeof(Match), 100);
+		p->from = m->from;
+		p->upto = m->upto;
+		p->bind = m->bind;
+		p->nxt = n->m;
+		n->m = p;
+		cnt++;
+	}
+	matches = om;
+
+	if (gui)
+	{	printf("%d patterns stored in %s\n", cnt, SetName);
+	} else if (!json_format && !no_match && !no_display)
+	{	fprintf(stderr, "%d patterns stored in set %s\n", cnt, SetName);
+	}
+
+}
+
+static void
+set_precedes(Match *a, Match *b)	// (all of) a precedes (all of) b
+{	Match *m, *p, *om = matches;
+	Named *n;
+	int cnt = 0;
+
+	matches = (Match *) 0;
+	new_named_set(SetName);
+	n = namedset;
+
+	for (m = a; m; m = m->nxt)
+	{	if (!a_precedes_b(m, b))
+		{	continue;
+		}
+		p = (Match *) emalloc(sizeof(Match), 100);
+		p->from = m->from;
+		p->upto = m->upto;
+		p->bind = m->bind;
+		p->nxt = n->m;
+		n->m = p;
+		cnt++;
+	}
+	matches = om;
+
+	if (gui)
+	{	printf("%d patterns stored in %s\n", cnt, SetName);
+	} else if (!json_format && !no_match && !no_display)
+	{	fprintf(stderr, "%d patterns stored in set %s\n", cnt, SetName);
+	}
+
+
+}
+
+static void
+set_overlaps(Match *a, Match *b)	//  a starts before and ends during b
+{	Match *m, *p, *om = matches;
+	Named *n;
+	int cnt = 0;
+
+	matches = (Match *) 0;
+	new_named_set(SetName);
+	n = namedset;
+
+	for (m = a; m; m = m->nxt)
+	{	if (!a_overlaps_b(m, b))
+		{	continue;
+		}
+		p = (Match *) emalloc(sizeof(Match), 100);
+		p->from = m->from;
+		p->upto = m->upto;
+		p->bind = m->bind;
+		p->nxt = n->m;
+		n->m = p;
+		cnt++;
+	}
+	matches = om;
+
+	if (gui)
+	{	printf("%d patterns stored in %s\n", cnt, SetName);
+	} else if (!json_format && !no_match && !no_display)
+	{	fprintf(stderr, "%d patterns stored in set %s\n", cnt, SetName);
+	}
+
+
 }
 
 void
@@ -2799,6 +3063,7 @@ set_operation(char *s)
 	ns2 = findset(name2, 0, 4);
 	m1 = ns1?ns1->m:0;
 	m2 = ns2?ns2->m:0;
+#if 0
 	if (!m1 || !m2)
 	{	if ((!json_format && !no_match && !no_display) && verbose)
 		{	fprintf(stderr, "no such set %s %s (check: ps list)\n",
@@ -2806,24 +3071,87 @@ set_operation(char *s)
 				m2?"":name2);
 		}
 		if (m1)
-		{	clone_set(name1);
+		{	copy_set(name1);
 		} else if (m2)
-		{	clone_set(name2);
+		{	copy_set(name2);
 		}
 		return;
 	}
+#endif
 	switch (op) {
 	case '+':
-	case '|':	// union
+	case '|':	// set union
+		if (!m1 || !m2)
+		{	if (m1)
+			{	copy_set(name1);
+			} else if (m2)
+			{	copy_set(name2);
+			}
+			break;
+		}
 		set_union(m1, m2);
 		break;
+	case '\\':	// a \ b = a - b = a ^ b
 	case '-':
-	case '^':	// difference
+	case '^':	// set difference
+		if (!m1)
+		{	break;	// return empty set
+		}
+		if (!m2)
+		{	copy_set(name1);
+			break;
+		}
 		set_difference(m1, m2, 1);	// a-b
 		break;
 	case '&':	// intersection
+		if (!m1 || !m2)
+		{	break;	// empty set
+		}
 		set_difference(m1, m2, 0);	// a&b
 		break;
+
+	// The follong 7 were added in v 4.1, 6/28/22
+	// loosely based on Allen Interval Logic
+	case 'd':	// a d b  means a during b (cf allen interval algebra: a during b)
+	case '*':	// a * d matches in a that contain at least one b
+		if (!m1 || !m2)
+		{	break;	// empty set
+		}
+		set_during(m1, m2);
+		break;
+	case 'm':	// a m b  means a meets b (the start of b immediately follows the end of a is the start of b)
+			// for instance:  pe A: for ( .* ); ps A m A
+		if (!m1 || !m2)
+		{	break;	// empty set
+		}
+		set_meets(m1, m2);
+		break;
+	case '<':	// (all of) a precedes (all of) b
+		if (!m1 || !m2)
+		{	break;	// empty set
+		}
+		set_precedes(m1, m2);
+		break;
+	case '>':	// (all of) a follows  (all of) b
+		if (!m1 || !m2)
+		{	break;	// empty set
+		}
+		set_precedes(m2, m1);
+		break;
+	case '(':	// a ( b  a starts before and ends during b
+		if (!m1 || !m2)
+		{	break;	// empty set
+		}
+		set_overlaps(m1, m2);
+		break;
+	case ')':	// a ) b  a starts during b and ends after
+		if (!m1 || !m2)
+		{	break;	// empty set
+		}
+		set_overlaps(m2, m1);
+		break;
+	// end of added operators 6/28/22
+
 	default:
 		printf("unrecognized set operation '%c'\n", op);
 		break;
@@ -2890,34 +3218,82 @@ prune_if_zero(void)	// omit tokens between #if 0 and #endif
 	}
 }
 
+static void
+clone_set(Named *x, int ix)
+{	Prim *q = NULL;
+	Match *y;
+	Prim  *r;
+
+	if (x->cloned)
+	{	return;
+	}
+
+	for (y = x->m; y; y = y->nxt)
+	{	r = (Prim *) hmalloc(sizeof(Prim), ix, 144);
+		r->seq = Seq++;
+		r->typ   = x->nm;	// name of the set
+		r->jmp   = y->from;	// w synonym 'p_start'
+		r->bound = y->upto;	// w synonym 'p_end'
+		r->nxt = q;
+		if (q)
+		{	q->prv = r;
+		}
+		q = r;
+	}
+	x->cloned = q;
+}
+
+static Prim *
+clone_all(int ix)		// create a single list of matches from all sets
+{	Named *x;
+	Prim *t, *h = NULL;
+
+	for (x = namedset; x; x = x->nxt)
+	{	clone_set(x, ix);
+		if (x->cloned)	// concat lists
+		{	if (h)
+			{	t = x->cloned;
+				while (t->nxt)
+				{	t = t->nxt;
+				}
+				t->nxt = h;
+			}
+			h = x->cloned;
+			x->cloned = NULL;
+	}	}
+	if (!h)
+	{	h = (Prim *) hmalloc(sizeof(Prim), ix, 143);
+		h->seq = 0; // meaning empty list
+		// returning null would indicate a syntax error
+	}
+	
+	return h;
+}
+
 Prim *
 cp_pset(char *s, int ix)
 {	Named *x;
-	Match *y;
-	Prim  *r, *q = NULL;
 
-	x = findset(s, 0, 10);
-	if (!x || !x->m)
+	if (!s)
 	{	if (verbose)
-		{	fprintf(stderr, "warning: cp_pset: no such set '%s'\n", s);
+		{	fprintf(stderr, "no set reference given\n");
 		}
 		return 0;
 	}
 
-	if (!x->cloned)
-	{	for (y = x->m; y; y = y->nxt)
-		{	r = (Prim *) hmalloc(sizeof(Prim), ix, 144);
-			r->seq = Seq++;
-			r->jmp   = y->from;	// w synonym 'p_start'
-			r->bound = y->upto;	// w synonym 'p_end'
-			r->nxt = q;
-			if (q)
-			{	q->prv = r;
-			}
-			q = r;
-		}
-		x->cloned = q;
+	if (strcmp(s, "*") == 0)
+	{	return clone_all(ix);
 	}
+
+	x = findset(s, 0, 10);
+	if (!x || !x->m)
+	{	if (verbose)
+		{	fprintf(stderr, "warning: cp_pset: no such (or empty) set '%s'\n", s);
+		}
+		return 0;
+	}
+
+	clone_set(x, ix);
 
 	return x->cloned;
 }
@@ -3615,13 +3991,8 @@ cobra_te(char *te, int and, int inv)	// fct is too long...
 		{	if (json_format)
 			{	json(te);	// te reporting, not streaming
 			} else
-			{
-#if 1
-				pattern_full(0, -1, -1); // shows bound vars too
-#else
-				display("", "");
-#endif
-			}
+			{	pattern_full(0, -1, -1); // shows bound vars too
+			}	// check token markings, not pattern sets
 		} else
 		{	if (json_format)
 			{	if (nr_json > 0)
