@@ -351,3 +351,19 @@ new in december 30, 2021
      command-line argument is now deprecated as no longer needed.
    - added constant type @const_bin (also part of @const)
    - more consistent behavior of the pe pattern matching algorithm
+
+4.1 july 21, 2022
+   - final update supporting the new iCobra.tcl GUI, which is
+     now also part of the distribution (gui/icobra.tcl and in
+     the bin_*/ directories as icobra).
+   - added spinroot.com/cobra/icobra.html manual page
+   - new checkers in the rules directories support features in
+     icobra (e.g., the metrics panel)
+   - icobra requires version 4.1, and checks for this on startup
+   - added several new commands: including six new set operations
+     inspired by Allen interval algebra (pattern matches can be
+     thought of as intervals of tokens) -- see the ps.html manpage
+     for the deetails
+   - added an option "dp filter filenam" and "dp filter off" to
+     enable or disable a restriction of the output of a dp command
+     (specifically "dp *") to a single named file.
