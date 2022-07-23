@@ -99,6 +99,7 @@ find_array(const char *nm, const int ix, const int mk)	// find or create
 
 	if (!a && mk)	// add
 	{	len = strlen(nm);
+
 		if (free_arr[ix])
 		{	a = free_arr[ix];
 			free_arr[ix] = a->nxt;
@@ -595,7 +596,7 @@ array_unify(Lextok *qin, const int ix)	// make array qin->rgt->s in core q->val 
 
 void
 rm_aname(const char *a, int one, const int ix)	// remove array, instead of just one element
-{	Arr_var *b, *nxt, *lst = NULL;
+{	Arr_var *b, *bm = NULL, *nxt, *lst = NULL;
 	int found = 0;
 
 	// all variables, including arrays, are defined at a specific call level
@@ -604,20 +605,29 @@ rm_aname(const char *a, int one, const int ix)	// remove array, instead of just 
 	// (that's the only case where one==0), which omits the parameters and
 	// locals declared in the last level only (not globals)
 
+	if (one)
+	{	bm = find_array(a, ix, 0);	// find  best match: i.e., lowest scope
+	}
 	for (b = arr_vars[ix]; b; b = nxt)
 	{	nxt = b->nxt;
-		if ((one && strcmp(b->name, a) == 0
-			 && b->cdepth == Cdepth[ix])
+		if ((one && b == bm)
 		|| (!one && b->cdepth > Cdepth[ix]))
 		{	found++;
-			if (lst)
-			{	lst->nxt = nxt;
+
+			if (bm && bm->cdepth == 0)	// declared global
+			{	recycle_els(b, ix);	// reset to empty
+				// v4.1a, 7/23/22
 			} else
-			{	arr_vars[ix] = nxt;
+			{	if (lst)
+				{	lst->nxt = nxt;
+				} else
+				{	arr_vars[ix] = nxt;
+				}
+				recycle_els(b, ix);
+				b->nxt = free_arr[ix];
+				free_arr[ix] = b;
 			}
-			recycle_els(b, ix);
-			b->nxt = free_arr[ix];
-			free_arr[ix] = b;
+
 		} else
 		{	lst = b;
 	}	}
