@@ -740,6 +740,11 @@ prog_lex(void)
 		} else
 		{	if (n == '#')
 			{	n = fgetc(pfd);
+				if (n == '\n' || n == '\r')
+				{	p_lnr++;
+					yylval->lnr++;
+					continue;
+				}
 				if (n == '#' || isspace((uchar) n)) // comment
 				{	while ((n = fgetc(pfd)) != '\n')
 					{	if (n == EOF)
@@ -2416,7 +2421,6 @@ do_dot(Prim **ref_p, Lextok *q, Rtype *rv, const int ix, Prim *p)
 	{	Var_nm *n, dummy;
 
 		assert(ix >= 0 && ix < Ncore);
-
 		switch (q->lft->typ) {
 		case END:
 		case BEGIN:
@@ -2434,7 +2438,6 @@ do_dot(Prim **ref_p, Lextok *q, Rtype *rv, const int ix, Prim *p)
 		if (!n)
 		{	return;
 		}
-
 		switch (rv->rtyp) {
 		case VAL:
 			rv->val = n->v;
@@ -2476,7 +2479,7 @@ convert2string(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)
 	case STR:
 		return;
 	case PTR:
-		rv->val = rv->ptr->mark;
+		rv->val = rv->ptr->seq;	// was ->mark before
 		// fall thru
 	case VAL:
 		rv->s = (char *) hmalloc(64, ix, 136);	// convert2string
@@ -2994,7 +2997,6 @@ next:
 			p->typ, p->txt);
 		tok2txt(q, stdout);
 	}
-
 	switch (q->typ) {
 	case     NR: rv->val = q->val; break;
 	case   TRUE: rv->val = 1; break;

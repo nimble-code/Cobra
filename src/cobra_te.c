@@ -1834,7 +1834,7 @@ patterns_help(void)
 	printf("ps delete n		# delete pattern set 'n'\n");
 	printf("ps list [n]		# list a specific or all pattern sets, and their membership\n");
 	printf("ps rename n newname	# renames an existing pattern set n to newname\n");
-	printf("ps n1 = n2 [& + -] n3	# define n1 as the intersection (&), union (+), difference (-) of n2 and n3\n");
+	printf("ps n1 = n2 [& + - * m < >] n3	# define n1 as the intersection (&), union (+), difference (-) of n2 and n3\n");
 	printf("ps help			# print this message\n");
 }
 

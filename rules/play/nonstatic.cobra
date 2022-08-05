@@ -1,7 +1,17 @@
 # find non-static global function definitions
+
+requires 4.1
+
+quiet on
+
 %{
 	if (!@ident)
 	{	Next;
+	}
+	q = .prv;
+	if (q.typ == "cpp"
+	&&  match(q.txt, "/define"))
+	{	Next;	# a function-like macro
 	}
 	q = .;
 	. = .nxt;
@@ -24,11 +34,35 @@
 #		print q.fnm ":" q.lnr ": fct without type " q.txt " --> " .txt "\n";
 #	}
 	. = .prv;
-	if (.txt == "const")
+	while (@qualifier)
 	{	. = .prv;
 	}
 	if (.txt != "static")
-	{	print q.fnm ":" q.lnr ": " q.txt "()\n";
+	{
+#		print q.fnm ":" q.lnr ": " q.txt "()\n";
+		if (verbose)
+		{	print q.fnm ":" q.lnr ":";
+			z = q;
+			while (z.seq < r.seq)
+			{	print " " z.txt;
+				z = z.nxt;
+			}
+			print "\n";
+		}
+		add_pattern(NonStatic, q, q);
 	}
 	. = r.jmp;
 %}
+ps list NonStatic
+
+!rm -f _NonStatic_.txt
+track start _NonStatic_.txt
+	terse on
+	dp NonStatic
+	terse off
+track stop
+
+# report
+!if [ -s _NonStatic_.txt ] ; then echo "detailed results are in file _NonStatic_.txt"; fi
+
+quiet off

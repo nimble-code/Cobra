@@ -116,6 +116,37 @@ nmm = bname; # as a default?
 					continue;	# not a match
 			}	}
 
+			## 8/5/22: check if there is an assertion preceding this statement
+			## 8/5/22: where the assertion mentions nmm.txt
+			z = q.prv;
+			while (z.txt != ";" && z.seq > .seq)
+			{
+				z = z.prv;
+			}
+			if (z.txt == ";")	# end of preceding stmnt
+			{	z = z.prv;
+				if (z.txt != ")")
+				{	goto Cresume;
+				}
+				z = z.jmp;
+				if (z.txt != "(")
+				{	goto Cresume;
+				}
+				z = z.prv;
+				if (!match(z.txt, "/assert"))
+				{	goto Cresume;
+				}
+				z  = z.nxt;	# (
+				ze = z.jmp;	# )
+				while (z.seq < ze.seq)
+				{	if (z.txt == nmm.txt)
+					{	goto Cnext;
+					}
+					z = z.nxt;
+				}
+			}
+			## 8/5/22: end of new assertion check
+	Cresume:
 			# gotcha
 			add_pattern(CWE_131_2, q, q);
 		#	if (terse)
@@ -131,6 +162,7 @@ nmm = bname; # as a default?
 		#		unlock();
 		#	}
 		}
+	Cnext:
 		q = q.nxt;
 	}
 	# . points to the place after the malloc() we just checked

@@ -3207,7 +3207,6 @@ prog_range(void *arg)
 
 	for (r = from; r && r->seq <= upto->seq; r = r->nxt)
 	{	j = exec_prog(&r, *i);
-
 		if (stream == 1)
 		{	if (r->seq + 100 > upto->seq)	// getting too close to the end
 			{	Prim *place = r;
