@@ -294,5 +294,5 @@ end
 
 def cwe_416_set
 	ps create CWE_416
-	ps caption CWE_416 "Potential heap memory use after free"
+	ps caption CWE_416 Potential heap memory use after free
 end

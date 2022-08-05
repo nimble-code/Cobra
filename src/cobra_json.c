@@ -39,7 +39,10 @@ cleaned_up(FILE *fd, const char *tp)
 			break;
 		case '\"':
 		case '\'':
+#ifdef ESCAPE_COLON
+ // GitHub issue PR #48
 		case ':':
+#endif
 			fprintf(fd, "\\");
 			// fall thru
 		default:
@@ -362,6 +365,9 @@ json_add(const char *tp, const char *msg, const char *fnm, const int lnr, int po
 		{	while (p && pos > 0)
 			{	p = p->nxt;
 				pos--;
+			}
+			if (!p)
+			{	break;
 			}
 			p->mark++;
 			cnt++;

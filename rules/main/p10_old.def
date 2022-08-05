@@ -28,7 +28,7 @@ def p10_rule1b			# setjmp can be a macro
 	m setjmp
 	m longjmp
 	ps create P10_R1b
-	ps caption P10_R1b Do not use goto, setjmp, longjmp:"
+	ps caption P10_R1b Do not use goto, setjmp, longjmp
 end
 
 def p10_rule1
