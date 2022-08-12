@@ -4,7 +4,7 @@
 #include <ctype.h>
 //#include <malloc.h>
 
-#define Version	"Version 1.0 - 7 February 2022"
+#define Version	"Version 1.1 - 12 August 2022"
 
 // convert from Cobra JSON format to either
 //	JUnit or SARIF format
@@ -44,11 +44,14 @@ rules(void)
 		printf("              \"id\": \"R%d\",\n", cnt++); // ruleId
 		printf("              \"fullDescription\": {\n");
 		printf("                \"text\": \"%s\"\n", w->nm);
+#if 0
+		// reported under "results"
 		printf("              },\n");
 		printf("              \"messageStrings\": {\n");
 		printf("                \"default\": {\n");
 		printf("                  \"text\": \"%s\"\n", m->msg);
 		printf("                }\n");
+#endif
 		printf("              }\n");
 		printf("            }%s\n", w->nxt || m->nxt?",":"");
 	}
@@ -65,9 +68,14 @@ results(void)
 	{	printf("        {\n");
 		printf("          \"ruleId\": \"R%d\",\n", cnt);
 		printf("          \"ruleIndex\": %d,\n", cnt);
+		printf("          \"level\": \"warning\",\n");
 		printf("          \"message\": {\n");
+#if 1
+		printf("            \"text\": \"%s\"\n", w->nm);
+#else
 		printf("            \"id\": \"default\",\n");
 		printf("            \"arguments\": [ \"%s\" ]\n", "");
+#endif
 		printf("          },\n");
 		printf("          \"locations\": [\n");
 		printf("            {\n");
@@ -78,7 +86,18 @@ results(void)
 	//	printf("                  \"index\": 0\n");
 		printf("                },\n");
 		printf("                \"region\": {\n");
-		printf("                  \"startLine\": %d\n", m->lnr);
+		printf("                  \"startLine\": %d", m->lnr);
+		if (strncmp(m->msg, "lines ", 6) == 0)
+		{	int n, x, y;
+			n = sscanf(m->msg, "lines %d..%d", &x, &y);
+			if (n == 2 && x == m->lnr && y > x)
+			{	printf(",\n                  \"endLine\": %d\n", y);
+			} else
+			{	printf("\n");
+			}
+		} else
+		{	printf("\n");
+		}
 		printf("                }\n");
 		printf("              }\n");	// }, if more fields follow
 	//	printf("              \"logicalLocations\": [\n");
@@ -127,7 +146,7 @@ reformat(const int mode)
 		printf("    \"tool\": {\n");
 		printf("      \"driver\": {\n");
 		printf("        \"name\": \"Cobra\",\n");
-		printf("        \"version\": \"3.9\",\n");
+		printf("        \"version\": \"4.1\",\n");	// should come from input file...
 		printf("        \"informationUri\": \"https://github.com/nimble-code/Cobra\",\n");
 		printf("        \"rules\": [\n");
 			rules();
