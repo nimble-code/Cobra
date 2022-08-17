@@ -4,7 +4,7 @@
 #include <ctype.h>
 //#include <malloc.h>
 
-#define Version	"Version 1.1 - 12 August 2022"
+#define Version	"Version 1.2 - 17 August 2022"
 
 // convert from Cobra JSON format to either
 //	JUnit or SARIF format
@@ -31,6 +31,7 @@ struct Reports {
 
 static Reports *reports;
 static unsigned long total_used;
+static char *BaseId;
 
 static void
 rules(void)
@@ -82,7 +83,9 @@ results(void)
 		printf("              \"physicalLocation\": {\n");
 		printf("                \"artifactLocation\": {\n");
 		printf("                  \"uri\": \"%s\"\n", m->fnm);
-	//	printf("                  \"uriBaseId\": \"SRCROOT\",\n");
+		if (BaseId)
+		{	printf("                  \"uriBaseId\": \"%s\",\n", BaseId);
+		}
 	//	printf("                  \"index\": 0\n");
 		printf("                },\n");
 		printf("                \"region\": {\n");
@@ -377,7 +380,14 @@ static void
 usage(void)
 {
 	// convert a json file format into JUnit format
-	fprintf(stderr, "usage: json_convert [-V] [-verbose] [-junit] [-sarif] -f filename.json (default is junit)\n");
+	fprintf(stderr, "usage: json_convert [options] -f filename.json\n");
+	fprintf(stderr, "  -V -- print version number and exit\n");
+	fprintf(stderr, "  -v -- prints the nr of valid records read on standard output\n");
+	fprintf(stderr, "  -junit -- produce output in JUNIT format (default)\n");
+	fprintf(stderr, "  -sarif -- produce output in SARIF format\n");
+	fprintf(stderr, "  -base=pathname -- add a uriBaseId field set to pathname (SARIF format)\n");
+	fprintf(stderr, "   pathname must contain at least one / and no \" characters\n");
+	fprintf(stderr, "  -f filename -- read JSON input from filename\n");
 	exit(1);
 }
 
@@ -392,6 +402,16 @@ main(int argc, char *argv[])
 		case 's':
 			if (strcmp(argv[1], "-sarif") == 0)
 			{	mode = SARIF;
+			} else
+			{	usage();
+			}
+			break;
+		case 'b':
+			if (strncmp(argv[1], "-base=", 6) == 0
+			&&  strlen(argv[1]) > 6
+			&&  strchr(argv[1], '/') != NULL
+			&&  strchr(argv[1], '\"') == NULL)
+			{	BaseId = &argv[1][6];
 			} else
 			{	usage();
 			}

@@ -34,6 +34,11 @@ Generate JUnit format (the default).
 Generate SARIF format instead. If multiple format options are given,
 the final one will prevail.
 .TP
+.B \-base=pathname
+Adds a uriBaseId field to the SARIF output set to pathname, which
+can be an absolute pathname to locate the files.
+The pathname should contain at least one / and no " characters.
+.TP
 .BI "\-f file"
 The file is assumed to be in JSON format, and must contain fields
 named "type," "file," "line," and "message."
