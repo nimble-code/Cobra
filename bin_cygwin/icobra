@@ -51,6 +51,7 @@ exec wish "$0" -- $*
 
 wm title . "icobra"
 wm geometry . ${WMain}x$HMain+$XMain+$YMain	;# widthxheight+offsetx+offsety
+update
 
 set xversion "Cobra GUI -- 2022.03.31";	# was 2015.10.16
 set version  "Cobra Version unknown"; # updated below
@@ -3560,7 +3561,7 @@ proc move_doit {f fn} {
 				set lnr [lindex $htags($nm) $nnrs]
 				.f$f.t yview -pickplace [expr $lnr - 12]
 				.f$f.top.mid configure -text "#$tnow($fn) of $tcnt($fn)"
-				.f$f.top.setname configure -text "( $stags($fn,$lnr) )"
+				.f$f.top.setname configure -text " $stags($fn,$lnr) line $lnr" -fg $colors($setn) -bg white
 
 				.f$f.t tag configure sel$lnr -foreground $colors($setn) -background white
 
@@ -3637,7 +3638,7 @@ proc showfile {fn n how} {
 			label .f$f.top.t -text "[array size htags] patterns matched, $tcnt($fn) total matches"
 			pack append .f$f.top .f$f.top.t { left expand fillx filly}
 
-			label .f$f.top.setname -text "( $stags($fn,$n) )" -relief raised
+			label .f$f.top.setname -text " $stags($fn,$n) " -relief raised -bg white -fg red
 
 			button .f$f.top.first -text "<<" -command "move_first $f $fn"
 			button .f$f.top.left -text "<" -command "move_back $f $fn"
@@ -3652,13 +3653,13 @@ proc showfile {fn n how} {
 			pack append .f$f.top .f$f.top.right { left filly }
 			pack append .f$f.top .f$f.top.last { left filly }
 
-			pack append .f$f .f$f.top { top expand fillx }
+			pack append .f$f .f$f.top { top fillx }
 		}
 	
 		text .f$f.t -relief raised -bd 2 \
 			-width 120 -height 24 \
 			-setgrid 1
-		pack append .f$f .f$f.t { top expand fillx }
+		pack append .f$f .f$f.t { top expand fillx filly }
 
 		set fd -1
 		if [catch { set fd [open $fn r] } errmsg] {
@@ -4501,7 +4502,15 @@ proc dashboard {} {
 	set yoffset 20
 	set tcl_precision 3
 
-	# canvas is 800x1200 ($HMain x $WMain)
+	catch {
+		regexp {(.*)x(.*)[+-](.*)[+-](.*)} [wm geometry .] -> WMain HMain nx ny
+		# puts "w: $WMain h: $HMain x: $nx y: $ny"
+		$m_l configure -height $HMain -width $WMain
+		# sets bg color correctly
+		# but we don't resize the charts below to adjust
+	}
+
+	# canvas is nominally 800x1200 ($HMain x $WMain)
 	# (x=0,y=0) is topleft
 	# plan up to 200x400 chart tiles (4x3=12)
 
@@ -4565,8 +4574,6 @@ proc heatmap {} {
 	set x 0.0
 	set y 0.0
 	set tf "_TMP7_"
-	set w $WMain
-	set h $HMain
 	set total  0.0
 	set need   0.0
 	set width  0.0
@@ -4576,6 +4583,14 @@ proc heatmap {} {
 	if {$dfd == -1} { return }
 
 	catch { $he_l tag delete heat }
+
+	catch {
+		regexp {(.*)x(.*)[+-](.*)[+-](.*)} [wm geometry .] -> WMain HMain nx ny
+		# puts "w: $WMain h: $HMain x: $nx y: $ny"
+		$he_l configure -height $HMain -width $WMain
+	}
+	set w $WMain
+	set h $HMain
 
 	while {[gets $dfd line] >= 0} {
 		if {[string first "PerFile" $line] != 0} {
@@ -4669,6 +4684,10 @@ proc metrics_canvas {t} {
 	global HV1 NBG m_l NFG NBG
 	global HMain WMain
 
+	catch {
+		regexp {(.*)x(.*)[+-](.*)[+-](.*)} [wm geometry .] -> WMain HMain nx ny
+	}
+
 	set pw [PanedWindow $t.pw -side left -activator button ]
 		set hp [$pw add -minsize 200]
 	set xx [PanedWindow $hp.wide -side top -activator button ]
@@ -4688,6 +4707,10 @@ proc metrics_canvas {t} {
 proc heatmap_canvas {t} {
 	global HV1 NBG he_l NFG NBG
 	global HMain WMain
+
+	catch {
+		regexp {(.*)x(.*)[+-](.*)[+-](.*)} [wm geometry .] -> WMain HMain nx ny
+	}
 
 	set pw [PanedWindow $t.pw -side left -activator button ]
 		set hp [$pw add -minsize 200]
@@ -5032,7 +5055,7 @@ proc patterns_title {nr pn tl} {
 proc patterns_panel {nrm pn} {
 	global NBG NFG HV1 nrpat
 	global pmap Yoffset pnm2nr
-	global verbose
+	global verbose ptitle
 	global Wpatternmatch Hpatternmatch Xpatternmatch Ypatternmatch
 
 	# https://stackoverflow.com/questions/39956549/how-to-add-a-scrollbar-to-tcl-frame
@@ -5065,9 +5088,11 @@ proc patterns_panel {nrm pn} {
 		}
 	} emsg
 
-	if {"$emsg" == "0"} {
-		return			;# entry already exists
-	}
+	if {"$emsg" == "0" && [winfo exists .patterns.main.c.frWidgets] } {
+		for {set tval 0} {$tval <= $nrpat} {incr tval} {
+			if {$tval == $pnm2nr($pn)} {
+				return		;# entry exists
+	}	}	}
 
 	catch {
 		incr nrpat
@@ -5082,14 +5107,11 @@ proc patterns_panel {nrm pn} {
 		ttk::button .patterns.main.c.frWidgets.b$nrpat \
 			-style My.TButton -text "$pn ($nrm patterns)" \
 			-command "pat_show $pn $nrm $nrpat"
-if {1} {
+
 		pack .patterns.main.c.frWidgets .patterns.main.c.frWidgets.b$nrpat \
 			-anchor w \
 			-side top -fill x -expand yes
-} else {
-		grid .patterns.main.c.frWidgets.b$nrpat \
-			 -pady 1 -row $nrpat -column 0 -sticky we
-}
+
 		.patterns.main.c create window 0 0 -anchor nw -window .patterns.main.c.frWidgets
 		.patterns.main.c configure -scrollregion [.patterns.main.c bbox all]
 		pack .patterns.main -expand yes -fill both -side top
@@ -5100,41 +5122,10 @@ if {1} {
 
 		array set pmap "$pn $nrm"
 		array set pnm2nr "$pn $nrpat"
-	} emsg
-
-	if {"$emsg" != ""} {
-		i_error "error: patterns panel $emsg"
-	}
-}
-
-proc patterns_panel_old {nrm pn} {
-	global NBG NFG HV1 nrpat
-	global pmap Yoffset pnm2nr
-	global verbose
-	global Wpatternmatch Hpatternmatch Xpatternmatch Ypatternmatch
-
-	if {$verbose} { puts "new pattern set $pn has $nrm matches" }
-
-	catch {
-		if {![winfo exists .patterns]} {
-			toplevel .patterns
-			wm title .patterns "patterns"
-			wm iconname .patterns "pat"
-			wm geometry .patterns ${Wpatternmatch}x${Hpatternmatch}+${Xpatternmatch}+$Ypatternmatch
-			frame .patterns.main
-			set nrpat 0
+		if {[info exists ptitle($pn)]} {
+		  .patterns.main.c.frWidgets.b$nrpat configure \
+			-text "$pn ($nrm patterns) :: $ptitle($pn)"
 		}
-		incr nrpat
-		set nh [expr {40*$nrpat}]
-		if {$verbose} { puts "create .patterns.main.b$nrpat -- $pn" }
-		button .patterns.main.b$nrpat -text "$pn ($nrm patterns)" \
-			-bd 0 -bg $NBG -fg $NFG -font $HV1 \
-			-command "pat_show $pn $nrm $nrpat"
-		wm geometry .patterns ${Wpatternmatch}x$nh+${Xpatternmatch}+$Ypatternmatch
-		pack .patterns.main .patterns.main.b$nrpat \
-			-side top -fill both -expand yes
-		array set pmap "$pn $nrm"
-		array set pnm2nr "$pn $nrpat"
 	} emsg
 
 	if {"$emsg" != ""} {
@@ -5499,7 +5490,6 @@ proc do_query {which} {
 		exit 1
 	}
 
-	# smart_panel
 	predefined_list
 	update
 	get_ready

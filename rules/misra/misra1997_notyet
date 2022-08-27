@@ -1,7 +1,4 @@
 
-!echo "Rule 17 (Required) Typedef names shall not be reused for any other purpose in the application."
-# eg as a structure name, labelname -- compiler likely checks this
-
 !echo "Rule 26 (Required) If objects or functions are declared more than once they shall have compatible declarations."
 # XXX check if decl and extern decls match
 
@@ -41,23 +38,14 @@
 !echo "Rule 48 (Advisory) Mixed precision arithmetic should use explicit casting to generate the desired result."
 # later
 
-!echo "Rule 49 (Advisory) Tests of a value against zero should be made explicit, unless the operand is effectively Boolean."
-# XXX add check, e.g. for single token conditions
-
 !echo "Rule 51 (Advisory) Evaluation of constant unsigned integer expressions should not lead to wrap-around."
 # elsewhere
 
 !echo "Rule 52 (Required) There shall be no unreachable code. As revised: ..., unless it explicitly deals with exception and failure cases (e.g., dealing with possibly corrupted data values)."
 # not cobra
 
-!echo "Rule 53 (Required) All non-null statements either have a side-effect or change the flow of control."
-# dubious
-
 !echo "Rule 66 (Advisory) Only expressions concerned with loop control should appear within a for statement."
 # XXX could add check
-
-!echo "Rule 71 (Required) Functions shall always have prototype declarations and the prototype shall be visible at both the function definition and call."
-# XXX could check
 
 !echo "Rule 72 (Required) For each function parameter the type given in the declaration and definition shall be identical, and the return types shall also be identical."
 # compiler checks?
@@ -68,20 +56,11 @@
 !echo "Rule 78 (Required) The number of parameters passed to a function shall match the function prototype."
 # compiler checks
 
-!echo "Rule 79 (Required) The values returned by void functions shall not be used."
-# checked by compiler
-
 !echo "Rule 81 (Advisory) const qualification should be used on function parameters which are passed by reference, where it is intended that the function will not modify the parameter."
 # XXX add a check for params that aren't modifed in fct body, and recommend const qualifiers
 
-!echo "Rule 84 (Required) For functions with void return type, return statements shall not have an expression."
-# checked by compiler
-
 !echo "Rule 85 (Advisory) Functions called with no parameters should have empty parentheses."
 # checked by compiler
-
-!echo "Rule 86 (Advisory) If a function returns error information, then that error information should be tested."
-# XXX check which jpl/p10 rule already covers this
 
 !echo "Rule 90 (Required) C macros shall only be used for symbolic constants, function-like macros, type qualifiers and storage class specifiers."
 # XXX check which jpl/p10 rule already covers this
@@ -112,9 +91,6 @@
 
 !echo "Rule 108 (Required) In the specification of a structure or union type, all members of the structure or union shall be fully specified."
 # XXX add check (eg array bounds?)
-
-!echo "Rule 109 (Required) Overlapping variable storage shall not be used."
-# not cobra / no union?
 
 !echo "Rule 111 (Required) Bit fields shall only be defined to be of type unsigned int or signed int."
 # XXX add check

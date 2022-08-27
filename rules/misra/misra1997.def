@@ -154,6 +154,44 @@ def m97_rule16
 	ps caption M97_R16 (Required) The underlying bit representations of floating-point values shall not be used.
 end
 
+def m97_rule17
+	r
+	%{
+		unset Typedefs;
+		Stop;
+	%}
+	m typedef	# look for last ident before semi-colon
+	%{
+		if (.mark == 0) { Next; }
+		.mark = 0;
+		q = .;
+		while (q.txt != ";" || q.curly > .curly)
+		{	q = q.nxt;
+			if (q.seq == 0) { Next; }
+		}
+		q = q.prv;
+		if (q.typ != "ident")
+		{	Next;
+		}
+		Typedefs[q.txt] = .;
+	%}
+	%{
+		q = Typedefs[.txt];
+		if (q.seq == 0) { Next; }
+		b = q.prv;
+		c = q.nxt;
+		if (b.txt == "struct"
+		||  b.txt == "union"
+		||  b.txt == "enum"
+		||  b.typ == "type"
+		||  b.txt == "goto"
+		||  c.txt == ":")
+		{	add_pattern(M97_R17, q, q);
+		}
+	%}
+	ps caption M97_17 (Required) Typedef names shall not be reused for any other purpose in the application.
+end
+
 def m97_rule19
 	r
 	m /^0[0-9]			# octal constant
@@ -393,13 +431,29 @@ def m97_rule42
 	ps caption M97_R42 (Required) The comma operator shall not be used, except in the control expression of a for-loop or in declarations or fct args
 end
 
+def m97_rule49
+	r
+	pe M97_R49a: [if while] ( @ident )
+	pe M97_R49b: for ( .* \; @ident \; .*)
+	ps M97_R49 = M97_R49a + M97_R49b
+	ps delete M97_R49a
+	ps delete M97_R49b
+	ps caption M97_R49 (Advisory) Tests of a value against zero should be made explicit, unless the operand is effectively Boolean.
+end
+
 def m97_rule50
 	r; m [!=]=; b; m & .
 	>1
 	r; m [!=]=; n; m & .
 	<|1
 	ps create M97_R50
-	ps caption M97_R50 (Required) Floating point variables shall not be tested for exact equality or inequality
+	ps caption M97_R50 (Required) Floating point variables shall not be tested for exact equality or inequality.
+end
+
+def m97_rule 53
+	# goto with the target label immediately following
+	pe M97_R53: goto x:@ident \; :x :
+	ps caption M97_R53 (Required) All non-null statements either have a side-effect or change the flow of control.
 end
 
 def m97_rule54
@@ -556,6 +610,44 @@ def m97_rule70
 	ps caption M97_R70 (Required) Functions shall not call themselves, either directly or indirectly
 end
 
+def m97_rule71
+	r
+	fcts
+	ps create FD						# fct declarations
+	r
+	pe FP: @type <1> \** @ident ( .* ) \; @1 (.curly == 0)	# fct prototype definitions
+	%{
+		unset x;
+		unset y;
+		unset z;
+		x = pset(FD);
+		y = pset(FP);
+		while (x.seq > 0)
+		{	a = x.p_start;
+			if (a.typ == "ident")	# should match
+			{	# fct name
+				# check if its in at least one element of FP
+				z = y.p_start;
+				while (z.seq > 0)
+				{	if (z.txt == a.txt)
+					{
+						break;	# yes
+					}
+					z = z.nxt;
+				}
+				if (z.seq == 0)		# no
+				{	add_pattern(M97_R71, a, a);
+				}
+			}
+			x = x.nxt;
+		}
+		Stop;
+	%}
+	ps delete FD;
+	ps delete FP;
+	ps caption M97_R71 (Required) Functions shall always have prototype declarations and the prototype shall be visible at both the function definition and call.
+end
+
 def m97_rule73
 	r
 	pe  [@type *] @ident <1> ( .* ) \; @1 (.curly == 0)
@@ -602,6 +694,52 @@ def m97_rule76
 	ps caption M97_R76 (Required) Functions with no parameters shall be declared with parameter type void
 end
 
+def m97_rule79
+	r
+	fcts
+	b
+	m & void
+	n
+	ps create VF	# void fcts
+	r
+	m = @ident 	# fct call that uses return value
+	m @oper @dent 
+	m & (.curly > 0)
+	n
+	n
+	m & (		# fct call
+	b		# back fct name
+	>1
+	r
+	m @ident (
+	m & (.curly > 0)
+	n
+	j
+	n
+	m & @oper
+	b; b; b		# back to fct name
+	<|1		# both markings -- all names of fcts with return values used
+	%{
+		unset y;
+		y = pset VF;
+		Stop;
+	%}
+	%{
+		if (.mark == 0) { Next; }
+		a = y.p_start;
+		while (a.seq > 0)
+		{	if (a.txt == .txt)
+			{	add_pattern(M97_R79, a, a);
+				break;
+			}
+			a = a.nxt;
+		}
+		# check if any of these are void fcts
+	%}
+	ps delete VF
+	ps caption M97_R79 (Required) The values returned by void functions shall not be used.
+end
+
 def m97_rule80
 	r; m @ident \(			# fct call
 	m & (.curly>0)			# inside a fct
@@ -642,6 +780,16 @@ def m97_rule83
 	<|1
 	ps create M97_R83
 	ps caption M97_R83 (Required) For fcts with non-void return type: i) there shall be one return stmnt for every exit branch, including the end of the program ii) each return shall have an expression iii) the return expression shall match the declared return type
+end
+
+def m97_rule84
+	pe M97_R84: void @ident ( .* ) { .* return ^\; .* }
+	ps caption M97_R84 (Required) For functions with void return type, return statements shall not have an expression.
+end
+
+def m97_rule86
+        pe M97_R86: ^void x:@ident ( .* ) { .* } ^[/= /> /<] :x ( .* ) ^[/= /> /<]
+        ps caption M97_R86 (Advisory) If a function returns error information, then that error information should be tested.
 end
 
 def m97_rule87
@@ -714,6 +862,12 @@ def m97_rule110
 	r; m union
 	ps create M97_R110
 	ps caption M97_R110 (Required) Unions shall not be used to access the sub-parts of larger data types
+end
+
+def m97_rule109
+	m97_rule110
+	ps M97_R109 = M97_R110 + Nothing
+	ps caption M97_R109 (Required) Overlapping variable storage shall not be used.
 end
 
 def m97_rule112
