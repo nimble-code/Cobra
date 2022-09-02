@@ -53,12 +53,12 @@ wm title . "icobra"
 wm geometry . ${WMain}x$HMain+$XMain+$YMain	;# widthxheight+offsetx+offsety
 update
 
-set xversion "Cobra GUI -- 2022.03.31";	# was 2015.10.16
-set version  "Cobra Version unknown"; # updated below
-set Unix 1;                           # updated below
-set COBRA cobra;                      # background tool
+set iversion "iCobra Version 1.2";	# was 2015.10.16
+set version  "Cobra Version unknown";	# updated below
+set Unix 1;				# updated below
+set COBRA cobra;			# background tool
 set LOGO "/cygdrive/f/Dropbox_orig/Tools/Cobra/GUI/cobra_small.gif"
-set d_mode 1;			      # src display mode
+set d_mode 1;				# src display mode
 set nrpat 0
 set verbose 0
 set linenumbers 0
@@ -4566,6 +4566,138 @@ proc annotated {fn} {
 	showfile $fn $smallest 1
 }
 
+proc warnings {} {
+	global wr_l HV0 HV1
+	global HMain WMain
+	global pmap pnm2nr
+
+	set x 0.0
+	set y 0.0
+	set tf "_TMP7_"
+	set total  0.0
+	set need   0.0
+	set width  0.0
+	set toggle 0	;# 0 = horizontal, 1 = vertical
+
+	set dfd [prepdata ". stats/warning_counts.cobra" $tf $wr_l]
+	if {$dfd == -1} { return }
+
+	catch { $wr_l tag delete heat }
+
+	catch {
+		regexp {(.*)x(.*)[+-](.*)[+-](.*)} [wm geometry .] -> WMain HMain nx ny
+		# puts "w: $WMain h: $HMain x: $nx y: $ny"
+		$wr_l configure -height $HMain -width $WMain
+	}
+	set w [expr $WMain - 25]
+	set h [expr $HMain - 80]
+
+	while {[gets $dfd line] >= 0} {
+		if {[string first "PerSet" $line] != 0} {
+			continue;
+		}
+
+		set n [scan $line "PerSet %d %d %s %d" nr cnt snm perc];
+
+		if {$n < 4} {
+			$wr_l create rect $x $y $w $h -fill white -tags heat
+			$wr_l create text \
+				[expr $x + ($w - $x) / 2] [expr $y - 20 + ($h - $y) / 2] \
+				-text "Please update rules/stats/warning_counts.cobra for this version of iCobra" \
+				-font $HV0 -fill black -tags heat
+			catch "close $dfd" emsg
+			handle_command "!rm -f $tf" "warnings"
+			return
+		}
+
+		if {$cnt > 0} {
+			set perc [expr (100.0 * double($nr)) / double($cnt) ]
+		} else {
+			continue
+		}
+
+		set total [expr $total + $perc]
+
+		set need [expr ($w * $h * $perc) / 100]
+
+		if {$n != 4 || $need <= 0} {
+			continue
+		}
+
+		if {$perc >= 50} {
+			set col #f00		;# red
+		} elseif {$perc > 25} {
+			set col #f60		;# orange
+		} elseif {$perc > 12} {
+			set col #fc0		;# yellow
+		} elseif {$perc > 6} {
+			set col #ff0		;# light yellow
+		} else {
+			set col #ffb		;# soft yellow
+		}
+
+		if {$toggle == 0} {	;# vertical
+			set width [expr $need / ($h - $y)]
+			set nperc [expr int($perc)]
+			set bb [$wr_l create rect $x $y [expr $x + $width] $h -fill $col -tags heat]
+			if {$perc > 2} {
+				set bc [$wr_l create text \
+					[expr $x + $width / 2] [expr $y - 20 + ($h - $y) / 2] \
+					-text "$snm" -font $HV1 -fill black -tags heat]
+				$wr_l create text \
+					[expr $x + $width / 2] [expr $y + ($h - $y) / 2] \
+					-text "($nperc% = $nr)" -font $HV1 -fill black -tags heat
+			} else {
+				set bc [$wr_l create text \
+					[expr $x + $width / 2] [expr $y - 20 + ($h - $y) / 2] \
+					-text "$nperc%" -font $HV1 -fill black -tags heat]
+			}
+			set x [expr $x + $width]
+		} else {		;# horizontal
+			set height [expr $need / ($w - $x)]
+			set nperc [expr int($perc)]
+			set bb [$wr_l create rect $x $y $w [expr $y + $height] -fill $col -tags heat]
+			if {1 || $perc > 2} {
+				set bc [ $wr_l create text \
+					[expr $x + ($w - $x) / 2] [expr $y - 20 + $height / 2] \
+					-text "$snm" -font $HV1 -fill black -tags heat]
+				$wr_l create text \
+					[expr $x + ($w - $x) / 2] [expr $y  + $height / 2] \
+					-text "($nperc% = $nr)" -font $HV1 -fill black -tags heat
+			} else {
+				set bc [$wr_l create text \
+					[expr $x + ($w - $x) / 2] [expr $y + $height / 2] \
+					-text "$snm ($nperc% = $nr)" -font $HV1 -fill black -tags heat]
+			}
+			set y [expr $y + $height]
+		}
+		catch {
+			$wr_l bind $bb <ButtonPress-1> "pat_show $snm $pmap($snm) $pnm2nr($snm)"
+			$wr_l bind $bc <ButtonPress-1> "pat_show $snm $pmap($snm) $pnm2nr($snm)"
+		} emsg
+		if {$emsg != ""} {
+			i_error "$emsg"
+		}
+		set toggle [expr 1 - $toggle]
+	}
+
+	if {$total == 0} {
+		$wr_l create rect $x $y $w $h -fill white -tags heat
+		$wr_l create text \
+			[expr $x + ($w - $x) / 2] [expr $y - 20 + ($h - $y) / 2] \
+			-text "There are no pattern sets with warnings to display yet.\n(This panel shows which warnings have most entries.)" \
+			-font $HV0 -fill black -tags heat
+	} elseif {$total < 100} {
+		$wr_l create rect $x $y $w $h -fill #ccc -tags heat
+		$wr_l create text \
+			[expr $x + ($w - $x) / 2] [expr $y - 20 + ($h - $y) / 2] \
+			-text "([expr 100 - int($total)]%)" -font $HV0 -fill white -tags heat
+	}
+
+	catch "close $dfd" emsg
+	handle_command "!rm -f $tf" "warnings"
+}
+
 proc heatmap {} {
 	global he_l HV0 HV1
 	global HMain WMain
@@ -4704,9 +4836,35 @@ proc metrics_canvas {t} {
 	pack $pw -fill both -expand yes
 }
 
-proc heatmap_canvas {t} {
-	global HV1 NBG he_l NFG NBG
+proc warnings_canvas {t} {
+	global HV1 NBG NFG
 	global HMain WMain
+	global wr_l		;# warnings panel
+
+	catch {
+		regexp {(.*)x(.*)[+-](.*)[+-](.*)} [wm geometry .] -> WMain HMain nx ny
+	}
+
+	set pw [PanedWindow $t.pw -side left -activator button ]
+		set hp [$pw add -minsize 200]
+	set xx [PanedWindow $hp.wide -side top -activator button ]
+		set ql [$xx add -minsize 100]
+		set wl [ScrolledWindow $ql.wide]
+
+	set wr_l [canvas $ql.db -relief raised -background white \
+		-height $HMain -width $WMain -scrollregion "0 0 100 100" ]
+
+	$wl setwidget $wr_l
+
+	pack $wl -side left -fill both
+	pack $xx -side top  -fill both -expand yes
+	pack $pw -fill both -expand yes
+}
+
+proc heatmap_canvas {t} {
+	global HV1 NBG NFG
+	global HMain WMain
+	global he_l		;# heatmap panel
 
 	catch {
 		regexp {(.*)x(.*)[+-](.*)[+-](.*)} [wm geometry .] -> WMain HMain nx ny
@@ -4914,6 +5072,7 @@ proc create_panels {} {
 	global MFG MBG
 	global NBG NFG
 	global TFG TBG
+	global iversion
 	global version
 	global HV0 HV1
 	global LOGO
@@ -4923,7 +5082,7 @@ proc create_panels {} {
 	frame .menubar -bg $MFG
 	pack append . .menubar {top frame w fillx}
 
-	wm title . "Cobra $version"
+	wm title . "Cobra $version -- $iversion"
 
 	menubutton .menubar.file -text "File.." \
 		-bg $MFG -fg $NFG -font $HV1 \
@@ -4995,15 +5154,17 @@ proc create_panels {} {
 	pack $pane -fill both -expand yes
 
 	# create tabs on the notebook pane
-	set mp [$nb insert end Mp -text " matches " -raisecmd "$pane raise Mp"]
-	set db [$nb insert end Db -text " metrics " -raisecmd "$pane raise Db; dashboard"]
-	set hm [$nb insert end Hm -text " heatmap " -raisecmd "$pane raise Hm; heatmap"]
-	set hp [$nb insert end Hp -text " help "    -raisecmd "$pane raise Hp; helper"]
+	set mp [$nb insert end Mp -text " matches "  -raisecmd "$pane raise Mp"]
+	set db [$nb insert end Db -text " metrics "  -raisecmd "$pane raise Db; dashboard"]
+	set hm [$nb insert end Hm -text " heatmap "  -raisecmd "$pane raise Hm; heatmap"]
+	set rh [$nb insert end Rh -text " warnings " -raisecmd "$pane raise Rh; warnings"]
+	set hp [$nb insert end Hp -text " help "     -raisecmd "$pane raise Hp; helper"]
 
 	main_panels $mp
 	help_panels $hp
 	metrics_canvas $db
 	heatmap_canvas $hm
+	warnings_canvas $rh	;# reverse heatmap, categories sorted by nr warnings
 
 	$pane raise Mp	;# default view
 	# cannot start with Hp, because no files are loaded yet
@@ -5215,7 +5376,7 @@ proc pattern_detail {pn nr} {
 proc pat_show {pn nrm nrpat} {
 	global verbose
 
-	if {$verbose} { puts "$pn $nrm" }
+	if {$verbose} { puts "$pn $nrm $nrpat" }
 
 	# handle_command "dp $pn" "pat_show"
 	pattern_detail $pn $nrpat

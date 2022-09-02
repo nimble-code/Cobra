@@ -1,0 +1,360 @@
+# Objective: identify loop index variables and collect
+# statistics on how they are used in the loop.
+#
+# identify the loop counter(s) and its type
+# collect stats on its use
+#
+# for () { ... }
+# while () { ...}
+# do { ... } while ( .* )
+#
+# - identify likely loop counter(s) that
+#	appear in the loop cond
+#	as well as in incr or body
+# - gather stats on possible attributes:
+# 	is incremented, decremented, assigned
+# 	is compared for max, for min, for equal
+# - other possible checks (not used here):
+# 	is used in array index in loop body
+# 	is compared against a constant, another variable, an expression, compared in expression
+# 	is compared inside body, with possible break or continue
+#	is used as function parameter
+
+%{
+	Increment =   1;	# tags on ModType
+	Decrement =   2;
+	Modifies  =   4;
+	LowerBound =  8;
+	UpperBound = 16;
+	Equal      = 32;
+	UnEqual    = 64;
+
+	For       =  32;
+	While     =  64;
+	Do        = 128;
+
+	cnt0 = 0;
+	cnt1 = 0;
+	none = newtok();
+
+	function next_semi(w, what)
+	{	while (w.txt != ";" && w.mark > 0)
+		{	w = w.nxt;
+		}
+		if (w.txt != ";")
+		{	v = w.nxt;
+			print .fnm ":" .lnr ": error: lost track " w.txt " "  v.txt "\n";
+
+			Stop;
+		}
+		return w.nxt;
+	}
+	function modifies(nm, from, upto)
+	{	if (from.seq == 0
+		||  upto.seq == 0)
+		{	return 0;
+		}
+		w = from;
+		tags = 0;
+		while (w.seq < upto.seq)
+		{	if (w.txt == nm.txt)
+			{	before = w.prv;
+				after  = w.nxt;
+				if (before.txt == "++"
+				||  after.txt  == "++")
+				{	tags = tags | Increment;
+				}
+				if (before.txt == "--"
+				||  after.txt  == "--")
+				{	tags = tags | Decrement;
+				}
+				if  (match(after.txt, "/=")
+				&&   after.txt != "=="
+				&&   after.txt != "!="
+				&&   after.txt != "<="
+				&&   after.txt != ">=")
+				{	tags = tags | Modifies;
+			}	}
+			w = w.nxt;
+		}
+		return tags;
+	}
+	function record_counter(howmany, which, qr)
+	{	global ModType[];
+
+		if (howmany == 1)
+		{	add_pattern(Unique_Counter, ., qr);
+		} else
+		{	add_pattern(Multiple_Counters, ., qr);
+		}
+
+		# store additional info in the jmp field
+		zz = newtok();
+		zz.txt  = "ModType";
+		zz.lnr  = which;	# For, While, Do
+		zz.mark = ModType[qr];	# Increment, Decrement, Modifies
+		qr.jmp = zz;
+	}
+	function do_markings(which)
+	{	global None_Found[];
+		global Cand[];
+		global ModType[];
+
+		if (cnt0 == 0)	# none found, list those checked
+		{	cnt1++;	
+			# print .fnm ":" .lnr ":\tno loop counter found\n";
+			None_Found[.fnm, .lnr] = cond;
+		} else
+		{	for (i in Cand)
+			{	qr = Cand[i.txt];
+				record_counter(cnt0, which, qr);
+			}
+			unset Cand;	# matches were stored
+			unset ModType;
+		}
+	}
+	function find_loop_control(sc, ec, si, ei, sb, eb)	# start cond, start incr, start body
+	{	global Cand[];
+		global ModType[];
+
+		# find vars between sc and ec
+		# that are modified between sb and eb
+		cnt0 = 0;	# global
+		p = sc;
+		while (p.seq < ec.seq)		# search the condition for suitable idents
+		{	if (p.type == "ident" && p.txt != "NULL")
+			{	before = p.prv;
+				after  = p.nxt;
+				if (before.txt != "->" && before.txt != "."
+				&&  Names[p.txt] == 0)	# first occurence of each var
+				{	Names[p.txt] = 1;
+					r1 = modifies(p, si, ei);		# incr
+					if (!r1)
+					{	r1 = modifies(p, sc, ec);	# cond
+					}
+					if (!r1)
+					{	r1 = modifies(p, sb, eb);	# body
+					}
+					if (r1)	# Increment, Decrement, Modifies
+					{	cnt0++;
+						Cand[p.txt] = p;
+						ModType[p] = ModType[p] | r1;
+						if (match(after.txt, "/>")
+						&&  after.txt != "->"
+						&&  after.txt != ">>")
+						{	ModType[p] = ModType[p] | LowerBound;
+							p = p.nxt;
+							continue;
+						}
+						if (match(after.txt, "/<"))
+						{	ModType[p] = ModType[p] | UpperBound;
+							p = p.nxt;
+							continue;
+						}
+						if (after.txt == "==")
+						{	ModType[p] = ModType[p] | Equal;
+							p = p.nxt;
+							continue;
+						}
+						if (after.txt == "!=")
+						{	ModType[p] = ModType[p] | UnEqual;
+					}	}
+			}	}
+			p = p.nxt;
+		}
+		unset Names;	# applies to one cond at a time
+	}
+	function check_entry(xx)
+	{
+		y = xx.jmp;	# holds the additional info
+		# y.txt: "ModType"
+		# y.lnr:  For,  While, Do
+		# y.mark: Increment, Decrement,  Modifies
+
+		if (((y.mark & Increment)
+		&&   (y.mark & LowerBound))
+		||  ((y.mark & Decrement)
+		&&   (y.mark & UpperBound)))
+		{
+			print xx.fnm ":" xx.lnr ": in ";
+		} else
+		{
+			return;
+		}
+		if (y.lnr & For)
+		{	print "for";
+		}
+		if (y.lnr & While)
+		{	print "while";
+		}
+		if (y.lnr & Do)
+		{	print "do";
+		}
+		print "-loop '" xx.txt "' ";
+
+		z = xx.bound;
+		if (z.seq > 0)	# type
+		{	print "(" z.txt ") ";
+		}
+		if (y.mark & LowerBound)	# expect Decrement
+		{	print "has lowerbound (>) but can be ";
+			if (y.mark & Increment)		# expect UpperBound
+			{	print "incremented (++) ";
+			}
+		}
+		if (y.mark & UpperBound)	# expect Increment
+		{	print "has upperbound (<) but can be ";
+			if (y.mark & Decrement)		# expect LowerBound
+			{	print "decremented (--) ";
+			}
+		}
+	#	if (y.mark & Equal)
+	#	{	print "== ";
+	#	}
+	#	if (y.mark & UnEqual)
+	#	{	print "!= ";
+	#	}
+	#	if (y.mark & Modifies)
+	#	{	print "= ";
+	#	}
+	#	print y.mark;
+		print "\n";
+	}
+	Stop;
+%}
+
+pe for ( .* )
+mark no for
+%{
+	if (.mark == 0
+	||  .txt != "(")
+	{
+		Next;
+	}
+	init = .nxt;
+	if (init.txt == ";")	# for (; ...)
+	{	init = .;
+	}
+	cond = next_semi(init, 0);
+	incr = next_semi(cond, 1);
+	eincr = .jmp;	# end of control-part
+
+	body  = eincr.nxt;
+	ebody = body.jmp;
+
+	# if body.txt is a for, do, while, or if we cannot
+	# easily scan the body of the loop, so we give up
+
+	if (body.txt != "{"
+	|| ebody.txt != "}")
+	{	. = body;
+		Next;
+	}
+
+	find_loop_control(cond, incr,  incr, eincr,  body, ebody);
+	do_markings(For);
+	. = body;
+%}
+
+%{
+	if (cnt1 > 0)
+	{	if (verbose)
+		{	print "no loop counter found: " cnt1 "\n";
+		}
+		for (j in None_Found)
+		{	p = None_Found[j.txt];
+			add_pattern(No_Counter, p, p);
+			if (verbose)
+			{	print "\t" p.fnm ":" p.lnr "\n";
+		}	}
+	}
+	Stop;
+%}
+
+# = "for-loops"
+# ps list
+r
+pe while ( .* ) {
+mark no while
+%{
+	cnt1 = 0;
+	Stop;
+%}
+%{
+	if (.mark == 0
+	||  .txt != "(")
+	{	Next;
+	}
+
+	cond  = .nxt;
+	econd = .jmp;	# start of body, assuming {
+	body  = econd.nxt;
+	ebody = body.jmp;
+
+	if (body.txt != "{"
+	|| ebody.txt != "}")
+	{	Next;
+	}
+
+	find_loop_control(cond, econd, none, none, body, ebody);
+	do_markings(While);
+	. = body;
+%}
+# = "while loops"
+# ps list
+r
+pe } while ( .* ) ^{
+mark no while
+mark no }
+%{
+	cnt1 = 0;
+	Stop;
+%}
+%{
+	if (.mark == 0
+	||  .txt != "(")
+	{	Next;
+	}
+
+	cond  = .nxt;
+	econd = .jmp;		# end of condition
+	ebody = .prv;		# while
+	ebody = ebody.prv;	# } end of body
+	body = ebody.jmp;	# start of body
+
+	if (body.txt != "{"
+	|| ebody.txt != "}")
+	{	print .fnm ":" .lnr ": " .txt " Hey what happened?\n";
+		Next;
+	}
+
+	find_loop_control(cond, econd, none, none, body, ebody);
+	do_markings(Do);
+	. = econd.nxt;
+%}
+# = "do-while loops"
+ps list
+r
+
+symbols
+%{
+	# final readout, looking for suspicious uses
+print "Unique\n";
+	n = pset(Unique_Counter);
+
+	m = n;
+	while (n.seq != 0)
+	{	x = n.p_end;	# x.txt is the counter var
+		check_entry(x);
+		n = n.nxt;
+	}
+print "Multiple\n";
+	n = pset(Multiple_Counters);
+	n = pset(Multiple_Counters);
+	while (n.seq != 0)
+	{	x = n.p_end;	# x.txt is the counter var
+		check_entry(x);
+		n = n.nxt;
+	}
+	Stop;
+%}

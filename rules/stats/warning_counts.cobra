@@ -26,7 +26,7 @@
 			{	largest = SetNames[i.txt];
 				which = i.txt;
 		}	}
-		print largest "\t" which;
+		print largest "\t" cnt1 "\t" which;
 		if (cnt1 > 0)
 		{	print "\t" (100*largest) / cnt1 " %";
 		}
