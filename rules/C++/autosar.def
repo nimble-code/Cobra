@@ -1437,7 +1437,7 @@ end
 def A5_3_1	#  (RI-) Evaluation of the operand to the typeid operator shall not contain side effects.
 	r
 	pe A5_3_1: typeid ( .* [++ -- = += -= *= /= %=] .* )
-	ps caption A5_3_1 (Required) Evaluation of the operand to the sizeof operator shall not contain side effects.
+	ps caption A5_3_1 (Required) Evaluation of the operand to the typeid operator shall not contain side effects.
 end
 
 def A5_5_1	#  (RI+) The right hand operand of the integer division or remainder operators shall not be equal to zero.
@@ -3061,7 +3061,7 @@ def M19_3_1	#  (RI+) The error indicator errno shall not be used.
 	r
 	m errno
 	ps create M19_3_1
-	ps caption M19_3_1 (Rquired) The error indicator errno shall not be used.
+	ps caption M19_3_1 (Required) The error indicator errno shall not be used.
 end
 
 def A23_0_1	#  (RI+) An iterator shall not be implicitly converted to const_iterator.
