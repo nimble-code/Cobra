@@ -3180,8 +3180,8 @@ readf(char *s, char *t)		// append command
 		} else
 		{	post_process(0);
 		}
-		strip_comments_and_renumber(0);
-		ctokens(1); // calls set_ranges
+		strip_comments_and_renumber(0);	// set cmnt_head/cmnt_tail
+		ctokens(1);			// calls set_ranges
 		if (gui)
 		{	printf("opened file %s\n", s);
 	}	}
@@ -3445,15 +3445,16 @@ help(char *s, char *unused)	// 1
 	printf("  %8s  %c %s\n", "def ... end", ' ', "     define a named script");
 
 	printf("\nAdditional commands that cannot be abbreviated:\n");
-	printf("  %8s  %c %s\n", "cfg", ' ',            "f         show control-flow graph for fct f (cf fcg)");
+	printf("  %8s  %c %s\n", "cfg", ' ',            "fct         show control-flow graph for function fct (cf fcg)");
+	printf("  %8s  %c %s\n", "comments", ' ',       "            switch to the comments token sequence (cf source)");
+	printf("  %8s  %c %s\n", "context", ' ',	"fct         show callers and callees of function fct");
 	printf("  %8s  %c %s\n", "cpp", ' ',		"off|on    disable/re-enable preprocessing");
-	printf("  %8s  %c %s\n", "context", ' ',	"f         show callers and callees of a named function");
 //	printf("  %8s  %c %s\n", "declarations", ' ',	"      print type @ident sequences");
 	printf("  %8s  %c %s\n", "default", ' ',	"c         set c as the default command on empty line (eg 'default !date'");
 //	printf("  %8s  %c %s\n", "eval", ' ',		"(expr)    same as: m & (expr) and also same as: w[ith] (expr)");
 	printf("  %8s  %c %s\n", "fcts", ' ',		"          mark all fct definitions");
 	printf("  %8s  %c %s\n", "fcg", ' ',            "[f|*] [g] show fct call graph [from fct f] [to fct g]");
-	printf("  %8s  %c %s\n", "ff", ' ',		"f         find function f");
+	printf("  %8s  %c %s\n", "ff", ' ',		"fct         find function fct");
 	printf("  %8s  %c %s\n", "ft", ' ',		"t         mark the defintion of structure type t");
 	printf("  %8s  %c %s\n", "json", ' ',		"[msg]     print results of a pattern search (pe) in json format");
 	printf("  %8s  %c %s\n", "m2p",  ' ',           "name      store the current marks as a pattern set named 'name'");
@@ -3467,6 +3468,7 @@ help(char *s, char *unused)	// 1
 	printf("  %8s  %c %s\n", "restore", ' ',	"n         alternative syntax for: <n");
 	printf("  %8s  %c %s\n", "seed"   , ' ',	"fnm       seed markings by reading JSON formatted Cobra output file fnm");
 	printf("  %8s  %c %s\n", "setlinks", ' ',	"          set .bound field for if/else/switch/case/break stmnts");
+	printf("  %8s  %c %s\n", "source", ' ',       "            switch to the source code token sequence (cf comments)");
 	printf("  %8s  %c %s\n", "stream"  , ' ',	"[mode=text] [limit=N] [margin=N] when streaming input from stdin");
 	printf("  %8s  %c %s\n", "terse", ' ',		"on|off    enable/disable display of details with d/l/p");
 	printf("  %8s  %c %s\n", "track", ' ',		"start fnm|stop temporarily divert all output to fnm");

@@ -7,7 +7,7 @@
 #ifndef COBRA_FE
 #define COBRA_FE
 
-#define tool_version	"Version 4.1 - 21 July 2022"
+#define tool_version	"Version 4.2 - 19 October 2022"
 
 #include <stdio.h>
 #include <stdlib.h>

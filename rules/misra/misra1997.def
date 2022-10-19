@@ -189,7 +189,7 @@ def m97_rule17
 		{	add_pattern(M97_R17, q, q);
 		}
 	%}
-	ps caption M97_17 (Required) Typedef names shall not be reused for any other purpose in the application.
+	ps caption M97_R17 (Required) Typedef names shall not be reused for any other purpose in the application.
 end
 
 def m97_rule19
@@ -281,6 +281,18 @@ def m97_rule28
 	# rule was omitted in misra2004
 end
 
+def m97_rule29
+	# limited check, compiler checks other cases already
+	# assigning numeric value to enum constant:
+	r
+	pe M97_R29a: enum @ident = @const
+	pe M97_R29b: ( enum @ident ) @const
+	ps M97_R29 = M97_R29a + M97_R29b
+	ps caption M97_R29 (Required) The use of a tag shall agree with its declaration
+	ps delete M97_R29a
+	ps delete M97_R29b
+end
+
 def m97_rule32
 	r; m enum; n; m & {; c =; s =; c ,		# nameless enum, no comma before the first =
 	>1
@@ -309,6 +321,29 @@ def m97_rule33
 	<|1
 	ps create M97_R33
 	ps caption M97_R33 (Required) The right hand operand of a && or || operator shall not contain side effects
+end
+
+def m97_rule34
+	r
+	m &&
+	m ||
+	>1
+	b
+	m no )
+	b
+	m & @oper
+	m no !
+	>2
+	r
+	<1
+	n
+	m no (
+	n
+	m & @oper
+	m no !
+	<|2
+	ps create M97_R34
+	ps caption M97_R34 (Required) The operands of a logical && or || shall be primary expressions
 end
 
 def m97_rule35
@@ -357,6 +392,42 @@ def m97_rule36
 	r; m for; n \; ; s \; ; c ~
 	ps create M97_R36
 	ps caption M97_R36 (Advisory) Logical operators should not be confused with bitwise operators. (As revised:) There shall be no bitwise logical operators (&, |, or ~) in conditional expressions of control stmnts
+end
+
+def m97_rule37
+	r; symbols
+	m |
+	m \&
+	m ^
+	%{
+		if (.mark != 1)
+		{	Next;
+		}
+		.mark = 0;
+		q = .prv;
+		if (q.type == "ident")
+		{	p = q.bound;
+			if (p.seq > 0)
+			{	if (p.txt == "int"
+				||  p.txt == "short"
+				||  p.txt == "char"
+				||  p.txt == "float"
+				||  p.txt == "double")
+				{	add_pattern(M97_R37, q, .);
+		}	}	}
+		q = .nxt;
+		if (q.type == "ident")
+		{	p = q.bound;
+			if (p.seq > 0)
+			{	if (p.txt == "int"
+				||  p.txt == "short"
+				||  p.txt == "char"
+				||  p.txt == "float"
+				||  p.txt == "double")
+				{	add_pattern(M97_R37, ., q);
+		}	}	}
+	%}
+	ps caption M97_R37 (Required) Bitwise operations shall not be performed on signed integer types
 end
 
 def m97_rule40
@@ -431,6 +502,15 @@ def m97_rule42
 	ps caption M97_R42 (Required) The comma operator shall not be used, except in the control expression of a for-loop or in declarations or fct args
 end
 
+def m97_rule45
+	# partial check of void ptrs, but not void * casts
+	r; m void \*
+	b; m no (
+	n
+	ps create M97_R45
+	ps caption M97_R45 (Required) Pointers must have an associated type (of the object pointed to).
+end
+
 def m97_rule49
 	r
 	pe M97_R49a: [if while] ( @ident )
@@ -450,8 +530,23 @@ def m97_rule50
 	ps caption M97_R50 (Required) Floating point variables shall not be tested for exact equality or inequality.
 end
 
-def m97_rule 53
+def m97_rule52
+	# simple cases
+	pe M97_R52a: [if while] ( 0 )
+	pe M97_R52b: if ( 1 ) { .* } else
+	pe M97_R52c: for ( .* \; 0 \; .* )
+	ps M97_R52d = M97_R52a + M97_R52b
+	ps M97_R52 = M97_R52c + M97_R52d
+	ps caption M97_R52 (Required) There shall be no unreachable code. As revised: unless it explicitly deals with exception and failure cases
+	ps delete M97_R52a
+	ps delete M97_R52b
+	ps delete M97_R52c
+	ps delete M97_R52d
+end
+
+def m97_rule53
 	# goto with the target label immediately following
+	r
 	pe M97_R53: goto x:@ident \; :x :
 	ps caption M97_R53 (Required) All non-null statements either have a side-effect or change the flow of control.
 end
@@ -470,12 +565,11 @@ def m97_rule54
 	ps create M97_R54
 	ps caption M97_R54 (Required) A null stmnt shall only occur on a line by itself, and shall not have any other text (e.g., a comment) on the same line
 	comments
-	%{
-		if (.bound)
-		{	q = .bound;
-			if (q.txt == ";")
-			{	add_pattern(M97_R54a, q, q);
-		}	}
+	%{	q = .bound;
+		if (q.seq > 0
+		&&  q.txt == ";")
+		{	add_pattern(M97_R54a, q, q);
+		}
 	%}
 	source
 	ps caption M97_R54a (Required) Null statement cannot immediately follow a comment.
@@ -540,6 +634,7 @@ def m97_rule59
 end
 	
 def m97_rule60
+	r
 	check_ifelseif M97_R60
 	ps caption M97_R60 (Advisory) All if, else if constructs should contain a final else clause
 end
@@ -588,8 +683,15 @@ def m97_rule65
 end
 
 def m97_rule67
+	r
 	check_for M97_R67
 	ps caption M97_R67 (Advisory) Iteration count var should not be modified in the body of a for-loop
+end
+
+def m97_rule68
+	r
+	pe M97_R68: @type <1> [*]* @ident ( .* ) \; @1 (.curly > 0)
+	ps caption M97_R68 (Required) Functions shall always be declared at file scope
 end
 
 def m97_rule69
@@ -620,22 +722,31 @@ def m97_rule71
 		unset x;
 		unset y;
 		unset z;
-		x = pset(FD);
-		y = pset(FP);
+		x = pset(FD);		# fct definitions
+		y = pset(FP);		# fct prototypes
 		while (x.seq > 0)
 		{	a = x.p_start;
-			if (a.typ == "ident")	# should match
+			if (a.typ == "ident")	# should match, named of defined fct
 			{	# fct name
 				# check if its in at least one element of FP
-				z = y.p_start;
-				while (z.seq > 0)
-				{	if (z.txt == a.txt)
-					{
-						break;	# yes
+				y = pset(FP);
+				foundit = 0;
+				while (y.seq > 0 && foundit == 0)
+				{	z = y.p_start;	# start of one of the prototype defs
+					e = y.p_end;
+					while (z != e)	# look for name
+					{	if (z.txt == a.txt)
+						{	foundit = 1;
+							break;	# yes, fct a.txt has prototype
+						}
+						if (z.type == "ident")
+						{	break; # fct name is first ident in prototype
+						}
+						z = z.nxt;
 					}
-					z = z.nxt;
+					y = y.nxt;
 				}
-				if (z.seq == 0)		# no
+				if (foundit == 0)
 				{	add_pattern(M97_R71, a, a);
 				}
 			}
@@ -721,20 +832,21 @@ def m97_rule79
 	<|1		# both markings -- all names of fcts with return values used
 	%{
 		unset y;
-		y = pset VF;
+		y = pset(VF);
 		Stop;
 	%}
 	%{
-		if (.mark == 0) { Next; }
-		a = y.p_start;
-		while (a.seq > 0)
-		{	if (a.txt == .txt)
+		if (.mark != 1) { .mark = 0; Next; }
+		.mark = 0;
+		while (y.seq != 0)
+		{	a = y.p_start;
+			# a void fct: a.txt
+			if (a.txt == .txt)
 			{	add_pattern(M97_R79, a, a);
 				break;
 			}
-			a = a.nxt;
+			y = y.nxt;
 		}
-		# check if any of these are void fcts
 	%}
 	ps delete VF
 	ps caption M97_R79 (Required) The values returned by void functions shall not be used.
@@ -783,16 +895,19 @@ def m97_rule83
 end
 
 def m97_rule84
+	r
 	pe M97_R84: void @ident ( .* ) { .* return ^\; .* }
 	ps caption M97_R84 (Required) For functions with void return type, return statements shall not have an expression.
 end
 
 def m97_rule86
+	r
         pe M97_R86: ^void x:@ident ( .* ) { .* } ^[/= /> /<] :x ( .* ) ^[/= /> /<]
         ps caption M97_R86 (Advisory) If a function returns error information, then that error information should be tested.
 end
 
 def m97_rule87
+	r
 	. jpl/rule31.cobra
 	ps create M97_R87
 	ps caption M97_R87 (Required) \#include directives in a file shall only be preceded by other preprocessor directives or comments
@@ -825,6 +940,20 @@ def m97_rule92
 	ps caption M97_R92 (Advisory) \#undef should not be used
 end
 
+def m97_rule93
+	# report macros enclosed in { .. }
+	pe M97_R93: \#define @ident ( .* ) { .* }
+	ps caption M97_R93 (Advisory) A function should be used in preference to a function-like macro
+end
+
+def m97_rule95
+	# find uses of define include ifdef if ifndef else endif defined in any arg-lists
+	pe [define include defined if ifdef ifndef else endif]
+	m & (.round > 0 && .curly > 0)
+	ps create M97_R95
+	ps caption M97_R95 (Required) Arguments to a function-like macro shall not contain tokens that look like pre-processing directives
+end
+
 def m97_rule96
 	r
 	pe M97_R96: \#define @ident ( .* x:@ident .* ) ^[EOL EOF]* ^( :x 
@@ -846,7 +975,13 @@ end
 def m97_rule100
 	r; m @cpp; m & /defined.*[<>=]	# partial check
 	ps create M97_R100
-	ps caption M97_R100 (Required) The 'defined' pre-processor operator shall only be used in one of the two standard forms: 'defined (identifier)' or 'defined identifier'
+	ps caption M97_R100 (Required) The defined pre-processor operator shall only be used in one of the two standard forms: defined (identifier) or defined identifier
+end
+
+def m97_rule101
+	r
+	pe M97_R101: ( .* * ) ( .* \+ .* )					
+	ps caption M97_R101 (Advisory) Pointer arithmetic should not be used.
 end
 
 def m97_rule102
@@ -858,16 +993,46 @@ def m97_rule102
 	ps caption M97_R102 (Advisory) No more than 2 levels of pointer indirection should be used
 end
 
+def m97_rule106
+	# check for return of ref to local var
+	pe M97_R106a: { .* @type [*]* x:@ident .* return & :x .* }
+	pe M97_R106b: { .* @type x:@ident [ .* ] .* return :x .* }
+	ps M97_R106 = M97_R106a + M97_R106b
+	ps caption M97_R106 (Required) The address of an object with automatic storage shall not be assigned to an object which may persist after the object has ceased to exist
+	ps delete M97_R106a
+	ps delete M97_R106b
+end
+
+def m97_rule107
+        pe m97_R107: @ident ( .* * x:@ident .* ) { ^:x* ^[/= /> /<] :x ^[/= /> /<] .* }
+	ps caption m97_R107 (Required) The null pointer shall not be de-referenced. (Distrust the validity of pointers before dereferencing)
+end
+
+def m97_rule109
+	r
+	m97_rule110
+	ps M97_R109 = M97_R110 + Nothing
+	ps caption M97_R109 (Required) Overlapping variable storage shall not be used.
+end
+
 def m97_rule110
 	r; m union
 	ps create M97_R110
 	ps caption M97_R110 (Required) Unions shall not be used to access the sub-parts of larger data types
 end
 
-def m97_rule109
-	m97_rule110
-	ps M97_R109 = M97_R110 + Nothing
-	ps caption M97_R109 (Required) Overlapping variable storage shall not be used.
+def m97_rule111
+	r; symbols
+	m @ident :
+	n; n
+	m & @const
+	b; b; b
+	m & @type	# @type @ident : @const
+	m no int
+	m no uint
+	m no unsigned int
+	ps create M97_R111
+	ps caption M97_R111 (Required) Bit fields shall only be defined to be of type unsigned int or signed int
 end
 
 def m97_rule112
@@ -881,6 +1046,98 @@ def m97_rule112
 	n;n;n
 	ps create M97_R112
 	ps caption M97_R112 (Required) Bit fields of type signed int shall be at least 2 bits long
+end
+
+def m97_rule114
+	# checking reserved keywords and a few common standard lib fct names
+	r
+	m \#define
+	m \#undef
+	n
+	%{
+		if (.mark == 0)
+		{	Next;
+		}
+		.mark = 0;
+		if (.txt == "auto"
+		||  .txt == "break"
+		||  .txt == "case"
+		||  .txt == "char"
+		||  .txt == "const"
+		||  .txt == "continue"
+		||  .txt == "default"
+		||  .txt == "do"
+		||  .txt == "double"
+		||  .txt == "else"
+		||  .txt == "enum"
+		||  .txt == "extern"
+		||  .txt == "float"
+		||  .txt == "for"
+		||  .txt == "goto"
+		||  .txt == "if"
+		||  .txt == "int"
+		||  .txt == "long"
+		||  .txt == "register"
+		||  .txt == "return"
+		||  .txt == "short"
+		||  .txt == "signed"
+		||  .txt == "sizeof"
+		||  .txt == "static"
+		||  .txt == "struct"
+		||  .txt == "switch"
+		||  .txt == "typedef"
+		||  .txt == "union"
+		||  .txt == "unsigned"
+		||  .txt == "void"
+		||  .txt == "volatile"
+		||  .txt == "while"
+		||  .txt == "_Packed")
+		{	add_pattern(M97_R114, ., .);
+			Next;
+		}
+		if (.txt == "atoi"
+		||  .txt == "atol"
+		||  .txt == "calloc"
+		||  .txt == "malloc"
+		||  .txt == "printf"
+		||  .txt == "sprintf"
+		||  .txt == "fprintf"
+		||  .txt == "scanf"
+		||  .txt == "fscanf"
+		||  .txt == "sscanf"
+		||  .txt == "strcpy"
+		||  .txt == "strncpy")
+		{	add_pattern(M97_R114, ., .);
+		}
+	%}
+	ps caption M97_R114 (Required) Reserved words and standard library function names shall not be redefined or undefined
+end
+
+def m97_rule115
+	# a small number of initial checks
+	r
+	fcts
+	%{
+		if (.mark == 0)
+		{	Next;
+		}
+		.mark = 0;
+		if (.txt == "atoi"
+		||  .txt == "atol"
+		||  .txt == "calloc"
+		||  .txt == "malloc"
+		||  .txt == "printf"
+		||  .txt == "sprintf"
+		||  .txt == "fprintf"
+		||  .txt == "scanf"
+		||  .txt == "fscanf"
+		||  .txt == "sscanf"
+		||  .txt == "strcpy"
+		||  .txt == "strncpy")
+		{	add_pattern(M97_R115, ., .);
+		}
+	%}
+	ps caption M97_R115 (Required) Standard library function names shall not be reused
 end
 
 def m97_rule118

@@ -2,13 +2,32 @@
 
 requires 4.0
 
-def m12rule1_2
+. basic.def
+. misra/misra1997.def
+
+def m12_rule1_2
 	r; m @cpp; m & /pragma
 	ps create M12_R1_2
 	ps caption M12_R1_2 (Advisory) Language extensions should not be used
 end
 
-def m12rule2_6
+def m12_rule1_3
+	# not really a match of the m2012 rule?
+	m97_rule100
+	ps rename M97_R100 M12_R1_3
+end
+
+def m12_rule2_1
+	m97_rule52
+	ps rename M97_R52 M12_R2_1
+end
+
+def m12_rule2_2
+	m97_rule53
+	ps rename M97_R53 M12_R2_2
+end
+
+def m12_rule2_6
 	r; m ?; s :	# find p ? r : s
 	n :; b		# move mark to the ident before the :
 	>1		# save
@@ -34,7 +53,7 @@ def m12rule2_6
 	ps caption M12_R2_6 (Advisory) A fct should not contain unused label declarations
 end
 
-def m12rule2_7
+def m12_rule2_7
 	r; m @ident \(
 	n; j; e {; j	# remains: fct declarations, at the (
 	m ir @ident	# mark all parameter names (and typedef names
@@ -48,7 +67,7 @@ def m12rule2_7
 	ps caption M12_R2_7 (Advisory) There should be no unused parameters in fcts
 end
 
-def m12rule3_1
+def m12_rule3_1
 	comments
 	r; m //\*.*/\*
 	>1
@@ -65,7 +84,7 @@ def m12rule3_1
 	source
 end
 
-def m12rule3_2
+def m12_rule3_2
 	comments
 	r; m ///.*\\$
 	ps create M12_R3_2
@@ -73,7 +92,7 @@ def m12rule3_2
 	source
 end
 
-def m12rule4_1
+def m12_rule4_1
 	r; m \\\ /^['\"?abfnrtvxX0-9]		# undefined escape
 	>1
 	r; m \\\ /^[0-9][0-9][0-9]$		# octal escape
@@ -85,13 +104,13 @@ def m12rule4_1
 	ps caption M12_R4_1 (Required) Octal and hexadecimal escape sequences shall be terminated
 end
 
-def m12rule4_2
+def m12_rule4_2
 	r; m ? ?; n; e /^[=\(\)/'<>!\-]		# use of trigraphs
 	ps create M12_R4_2
 	ps caption M12_R4_2 (Advisory) Trigraphs should not be used
 end
 
-def m12rule4_3
+def m12_rule4_3
 	r; m asm; b {; s asm; c \;
 	>1
 	r; m asm; n \;; s }; c \;
@@ -100,7 +119,8 @@ def m12rule4_3
 	ps caption M12_R4_3 (Required) Assembly language shall be encapsulated and isolated
 end
 
-def m12rule4_4
+def m12_rule4_4
+	comments
 	r
 	m //\*.*\;.*\*/			# ; in C comment
 	m //\*[^\*]*\;			# avoid /* ... */ ...;
@@ -108,21 +128,97 @@ def m12rule4_4
 	m ///.*\;			# ; in C++ comment
 	ps create M12_R4_4
 	ps caption M12_R4_4 (Advisory) Sections of code should not be commented out
+	source
 end
 
-def m12rule4_6
+def m12_rule4_5
+	# based on autosar.def Rule M2_10_1
+	#	lower/uppercase
+	#	w/wo underscores
+	#	o and O
+	#	I and 1
+	#	I and l
+	#	S and 5
+	#	Z and 2
+	#	n and h
+	#	B and 8
+	#	rn and m
+
+	# check names from declarations only
+	%{
+		unset Mapped;
+		function check_m12_4_5(t) {
+			g = t.txt;
+			s = disambiguate(g); # builtin fct 4.0
+			q = Mapped[s];
+			if (q.seq > 0)
+			{	add_pattern(M12_R4_5, t, t);
+			} else
+			{	Mapped[s] = q;
+			}
+		}
+		Stop;
+	%}
+	%{
+		if (!@type) { Next; }
+		if (.round > 0) # likely parameter
+		{	while (.round != 0 && .txt != "EOF")
+			{	if (@ident)
+				{	check_m12_4_5(.);
+				}
+				. = .nxt;
+			}
+			Next;
+		}
+		. = .nxt;
+		if (.txt == "(") { Next; } # likely function
+		# likely declaration
+		while (.txt != ";" && .txt != "EOF")
+		{	if (@ident)
+			{	check_m12_4_5(.);
+			}
+			. = .nxt;
+		}
+	%}
+	ps caption M12_R4_5 (Advisory) Identifiers in the same name space with overlapping visibility should be typographically unambiguous
+end
+
+def m12_rule4_6
 	r; m char; m int; m short; m long; m float; m double
 	ps create M12_R4_6
 	ps caption M12_R4_6 (Advisory) typedefs that indicate size and signedness should be used in place of the basic numerical types
 end
 
-def m12rule4_12
+def m12_rule4_7
+	m97_rule86
+	ps rename M97_R86 M12_R4_7
+end
+
+def m12_rule4_9
+	m97_rule93
+	ps rename M97_R93 M12_R4_9
+end
+
+def m12_rule4_12
 	r; m /alloc; m free
 	ps create M12_R4_12
 	ps caption M12_R4_12 (Required) Dynamic memory allocation shall not be used
 end
 
-def m12rule6_2
+def m12_rule5_1
+	r
+	m @ident; m & (.len > 31)
+	ps create M12_R5_1
+	ps caption M12_R5_1 (Required) Identifiers (internal and external) shall not rely on the significance of more than 31 characters
+end
+
+def m12_rule5_3
+	m97_rule21
+	ps rename M97_R21 M12_R5_3
+	ps caption M12_R5_3 ((Required) Identifiers in an inner scope shall not use the same name as an identifier in an outer scope, and therefore hide that identifier
+end
+
+def m12_rule6_2
 	r; m ?; s :	# find p ? r : s
 	n :; b		# move mark to the ident before the :
 	>1		# save
@@ -139,19 +235,29 @@ def m12rule6_2
 	ps caption M12_R6_2 (Required) Single-bit named bit fields shall not be of a signed type
 end
 
-def m12rule7_1
+def m12_rule7_1
 	r; m \\\ /^[0-9][0-9][0-9]$		# octal escape
 	ps create M12_R7_1
 	ps caption M12_R7_1 (Required) Octal constants shall not be used
 end
 
-def m12rule7_3
+def m12_rule7_3
 	r; m /^[0-9]+l$
 	ps create M12_R7_3
 	ps caption M12_R7_3 (Required) The lowercase character l shall not be used in a literal suffix
 end
 
-def m12rule8_9
+def m12_rule8_2
+	m97_rule71
+	ps rename M97_R71 M12_R8_2
+end
+
+def m12_rule8_6
+	m97_rule25
+	ps rename M97_R25 M12_R8_6
+end
+
+def m12_rule8_9
 	r
 	!scope_check -json -N1 -c M12_R8_9 $FLAGS $ARGS > _M12_R8_9.txt
 	seed _M12_R8_9.txt
@@ -159,19 +265,43 @@ def m12rule8_9
 	!rm -f _M12_R8_9.txt
 end
 
-def m12rule8_11
+def m12_rule8_11
 	r; m extern; s \; c [; n [; e ]
 	ps create M12_R8_11
 	ps caption M12_R8_11 (Required) When an array with external linkage is declared, its size should be explicitly specified
 end
 
-def m12rule8_14
+def m12_rule8_12
+	# not a complete match to the rule
+	r; m enum; n; m & {; c =; s =; c ,		# nameless enum, no comma before the first =
+	>1
+	r; m enum; n; n; m & {; c =; s =; c ,		# named enum
+	<|1
+	ps create M12_R8_12
+	ps caption M12_R8_12 (Required) In an enumerator list, the = construct shall not be used to explicitly initialise members other than the first, unless all items are explicitly initialised
+end
+
+def m12_rule8_14
 	r; m restrict
 	ps create M12_R8_14
 	ps caption M12_R8_14 (Required) The restrict type qualifier shall not be used
 end
 
-def m12rule12_3
+def m12_rule10_1
+	m97_rule36
+	ps rename M97_R36 M12_R10_1
+	ps caption M12_R10_1 (Required) Operands shall not be of an inappropriate essential type
+end
+
+def m12_rule12_1
+	# not a very good match of the rule
+	m97_rule34
+	ps rename M97_R34 M12_R12_1
+
+	# Rule 12.1 (Advisory) The precedence of operators within expressions should be made explicit
+end
+
+def m12_rule12_3
 	r; m @type; s \;; c ,; m ,		# commas in declarations
 	>1
 	r; m ,
@@ -181,7 +311,7 @@ def m12rule12_3
 	ps caption M12_R12_3 (Advisory) The comma operator should not be used
 end
 
-def m12rule13_4
+def m12_rule13_4
 	r; m if;    n; c /[-+][-+]		# pre or post increments
 	>1
 	r; m if;    n; c /[^=<>!]=		# assignments
@@ -202,7 +332,7 @@ def m12rule13_4
 	ps caption M12_R13_4 (Advisory) The result of an assignment operator should not be used
 end
 
-def m12rule13_5
+def m12_rule13_5
 	r; m \&&; s top ); c no \;; c /[-+][-+]	# not in for-loop; pre or post increments
 	>1
 	r; m \||; s top ); c no \;; c /[-+][-+]
@@ -223,7 +353,7 @@ def m12rule13_5
 	ps caption M12_R13_5 (Required) The right hand operand of && or || shall not contain persistent side effects
 end
 
-def m12rule13_6
+def m12_rule13_6
 	r; m sizeof; n
 #	c /[-=\+\(]		# xxx false match on: sizeof( (array) )
 	%{
@@ -255,13 +385,30 @@ def m12rule13_6
 	ps caption M12_R13_6 (Mandatory) The operand of sizeof shall not have side effects
 end
 
-def m12rule15_1
+def m12_rule14_1
+	m97_rule65
+	ps rename M97_R65 M12_R14_1
+	ps caption M12_R14_1 (Required) The controlling expression of a for statement shall not contain any objects of floating type
+end
+
+def m12_rule14_2
+	check_for M12_R14_2
+	ps caption M12_R14_2 (Required) A for loop shall be well-formed
+end
+
+def m12_rule14_4
+	m97_rule49
+	ps rename M97_R49 M12_R14_4
+	ps caption M12_R14_4 (Required) The controlling expression of an if statement and the controlling expression of an iteration-statement shall have essentially Boolean type
+end
+
+def m12_rule15_1
 	r; m goto
 	ps create M12_R15_1
 	ps caption M12_R15_1 (Advisory) The goto stmnt should not be used
 end
 
-def m12rule15_2
+def m12_rule15_2
 	r; m goto; n	# names of labels used in gotos
 	>1		# all labelnames
 	st $$ :		# forward to labelname followed by colon
@@ -273,7 +420,7 @@ def m12rule15_2
 	ps caption M12_R15_2 (Required) The goto stmnt shall jump to a label declared later in the same fct
 end
 
-def m12rule15_4
+def m12_rule15_4
 	r; m switch \(
 	n; j; e {; n	# ; n; s top }
 	m ir break	# marks break stmnts inside switch
@@ -304,7 +451,7 @@ def m12rule15_4
 	ps caption M12_R15_4 (Advisory) There should be no more than one break or goto stmnt used to terminate any iteration stmnt
 end
 
-def m12rule15_5
+def m12_rule15_5
 	r; m @ident \(
 	m & (!.curly(
 	n; j; e {; n
@@ -318,7 +465,7 @@ def m12rule15_5
 	ps caption M12_R15_5 (Advisory) A fct should have a single point of exit at the end
 end
 
-def m12rule15_6
+def m12_rule15_6
 	r; m switch \(; n; j; n; unmark {
 	>1
 	r; m while; b; unmark }
@@ -335,13 +482,43 @@ def m12rule15_6
 	ps caption M12_R15_6 (Required) The body of an iteration-stmnt or a selection-stmnt shall be a compound-stmnt
 end
 
-def m12rule15_7
+def m12_rule15_7
 	check_ifelseif M12_R15_7
 	ps create M12_R15_7
 	ps caption M12_R15_7 (Required) All if ... else if constructs shall be terminated with an else stmnt
 end
 
-def m12rule16_3
+def m12_rule16_2
+	r
+	m case
+	n; n
+	m & :
+	b; b
+	%{
+		if (.mark == 0)
+		{	Next;
+		}
+		.mark = 0;
+		if (.curly <= 1)
+		{	Next;
+		}
+		q = .;
+		while (q.txt != "{")
+		{	q = q.prv;
+		}
+		q = q.prv;	# switch ( .* ) { ... case
+		if (q.txt == ")" && q.jmp != 0)
+		{	q = q.jmp;
+			q = q.prv;
+			if (q.txt == "switch")
+			{	Next;
+		}	}
+		add_pattern(M12_R16_2, q, .);
+	%}
+	ps caption M12_R16_2 (Required) A switch label shall only be used when the most closely-enclosing compound statement is the body of a switch statement.
+end
+
+def m12_rule16_3
 	r; m case; s top case; c \;; c no switch; c no break
 	>1
 	r; m case; s top default; c \;; c no switch; c no break
@@ -354,7 +531,7 @@ def m12rule16_3
 	ps caption M12_R16_3 (Required) An unconditional break stmnt shall terminate every switch-clause
 end
 
-def m12rule16_4
+def m12_rule16_4
 	r; m switch
 	n {
 	c top no default
@@ -363,19 +540,29 @@ def m12rule16_4
 	ps caption M12_R16_4 (Required) Every switch stmnt shall have a default label
 end
 
-def m12rule16_6
+def m12_rule16_6
 	r; m switch; n {; c no case
 	ps create M12_R16_6
 	ps caption M12_R16_6 (Required) Every switch stmnt shall have at least two switch-clauses
 end
 
-def m12rule17_1
+def m12_rule16_7
+	r; m switch; n {; c top no case
+	>1
+	r; m switch; n {; c case
+	n case; n; s top }; c no case	# partial check
+	<|1
+	ps create M12_R16_7
+	ps caption M12_R16_7 (Required) A switch expression shall not represent a value that is effectively Boolean
+end
+
+def m12_rule17_1
 	r; m @cpp; m & /stdarg.h
 	ps create M12_R17_1
 	ps caption M12_R17_1 (Required) The features of <stdarg.h> shall not be used
 end
 
-def m12rule17_2
+def m12_rule17_2
 	r; m @ident \(; n; j; ex {; j; b	# all fct declarations
 	st top }		# set range to fct body (stretch command)
 	m ir $$			# match of fct name inside the range
@@ -384,7 +571,7 @@ def m12rule17_2
 	ps caption M12_R17_2 (Required) Functions shall not call themselves, either directly or indirectly
 end
 
-def m12rule17_4
+def m12_rule17_4
 	r; m @ident \(; n; j; extend {; j; b; b; mark no void; n {
 	c no return	# should match zero ranges
 	u		# undo
@@ -395,7 +582,7 @@ def m12rule17_4
 	ps caption M12_R17_4 (Mandatory) All exit paths from a fct with non-void return type shall have an explicit return stmnt with an expression
 end
 
-def m12rule17_6
+def m12_rule17_6
 	r; m @ident \(; n; j; e {; j
 	c [
 	n [
@@ -404,7 +591,7 @@ def m12rule17_6
 	ps caption M12_R17_6 (Mandatory) The declaration of an array parameter shall not contain the static keyword between the [ ]
 end
 
-def m12rule17_8
+def m12_rule17_8
 	r; m @ident \(; n; j; e {; j
 	m ir @ident
 	st $$
@@ -422,7 +609,25 @@ def m12rule17_8
 	ps caption M12_R17_8 (Advisory) A fct parameter should not be modified
 end
 
-def m12rule18_5
+def m12_rule18_1
+	m97_rule101
+	ps rename M97_R101 M12_R18_1
+	ps caption M12_R18_1 (Required) A pointer resulting from arithmetic on a pointer operand shall address an element of the same array as that pointer operand
+end
+
+def m12_rule18_2
+	r
+	pe M12_R18_2: ( .* * ) ( .* - .* )					
+	ps caption M12_R18_2 (Required)  Subtraction between pointers shall only be applied to pointers that address elements of the same array
+end
+
+def m12_rule18_3
+	r
+	pe M12_R18_3: ( .* * ) ( .* [< > <= >=] .* )					
+	ps caption M12_R18_3 (Required) The relational operators >, >=, < and <= shall not be applied to objects of pointer type except where they point into the same object
+end
+
+def m12_rule18_5
 	r; m * *; n; n; m & *
 	>1
 	r; m * *; n; n; m & @ident; n; m & [
@@ -431,7 +636,13 @@ def m12rule18_5
 	ps caption M12_R18_5 (Advisory) Declarations should contain no more than two levels of pointer nesting
 end
 
-def m12rule18_7
+def m12_rule18_6
+	m97_rule106
+	ps rename M97_R106 M12_R18_6
+	ps caption M12_R18_5  (Required) The address of an object with automatic storage shall not be copied to another object that persists after the first object has ceased to exist
+end
+
+def m12_rule18_7
 	r; m @ident [
 	n; e ]		# name []
 	n; e /^\;,$	# ]
@@ -444,95 +655,153 @@ def m12rule18_7
 	ps caption M12_R18_7 (Required) Flexible array members shall not be declared
 end
 
-def m12rule19_2
+def m12_rule19_2
 	r; m union
 	ps create M12_R19_2
 	ps caption M12_R19_2 (Advisory) The union keyword should not be used
 end
 
-def m12rule20_1
+def m12_rule20_1
 	. jpl/rule31.cobra
 	ps create M12_R20_1
 	ps caption M12_R20_1 include directives should only be preceded by preprocessor directives or comments
 end
 
-def m12rule20_2
+def m12_rule20_2
 	r; m @cpp; m & /include.*['"\\\*]
 	ps create M12_R20_2
 	ps caption M12_R20_2 (Required) Single or double quote or \ characters and the /* or // character sequences shall not occur in a header file name
 end
 
-def m12rule20_3
+def m12_rule20_3
 	r; m @cpp; m & /include; m no /\<; m no /
 	ps create M12_R20_3
 	ps caption M12_R20_3 (Advisory) (Required) The \#include directive shall be followed by either a <filename> or 'filename' sequence
 end
 
-def m12rule20_5
+def m12_rule20_5
 	r; m @cpp; m & /undef
 	ps create M12_R20_5
 	ps caption M12_R20_5 (Advisory) \#undef should not be used
 end
 
-def m12rule20_10
+def m12_rule20_7
+	m97_rule96
+	ps rename M97_R96 M12_R20_7
+	ps caption M12_R20_7 (Required) Expressions resulting from the expansion of macro parameters shall be enclosed in parentheses
+end
+
+def m12_rule20_10
 	r; m @cpp; m & /define.*\#
 	ps create M12_R20_10
 	ps caption M12_R20_10 (Advisory) The \# and \#\# preprocessor operators should not be used
 end
 
-def m12rule21_3
+def m12_rule20_11
+	r; m @cpp; m & /\#[^\#]+\#
+	ps create M12_R20_11
+	ps caption M12_R20_11 (Required) There shall be at most one occurrence of the \# or \#\# preprocessor operators in a single macro definition
+end
+
+def m12_rule20_14
+	# m04_rule19_17
+	r; m /\#if
+	%{
+		unset Ifs;
+		unset Ends;
+		unset SampleIf;
+		Stop;
+	%}
+	%{
+		if (.mark == 0) { Next; }
+		.mark = 0;
+		Ifs[.fnm]++;
+		SampleIf[.fnm] = .;
+	%}
+	r; m /\#endif
+	%{
+		if (.mark == 0) { Next; }
+		.mark = 0;
+		Ends[.fnm]++;
+	%}
+	%{
+		for (i in Ifs)
+		{	cnt1 = Ifs[i.txt];	# filename: i.txt
+			cnt2 = Ends[i.txt];	# same file
+			if (cnt1 != cnt2)
+			{	q = SampleIf[i.txt];
+				add_pattern(M12_R20_14, q, q);
+		}	}
+		Stop;
+	%}
+	ps caption M12_R20_14 (Required) All \#else, \#elif and \#endif preprocessor directives shall reside in the same file as the \#if or \#ifdef directive to which they are related
+end
+
+def m12_rule21_1
+	m97_rule114
+	ps rename M97_R114 M12_R21_1
+	ps caption M12_R21_1 (Required) \#define and \#undef shall not be used on a reserved identifier or reserved macro name
+end
+
+def m12_rule21_2
+	m97_rule115
+	ps rename M97_R115 M12_R21_2
+	ps caption M12_R21_2 (Required) A reserved identifier or macro name shall not be declared
+end
+
+def m12_rule21_3
 	r; m /alloc; m free
 	ps create M12_R21_3
 	ps caption M12_R21_3 (Required) The memory allocation and deallocation fcts of <stdlib.h> shall not be used
 end
 
-def m12rule21_4
+def m12_rule21_4
 	r; m @cpp; m & /setjmp.h
 	ps create M12_R21_4
 	ps caption M12_R21_4 (Required) The standard header file <setjmp.h> shall not be used
 end
 
-def m12rule21_5
+def m12_rule21_5
 	r; m @cpp; m & /signal.h
 	ps create M12_R21_5
 	ps caption M12_R21_5 (Required) The standard header file <signal.h> shall not be used
 end
 
-def m12rule21_6
+def m12_rule21_6
 	r; m @cpp; m & /stdio.h
 	ps create M12_R21_6
 	ps caption M12_R21_6 (Required) The Standard Library input/output fcts shall not be used
 end
 
-def m12rule21_7
+def m12_rule21_7
 	r; m atof; m atoi; m atol
 	ps create M12_R21_7
 	ps caption M12_R21_7 (Required) The atof, atoi, atol and atoll fcts of <stdlib.h> shall not be used
 end
 
-def m12rule21_8
+def m12_rule21_8
 	r; m abort; m exit; m getenv; m system
 	ps create M12_R21_8
 	ps caption M12_R21_8 (Required) The library fcts abort, exit, getenv and system of <stdlib.h> shall not be used
 end
 
-def m12rule21_9
+def m12_rule21_9
 	r; m bsearch; m qsort
 	ps create M12_R21_9
 	ps caption M12_R21_9 (Required) The library fcts bsearch and qsort of <stdlib.h> shall not be used
 end
 
-def m12rule21_10
+def m12_rule21_10
 	r; m @cpp; m & /time.h
 	ps create M12_R21_10
 	ps caption M12_R21_10 (Required) The standard library time and date fcts shall not be used
 end
-def m12rule21_11
+def m12_rule21_11
 	r; m @cpp; m & /tgmath.h
 	ps create M12_R21_11
 	ps caption M12_R21_11 (Required) The standard header file <tgmath.h> shall not be used
 end
-def m12rule21_12
+def m12_rule21_12
 	r; m @cpp; m & /fenv.h
 	ps create M12_R21_12
 	ps caption M12_R21_12 (Advisory) The exception handling features of <fenv.h> should not be used

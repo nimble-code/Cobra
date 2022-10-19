@@ -125,7 +125,10 @@ extern int	 echo;
 extern int	 eol, eof;
 extern int	 across_file_match;	// global flag
 extern int	 evaluate(const Prim *, const Lextok *);
-extern void	 fix_eol(void);
+extern int	 has_suppress_tags;
+
+extern void	fix_eol(void);
+extern int	matches_suppress(const Prim *, const char *);
 
 static List	*curstates[3]; // 2 is initial
 static List	*freelist;
@@ -1924,7 +1927,15 @@ patterns_json(char *s)
 		return;
 	}
 	for (m = q->m; m; m = m->nxt)
-	{	if (m->msg)
+	{	if (has_suppress_tags
+		&&  matches_suppress(m->from, m->msg))
+		{	if (verbose)
+			{	fprintf(stderr, "%s:%d: warning suppressed by tag match\n",
+					m->from->fnm, m->from->lnr);
+			}
+			continue;
+		}
+		if (m->msg)
 		{	strncpy(json_msg, m->msg, sizeof(json_msg)-1);
 		} else if (strcmp(m->from->fnm, m->upto->fnm) == 0)
 		{	sprintf(json_msg, "lines %d..%d",
@@ -2143,6 +2154,16 @@ pattern_matched(Named *curset, int which, int N, int M)
 		&&  strcmp(pattern_filter, m->from->fnm) != 0)
 		{	continue;
 		}
+
+		if (has_suppress_tags
+		&& matches_suppress(m->from, m->msg))
+		{	if (verbose)
+			{	fprintf(stderr, "%s:%d: warning suppressed by tag match\n",
+					m->from->fnm, m->from->lnr);
+			}
+			continue;
+		}
+
 		if (m->from->seq > m->upto->seq)
 		{	Prim *tmp = m->from;
 			m->from = m->upto;

@@ -3,6 +3,7 @@
 requires 3.9
 
 . basic.def
+. misra/misra1997.def
 
 def m04_rule2_1
 	r; m asm; b {; s asm; c \;
@@ -14,26 +15,32 @@ def m04_rule2_1
 end
 
 def m04_rule2_2
+	comments
 	r; m \//
 	ps create M04_R2_2
 	ps caption M04_R2_2 (Required) Source code shall only use /* ... */ style comments
+	source
 end
 
 def m04_rule2_3
+	comments
 	r
 	m /^/\*.*/\*
 	m /^//.*/\*
 	ps create M04_R2_3
 	ps caption M04_R2_3 (Required) The character sequence /* shall not be used within a comment
+	source
 end
 
 def m04_rule2_4
+	comments
 	r; m //\*.*\;.*\*/		# stmnt separator in C comment
 	m //\*[^\*]*\;			# avoid /* ... */ ...;
 	m //\*[^/]*\;			# ditto
 	m ///.*\;			# stmnt separator in C++ comment
 	ps create M04_R2_4
 	ps caption M04_R2_4 (Advisory) Sections of code should not be commented out
+	source
 end
 
 def m04_rule3_4
@@ -61,6 +68,55 @@ def m04_rule5_1
 	m @ident; m & (.len > 31)
 	ps create M04_R5_1
 	ps caption M04_R5_1 (Required) Identifiers (internal and external) shall not rely on the significance of more than 31 characters
+end
+
+def m04_rule5_2
+	m97_rule21
+	ps rename M97_R21 M04_R5_2
+	ps caption M04_R5_2 ((Required) Identifiers in an inner scope shall not use the same name as an identifier in an outer scope, and therefore hide that identifier
+end
+
+def m04_rule5_3
+	m97_rule17
+	ps rename M97_R17 M04_R5_3
+	ps caption M04_R5_3 (Required) A typedef name shall be a unique identifier
+end
+
+def m04_rule5_5
+	r
+	m static @type
+	n; n
+	m & @ident
+	%{
+		unset Statics;
+		Stop;
+	%}
+	%{
+		if (.mark == 0)
+		{	Next;
+		}
+		.mark = 0;
+		Statics[.txt] = .;
+	%}
+	m @type @ident
+	n
+	%{
+		if (.mark == 0)
+		{	Next;
+		}
+		.mark = 0;
+		p = Statics[.txt];
+		if (p.seq > 0
+		&&  p.fnm != .fnm)
+		{	add_pattern(M04_R5_5, ., .);
+		}
+	%}
+	ps caption M04_R5_5 (Advisory) No object or function identifier with static storage duration should be reused
+end
+
+def m04_rule5_6
+	m97_rule12
+	ps rename M97_R12 M04_R5_6
 end
 
 def m04_rule6_3
@@ -104,6 +160,25 @@ def m04_rule7_1
 	ps caption M04_R7_1 (Required) Octal constants (other than zero) and octal escape sequences shall not be used
 end
 
+def m04_rule8_1
+	m97_rule71
+	ps rename M97_R71 M04_R8_1
+end
+
+def m04_rule8_2
+	m97_rule75
+	ps rename M97_R75 M04_R8_2
+	ps caption M04_R8_2 (Required) Whenever an object or function is declared or defined, its type shall be explicitly stated
+end
+
+def m04_rule8_5
+	r
+	fcts
+	m & (.fnm == "/\.h$")
+	ps create M04_R8_5
+	ps caption M04_R8_5 (Required) There shall be no definitions of objects or functions in a header file
+end
+
 def m04_rule8_6
 	r; m extern; m & (.curly > 0)	# partial check
 	ps create M04_R8_6
@@ -117,6 +192,11 @@ def m04_rule8_7
 	seed _M04_R8_7.txt
 	ps caption M04_R8_7 (Required) Objects shall be defined at block scope if they are only accessed from within a single function
 	!rm -f _M04_R8_7.txt
+end
+
+def m04_rule8_9
+	m97_rule25
+	ps rename M97_R25 M04_R8_9
 end
 
 def m04_rule8_10
@@ -161,6 +241,17 @@ def m04_rule12_4
 	ps caption M04_R12_4 (Required) The right-hand operand of a logical && or || operator shall not contain side effects
 end
 
+def m04_rule12_5
+	m97_rule34
+	ps rename M97_R34 M04_R12_5
+end
+
+def m04_rule12_6
+	m97_rule36
+	ps rename M97_R36 M04_R12_6
+	ps caption M04_R12_6 (Advisory) Expressions that are effectively Boolean should not be used as operands to operators other than (&&, || and !)
+end
+
 def m04_rule12_10
 	r; m @type; s \;; c ,; m ,	# commas in declarations
 	>1
@@ -169,6 +260,11 @@ def m04_rule12_10
 	<^1
 	ps create M04_R12_10
 	ps caption M04_R12_10 (Required) The comma operator shall not be used
+end
+
+def m04_rule12_12
+	m97_rule16
+	ps rename M97_R16 M04_R12_12
 end
 
 def m04_rule13_1
@@ -192,6 +288,11 @@ def m04_rule13_1
 	ps caption M04_R13_1 (Required) Assignment operators shall not be used in expressions that yield a Boolean value
 end
 
+def m04_rule13_2
+	m97_rule49
+	ps rename M97_R49 M04_R13_2
+end
+
 def m04_rule13_3
 	r; m [!=]=; b; m & .
 	>1
@@ -201,9 +302,30 @@ def m04_rule13_3
 	ps caption M04_R13_3 (Required) Floating-point expressions shall not be tested for equality or inequality
 end
 
+def m04_rule13_4
+	m97_rule65
+	ps rename M97_R65 M04_R13_4
+	ps caption M04_R13_4 (Required) The controlling expression of a for statement shall not contain any objects of floating type
+end
+
 def m04_rule13_6
 	check_for M04_R13_6
 	ps caption M04_R13_6 (Required) Numeric vars used in a for loop for iteration counting shall not be modified in the loop-body
+end
+
+def m04_rule14_1
+	m97_rule52
+	ps rename M97_R52 M04_R14_1
+end
+
+def m04_rule14_2
+	m97_rule53
+	ps rename M97_R53 M04_R14_2
+end
+
+def m04_rule14_3
+	m97_rule54
+	ps rename M97_R54 M04_R14_3
 end
 
 def m04_rule14_4
@@ -278,6 +400,36 @@ def m04_rule14_10
 	ps caption M04_R14_10 (Required) All if... else if constructs shall be terminated with an else clause
 end
 
+def m04_rule15_1
+	r
+	m case
+	n; n
+	m & :
+	b; b
+	%{
+		if (.mark == 0)
+		{	Next;
+		}
+		.mark = 0;
+		if (.curly <= 1)
+		{	Next;
+		}
+		q = .;
+		while (q.txt != "{")
+		{	q = q.prv;
+		}
+		q = q.prv;	# switch ( .* ) { ... case
+		if (q.txt == ")" && q.jmp != 0)
+		{	q = q.jmp;
+			q = q.prv;
+			if (q.txt == "switch")
+			{	Next;
+		}	}
+		add_pattern(M04_R15_1, q, .);
+	%}
+	ps caption M04_R15_1 (Required) A switch label shall only be used when the most closely-enclosing compound statement is the body of a switch statement.
+end
+
 def m04_rule15_2
 	r; m case; s case; c \;; c no switch; c no break
 	>1
@@ -331,6 +483,11 @@ def m04_rule16_2
 	ps caption M04_R16_2 (Required) Functions shall not call themselves, either directly or indirectly
 end
 
+def m04_rule16_3
+	m97_rule73
+	ps rename M97_R73 M04_R16_3
+end
+
 def m04_rule16_5
 	r; m @ident \(; n; j; e {; j; e )
 	ps create M04_R16_5
@@ -350,6 +507,28 @@ def m04_rule16_8
 	ps caption M04_R16_8 (Required) All exit paths from a fct with non-void return type shall have an explicit return stmnt with an expression
 end
 
+def m04_rule16_10
+	m97_rule86
+	ps rename M97_R86 M04_R16_10
+end
+
+def m04_rule17_1
+	m97_rule101
+	ps rename M97_R101 M04_R17_1
+end
+
+def m04_rule17_2
+	r
+	pe M04_R17_2: ( .* * ) ( .* - .* )					
+	ps caption M04_R17_2 (Required) Pointer subtraction shall only be applied to pointers that address elements of the same array
+end
+
+def m04_rule17_3
+	r
+	pe M04_R17_3: ( .* * ) ( .* [< > <= >=] .* )					
+	ps caption M04_R17_3 (Required) >, >=, <, <= shall not be applied to pointer types except where they point to the same array
+end
+
 def m04_rule17_5
 	r; m * *; n; n; m & *
 	>1
@@ -357,6 +536,11 @@ def m04_rule17_5
 	<|1
 	ps create M04_R17_5
 	ps caption M04_R17_5 (Advisory) The declaration of objects should contain no more than 2 levels of pointer indirection
+end
+
+def m04_rule17_6
+	m97_rule106
+	ps rename M97_R106 M04_R17_6
 end
 
 def m04_rule18_4
@@ -399,6 +583,24 @@ def m04_rule19_6
 	ps caption M04_R19_6 (Required) \#undef shall not be used
 end
 
+def m04_rule19_7
+	m97_rule93
+	ps rename M97_R93 M04_R19_7
+end
+
+def m04_rule19_9
+	# m97_rule95
+	pe [define include defined if ifdef ifndef else endif]
+	m & (.round > 0 && .curly > 0)
+	ps create M04_R19_9
+	ps caption M04_R19_9 (Required) Arguments to a function-like macro shall not contain tokens that look like preprocessing directives
+end
+
+def m04_rule19_10
+	m97_rule96
+	ps rename M97_R96 M04_R19_10
+end
+
 def m04_rule19_12
 	r; m @cpp; m & /\#[^\#]+\#
 	ps create M04_R19_12
@@ -411,6 +613,54 @@ def m04_rule19_13
 	unmark /define
 	ps create M04_R19_13
 	ps caption M04_R19_13 (Advisory) The \# and \#\# preprocessor operators should not be used
+end
+
+def m04_rule19_14
+	m97_rule100
+	ps rename M97_R100 M04_R19_14
+end
+
+def m04_rule19_17
+	r; m /\#if
+	%{
+		unset Ifs;
+		unset Ends;
+		unset SampleIf;
+		Stop;
+	%}
+	%{
+		if (.mark == 0) { Next; }
+		.mark = 0;
+		Ifs[.fnm]++;
+		SampleIf[.fnm] = .;
+	%}
+	r; m /\#endif
+	%{
+		if (.mark == 0) { Next; }
+		.mark = 0;
+		Ends[.fnm]++;
+	%}
+	%{
+		for (i in Ifs)
+		{	cnt1 = Ifs[i.txt];	# filename: i.txt
+			cnt2 = Ends[i.txt];	# same file
+			if (cnt1 != cnt2)
+			{	q = SampleIf[i.txt];
+				add_pattern(M04_R19_17, q, q);
+		}	}
+		Stop;
+	%}
+	ps caption M04_R19_17 (Required) All \#else, \#elif and \#endif preprocessor directives shall reside in the same file as the \#if or \#ifdef directive to which they are related
+end
+
+def m04_rule20_1
+	m97_rule114
+	ps rename M97_R114 M04_R20_1
+end
+
+def m04_rule20_2
+	m97_rule115
+	ps rename M97_R115 M04_R20_2
 end
 
 def m04_rule20_4

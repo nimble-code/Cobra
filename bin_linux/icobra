@@ -4079,6 +4079,12 @@ are located. You can click on each file to get the details and navigate\n \
 through the set of warnings. Each warning is color coded by the Pattern Set\n \
 that contains it \n \
    \n\
+The Warnings tab \n \
+- Is a reverse heatmap, showing which files contain most warnings from pattern\n \
+sets. You can click on each file to get the details and navigate\n \
+through the set of warnings. Each warning is again color coded by the Pattern Set\n \
+that contains it \n \
+   \n\
 Other Commands:\n \
 Type any valid Cobra query command in the command panel at the bottom of the display\n \
 For instance, typing \n \

@@ -1,4 +1,5 @@
 # 15 rules are either compiler checks or outside the scope of static analyzers like cobra
+# or the property is already checked by modern compilers
 
 !echo "Rule 1 (Required) All code shall conform to ISO 9899:1990 standard C, with no extensions permitted."
 # checked by compiler
@@ -21,20 +22,38 @@
 !echo "Rule 20 (Required) All object and function identifiers shall be declared before use."
 # checked by compiler
 
+!echo "Rule 26 (Required) If objects or functions are declared more than once they shall have compatible declarations."
+# compiler checks
+
+!echo "Rule 31 (Required) Braces shall be used to indicate and match the structure in the non-zero initialisation of arrays and structures."
+# compiler checked
+
+!echo "Rule 38 (Required) The right hand operand of a shift operator shall lie between zero and one less than the width in bits of the left hand operand (inclusive)."
+# tbd, platform dependent
+
+!echo "Rule 39 (Required) The unary minus operator shall not be applied to an unsigned expression."
+# compiler checks
+
 !echo "Rule 41 (Advisory) The implementation of integer division in the chosen compiler should be determined, documented and taken into account."
 # outside scope of static analysis
 
 !echo "Rule 44 (Advisory) (As revised:) Redundant or unnecessary casts are allowed, but must be identified as such in a comment."
 # outside scope of static analysis
 
-!echo "Rule 68 (Required) Functions shall always be declared at file scope."
+!echo "Rule 72 (Required) For each function parameter the type given in the declaration and definition shall be identical, and the return types shall also be identical."
 # compiler checks
 
 !echo "Rule 77 (Required) The unqualified type of parameters passed to a function shall be compatible with the unqualified expected types defined in the function prototype."
 # compiler can check
 
-!echo "Rule 101 (Advisory) Pointer arithmetic should not be used."
-# not cobra
+!echo "Rule 78 (Required) The number of parameters passed to a function shall match the function prototype."
+# compiler checks
+
+!echo "Rule 85 (Advisory) Functions called with no parameters should have empty parentheses."
+# checked by compiler
+
+!echo "Rule 94 (Required) A function-like macro shall not be 'called' without all of its arguments."
+# compiler checks
 
 !echo "Rule 103 (Required) Relational operators shall not be applied to pointer types except where both operands are of the same type and point to the same array, structure or union."
 # not cobra

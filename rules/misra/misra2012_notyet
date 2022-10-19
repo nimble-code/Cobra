@@ -1,208 +1,251 @@
 !echo "Dir 1.1 (Required) Any implementation-defined behaviour on which the output of the program depends shall be documented and understood"
+# outside scope
 
 !echo "Dir 2.1 (Required) All source files shall compile without any compilation errors"
+# outside scope
 
 !echo "Dir 3.1 (Required) All code shall be traceable to documented requirements"
+# outside scope
 
 !echo "Dir 4.1 (Required) Run-time failures shall be minimized"
+# outside scope
 
 !echo "Dir 4.2 (Advisory) All usage of assembly language should be documented"
-
-!echo "Dir 4.5 (Advisory) Identifiers in the same name space with overlapping visibility should be typographically unambiguous"
+# outside scope
 
 !echo "Dir 4.7 (Required) If a function returns error information, then that error information shall be tested"
+# tbd
 
 !echo "Dir 4.8 (Advisory) If a pointer to a struct or union is never dereferenced within a translation unit, then the implementation of the object should be hidden"
+# tbd
 
 !echo "Dir 4.9 (Advisory) A function should be used in preference to a function-like macro where they are interchangeable"
+# outside scope
 
 !echo "Dir 4.10 (Required) Precautions shall be taken in order to prevent the contents of a header file being included more than once"
+# tbd
 
 !echo "Dir 4.11 (Required) The validity of values passed to library functions shall be checked"
+# tbd
 
 !echo "Dir 4.13 (Advisory) Functions which are designed to provide operations on a resource should be called in an appropriate sequence"
+# outside scope
 
 !echo "Rule 1.1 (Required) The program shall contain no violations of the standard C syntax and constraints, and shall not exceed the implementation's translation limits"
+# compiler checks
 
 !echo "Rule 1.3 (Required) There shall be no occurrence of undefined or critical unspecified behaviour"
-
-!echo "Rule 2.1 (Required) A project shall not contain unreachable code"
-
-!echo "Rule 2.2 (Required) There shall be no dead code"
+# outside scope
 
 !echo "Rule 2.3 (Advisory) A project should not contain unused type declarations"
+# tbd - can be checked
 
 !echo "Rule 2.4 (Advisory) A project should not contain unused tag declarations"
+# tbd
 
 !echo "Rule 2.5 (Advisory) A project should not contain unused macro declarations"
+# tbd - can be checked
 
 !echo "Rule 5.1 (Required) External identifiers shall be distinct"
+# tbd
 
 !echo "Rule 5.2 (Required) Identifiers declared in the same scope and name space shall be distinct"
-
-!echo "Rule 5.3 (Required) An identifier declared in an inner scope shall not hide an identifier declared in an outer scope"
+# outside scope - compiler checks
 
 !echo "Rule 5.4 (Required) Macro identifiers shall be distinct"
+# tbd
 
 !echo "Rule 5.5 (Required) Identifiers shall be distinct from macro names"
+# tbd
 
 !echo "Rule 5.6 (Required) A typedef name shall be a unique identifier"
+# tbd
 
 !echo "Rule 5.7 (Required) A tag name shall be a unique identifier"
+# tbd
 
 !echo "Rule 5.8 (Required) Identifiers that define objects or functions with external linkage shall be unique"
+# tbd
 
 !echo "Rule 5.9 (Advisory) Identifiers that define objects or functions with internal linkage should be unique"
+# tbd
 
 !echo "Rule 6.1 (Required) Bit-fields shall only be declared with an appropriate type"
+# tbd
 
 !echo "Rule 7.2 (Required) A u or U suffix shall be applied to all integer constants that are represented in an unsigned type"
+# tbd
 
 !echo "Rule 7.4 (Required) A string literal shall not be assigned to an object unless the object's type is pointer to const-qualified char"
+# tbd
 
 !echo "Rule 8.1 Types shall be explicitly specified"
-
-!echo "Rule 8.2 (Required) Function types shall be in prototype form with named parameters"
+# tbd
 
 !echo "Rule 8.3 (Required) All declarations of an object or function shall use the same names and type qualifiers"
+# tbd
 
 !echo "Rule 8.4 (Required) A compatible declaration shall be visible when an object or function with external linkage is defined"
+# tbd
 
 !echo "Rule 8.5 (Required) An external object or function shall be declared once in one and only one file"
-
-!echo "Rule 8.6 (Required) An identifier with external linkage shall have exactly one external definition"
+# tbd
 
 !echo "Rule 8.7 (Advisory) Functions and objects should not be defined with external linkage if they are referenced in only one translation unit"
+# tbd - scope rules checker
 
 !echo "Rule 8.8 (Required) The static storage class specifier shall be used in all declarations of objects and functions that have internal linkage"
+# tbd - scope rules checker
 
 !echo "Rule 8.10 (Required) An inline function shall be declared with the static storage class"
-
-!echo "Rule 8.12 (Required) Within an enumerator list, the value of an implicitly-specified enumeration constant shall be unique"
+# tbd
 
 !echo "Rule 8.13 (Advisory) A pointer should point to a const-qualified type whenever possible"
+# tbd - "whenever possible?"
 
 !echo "Rule 9.1 (Mandatory) The value of an object with automatic storage duration shall not be read before it has been set"
+# tbd - uninitialized var checker
 
 !echo "Rule 9.2 (Required) The initializer for an aggregate or union shall be enclosed in braces"
+# tbd
 
 !echo "Rule 9.3 (Required) Arrays shall not be partially initialized"
+# tbd
 
 !echo "Rule 9.4 (Required) An element of an object shall not be initialized more than once"
+# tbd
 
 !echo "Rule 9.5 (Required) Where designated initializers are used to initialize an array object the size of the array shall be specified explicitly"
-
-!echo "Rule 10.1 (Required) Operands shall not be of an inappropriate essential type"
+# tbd
 
 !echo "Rule 10.2 (Required) Expressions of essentially character type shall not be used inappropriately in addition and subtraction operations"
+# tbd
 
 !echo "Rule 10.3 (Required) The value of an expression shall not be assigned to an object with a narrower essential type or of a different essential type category"
+# tbd
 
 !echo "Rule 10.4 (Required) Both operands of an operator in which the usual arithmetic conversions are performed shall have the same essential type category"
+# tbd
 
 !echo "Rule 10.5 (Advisory) The value of an expression should not be cast to an inappropriate essential type"
+# tbd
 
 !echo "Rule 10.6 (Required) The value of a composite expression shall not be assigned to an object with wider essential type"
+# tbd
 
 !echo "Rule 10.7 (Required) If a composite expression is used as one operand of an operator in which the usual arithmetic conversions are performed then the other operand shall not have wider essential type"
+# tbd
 
 !echo "Rule 10.8 (Required) The value of a composite expression shall not be cast to a different essential type category or a wider essential type"
+# tbd
 
 !echo "Rule 11.1 (Required) Conversions shall not be performed between a pointer to a function and any other type"
+# tbd
 
 !echo "Rule 11.2 (Required) Conversions shall not be performed between a pointer to an incomplete type and any other type"
+# tbd
 
 !echo "Rule 11.3 (Required) A cast shall not be performed between a pointer to object type and a pointer to a different object type"
+# tbd
 
 !echo "Rule 11.4 (Advisory) A conversion should not be performed between a pointer to object and an integer type"
+# tbd
 
 !echo "Rule 11.5 (Advisory) A conversion should not be performed from pointer to void into pointer to object"
+# tbd
 
 !echo "Rule 11.6 (Required) A cast shall not be performed between pointer to void and an arithmetic type"
+# tbd
 
 !echo "Rule 11.7 (Required) A cast shall not be performed between pointer to object and a non-integer arithmetic type"
+# tbd
 
 !echo "Rule 11.8 (Required) A cast shall not remove any const or volatile qualification from the type pointed to by a pointer"
+# tbd
 
 !echo "Rule 11.9 (Required) The macro NULL shall be the only permitted form of integer null pointer constant"
-
-!echo "Rule 12.1 (Advisory) The precedence of operators within expressions should be made explicit"
+# tbd
 
 !echo "Rule 12.2 (Required) The right hand operand of a shift operator shall lie in the range zero to one less than the width in bits of the essential type of the left hand operand"
+# tbd
 
 !echo "Rule 12.4 (Advisory) Evaluation of constant expressions should not lead to unsigned integer wrap-around"
+# tbd
 
 !echo "Rule 13.1 (Required) Initializer lists shall not contain persistent side effects"
+# tbd
 
 !echo "Rule 13.2 (Required) The value of an expression and its persistent side effects shall be the same under all permitted evaluation orders"
+# tbd
 
 !echo "Rule 13.3 (Advisory) A full expression containing an increment (++) or decrement (--) operator should have no other potential side effects other than that caused by the increment or decrement operator"
-
-!echo "Rule 14.1 (Required) A loop counter shall not have essentially floating type"
-
-!echo "Rule 14.2 (Required) A for loop shall be well-formed"
+# tbd
 
 !echo "Rule 14.3 (Required) Controlling expressions shall not be invariant"
-
-!echo "Rule 14.4 (Required) The controlling expression of an if statement and the controlling expression of an iteration-statement shall have essentially Boolean type"
+# tbd
 
 !echo "Rule 15.3 (Required) Any label referenced by a goto statement shall be declared in the same block, or in any block enclosing the goto statement"
+# tbd
 
 !echo "Rule 16.1 (Required) All switch statements shall be well-formed"
-
-!echo "Rule 16.2 (Required) A switch label shall only be used when the most closely-enclosing compound statement is the body of a switch statement"
+# tbd
 
 !echo "Rule 16.5 (Required) A default label shall appear as either the first or the last switch label of a switch statement"
+# tbd
 
 !echo "Rule 16.7 (Required) A switch-expression shall not have essentially Boolean type"
+# tbd
 
 !echo "Rule 17.3 (Mandatory) A function shall not be declared implicitly"
+# tbd
 
 !echo "Rule 17.5 (Advisory) The function argument corresponding to a parameter declared to have an array type shall have an appropriate number of elements"
+# outside scope
 
 !echo "Rule 17.7 (Required) The value returned by a function having non-void return type shall be used"
-
-!echo "Rule 18.1 (Required) A pointer resulting from arithmetic on a pointer operand shall address an element of the same array as that pointer operand"
-
-!echo "Rule 18.2 (Required) Subtraction between pointers shall only be applied to pointers that address elements of the same array"
-
-!echo "Rule 18.3 (Required) The relational operators >, >=, < and <= shall not be applied to objects of pointer type except where they point into the same object"
+# tbd
 
 !echo "Rule 18.4 (Advisory) The +, -, += and -= operators should not be applied to an expression of pointer type"
-
-!echo "Rule 18.6 (Required) The address of an object with automatic storage shall not be copied to another object that persists after the first object has ceased to exist"
+# tbd
 
 !echo "Rule 18.8 (Required) Variable-length array types shall not be used"
+# tbd
+
 !echo "Rule 19.1 (Mandatory) An object shall not be assigned or copied to an overlapping object"
+# tbd
 
 !echo "Rule 20.4 (Required) A macro shall not be defined with the same name as a keyword"
+# tbd
 
 !echo "Rule 20.6 (Required) Tokens that look like a preprocessing directive shall not occur within a macro argument"
-
-!echo "Rule 20.7 (Required) Expressions resulting from the expansion of macro parameters shall be enclosed in parentheses"
+# tbd
 
 !echo "Rule 20.8 (Required) The controlling expression of a \#if or \#elif preprocessing directive shall evaluate to 0 or 1"
+# tbd
 
 !echo "Rule 20.9 (Required) All identifiers used in the controlling expression of \#if or \#elif preprocessing directives shall be \#define'd before evaluation"
+# tbd - have check?
 
 !echo "Rule 20.12 (Required) A macro parameter used as an operand to the \# or \#\# operators, which is itself subject to further macro replacement, shall only be used as an operand to these operators"
+# tbd
 
 !echo "Rule 20.13 (Required) A line whose first token is \# shall be a valid preprocessing directive"
-
-!echo "Rule 20.14 (Required) All \#else, \#elif and \#endif preprocessor directives shall reside in the same file as the \#if, \#ifdef or \#ifndef directive to which they are related"
-
-!echo "Rule 21.1 (Required) \#define and \#undef shall not be used on a reserved identifier or reserved macro name"
-
-!echo "Rule 21.2 (Required) A reserved identifier or macro name shall not be declared"
+# tbd
 
 !echo "Rule 22.1 (Required) All resources obtained dynamically by means of Standard Library functions shall be explicitly released"
+# tbd
 
 !echo "Rule 22.2 (Mandatory) A block of memory shall only be freed if it was allocated by means of a standard library function"
+# tbd
 
 !echo "Rule 22.3 (Required) The same file shall not be open for read and write access at the same time on different streams"
+# tbd
 
 !echo "Rule 22.4 (Mandatory) There shall be no attempt to write to a stream which has been opened as read-only"
+# outside scope, runtime check
 
 !echo "Rule 22.5 (Mandatory) A pointer to a FILE object shall not be dereferenced"
+# tbd
 
 !echo "Rule 22.6 (Mandatory) The value of a pointer to a FILE shall not be used after the associated stream has been closed"
+# tbd

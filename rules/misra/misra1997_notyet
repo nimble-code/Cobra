@@ -1,105 +1,46 @@
 
-!echo "Rule 26 (Required) If objects or functions are declared more than once they shall have compatible declarations."
-# XXX check if decl and extern decls match
-
-!echo "Rule 29 (Required) The use of a tag shall agree with its declaration."
-# harder to check
-
 !echo "Rule 30 (Required) All automatic variables shall have been assigned a value before being used."
 # XXX use the weak uninit check
-
-!echo "Rule 31 (Required) Braces shall be used to indicate and match the structure in the non-zero initialisation of arrays and structures."
-# compiler checked
-
-!echo "Rule 34 (Required) The operands of a logical && or || shall be primary expressions."
-# XXX add available check for this -- means that all conditional clauses must be parenthesized
-
-!echo "Rule 37 (Required) Bitwise operations shall not be performed on signed integer types."
-# tbd
-
-!echo "Rule 38 (Required) The right hand operand of a shift operator shall lie between zero and one less than the width in bits of the left hand operand (inclusive)."
-# tbd
-
-!echo "Rule 39 (Required) The unary minus operator shall not be applied to an unsigned expression."
-# tbd
 
 !echo "Rule 43 (Required) Implicit type conversions which may result in a loss of information shall not be used."
 # tbd
 
-!echo "Rule 45 (Required) Type casting from any type to or from pointers shall not be used. (As revised:) Pointers must have an associated type (of the object pointed to). Operations on pointers of mixed type are not allowed, e.g. int_ptr = (int *) short_ptr;"
-# XXX flag void pointers
-
 !echo "Rule 46 (Required) The value of an expression shall be the same under any order of evaluation that the standard permits."
-# later
+# tbd
 
 !echo "Rule 47 (Advisory) No dependence should be placed on C's operator precedence rules in expressions. When an expression contains several operators, and these operators have different levels of precedence, parentheses should be used to enforce the desired precedences."
-# later
+# tbd
 
 !echo "Rule 48 (Advisory) Mixed precision arithmetic should use explicit casting to generate the desired result."
-# later
+# tbd
 
 !echo "Rule 51 (Advisory) Evaluation of constant unsigned integer expressions should not lead to wrap-around."
-# elsewhere
-
-!echo "Rule 52 (Required) There shall be no unreachable code. As revised: ..., unless it explicitly deals with exception and failure cases (e.g., dealing with possibly corrupted data values)."
-# not cobra
+# tbd
 
 !echo "Rule 66 (Advisory) Only expressions concerned with loop control should appear within a for statement."
-# XXX could add check
-
-!echo "Rule 72 (Required) For each function parameter the type given in the declaration and definition shall be identical, and the return types shall also be identical."
-# compiler checks?
+# tbd - the same var should appear in each of the three parts
 
 !echo "Rule 74 (Required) If identifiers are given for any of the parameters, then the identifiers used in the declaration and definition shall be identical."
 # XXX add check
 
-!echo "Rule 78 (Required) The number of parameters passed to a function shall match the function prototype."
-# compiler checks
-
 !echo "Rule 81 (Advisory) const qualification should be used on function parameters which are passed by reference, where it is intended that the function will not modify the parameter."
-# XXX add a check for params that aren't modifed in fct body, and recommend const qualifiers
-
-!echo "Rule 85 (Advisory) Functions called with no parameters should have empty parentheses."
-# checked by compiler
+# can check for params that aren't modifed in fct body, and recommend const qualifiers
 
 !echo "Rule 90 (Required) C macros shall only be used for symbolic constants, function-like macros, type qualifiers and storage class specifiers."
-# XXX check which jpl/p10 rule already covers this
-
-!echo "Rule 93 (Advisory) A function should be used in preference to a function-like macro."
-# XXX check for macros enclosed in { .. }
-
-!echo "Rule 94 (Required) A function-like macro shall not be 'called' without all of its arguments."
-# compiler checks
-
-!echo "Rule 95 (Required) Arguments to a function-like macro shall not contain tokens that look like pre-processing directives."
-# XXX add check
+# tbd
 
 !echo "Rule 97 (Advisory) Identifiers in pre-processor directives should be defined before use."
-# XXX add check, ie they should not default to 0 by being undefined (ifdef A must be preceded by undef A if undefined)
+# ie they should not default to 0 by being undefined (ifdef A must be preceded by undef A if undefined)
+# XXX check requires reading .h files in correct order (not as in cobra *.h *.c or cobra *.[ch] )
 
 !echo "Rule 104 (Required) Non-constant pointers to functions shall not be used."
 # XXX add check for fct pointers
 
 !echo "Rule 105 (Required) All the functions pointed to by a single pointer to function shall be identical in the number and type of parameters and the return type."
-# XXX add check
-
-!echo "Rule 106 (Required) The address of an object with automatic storage shall not be assigned to an object which may persist after the object has ceased to exist."
-# XXX check for return of local vars
-
-!echo "Rule 107 (Required) The null pointer shall not be de-referenced. Explanation: Unless clear from local context, one should distrust the validity of pointers before dereferencing -- i.e., when pointers are passed into a function or when returned by a function."
-# XXX use jpl/p10 rule for params
+# tbd
 
 !echo "Rule 108 (Required) In the specification of a structure or union type, all members of the structure or union shall be fully specified."
-# XXX add check (eg array bounds?)
-
-!echo "Rule 111 (Required) Bit fields shall only be defined to be of type unsigned int or signed int."
-# XXX add check
-
-!echo "Rule 114 (Required) Reserved words and standard library function names shall not be redefined or undefined."
-# XXX add check against fixed list
-
-!echo "Rule 115 (Required) Standard library function names shall not be reused."
-# XXX add check against fixed list
+# tbd
 
 !echo "Rule 117 (Required) The validity of values passed to (and received from) library functions shall be checked."
-# XXX check which jpl/p10 rule covers this
+# tbd

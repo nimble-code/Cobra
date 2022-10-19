@@ -25,6 +25,7 @@ int echo;
 int eol;
 int eof = 1;	// new default v 3.9
 int gui;
+int has_suppress_tags;
 int java;
 int Ncore = 1;
 int Nfiles;
@@ -140,6 +141,9 @@ strip_comments_and_renumber(int reset_ranges)
 		{	lst = ptr;
 			continue;
 		}
+		if (strstr(ptr->txt, "@suppress ") != NULL)
+		{	has_suppress_tags = 1;
+		}
 		scnt++;
 		ct = ptr;
 		// remove from stream
@@ -230,6 +234,55 @@ comments_or_source(int to_comments)	// switch between these
 		s_prim = s_plst = 0;
 	}
 	set_ranges(prim, plst, 2);
+}
+
+int
+matches_suppress(Prim *r, const char *s)
+{	Prim *q;
+	char *ptr;
+	char *qtr;
+
+	// tag example: @suppress Macros
+	// for pattern set Macros in rules/main/basic.cobra
+
+	for (q = cmnt_head; q; q = q->nxt)
+	{	if (q->lnr != r->lnr
+		||  strcmp(q->fnm, r->fnm) != 0)
+		{	continue;
+		}
+
+		ptr = strstr(q->txt, "@suppress ");
+		if (!ptr)
+		{	continue;
+		}
+
+		// there's a warning at r, and
+		// there's a comment on the same line, and
+		// the comment contains @suppress
+
+		ptr += strlen("@suppress ");
+		while (*ptr == ' ')
+		{	ptr++;
+		}	// now at start of tag
+
+		while (strlen(ptr) > 0)
+		{	qtr = strchr(ptr, ' ');		// multiple tags?
+			if (qtr)
+			{	*qtr = '\0';
+			}
+			if (strstr(s, ptr) != NULL)	// tag in set-name
+			{	if (qtr)
+				{	*qtr = ' ';	// restore
+				}
+				return 1;		// match
+			}
+			if (qtr)
+			{	ptr += strlen(ptr)+1;	// next tag
+				*qtr = ' ';		// restore
+			} else
+			{	break;
+	}	}	}
+	return 0;					// no match
 }
 
 void

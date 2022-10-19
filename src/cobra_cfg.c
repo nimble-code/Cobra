@@ -6,7 +6,11 @@
 
 #include "cobra.h"
 
-#define Match(x)	(strcmp(cur->txt, x) == 0)
+#define Match(x)	(strcmp(cur->txt, x) == 0)	// @suppress Macros
+
+	// the comment above is an example of a suppress command
+	// that prevents a query command on pattern set Macros
+	// from displaying this match
 
 #define Expect(x) { \
 	cur = cur->nxt; \

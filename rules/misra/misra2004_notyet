@@ -1,52 +1,50 @@
 !echo "Rule 1.1 (Required) All code shall conform to ISO 9899:1990 Programming languages - C, amended and corrected by ISO/IEC 9899/COR1:1995, ISO/IEC 9899/AMD1:1995, and ISO/IEC 9899/COR2:1996."
+# outside scope
 
 !echo "Rule 1.2 (Required) No reliance shall be placed on undefined or unspecified behaviour."
+# outside scope
 
 !echo "Rule 1.3 (Required) Multiple compilers and/or languages shall only be used if there is a common defined interface standard for object code to which the languages/compilers/assemblers conform."
+# outside scope
 
 !echo "Rule 1.4 (Required) The compiler/linker shall be checked to ensure that 31 character significance and case sensitivity are supported for external identifiers."
+# outside scope
 
 !echo "Rule 1.5 (Advisory) Floating-point implementations should comply with a defined floating-point standard."
+# outside scope
 
 !echo "Rule 3.1 (Required) All usage of implementation-defined behaviour shall be documented."
+# outside scope
 
 !echo "Rule 3.2 (Required) The character set and the corresponding encoding shall be documented."
+# outside scope
 
 !echo "Rule 3.3 (Advisory) The implementation of integer division in the chosen compiler should be determined, documented and taken into account."
+# outside scope
 
 !echo "Rule 3.5 (Required) The implementation-defined behaviour and packing of bitfields shall be documented if being relied upon."
+# outside scope
 
 !echo "Rule 3.6 (Required) All libraries used in production code shall be written to comply with the provisions of this document, and shall have been subject to appropriate validation."
-
-!echo "Rule 5.2 (Required) Identifiers in an inner scope shall not use the same name as an identifier in an outer scope, and therefore hide that identifier."
-
-!echo "Rule 5.3 (Required) A typedef name shall be a unique identifier."
+# outside scope
 
 !echo "Rule 5.4 (Required) A tag name shall be a unique identifier."
-
-!echo "Rule 5.5 (Advisory) No object or function identifier with static storage duration should be reused."
-
-!echo "Rule 5.6 (Advisory) No identifier in one name space should have the same spelling as an identifier in another name space, with the exception of structure and union member names."
 
 !echo "Rule 5.7 (Advisory) No identifier name should be reused."
 
 !echo "Rule 6.1 (Required) The plain char type shall be used only for storage and use of character values."
+# outside scope
 
 !echo "Rule 6.2 (Required) signed and unsigned char type shall be used only for the storage and use of numeric values."
-
-!echo "Rule 8.1 (Required) Functions shall have prototype declarations and the prototype shall be visible at both the function definition and call."
-
-!echo "Rule 8.2 (Required) Whenever an object or function is declared or defined, its type shall be explicitly stated."
+# outside scope
 
 !echo "Rule 8.3 (Required) For each function parameter the type given in the declaration and definition shall be identical, and the return types shall also be identical."
+# compiler checks
 
 !echo "Rule 8.4 (Required) If objects or functions are declared more than once their types shall be compatible."
-
-!echo "Rule 8.5 (Required) There shall be no definitions of objects or functions in a header file."
+# compiler checks
 
 !echo "Rule 8.8 (Required) An external object or function shall be declared in one and only one file."
-
-!echo "Rule 8.9 (Required) An identifier with external linkage shall have exactly one external definition."
 
 !echo "Rule 8.11 (Required) The static storage class specifier shall be used in definitions and declarations of objects and functions that have internal linkage."
 
@@ -82,61 +80,36 @@
 
 !echo "Rule 12.2 (Required) The value of an expression shall be the same under any order of evaluation that the standard permits."
 
-!echo "Rule 12.5 (Required) The operands of a logical && or || shall be primary-expressions."
-
-!echo "Rule 12.6 (Advisory) The operands of logical operators (&&, || and !) should be effectively Boolean. Expressions that are effectively Boolean should not be used as operands to operators other than (&&, || and !)."
-
 !echo "Rule 12.7 (Required) Bitwise operators shall not be applied to operands whose underlying type is signed."
 
 !echo "Rule 12.8 (Required) The right-hand operand of a shift operator shall lie between zero and one less than the width in bits of the underlying type of the left-hand operand."
+# outside scope
 
 !echo "Rule 12.9 (Required) The unary minus operator shall not be applied to an expression whose underlying type is unsigned."
 
 !echo "Rule 12.11 (Advisory) Evaluation of constant unsigned integer expressions should not lead to wrap-around."
-
-!echo "Rule 12.12 (Required) The underlying bit representations of floating-point values shall not be used."
+# outside scope
 
 !echo "Rule 12.13 (Advisory) The increment (++) and decrement (--) operators should not be mixed with other operators in an expression."
-#	may be checkable
-
-!echo "Rule 13.2 (Advisory) Tests of a value against zero should be made explicit, unless the operand is effectively Boolean."
-
-!echo "Rule 13.4 (Required) The controlling expression of a for statement shall not contain any objects of floating type."
+# tbd
 
 !echo "Rule 13.5 (Required) The three expressions of a for statement shall be concerned only with loop control."
 
 !echo "Rule 13.7 (Required) Boolean operations whose results are invariant shall not be permitted."
 
-!echo "Rule 14.1 (Required) There shall be no unreachable code."
-
-!echo "Rule 14.2 (Required) All non-null statements shall either: a) have at least one side effect however executed, or; b) cause control flow to change."
-
-!echo "Rule 14.3 (Required) Before preprocessing, a null statement shall only occur on a line by itself; it may be followed by a comment provided that the first character following the null statement is a white-space character."
-
-!echo "Rule 15.1 (Required) A switch label shall only be used when the most closely-enclosing compound statement is the body of a switch statement."
-
-!echo "Rule 16.3 (Required) Identifiers shall be given for all of the parameters in a function prototype declaration."
-
 !echo "Rule 16.4 (Required) The identifiers used in the declaration and definition of a function shall be identical."
+# compiler checks
 
 !echo "Rule 16.6 (Required) The number of arguments passed to a function shall match the number of parameters."
+# compiler checks
 
 !echo "Rule 16.7 (Advisory) A pointer parameter in a function prototype should be declared as pointer to const if the pointer is not used to modify the addressed object."
 
 !echo "Rule 16.9 (Required) A function identifier shall only be used with either a preceding &, or with a parenthesised parameter list, which may be empty."
 
-!echo "Rule 16.10 (Required) If a function returns error information, then that error information shall be tested."
-
-!echo "Rule 17.1 (Required) Pointer arithmetic shall only be applied to pointers that address an array or array element."
-
-!echo "Rule 17.2 (Required) Pointer subtraction shall only be applied to pointers that address elements of the same array."
-
-!echo "Rule 17.3 (Required) >, >=, <, <= shall not be applied to pointer types except where they point to the same array."
-
 !echo "Rule 17.4 (Required) Array indexing shall be the only allowed form of pointer arithmetic."
 
-!echo "Rule 17.6 (Required) The address of an object with automatic storage shall not be assigned to another object that may persist after the first object has ceased to exist."
- 18.1 (Required) All structure or union types shall be complete at the end of a translation unit.
+!echo "Rule 18.1 (Required) All structure or union types shall be complete at the end of a translation unit."
 
 !echo "Rule 18.2 (Required) An object shall not be assigned to an overlapping object."
 
@@ -144,28 +117,16 @@
 
 !echo "Rule 19.4 (Required) C macros shall only expand to a braced initialiser, a constant, a parenthesised expression, a type qualifier, a storage class specifier, or a do-while-zero construct."
 
-!echo "Rule 19.7 (Advisory) A function should be used in preference to a function-like macro."
-
 !echo "Rule 19.8 (Required) A function-like macro shall not be invoked without all of its arguments."
-
-!echo "Rule 19.9 (Required) Arguments to a function-like macro shall not contain tokens that look like preprocessing directives."
-
-!echo "Rule 19.10 (Required) In the definition of a function-like macro each instance of a parameter shall be enclosed in parentheses unless it is used as the operand of \# or \#\#."
 
 !echo "Rule 19.11 (Required) All macro identifiers in preprocessor directives shall be defined before use, except in \#ifdef and \#ifndef preprocessor directives and the defined() operator."
 
-!echo "Rule 19.14 (Required) The defined preprocessor operator shall only be used in one of the two standard forms."
-
 !echo "Rule 19.15 (Required) Precautions shall be taken in order to prevent the contents of a header file being included twice."
+# tbd: every .h file must contain at least one ifndef followed by a define?, assuming no preprocessing
 
 !echo "Rule 19.16 (Required) Preprocessing directives shall be syntactically meaningful even when excluded by the preprocessor."
-
-!echo "Rule 19.17 (Required) All \#else, \#elif and \#endif preprocessor directives shall reside in the same file as the \#if or \#ifdef directive to which they are related."
-
-!echo "Rule 20.1 (Required) Reserved identifiers, macros and functions in the standard library, shall not be defined, redefined or undefined."
-
-!echo "Rule 20.2 (Required) The names of standard library macros, objects and functions shall not be reused."
 
 !echo "Rule 20.3 (Required) The validity of values passed to library functions shall be checked."
 
 !echo "Rule 21.1 (Required) Minimisation of run-time failures shall be ensured by the use of at least one of a) static analysis tools/techniques; b) dynamic analysis tools/techniques; c) explicit coding of checks to handle run-time faults."
+# outside scope
