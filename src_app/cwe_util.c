@@ -43,7 +43,7 @@ mark_fcts(void)
 	mycur = prim;
 	while (mycur_nxt())
 	{	if (mytype("cpp"))
-		{	while (!mymatch("EOL"))
+		{	while (mycur && !mymatch("EOL"))
 			{	mycur_nxt();
 			}
 			continue;	// skip over preprocessing stuff
@@ -104,7 +104,7 @@ mark_fcts(void)
 		{	preansi = 0;
 		}
 
-		if (cplusplus)
+		if (cplusplus && q && q->nxt)
 		{	while (strcmp(q->nxt->typ, "qualifier") == 0)
 			{	q = q->nxt;
 			}
@@ -114,7 +114,8 @@ mark_fcts(void)
 				if (q->jmp)		// (
 				{	q = q->jmp;	// )
 				} else
-				{	while (q->nxt
+				{	while (q
+					&&     q->nxt
 					&&     q->curly == ptr->curly
 					&&     strcmp(q->nxt->txt, "{") != 0
 					&&     strcmp(q->nxt->txt, ";") != 0

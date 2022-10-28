@@ -295,6 +295,32 @@ findfile(const char *s)
 	return NULL;
 }
 
+static Files *last_fnm = NULL;
+
+void
+update_first_token(const char *fnm, Prim *p)
+{	Files *f;
+
+	f = findfile(fnm);
+	if (f)
+	{	last_fnm = f;
+		f->first_token = p;
+	}
+}
+
+void
+update_last_token(const char *fnm, Prim *p)
+{	Files *f = last_fnm;
+
+	if (!f
+	||  strcmp(fnm, f->s) != 0)
+	{	f = findfile(fnm);
+	}
+	if (f)
+	{	f->last_token = p;
+	}
+}
+
 static void
 rebind_curly(Prim *from, Prim *upto)
 {	Prim *p;

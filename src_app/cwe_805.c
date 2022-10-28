@@ -199,7 +199,7 @@ cwe805_report(void)
 			"suspicious sizeof in strncpy, strncat, or memcpy for other var than %s",
 				mycur->txt);
 			if (json_format)
-			{	json_match("cwe_805", json_msg, mycur, 0);
+			{	json_match("", "cwe_805", json_msg, mycur, 0);
 			} else
 			{	printf("%s:%d: cwe_805: %s\n",
 					mycur->fnm, mycur->lnr, json_msg);
@@ -209,7 +209,7 @@ cwe805_report(void)
 		{	sprintf(json_msg, "fct '%s' may return a zero or negative value",
 				mycur->txt);
 			if (json_format)
-			{	json_match("cwe_805", json_msg, mycur, 0);
+			{	json_match("", "cwe_805", json_msg, mycur, 0);
 			} else
 			{	printf("%s:%d: cwe_805: %s\n",
 					mycur->fnm, mycur->lnr, json_msg);

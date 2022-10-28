@@ -322,7 +322,7 @@ cwe416_report(void)
 			{	sprintf(json_msg, "use after free of %s?",
 					mycur->bound->txt);
 				if (json_format)
-				{	json_match("cwe_416", json_msg, mycur, 0);
+				{	json_match("", "cwe_416", json_msg, mycur, 0);
 				} else
 				{	printf("%s:%d: cwe_416: %s?\n",
 						mycur->fnm, mycur->lnr, json_msg);

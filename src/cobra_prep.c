@@ -82,6 +82,9 @@ extern void	 set_ranges(Prim *, Prim *, int);
 extern void	 recycle_token(Prim *, Prim *);
 extern void	 add_eof(int);
 
+extern void	 update_last_token(const char *, Prim *);
+extern void	 update_first_token(const char *, Prim *);
+
 static int
 process(int cid)
 {
@@ -129,9 +132,10 @@ static Prim *s_plst = 0;
 // externally visible functions:
 
 void
-strip_comments_and_renumber(int reset_ranges)
+strip_comments_and_renumber(int reset_ranges)	// split streams
 {	int scnt = 0, ccnt = 0;
 	Prim *ptr, *ct, *lst = 0, *nxt;
+	char *lfnm;
 
 	// can be called repeatedly when files are added
 
@@ -181,10 +185,18 @@ strip_comments_and_renumber(int reset_ranges)
 	{	printf("%d comments stripped\n", scnt);
 	}
 
-	// renumber
+	// renumber -- and reset first_token and last_token
 	scnt = 0;
+	lfnm = NULL;
 	for (ptr = prim; ptr; ptr = ptr->nxt)
 	{	ptr->seq = scnt++;
+		if (!lfnm || strcmp(lfnm, ptr->fnm) != 0)
+		{	if (lfnm && ptr->prv)
+			{	update_last_token(lfnm, ptr->prv);
+			}
+			lfnm = ptr->fnm;
+			update_first_token(lfnm, ptr);
+		}
 		if (ptr->nxt && ptr->nxt->prv != ptr)
 		{	ptr->nxt->prv = ptr;
 	}	}

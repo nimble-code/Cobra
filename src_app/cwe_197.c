@@ -239,7 +239,7 @@ cwe197_report(void)
 			{	sprintf(json_msg, "potential loss of information in cast of %s",
 					mycur->txt);
 				if (json_format)
-				{	json_match("cwe_197b", json_msg, mycur, 0);
+				{	json_match("", "cwe_197b", json_msg, mycur, 0);
 				} else
 				{	printf("%s:%d: cwe_197b, %s",
 						mycur->fnm, mycur->lnr, json_msg);
@@ -262,7 +262,7 @@ cwe197_report(void)
 					mycur->txt, dst->txt, x->txt, x->fnm, x->lnr);
 
 				if (json_format)
-				{	json_match("cwe_197a", json_msg, mycur, 0);
+				{	json_match("", "cwe_197a", json_msg, mycur, 0);
 				} else
 				{	printf("%s:%d: cwe_197a, %s\n",
 						mycur->fnm, mycur->lnr, json_msg);

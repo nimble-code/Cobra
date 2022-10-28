@@ -410,7 +410,7 @@ cobra_main(void)
 						cur->txt,
 						cur->curly==0?"scope":"function",
 						cur->typ);
-					json_match(cobra_commands, json_msg, cur, cur);
+					json_match("scope_check", cobra_commands, json_msg, cur, cur);
 				} else
 				{	printf("\t%s\tused in only one %s (%s)\n",
 						cur->txt, cur->curly==0?"scope":"function",
@@ -426,7 +426,7 @@ cobra_main(void)
 			{	if (json_format)
 				{	sprintf(json_msg, "%s is used only in file %s",
 						cur->txt, cur->fnm);
-					json_match(cobra_commands, json_msg, cur, cur);
+					json_match("scope_check", cobra_commands, json_msg, cur, cur);
 				} else
 				{	printf("\t%s\tused in only file %s\n",
 						cur->txt, cur->fnm);
@@ -440,7 +440,7 @@ cobra_main(void)
 	&&  !no_display)
 	{	fprintf(stderr, "    (%.3g sec)\n", delta_time);
 	}
-	json_match(0, 0, 0, 0);	// force linkage to cobra_json.o
+	json_match("", 0, 0, 0, 0);	// force linkage to cobra_json.o
 
 	// for all Linux 2.4.1 sources (8,301 files, 3.7 Mlines, 2.6 M NCS)
 	// scope_check -n -z -N? `cat c_files`

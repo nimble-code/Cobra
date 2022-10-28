@@ -7,7 +7,7 @@
 #ifndef COBRA_FE
 #define COBRA_FE
 
-#define tool_version	"Version 4.2 - 19 October 2022"
+#define tool_version	"Version 4.2 - 28 October 2022"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -68,8 +68,8 @@ struct Files {
 	int	 imbalance;
 	char	*s;
 	char	*pp;	// optional file-specific preprocessing directives
-	Prim	*first_token;
-	Prim	*last_token;
+	Prim	*first_token;	// first source token
+	Prim	*last_token;	// last source token
 	Files	*nxt;
 };
 
@@ -154,7 +154,7 @@ extern int	json_plus;
 extern int	nr_json;
 extern char	json_msg[1024];
 extern char	bvars[1024];
-extern void	json_match(const char *, const char *, const Prim *, const Prim *);
+extern void	json_match(const char *, const char *, const char *, const Prim *, const Prim *);
 extern void	new_named_set(const char *);
 extern Named	*findset(const char *, int, int);
 extern Files	*findfile(const char *);

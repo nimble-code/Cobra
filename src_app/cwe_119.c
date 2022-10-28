@@ -432,7 +432,7 @@ report_119_1(void)
 					mycur->txt, caption,
 					mycur->bound->lnr, mycur->jmp->lnr);
 				if (json_format)
-				{	json_match("cwe_119_1", json_msg, mycur, 0);
+				{	json_match("", "cwe_119_1", json_msg, mycur, 0);
 				} else
 				{	printf("%s:%d: cwe_119_1: %s\n",
 						mycur->fnm, mycur->lnr, json_msg);
@@ -481,7 +481,7 @@ report_119_2(void)
 				sprintf(json_msg, "array-index variable '%s' %s %d)",
 					mycur->txt, caption, mycur->bound->lnr);
 				if (json_format)
-				{	json_match("cwe_119_2", json_msg, mycur, 0);
+				{	json_match("", "cwe_119_2", json_msg, mycur, 0);
 				} else
 				{	printf("%s:%d: cwe_119_2: %s\n",
 						mycur->fnm, mycur->lnr, json_msg);
@@ -525,7 +525,7 @@ report_119_3(void)
 					sprintf(json_msg, "%s '%s' used in array index",
 						caption, mycur->txt);
 					if (json_format)
-					{	json_match("cwe_119_3", json_msg, mycur, 0);
+					{	json_match("", "cwe_119_3", json_msg, mycur, 0);
 					} else
 					{	printf("%s:%d: cwe_119_3: %s\n",
 							mycur->fnm, mycur->lnr, json_msg);
@@ -544,7 +544,7 @@ report_119_3(void)
 					sprintf(json_msg, "%s '%s' used in array index (cf lnr %d)",
 						caption, mycur->txt, w->lnr);
 					if (json_format)
-					{	json_match("cwe_119_3", json_msg, mycur, 0);
+					{	json_match("", "cwe_119_3", json_msg, mycur, 0);
 					} else
 					{	printf("%s:%d: cwe_119_3: %s\n",
 							mycur->fnm, mycur->lnr, json_msg);

@@ -1946,7 +1946,7 @@ patterns_json(char *s)
 				m->upto->fnm, m->upto->lnr);
 		}
 		t = q->msg?q->msg:q->nm;
-		json_match(t, json_msg, m->from, m->upto);
+		json_match(s, t, json_msg, m->from, m->upto);
 	}
 }
 
@@ -2249,7 +2249,7 @@ pattern_matched(Named *curset, int which, int N, int M)
 				opened = 1;
 				closed = 0;
 			}
-			json_match(t, json_msg, m->from, m->upto);
+			json_match(curset->nm, t, json_msg, m->from, m->upto);
 		} else
 		{	if (p == 1 && curset->msg)
 			{	fprintf(fd, "%s=== %s ===\n",
@@ -2513,6 +2513,7 @@ patterns_display(const char *te)	// dp [name help *] [n [N [M]]]
 	while (te[j] == ' ' || te[j] == '\t')
 	{	j++;
 	}
+
 	if (strncmp(te, "help", strlen("help")) == 0
 	||  strcmp(te, "?") == 0)
 	{	dp_help();

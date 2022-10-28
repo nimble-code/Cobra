@@ -200,7 +200,7 @@ add_match(Prim *f, Prim *t, Store *bd)
 					}
 					strcat(bvars, b->ref->txt);
 			}	}
-			json_match(glob_te, json_msg, f, t); // add_match, streaming
+			json_match("Stream", glob_te, json_msg, f, t); // add_match, streaming
 			fprintf(fd, "}");
 			nr_json++;
 		} else
@@ -349,6 +349,7 @@ json_add(const char *tp, const char *msg, const char *fnm, const int lnr, int po
 	Prim *p, *q;
 	int cnt = 0;
 	static char lastname[516];
+	int opos = pos;
 
 	f = findfile(fnm);
 
@@ -362,12 +363,16 @@ json_add(const char *tp, const char *msg, const char *fnm, const int lnr, int po
 	p = f->first_token;
 	while (p && p != f->last_token)
 	{	if (p->lnr == lnr)
-		{	while (p && pos > 0)
+		{	while (p && pos > 1)
 			{	p = p->nxt;
 				pos--;
 			}
 			if (!p)
 			{	break;
+			}
+			if (0)
+			{	printf("Counted %d tokens on line %s:%d, which points to '%s'\n",
+					opos, p->fnm, p->lnr, p->txt);
 			}
 			p->mark++;
 			cnt++;
@@ -428,6 +433,7 @@ json_import(const char *f, int ix)
 	char fnm[512];
 	char Type[512];
 	char Msg[512];
+	char Src[512];
 	int a, b, c, lnr = -1;
 	int once = 0;
 	int cnt = 0;
@@ -459,34 +465,54 @@ again:
 			}
 			if (*q == '"')
 			{	char *r = q+1;
-				while (*r != '\0' && *r != '"' && !isspace((int) *r))
+				while (*r != '\0'
+				&& *r != '"'
+				&& *r != '\n'
+				&& !isspace((int) *r))	// first word is used as pattern setname
 				{	r++;
 				}
 				*r = '\0';
 				strncpy(Type, q+1, sizeof(Type)-1);
-				ntp++;
+				ntp++;		// nr of type fields read
 				if (phase == 1
 				&&  strlen(fnm) > 0 && lnr >= 0)
 				{	cnt += json_add2(Type, Msg, fnm, lnr, ix);
 					strcpy(Type, "");
 					lnr = -1;
-			}	}
+				}
+			//	printf("Type: '%s'\n", Type);
+			}
 			continue;
 		}
-		if ((q = strstr(buf, "\"line\"")) != NULL)
-		{	q += strlen("\"line\"");
-			while (*q != '\0' && !isdigit((int) *q))
+		if ((q = strstr(buf, "\"message\"")) != NULL)
+		{	q += strlen("\"message\"");
+			while (*q != '\0' && *q != '"')
 			{	q++;
 			}
-			if (isdigit((int) *q))
-			{	lnr = atoi(q);
-				nln++;
-				if (phase == 1
-				&& strlen(Type) > 0 && strlen(fnm) > 0)
-				{	cnt += json_add2(Type, Msg, fnm, lnr, ix);
-					strcpy(fnm, "");
-					lnr = -1;
-			}	}
+			if (*q == '"')
+			{	char *r = q+1;
+				while (*r != '\0' && *r != '"')
+				{	r++;
+				}
+				*r = '\0';
+				strncpy(Msg, q+1, sizeof(Msg)-1);
+			}
+			continue;
+		}
+		if ((q = strstr(buf, "\"source\"")) != NULL)
+		{	q += strlen("\"source\"");
+			while (*q != '\0' && *q != '"')
+			{	q++;
+			}
+			if (*q == '"')
+			{	char *r = q+1;
+				while (*r != '\0' && *r != '"')
+				{	r++;
+				}
+				*r = '\0';
+				strncpy(Src, q+1, sizeof(Src)-1);	// not yet used
+			//	printf("Src: '%s'\n", Src);
+			}
 			continue;
 		}
 		if ((q = strstr(buf, "\"file\"")) != NULL)
@@ -507,27 +533,31 @@ again:
 				{	cnt += json_add2(Type, Msg, fnm, lnr, ix);
 					strcpy(fnm, "");
 					lnr = -1;
-			}	}
+				}
+			//	printf("File: '%s'\n", fnm);
+			}
 			continue;
 		}
-		if ((q = strstr(buf, "\"message\"")) != NULL)
-		{	q += strlen("\"message\"");
-			while (*q != '\0' && *q != '"')
+		if ((q = strstr(buf, "\"line\"")) != NULL)
+		{	q += strlen("\"line\"");
+			while (*q != '\0' && !isdigit((int) *q))
 			{	q++;
 			}
-			if (*q == '"')
-			{	char *r = q+1;
-				while (*r != '\0' && *r != '"')
-				{	r++;
+			if (isdigit((int) *q))
+			{	lnr = atoi(q);
+				nln++;
+				if (phase == 1
+				&& strlen(Type) > 0 && strlen(fnm) > 0)
+				{	cnt += json_add2(Type, Msg, fnm, lnr, ix);
+					strcpy(fnm, "");
+					lnr = -1;
 				}
-				*r = '\0';
-				strncpy(Msg, q+1, sizeof(Msg)-1);
+			//	printf("Line: %d\n", lnr);
 			}
 			continue;
 		}
-		q = buf;
 		if (phase == 0
-		&&  (q = strstr(q, "\"cobra\"")) != NULL)
+		&&  (q = strstr(buf, "\"cobra\"")) != NULL)
 		{	q += strlen("\"cobra\"");
 			q = strchr(q, '"');
 			if (q
@@ -536,7 +566,10 @@ again:
 			&&  lnr >= 0
 			&&  sscanf(q, "\"%d %d %d\"", &a, &b, &c) == 3)
 			{	cnt += json_add(Type, Msg, fnm, lnr, b, c, ix);
-				ncb++;
+				// a = no_cpp value
+				// b = nr of tokens from start of line
+				// c = nr of tokens in pattern
+				ncb++;	// nr of cobra records read
 				if (no_cpp != a && !once++)
 				{	fprintf(stderr, "warning: preprocessing is %sabled\n", no_cpp?"dis":"en");
 					fprintf(stderr, "warning: but '%s' was written with%s preprocessing\n",
@@ -545,7 +578,9 @@ again:
 				}
 				strcpy(fnm, "");
 				lnr = -1;
-	}	}	}
+			}
+		//	printf("Cobra: %d %d %d -- %d\n\n", a, b, c, ntp);
+	}	}
 	if (phase == 1
 	&&  strlen(Type) > 0
 	&&  strlen(fnm) > 0
@@ -572,7 +607,7 @@ again:
 }
 
 void
-json_match(const char *te, const char *msg, const Prim *from, const Prim *upto)
+json_match(const char *setname, const char *te, const char *msg, const Prim *from, const Prim *upto)
 {	const char *f = from?from->fnm:"";
 	const int ln  = from?from->lnr:0;
 	FILE *fd = (track_fd) ? track_fd : stdout;
@@ -587,11 +622,18 @@ json_match(const char *te, const char *msg, const Prim *from, const Prim *upto)
 	{	return;
 	}
 	fprintf(fd, "  { \"type\"\t:\t\"");
-	 cleaned_up(fd, te);
-	fprintf(fd, "\",\n");
-
-	fprintf(fd, "    \"message\"\t:\t\"");
-	 cleaned_up(fd, msg);
+	 if (setname
+	 && strlen(setname) > 0)
+	 {	cleaned_up(fd, setname);
+		fprintf(fd, "\",\n");
+		fprintf(fd, "    \"message\"\t:\t\"");
+	 	cleaned_up(fd, te);
+	 } else
+	 {	cleaned_up(fd, te);
+		fprintf(fd, "\",\n");
+		fprintf(fd, "    \"message\"\t:\t\"");
+	 	cleaned_up(fd, msg);
+	}
 	fprintf(fd, "\",\n");
 
 	if (json_plus)
@@ -688,7 +730,6 @@ matches2marks(int doclear)
 				{	p->mark |= 8;
 					break;
 	}	}	}	}
-
 	if (doclear)
 	{	clear_matches();
 	}
@@ -779,7 +820,7 @@ json(const char *te)
 			{	sprintf(json_msg, "lines %s:%d..%s:%d",
 					sop->fnm, sop->lnr, q?q->fnm:"", q?q->lnr:0);
 		}	}
-		json_match(te, json_msg, sop, q);	// json()
+		json_match("Patterns", te, json_msg, sop, q);	// json()
 		seen |= 4;
 	}
 	if (seen == 2)	// saw marked tokens, but no patterns, find ranges to report
@@ -795,7 +836,7 @@ json(const char *te)
 				{	break;
 			}	}
 			sprintf(json_msg, "lines %d..%d", sop->lnr, mycur?mycur->lnr:0);
-			json_match(te, json_msg, sop, mycur); // json()
+			json_match("Marked", te, json_msg, sop, mycur); // json()
 		}
 	}
 	fprintf(fd, "\n]\n");
