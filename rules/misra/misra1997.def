@@ -47,7 +47,7 @@ end
 
 def m97_rule10
 	comments
-	r; m /\;		# stmnt separator in comment
+	r; m /\;.*\;		# stmnt separator in comment
 	ps create M97_R10
 	ps caption M97_R10 (Advisory) Sections of code should not be commented out
 	source

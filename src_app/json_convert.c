@@ -4,7 +4,7 @@
 #include <ctype.h>
 //#include <malloc.h>
 
-#define Version	"Version 1.2 - 17 August 2022"
+#define Version	"Version 1.3 - 17 November 2022"
 
 // convert from Cobra JSON format to either
 //	JUnit or SARIF format
@@ -32,51 +32,82 @@ struct Reports {
 static Reports *reports;
 static unsigned long total_used;
 static char *BaseId;
+static int alternate;
 
 static void
-rules(void)
+sarif_rules(void)
 {	Reports *w;
 	Report  *m;
 	int cnt = 0;
+	char *lastnm  = "";
+	char *lastmsg = "";
 
 	for (w = reports; w; w = w->nxt)
 	for (m = w->r; m; m = m->nxt)
-	{	printf("            {\n");
-		printf("              \"id\": \"R%d\",\n", cnt++); // ruleId
+	{
+		if (strcmp(w->nm, lastnm) == 0
+		&&  strcmp(m->msg, lastmsg) == 0)
+		{	continue;
+		}
+		lastnm  = w->nm;
+		lastmsg = m->msg;
+
+		printf("            {\n");
+		if (alternate)
+		{	printf("              \"id\": \"%s\",\n", w->nm); cnt++;
+		} else
+		{	printf("              \"id\": \"R%d\",\n", cnt++); // ruleId
+		}
 		printf("              \"fullDescription\": {\n");
-		printf("                \"text\": \"%s\"\n", w->nm);
-#if 0
-		// reported under "results"
-		printf("              },\n");
-		printf("              \"messageStrings\": {\n");
-		printf("                \"default\": {\n");
-		printf("                  \"text\": \"%s\"\n", m->msg);
-		printf("                }\n");
-#endif
+		if (alternate)
+		{	printf("                \"text\": \"%s\"\n", m->msg);
+		} else
+		{	printf("                \"text\": \"%s\"\n", w->nm);
+		}
 		printf("              }\n");
 		printf("            }%s\n", w->nxt || m->nxt?",":"");
 	}
 }
 
 static void
-results(void)
+sarif_results(void)
 {	Reports *w;
 	Report  *m;
 	int cnt = 0;
+	char *lastnm  = "";
+	char *lastmsg = "";
 
+	if (alternate)
+	{	cnt--;
+	}
 	for (w = reports; w; w = w->nxt)
-	for (m = w->r; m; m = m->nxt, ++cnt)
-	{	printf("        {\n");
-		printf("          \"ruleId\": \"R%d\",\n", cnt);
+	for (m = w->r; m; m = m->nxt /* , ++cnt */)
+	{
+		if (alternate)
+		{	if (strcmp(w->nm, lastnm) != 0
+			||  strcmp(m->msg, lastmsg) != 0)
+			{	cnt++;
+			}
+			lastnm  = w->nm;
+			lastmsg = m->msg;
+		}
+
+		printf("        {\n");
+		if (alternate)
+		{	printf("          \"ruleId\": \"%s\",\n", w->nm);
+		} else
+		{	printf("          \"ruleId\": \"R%d\",\n", cnt);
+		}
 		printf("          \"ruleIndex\": %d,\n", cnt);
 		printf("          \"level\": \"warning\",\n");
 		printf("          \"message\": {\n");
-#if 1
-		printf("            \"text\": \"%s\"\n", w->nm);
-#else
-		printf("            \"id\": \"default\",\n");
-		printf("            \"arguments\": [ \"%s\" ]\n", "");
-#endif
+
+		if (alternate)
+		{	printf("            \"text\": \"%s\"\n", m->msg);
+		} else
+		{	printf("            \"text\": \"%s\"\n", w->nm);
+		}
+
 		printf("          },\n");
 		printf("          \"locations\": [\n");
 		printf("            {\n");
@@ -86,7 +117,6 @@ results(void)
 		if (BaseId)
 		{	printf("                  \"uriBaseId\": \"%s\",\n", BaseId);
 		}
-	//	printf("                  \"index\": 0\n");
 		printf("                },\n");
 		printf("                \"region\": {\n");
 		printf("                  \"startLine\": %d", m->lnr);
@@ -103,14 +133,13 @@ results(void)
 		}
 		printf("                }\n");
 		printf("              }\n");	// }, if more fields follow
-	//	printf("              \"logicalLocations\": [\n");
-	//	printf("                {\n");
-	//	printf("                  \"fullyQualifiedName\": \"collections::list::add\"\n");
-	//	printf("                }\n");
-	//	printf("              ]\n");
 		printf("            }\n");
 		printf("          ]\n");
 		printf("        }%s\n", w->nxt || m->nxt?",":"");
+
+		if (!alternate)
+		{	cnt++;
+		}
 	}
 }
 
@@ -149,15 +178,15 @@ reformat(const int mode)
 		printf("    \"tool\": {\n");
 		printf("      \"driver\": {\n");
 		printf("        \"name\": \"Cobra\",\n");
-		printf("        \"version\": \"4.1\",\n");	// should come from input file...
+		printf("        \"version\": \"4.2\",\n");	// should come from input file...
 		printf("        \"informationUri\": \"https://github.com/nimble-code/Cobra\",\n");
 		printf("        \"rules\": [\n");
-			rules();
+			sarif_rules();
 		printf("        ]\n");
 		printf("      }\n");
 		printf("    },\n");
 		printf("    \"results\": [\n");
-			results();
+			sarif_results();
 		printf("    ]\n");
 		printf("   }\n");
 		printf("  ]\n");
@@ -208,16 +237,16 @@ new_named_set(const char *s)
 }
 
 static void
-add_report(const char *s, const char *msg, const char *fnm, const int lnr)
+add_report(const char *Type, const char *msg, const char *fnm, const int lnr)
 {	Reports *x;
 	Report  *r;
 
 	for (x = reports; x; x = x->nxt)
-	{	if (strcmp(x->nm, s) == 0)
+	{	if (strcmp(x->nm, Type) == 0)
 		{	break;
 	}	}
 	if (!x)
-	{	x = new_named_set((const char *) s);
+	{	x = new_named_set((const char *) Type);
 	}
 
 	r = (Report *) emalloc(sizeof(Report));
@@ -383,6 +412,7 @@ usage(void)
 	fprintf(stderr, "usage: json_convert [options] -f filename.json\n");
 	fprintf(stderr, "  -V -- print version number and exit\n");
 	fprintf(stderr, "  -v -- prints the nr of valid records read on standard output\n");
+	fprintf(stderr, "  -a -- use an alternate output format for SARIF\n");
 	fprintf(stderr, "  -junit -- produce output in JUNIT format (default)\n");
 	fprintf(stderr, "  -sarif -- produce output in SARIF format\n");
 	fprintf(stderr, "  -base=pathname -- add a uriBaseId field set to pathname (SARIF format)\n");
@@ -399,6 +429,9 @@ main(int argc, char *argv[])
 
 	while (argc > 1 && argv[1][0] == '-')
 	{	switch (argv[1][1]) {
+		case 'a':
+			alternate = 1 - alternate; // alternate Sarif format, BlueOrigin
+			break;
 		case 's':
 			if (strcmp(argv[1], "-sarif") == 0)
 			{	mode = SARIF;

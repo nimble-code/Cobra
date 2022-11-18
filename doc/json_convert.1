@@ -34,6 +34,11 @@ Generate JUnit format (the default).
 Generate SARIF format instead. If multiple format options are given,
 the final one will prevail.
 .TP
+.B \-a
+(Added in Version 1.3) Generate the SARIF format in an alternate format that uses rule categories
+more efficiently. The first section of the output describes the rules, and
+the second section of individual warning records refers to those rules by index.
+.TP
 .B \-base=pathname
 Adds a uriBaseId field to the SARIF output set to pathname, which
 can be an absolute pathname to locate the files.
@@ -53,7 +58,7 @@ $ cwe -json+ *.c > json.txt
 .br
 $ find_taint -json+ *.c >> json.txt
 .br
-$ json_convert -sarif -f json.txt > sarif.txt
+$ json_convert -a -sarif -f json.txt > sarif.txt
 .br
 .in -5
 

@@ -34,10 +34,7 @@ end
 
 def m04_rule2_4
 	comments
-	r; m //\*.*\;.*\*/		# stmnt separator in C comment
-	m //\*[^\*]*\;			# avoid /* ... */ ...;
-	m //\*[^/]*\;			# ditto
-	m ///.*\;			# stmnt separator in C++ comment
+	r; m /\;.*\;		# stmnt separator in comment
 	ps create M04_R2_4
 	ps caption M04_R2_4 (Advisory) Sections of code should not be commented out
 	source

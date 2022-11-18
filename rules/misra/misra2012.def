@@ -121,11 +121,7 @@ end
 
 def m12_rule4_4
 	comments
-	r
-	m //\*.*\;.*\*/			# ; in C comment
-	m //\*[^\*]*\;			# avoid /* ... */ ...;
-	m //\*[^/]*\;			# ditto
-	m ///.*\;			# ; in C++ comment
+	r; m /\;.*\;		# multiple stmnt separators in comment
 	ps create M12_R4_4
 	ps caption M12_R4_4 (Advisory) Sections of code should not be commented out
 	source
