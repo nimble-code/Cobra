@@ -1175,16 +1175,18 @@ def A5_1_1	#  (RI+-) Literal values shall not be used apart from type initializa
 		   && q.round == .round
 		   && q.bracket == .bracket
 		   && q.txt != "EOF")
-		{	if (q.type == "type"
+		{	if (q.type == "cpp"
+			||  q.type == "type"
 			||  q.type == "modifier"
 			||  q.type == "qualifier"
 			||  q.txt  == "cout")
-			{	Next;	# declaration or logging
+			{	Next;	# declaration, definition, or logging
 			}
 			q = q.prv;
 		}
 		add_pattern(A5_1_1, ., .);
 	%}
+!echo Stop
 	ps caption A5_1_1 (Required) Literal values shall not be used apart from type initialization, otherwise symbolic names shall be used instead.
 end
 

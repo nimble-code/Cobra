@@ -355,7 +355,7 @@ track start _Autosar_.txt
 track stop
 
 # report
-!if [ -s _Autosar_.txt ] ; then echo ": The first match of each pattern appears in file _AutosarA_.txt"; fi
+!if [ -s _Autosar_.txt ] ; then echo ": The first match of each pattern appears in file _Autosar_.txt"; fi
 # cleanup
 !if [ -s _Autosar_.txt ] ; then true; else rm -f _Autosar_.txt; fi
 
