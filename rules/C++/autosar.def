@@ -1186,7 +1186,6 @@ def A5_1_1	#  (RI+-) Literal values shall not be used apart from type initializa
 		}
 		add_pattern(A5_1_1, ., .);
 	%}
-!echo Stop
 	ps caption A5_1_1 (Required) Literal values shall not be used apart from type initialization, otherwise symbolic names shall be used instead.
 end
 
