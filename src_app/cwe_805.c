@@ -13,6 +13,7 @@ struct ThreadLocal805 {
 };
 
 static ThreadLocal805 *thr;
+static int first_e = 1;
 
 extern TokRange **tokrange;	// cwe_util.c
 
@@ -199,7 +200,8 @@ cwe805_report(void)
 			"suspicious sizeof in strncpy, strncat, or memcpy for other var than %s",
 				mycur->txt);
 			if (json_format)
-			{	json_match("", "cwe_805", json_msg, mycur, 0);
+			{	json_match("", "cwe_805", json_msg, mycur, 0, first_e);
+				first_e = 0;
 			} else
 			{	printf("%s:%d: cwe_805: %s\n",
 					mycur->fnm, mycur->lnr, json_msg);
@@ -209,7 +211,8 @@ cwe805_report(void)
 		{	sprintf(json_msg, "fct '%s' may return a zero or negative value",
 				mycur->txt);
 			if (json_format)
-			{	json_match("", "cwe_805", json_msg, mycur, 0);
+			{	json_match("", "cwe_805", json_msg, mycur, 0, first_e);
+				first_e = 0;
 			} else
 			{	printf("%s:%d: cwe_805: %s\n",
 					mycur->fnm, mycur->lnr, json_msg);

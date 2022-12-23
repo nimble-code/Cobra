@@ -62,7 +62,7 @@ end
 def A0_1_2	#  (RI+) The value returned by a function having a non-void return type that is not an overloaded operator shall be used.
 	r
 	fcts
-	= "functions"
+	# = "functions"
 	%{
 		unset NonVoid;
 		Stop;

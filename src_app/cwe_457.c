@@ -16,6 +16,7 @@ struct ThreadLocal457 {
 };
 
 static ThreadLocal457 *thr;
+static int first_e = 1;
 
 extern TokRange **tokrange;	// cwe_util.c
 
@@ -408,7 +409,8 @@ report_457(void)
 				}
 				sprintf(json_msg, "uninitialized var %s?", cur->txt);
 				if (json_format)
-				{	json_match("", "cwe_457", json_msg, cur, 0);
+				{	json_match("", "cwe_457", json_msg, cur, 0, first_e);
+					first_e = 0;
 				} else
 				{	printf("%s:%d: cwe_457: %s\n",
 						cur->fnm, cur->lnr, json_msg);

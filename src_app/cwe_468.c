@@ -8,6 +8,8 @@
 
 extern TokRange **tokrange;	// cwe_util.c
 
+static int first_e = 1;
+
 void
 cwe468_range(Prim *from, Prim *upto, int cid)
 {	Prim *q, *mycur;
@@ -73,7 +75,8 @@ cwe468_report(void)
 			{	sprintf(json_msg, "'%s': risky cast using pointer arithmetic",
 					mycur->txt);
 				if (json_format)
-				{	json_match("", "cwe_468", json_msg, mycur, 0);
+				{	json_match("", "cwe_468", json_msg, mycur, 0, first_e);
+					first_e = 0;
 				} else
 				{	printf("%s:%d: cwe_468: %s\n",
 						mycur->fnm, mycur->lnr, json_msg);

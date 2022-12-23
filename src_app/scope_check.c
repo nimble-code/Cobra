@@ -224,6 +224,7 @@ checkit(const int cpu, Ident *i)
 
 	if (!i->global	// never seen in global scope
 	||  i->tagged	// static
+	|| strcmp(i->p->txt, "stdio") == 0
 	|| strncmp(i->p->txt, "YY_", 3) == 0
 	|| strncmp(i->p->txt, "yy", 2) == 0
 	|| strncmp(i->p->txt, "flex_", 5) == 0)
@@ -292,7 +293,7 @@ cobra_main(void)
 	pthread_t *t_id;
 	Prim *q;
 	int fct_only = 0, file_only = 0;
-	int i, is_static = 0;
+	int i, is_static = 0, first_entry = 1;
 	clock_t start_time, stop_time;
 	struct tms start_tm, stop_tm;
 	double delta_time;
@@ -410,7 +411,8 @@ cobra_main(void)
 						cur->txt,
 						cur->curly==0?"scope":"function",
 						cur->typ);
-					json_match("scope_check", cobra_commands, json_msg, cur, cur);
+					json_match("scope_check", cobra_commands, json_msg, cur, cur, first_entry);
+					first_entry = 0;
 				} else
 				{	printf("\t%s\tused in only one %s (%s)\n",
 						cur->txt, cur->curly==0?"scope":"function",
@@ -426,7 +428,8 @@ cobra_main(void)
 			{	if (json_format)
 				{	sprintf(json_msg, "%s is used only in file %s",
 						cur->txt, cur->fnm);
-					json_match("scope_check", cobra_commands, json_msg, cur, cur);
+					json_match("scope_check", cobra_commands, json_msg, cur, cur, first_entry);
+					first_entry = 0;
 				} else
 				{	printf("\t%s\tused in only file %s\n",
 						cur->txt, cur->fnm);
@@ -440,7 +443,7 @@ cobra_main(void)
 	&&  !no_display)
 	{	fprintf(stderr, "    (%.3g sec)\n", delta_time);
 	}
-	json_match("", 0, 0, 0, 0);	// force linkage to cobra_json.o
+	json_match("", 0, 0, 0, 0, 1);	// force linkage to cobra_json.o
 
 	// for all Linux 2.4.1 sources (8,301 files, 3.7 Mlines, 2.6 M NCS)
 	// scope_check -n -z -N? `cat c_files`

@@ -4,7 +4,7 @@
 #include <ctype.h>
 //#include <malloc.h>
 
-#define Version	"Version 1.3 - 17 November 2022"
+#define Version	"Version 1.4 - 23 December 2022"
 
 // convert from Cobra JSON format to either
 //	JUnit or SARIF format

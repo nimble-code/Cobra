@@ -226,9 +226,13 @@ void
 comments_or_source(int to_comments)	// switch between these
 {
 	if (!s_prim && !cmnt_head)	// neither stream exists
-	{	fprintf(stderr, "error: no tokens defined\n");
-		return;
-	}
+	{	if (prim && plst)
+		{	s_prim = prim;
+			s_plst = plst;
+		} else
+		{	fprintf(stderr, "error: no tokens defined\n");
+			return;
+	}	}
 	if (to_comments)
 	{	if (s_prim)
 		{	return;		// already set

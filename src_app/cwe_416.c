@@ -12,6 +12,7 @@ struct ThreadLocal416 {
 };
 
 static ThreadLocal416 *thr;
+static int first_e = 1;
 
 extern TokRange **tokrange;	// cwe_util.c
 
@@ -322,7 +323,8 @@ cwe416_report(void)
 			{	sprintf(json_msg, "use after free of %s?",
 					mycur->bound->txt);
 				if (json_format)
-				{	json_match("", "cwe_416", json_msg, mycur, 0);
+				{	json_match("", "cwe_416", json_msg, mycur, 0, first_e);
+					first_e = 0;
 				} else
 				{	printf("%s:%d: cwe_416: %s?\n",
 						mycur->fnm, mycur->lnr, json_msg);

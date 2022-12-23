@@ -29,6 +29,7 @@ static int Into;
 static int banner;
 static int ngets_bad;
 static int nfopen;
+static int first_e = 1;
 
 FILE *track_fd;
 
@@ -616,7 +617,8 @@ handle_targets(Prim *q)
 				if (json_format)
 				{	sprintf(json_msg, "contents of '%s' in fopen() possibly tainted",
 						p->txt);
-					json_match("", "find_taint", json_msg, p, 0);
+					json_match("", "find_taint", json_msg, p, 0, first_e);
+					first_e = 0;
 				} else
 				{	printf(" %3d: %s:%d: warning: ", warnings, p->fnm, p->lnr); // n
 					printf("contents of '%s' in fopen() possibly tainted", p->txt); // n
@@ -677,7 +679,8 @@ percent_n_check(const char *a, Prim *q, int nr_commas)	// for *printf family
 				if (json_format)
 				{	sprintf(json_msg, "%s() uses '%%n' with corruptable arg '%s'",
 						q->txt, a);
-					json_match("", "find_taint", json_msg, q, 0);
+					json_match("", "find_taint", json_msg, q, 0, first_e);
+					first_e = 0;
 				} else
 				{	printf(" %3d: %s:%d: warning: %s() ",	// n
 						warnings, q->fnm, q->lnr, q->txt);
@@ -1100,7 +1103,8 @@ find_taints(void)		// completes Step 1 from taint_track.cobra script
 										{	error_overflow();
 								}	}	}
 
-								json_match("", "find_taint", nbuf, cur, 0);
+								json_match("", "find_taint", nbuf, cur, 0, first_e);
+								first_e = 0;
 							} else
 							{	printf("%s", lbuf);	// n
 								if (r->txt[0] == ','
@@ -1221,7 +1225,8 @@ issue_warning(Prim *q, const int a, const int b, const int cid)
 				str = multi_line_from_file(fd, cid);
 				fclose(fd);
 		}	}
-		json_match("", "find_taint", str, cur, 0);
+		json_match("", "find_taint", str, cur, 0, first_e);
+		first_e = 0;
 	} else
 	{	if (!banner)
 		{	printf("=== Potentially dangerous assignments:\n"); // n

@@ -200,7 +200,7 @@ add_match(Prim *f, Prim *t, Store *bd)
 					}
 					strcat(bvars, b->ref->txt);
 			}	}
-			json_match("Stream", glob_te, json_msg, f, t); // add_match, streaming
+			json_match("Stream", glob_te, json_msg, f, t, 1); // add_match, streaming
 			fprintf(fd, "}");
 			nr_json++;
 		} else
@@ -592,7 +592,9 @@ again:
 	if (phase == 0 && ncb == 0)
 	{	phase = 1;
 		if (ntp == 0 || nfl == 0 || nln == 0)
-		{	fprintf(stderr, "warning: no useable records found (file, line, or cobra fields missing)\n");
+		{	if (verbose) // eg be an import from scope_check
+			{ fprintf(stderr, "warning: no usable records found (file, line, or cobra fields missing)\n");
+			}
 		} else
 		{	if (nfl != nln || ntp != nfl)
 			{	fprintf(stderr, "warning: not all records have type, file and line fields\n");
@@ -607,7 +609,7 @@ again:
 }
 
 void
-json_match(const char *setname, const char *te, const char *msg, const Prim *from, const Prim *upto)
+json_match(const char *setname, const char *te, const char *msg, const Prim *from, const Prim *upto, int first)
 {	const char *f = from?from->fnm:"";
 	const int ln  = from?from->lnr:0;
 	FILE *fd = (track_fd) ? track_fd : stdout;
@@ -616,10 +618,12 @@ json_match(const char *setname, const char *te, const char *msg, const Prim *fro
 	// unless preceded by an escape \ character
 	// cleaned_up inserts escapes where needed
 	// unless in double quotes....
-
 	if (!te
 	||  !msg)
 	{	return;
+	}
+	if (!first)
+	{	fprintf(fd, ",\n");
 	}
 	fprintf(fd, "  { \"type\"\t:\t\"");
 	 if (setname
@@ -780,6 +784,7 @@ json(const char *te)
 	// the output is verbose for that match (or all, for a *)
 
 	memset(bvars, 0, sizeof(bvars));
+
 	fprintf(fd, "[\n");
 	for (mycur = prim; mycur; mycur = mycur?mycur->nxt:0)
 	{	if (mycur->mark)
@@ -820,7 +825,7 @@ json(const char *te)
 			{	sprintf(json_msg, "lines %s:%d..%s:%d",
 					sop->fnm, sop->lnr, q?q->fnm:"", q?q->lnr:0);
 		}	}
-		json_match("Patterns", te, json_msg, sop, q);	// json()
+		json_match("Patterns", te, json_msg, sop, q, 1);	// json()
 		seen |= 4;
 	}
 	if (seen == 2)	// saw marked tokens, but no patterns, find ranges to report
@@ -836,7 +841,7 @@ json(const char *te)
 				{	break;
 			}	}
 			sprintf(json_msg, "lines %d..%d", sop->lnr, mycur?mycur->lnr:0);
-			json_match("Marked", te, json_msg, sop, mycur); // json()
+			json_match("Marked", te, json_msg, sop, mycur, 1); // json()
 		}
 	}
 	fprintf(fd, "\n]\n");

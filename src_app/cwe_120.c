@@ -24,6 +24,7 @@ struct Results120 {
 static ThreadLocal120 *thr;
 static Results120 **results;
 static int at_least_one;
+static int first_e = 1;
 
 extern TokRange **tokrange;	// cwe_util.c
 
@@ -146,7 +147,8 @@ cwe120_check_list(TrackVar *p, const char *s)
 	while (p)
 	{	for (q = p->lst; q; q = q->nxt)
 		{	if (json_format)
-			{	json_match("", "cwe_120", s, q->nv, 0);
+			{	json_match("", "cwe_120", s, q->nv, 0, first_e);
+				first_e = 0;
 			} else
 			{	printf("%s:%d: %s\n", q->nv->fnm, q->nv->lnr, s);
 		}	}
@@ -433,7 +435,8 @@ report_120_3(void)
 			sprintf(json_msg, "%s :: buffer overrun, %s is size %d but %s is size %d",
 				r->fc->txt, r->dst->txt, r->dsc, r->src->txt, r->ssc);
 			if (json_format)
-			{	json_match("", "cwe_120_3", json_msg, r->mycur, 0);
+			{	json_match("", "cwe_120_3", json_msg, r->mycur, 0, first_e);
+				first_e = 0;
 			} else
 			{	printf("%s:%d: cwe_120_3 %s\n",
 					r->mycur->fnm, r->mycur->lnr, json_msg);

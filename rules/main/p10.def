@@ -12,6 +12,8 @@ def P10_1
 	ps caption P10_1b use of goto setjmp or longjmp
 
 	ps P10_1 = P10_1a + P10_1b
+	ps delete P10_1a
+	ps delete P10_1b
 	ps caption P10_1 Rule 1: restrict to simple control flow constructs
 end
 def P10_2
@@ -26,10 +28,11 @@ def P10_2
 	ps caption P10_2c loop bound, missing decrement
 
 	ps P10_2ab = P10_2a + P10_2b
+	ps delete P10_2a
+	ps delete P10_2b
 	ps P10_2 = P10_2ab + P10_2c
-	ps caption P10_2 Rule 2: give all loops a fixed upper bound
-
 	ps delete P10_2ab
+	ps caption P10_2 Rule 2: give all loops a fixed upper bound
 end
 def P10_3
 	pe P10_3: ^/init ( .* ) { .* [/alloc /free] ( .* ) .* }
@@ -78,6 +81,8 @@ def P10_6
 	ps caption P10_6b Declare data at the smallest possible level of scope
 
 	ps P10_6 = P10_6a + P10_6b
+	ps delete P10_6a
+	ps delete P10_6b
 	ps caption P10_6 Limit use of global data
 end
 def P10_7
@@ -88,6 +93,8 @@ def P10_7
 	ps caption P10_7b failure to check validity ptr param
 
 	ps P10_7 = P10_7a + P10_7b
+	ps delete P10_7a
+	ps delete P10_7b
 	ps caption P10_07 Rule 7: check the return value of non-void fcts and check the validity of fct parameters
 end
 def P10_8
@@ -98,6 +105,8 @@ def P10_8
 	ps caption P10_8b use defines only in .h files
 
 	ps P10_8 = P10_8a + P10_8b
+	ps delete P10_8a
+	ps delete P10_8b
 	ps caption P10_8 Rule 8: limit the use of the preprocessor to file inclusion and simple macros
 end
 def P10_9
@@ -117,13 +126,19 @@ def P10_9
 	ps caption P10_9e use no more than 2 levels of dereferencing (-> -> ->)
 
 	ps P10_9ab = P10_9a + P10_9b
+	ps delete P10_9a
+	ps delete P10_9b
+
 	ps P10_9cd = P10_9c + P10_9d
+	ps delete P10_9c
+	ps delete P10_9d
+
 	ps P10_9abcd = P10_9ab + P10_9cd
-
-	ps P10_9 = P10_9abcd + P10_9e
-	ps caption P10_9 Rule 9: limit the use of pointers, use no more than 2 levels of dereferencing
-
 	ps delete P10_9ab
 	ps delete P10_9cd
+
+	ps P10_9 = P10_9abcd + P10_9e
+	ps delete P10_9e
 	ps delete P10_9abcd
+	ps caption P10_9 Rule 9: limit the use of pointers, use no more than 2 levels of dereferencing
 end

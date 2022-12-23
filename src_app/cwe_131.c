@@ -14,6 +14,7 @@ struct ThreadLocal131 {
 };
 
 static ThreadLocal131 *thr;
+static int first_e = 1;
 
 extern TokRange **tokrange;	// cwe_util.c
 
@@ -225,7 +226,8 @@ cwe131_report(void)
 		{	if (mycur->mark == 131)
 			{	sprintf(json_msg, "missing sizeof() in memory allocation?");
 				if (json_format)
-				{	json_match("", "cwe_131", json_msg, mycur, 0);
+				{	json_match("", "cwe_131", json_msg, mycur, 0, first_e);
+					first_e = 0;
 				} else
 				{	printf("%s:%d: cwe_131: %s\n",
 						mycur->fnm, mycur->lnr, json_msg);
@@ -253,7 +255,8 @@ cwe131_report(void)
 					} else
 					{	strcpy(more, ample);
 					}
-					json_match("", "cwe_131", more, q, 0);
+					json_match("", "cwe_131", more, q, 0, first_e);
+					first_e = 0;
 				} else
 				{	printf("%s:%d:  cwe_131: %s\n",
 						q->fnm, q->lnr, ample);

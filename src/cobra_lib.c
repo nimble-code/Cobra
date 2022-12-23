@@ -1091,6 +1091,7 @@ one_script(FILE *fd, const char *nm, char *buf, const int sz)
 static void
 check_list(ArgList *lst, char *c, char *s, int len)
 {	ArgList *n;
+	int cntr = len;
 
 	while (strlen(c) > 0)
 	{	for (n = lst; n; n = n->nxt)
@@ -1106,7 +1107,12 @@ check_list(ArgList *lst, char *c, char *s, int len)
 				break;
 		}	}
 		if (!n)		// no matches
-		{	do {	// move forward
+		{	do {
+				// move forward
+				if (cntr-- <= 0)
+				{	*s = '\0';
+					return;
+				}
 				*s++ = *c++;
 			} while (isalnum((uchar) *(c-1)) || *(c-1) == '_');
 	}	}
@@ -1874,6 +1880,7 @@ pre_scan(char *bc)	// non-generic commands
 			|| (ma == ma2 && mi < mi2))
 			{	fprintf(stderr, "error: requires Cobra Version %d.%d -- have %d.%d\n",
 					ma2, mi2, ma, mi);
+				return 0;
 			}
 			return 1;
 		}

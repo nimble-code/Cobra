@@ -1918,6 +1918,7 @@ patterns_json(char *s)
 {	Named *q;
 	Match *m;
 	char *t;
+	int first_entry = 1;
 
 	q = findset(s, 0, 11);
 	if (!q)
@@ -1946,7 +1947,8 @@ patterns_json(char *s)
 				m->upto->fnm, m->upto->lnr);
 		}
 		t = q->msg?q->msg:q->nm;
-		json_match(s, t, json_msg, m->from, m->upto);
+		json_match(s, t, json_msg, m->from, m->upto, first_entry);
+		first_entry = 0;
 	}
 }
 
@@ -2138,6 +2140,7 @@ static void
 pattern_matched(Named *curset, int which, int N, int M)
 {	Match *m;
 	int r, n = 0, p = 0, a, b;
+	int first_entry = 1;
 	FILE *fd = track_fd?track_fd:stdout;
 	char *t;
 	int notsamefile = 0;
@@ -2243,13 +2246,16 @@ pattern_matched(Named *curset, int which, int N, int M)
 			if (!opened)
 			{	fprintf(fd, "[\n");
 				opened = 1;
+				first_entry = 1;
 				closed = 0;
 			} else if (closed)
 			{	fprintf(fd, ",[\n"); // add separator
 				opened = 1;
+				first_entry = 1;
 				closed = 0;
 			}
-			json_match(curset->nm, t, json_msg, m->from, m->upto);
+			json_match(curset->nm, t, json_msg, m->from, m->upto, first_entry);
+			first_entry = 0;
 		} else
 		{	if (p == 1 && curset->msg)
 			{	fprintf(fd, "%s=== %s ===\n",
@@ -2348,7 +2354,7 @@ pattern_matched(Named *curset, int which, int N, int M)
 						fprintf(fd, "\n");
 						show_line(fd, m->upto->fnm, 0, b-5, b+1, a);
 		}	}	}	}
-
+fprintf(track_fd, "which %d n %d\n", which, n);
 		if (which != 0
 		&&  n == which)
 		{	break;

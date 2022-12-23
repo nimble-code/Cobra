@@ -19,6 +19,7 @@ struct ThreadLocal170 {
 };
 
 static ThreadLocal170 *thr;
+static int first_e = 1;
 
 extern TokRange **tokrange;	// cwe_util.c
 
@@ -189,7 +190,8 @@ cwe170_report(void)
 			{	sprintf(json_msg, "'%s' in strncpy may not be null terminated",
 					mycur->bound->txt);
 				if (json_format)
-				{	json_match("", "cwe_170", json_msg, mycur, 0);
+				{	json_match("", "cwe_170", json_msg, mycur, 0, first_e);
+					first_e = 0;
 				} else
 				{	printf("%s:%d: cwe_170: %s\n",
 						mycur->fnm, mycur->lnr, json_msg);
