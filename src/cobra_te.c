@@ -2157,7 +2157,6 @@ pattern_matched(Named *curset, int which, int N, int M)
 		&&  strcmp(pattern_filter, m->from->fnm) != 0)
 		{	continue;
 		}
-
 		if (has_suppress_tags
 		&& matches_suppress(m->from, m->msg))
 		{	if (verbose)
@@ -2354,7 +2353,7 @@ pattern_matched(Named *curset, int which, int N, int M)
 						fprintf(fd, "\n");
 						show_line(fd, m->upto->fnm, 0, b-5, b+1, a);
 		}	}	}	}
-fprintf(track_fd, "which %d n %d\n", which, n);
+// if (track_fd) { fprintf(track_fd, "which %d n %d\n", which, n); }
 		if (which != 0
 		&&  n == which)
 		{	break;
