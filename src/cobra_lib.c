@@ -2772,7 +2772,7 @@ extend_range(void *arg)
 		{	break;
 		}
 		if (r_apply(r, r, s, 0))
-		{	if (*t && !r_apply(r, r->nxt, t, 1))
+		{	if (*t && !r_apply(q, r->nxt, t, 1))
 			{	continue;
 			}
 			local_cnt++;
