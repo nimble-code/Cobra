@@ -1,0 +1,46 @@
+#!/bin/sh
+
+if [ $# -eq 2 ]
+then	true
+else
+	if [ $# -eq 3 ]
+	then	true
+	else
+		echo "usage: line filename linenr [linenr]"
+		exit 1
+	fi
+fi
+
+if [ -s $1 ]
+then	true
+else
+	echo "error: no such (or empty) file $1"
+	exit 1
+fi
+
+if [ $2 -ge 0 ]
+then
+	if [ $# -eq 3 ]
+	then
+		if [ $3 -ge $2 ]
+		then
+			sed -n $2,$3p $1
+		else
+			echo "error: arg3 must be >= arg2"
+			exit 1
+		fi
+	else
+		sed -n $2p $1 | grep -e for > _foo_
+		if [ -s _foo_ ]
+		then	cat _foo_
+		else	a=`expr $2 - 3`
+			line $1 $a $2
+		fi
+		rm -f _foo_
+	fi
+else
+	echo "error: linenr must be > 0"
+	exit 1
+fi
+
+exit 0

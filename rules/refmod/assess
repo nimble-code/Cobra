@@ -1,0 +1,92 @@
+#!/bin/bash
+
+if [ $# -gt 1 ]
+then
+	echo "usage: assess [outliers | suspicious]"
+	echo "	run the refmod/build command first"
+	echo "	outliers: perform sanity check on the .RM/Ref_Src data"
+	echo "	suspicious: check for some known dubious patternsin .RM/Ref_Src"
+	echo "	without argument: do both"
+	exit 1
+fi
+
+do_outliers=1
+do_suspicious=1
+
+if [ $# -eq 1 ]
+then
+	case $1 in
+	outliers)
+		do_suspicious=0
+		;;
+	suspicious)
+		do_outliers=0
+		;;
+	*)
+		echo "usage: assess [outliers | suspicious]"
+		exit 1
+		;;
+	esac
+fi
+
+###  ~/.cobra is used to find the rules/refmod directory
+if [ -s ~/.cobra ]
+then
+	RM=`cat ~/.cobra | grep -e "Rules: " | sed 's;Rules: ;;'`
+	RM="$RM/refmod"
+else
+	echo "error: ~/.cobra not found"
+	echo "      install cobra first"
+	exit 1
+fi
+
+# highlight unique patterns in source text
+
+if [ $do_outliers -eq 1 ]
+then
+	# outliers warns if build/postprocess didn't run first
+
+	$RM/outliers.sh | $RM/filter.awk > .RM/Ref_Src_matches
+
+	if [ -s .RM/Ref_Src_matches ]
+	then	echo -n "Unique patterns in .RM/Ref_Src_matches: "
+		grep -c "^[0-9]" .RM/Ref_Src_matches
+	fi
+
+	# in: .RM/Ref_Mod_control_sorted
+	# intermediate: .RM/_tmp1_, .RM/_tmp2_, .RM/_tmp3_, .RM/_tmp4_
+	# out: .RM/Ref_Src_Space (mapping white-space sequences to a single space)
+	# stdout: source text for matches that appear only once in .RM/Ref_Mod_control_sorted
+	# (filters out pattern lines not followed by a file match, and restricts to one match
+	# reported per pattern, generates a numbered sequence of matches)
+	# in linux-6.0.9 this gives 82 examples of unique control patterns
+fi
+
+# match specific suspicious patterns, eg i < N combined with i--
+
+if [ $do_suspicious -eq 1 ]
+then
+	if [ -s .RM/Ref_Mod_sorted ]
+	then	true
+	else	echo "error: missing file .RM/Ref_Mod_sorted"
+		echo "       run the full refmod/build first"
+		exit 1
+	fi
+	cobra -eol -f refmod/suspicious.cobra .RM/Ref_Mod_sorted | $RM/details.sh > .RM/Ref_Src_selected 2>&1
+
+	if [ -s .RM/Ref_Src_selected ]
+	then	echo -n "suspicous patterns in .RM/Ref_Src_selected: "
+		grep -c "^\." .RM/Ref_Src_selected
+		cat .RM/Ref_Src_selected
+	else	echo "suspicious: no matches found"
+	fi
+	# in: .RM/Ref_Mod_sorted, .RM/Ref_Src_Space
+	# stdout: file linenr and source text that matches
+	# selects file:linenr lines in the output from 'd' and calls 
+
+	# for linux-6.1.7 three of the four _selected reports also appear in the list of 85 _matches
+	# which is a good sign that the 85 patterns picked from 68,995 for-loops in the code
+	# represent potentially suspicious code, as intended
+fi
+
+exit 0

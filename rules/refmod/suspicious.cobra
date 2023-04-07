@@ -1,0 +1,142 @@
+##
+## cobra -eol -f refmod/suspicious.cobra .RM/Ref_Mod_sorted | refmod/details.sh
+##
+%{
+	PRE=0;  POST=1; EITHER=2;
+	BODY=0; CTL=1;
+	TXT=0;  TYP=1;
+
+	function markup()	# mark the start of each line
+	{	ln = .;
+		while (ln.lnr > 0 && ln.txt != "EOF")
+		{	ln.mark = 1;
+			nl = ln;
+			while (nl.lnr == ln.lnr && ln.txt != "EOF")
+			{	nl = nl.nxt;
+			}
+			ln = nl;
+		}
+	}
+	function has_op(tpe, pre, val, ctl) # typ(1)/txt(0), pre=0/post=1/either=2, val, control(1)/body(0)
+	{	ln = .;
+		# print "Call " tpe " " pre " " val " " ctl "\n";
+		if (@const)
+		{	ln = ln.nxt;	# skip nr field, it present
+		}
+		# seq of pre-post pairs for loop control
+		while (ln.txt != "#" && ln.lnr == .lnr)
+		{	if (ctl == CTL)
+			{	if (pre == POST)
+				{	ln = ln.nxt;	# skip pre op
+				}
+				if (tpe == TYP)
+				{	if (ln.typ == val)
+					{	return 1;
+					}
+				} else	# txt
+				{
+					if (ln.txt == val)
+					{	return 1;
+					}
+				}
+				if (pre == PRE)
+				{	ln = ln.nxt;	# skip post op
+			}	}
+			ln = ln.nxt;
+		}
+		if (ctl == CTL)
+		{	return 0;
+		}
+		# seq of pre-post pairs for loop body
+		while (ln.txt != "EOL" && ln.lnr == .lnr)
+		{	if (pre == POST)
+			{	ln = ln.nxt;	# skip pre op
+			}
+			if (tpe == TYP)
+			{	if (ln.typ == val)
+				{	return 1;
+				}
+			} else
+			{	if (ln.txt == val)
+				{	return 1;
+				}
+			}
+			if (pre == PRE)
+			{	ln = ln.nxt;	# skip post op
+			}
+			ln = ln.nxt;
+		}
+		return 0;
+	}
+	markup();
+	Stop;
+%}
+%{
+	if (.mark != 1)
+	{	Next;
+	}
+	.mark = 0;
+	# PRE=0;  POST=1; EITHER=2;
+	# BODY=0; CTL=1;
+	# TXT=0;  TYP=1;
+
+	if (has_op(TXT, EITHER, "++" , CTL)	# txt, either, increment, control
+	&& (has_op(TXT, POST, ">" , CTL)
+	||  has_op(TXT, POST, ">=", CTL)))
+	{	if (!has_op(TXT, PRE, "-", CTL))
+		{	.mark = 1;
+			add_pattern(COMPARE_GT, ., .);
+	}	}
+
+	if (has_op(TXT, EITHER, "--" , CTL)	# txt, either, increment, control
+	&& (has_op(TXT, POST, "<" , CTL)
+	||  has_op(TXT, POST, "<=", CTL)))
+	{	if (!has_op(TXT, PRE, "-", CTL))
+		{	.mark = 1;
+			add_pattern(COMPARE_LT, ., .);
+	}	}
+
+	# use of binary operators in control part (not too unusual):
+##	if (has_op(TXT, EITHER, "~", CTL)
+##	||  has_op(TXT, EITHER, "&", CTL)
+##	||  has_op(TXT, EITHER, "|", CTL))
+##	{	.mark = 1;
+##		add_pattern(BINOPS, ., .);
+##	}
+
+	# grep -e '&&.*>=.*&&.*<=.*##' Ref_Src
+	if (has_op(TXT, POST, ">=", CTL) && has_op(TXT, PRE, "&&", CTL)
+	&&  has_op(TXT, POST, "<=", CTL) && has_op(TXT, PRE, "&&", CTL))
+	{	.mark = 1;
+		add_pattern(GT_LT, ., .);
+	}
+%}
+d
+# ps list
+
+## linux 5.0.9: has matches for COMPARE in 75,371 for-loops (8,389 distinct)
+
+## line ./mm/memtest.c 109
+##      for (i = memtest_pattern-1; i < UINT_MAX; --i) {
+##
+## line ./drivers/net/ethernet/amd/xgbe/xgbe-drv.c 1117
+##      for (i--; i < pdata->channel_count; i--) {
+##
+## line ./lib/zstd/compress.c 783
+##      for (n = nbSeq - 2; n < nbSeq; n--) { /* intentional underflow */
+##
+## line ./drivers/vlynq/vlynq.c 395-397
+##      for (i = dev->dev_id ? vlynq_rdiv2 : vlynq_rdiv8; dev->dev_id ?
+##                 i <= vlynq_rdiv8 : i >= vlynq_rdiv2;
+##                 dev->dev_id ? i++ : i--) {
+##
+## line ./drivers/vlynq/vlynq.c 440-442
+##      for (i = dev->dev_id ? vlynq_ldiv2 : vlynq_ldiv8; dev->dev_id ?
+##                 i <= vlynq_ldiv8 : i >= vlynq_ldiv2;
+##                 dev->dev_id ? i++ : i--) {
+##
+## line ./fs/fuse/file.c 2601
+##                 for (i = 0; iov_iter_count(&ii) && !WARN_ON(i >= num_pages); i++) {
+##
+## line ./fs/fuse/file.c 2673
+##         for (i = 0; iov_iter_count(&ii) && !WARN_ON(i >= num_pages); i++) {

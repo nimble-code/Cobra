@@ -1,0 +1,122 @@
+#
+# find fcts that frequently are used in pairs within a fct
+# eg malloc/free, fopen/fclose, lock/unlock
+# then report deviations where the 2nd fct is missing
+#
+fcts
+n {	# move to start of body
+%{
+	unset Combo;
+	unset FCall;
+	unset FSeen;
+	unset OncePerFct;
+	Stop;
+%}
+%{
+	if (.mark == 0 || .jmp == 0)
+	{	Next;
+	}
+	.mark = 0;
+	q = .jmp;
+	unset FCall;
+	nr = 0;
+	while (.seq < q.seq)
+	{	if (@ident && !match(.txt, "/print") && !match(.txt, "/str"))
+		{	r = .nxt;
+			if (r.txt == "(")
+			{	FCall[nr] = .txt;
+				FSeen[.txt]++;
+				nr++;
+		}	}
+		. = .nxt;
+	}
+	# every entry combined with all later entries
+	n2 = 0;
+	unset OncePerFct;
+	while (n2 < nr)
+	{	f1 = FCall[n2];
+		n3 = n2 + 1;
+		while (n3 < nr)
+		{	f2 = FCall[n3];
+			if (f1 != f2 && OncePerFct[f1,f2] == 0)
+			{	Combo[f1,f2]++;
+				OncePerFct[f1,f2] = 1;
+			}
+			n3++;
+		}
+		n2++;
+	}
+%}
+%{
+	for (i in Combo)
+	{	n0 = split(i.txt, AA);
+		assert(n0 == 2);
+		r = (1000 * Combo[i.txt])/FSeen[AA[0]];
+		if (r > 500 && FSeen[AA[0]] >= 10)
+		{	print r/10 "% (" Combo[i.txt] " of " FSeen[AA[0]] " times) "  AA[0] " is followed by " AA[1] "\n" ;
+		}
+	}
+	Stop;
+%}
+
+# 20 min for linux 3.0.1
+# $ sort -n fct_pairs.out | grep -e " lock" | grep -v 100% | grep unlock
+# 60% (6 of 10 times) lock_chunks is followed by unlock_chunks
+# 66% (18 of 27 times) lock_fb_info is followed by unlock_fb_info
+# 73% (97 of 132 times) lock_page is followed by unlock_page
+# 76% (20 of 26 times) lock_flocks is followed by unlock_flocks
+# 76% (95 of 125 times) lock_buffer is followed by unlock_buffer
+# 77% (14 of 18 times) lock_extent_bits is followed by unlock_extent_cached
+# 90% (9 of 10 times) lock_extent is followed by unlock_extent
+# 93% (15 of 16 times) lock_ufs is followed by unlock_ufs
+# 95% (21 of 22 times) lock_task_sighand is followed by unlock_task_sighand
+#
+# $ sort -n fct_pairs.out | grep open | grep -v 100% | grep close
+# 57% (15 of 26 times) opendir is followed by closedir
+# 66% (12 of 18 times) gameport_open is followed by gameport_close
+# 67% (54 of 80 times) fopen is followed by fclose
+# 69% (23 of 33 times) filp_open is followed by filp_close
+# 71% (10 of 14 times) open_candev is followed by close_candev
+# 97% (33 of 34 times) serio_open is followed by serio_close
+
+# 37 min for linux 4.3
+# $ sort -n fct_pairs.out | grep -e " lock" | grep -v 100% | grep unlock
+# 58% (34 of 58 times) lock is followed by unlock
+# 65% (17 of 26 times) lock_fb_info is followed by unlock_fb_info
+# 70% (120 of 170 times) lock_page is followed by unlock_page
+# 70% (7 of 10 times) lock_parent is followed by unlock_dir
+# 72% (8 of 11 times) lock_srbm is followed by unlock_srbm
+# 73% (79 of 108 times) lock_buffer is followed by unlock_buffer
+# 75% (15 of 20 times) lock_chunks is followed by unlock_chunks
+# 75% (18 of 24 times) lock_extent_bits is followed by unlock_extent_cached
+# 80% (8 of 10 times) lock_res is followed by unlock_res
+# 82% (43 of 52 times) lock_res_and_lock is followed by unlock_res_and_lock
+# 85% (17 of 20 times) lock_mount_hash is followed by unlock_mount_hash
+# 90% (10 of 11 times) lock_extent is followed by unlock_extent
+# 90% (27 of 30 times) lock_task_sighand is followed by unlock_task_sighand
+#
+# $ sort -n fct_pairs.out | grep open | grep -v 100% | grep close
+# 58% (7 of 12 times) sys_perf_event_open is followed by close
+# 60% (17 of 28 times) event_open is followed by event_close
+# 65% (106 of 163 times) fopen is followed by fclose
+# 68% (13 of 19 times) gameport_open is followed by gameport_close
+# 70% (7 of 10 times) llog_open is followed by llog_close
+# 78% (18 of 23 times) open_candev is followed by close_candev
+# 78% (45 of 57 times) opendir is followed by closedir
+# 80% (8 of 10 times) SMB2_open is followed by SMB2_close
+# 97% (34 of 35 times) serio_open is followed by serio_close
+#
+# $ sort -n fct_pairs.out | grep -e alloc | grep -v 100% | grep -e free | tail -13
+# 93% (235 of 252 times) input_allocate_device is followed by input_free_device
+# 93% (78 of 83 times) mlx4_alloc_cmd_mailbox is followed by mlx4_free_cmd_mailbox
+# 94% (17 of 18 times) aac_fib_alloc is followed by aac_fib_free
+# 94% (17 of 18 times) input_allocate_polled_device is followed by input_free_polled_device
+# 94% (17 of 18 times) vq_req_alloc is followed by vq_repbuf_free
+# 94% (67 of 71 times) qlcnic_alloc_mbx_args is followed by qlcnic_free_mbx_args
+# 95% (22 of 23 times) digital_skb_alloc is followed by kfree_skb
+# 95% (42 of 44 times) mdiobus_alloc is followed by mdiobus_free
+# 95% (45 of 47 times) ptlrpc_request_alloc is followed by ptlrpc_request_free
+# 96% (160 of 165 times) btrfs_alloc_path is followed by btrfs_free_path
+# 96% (28 of 29 times) mthca_alloc_mailbox is followed by mthca_free_mailbox
+# 96% (32 of 33 times) edac_mc_alloc is followed by edac_mc_free
+# 97% (37 of 38 times) rc_allocate_device is followed by rc_free_device

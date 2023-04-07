@@ -1,0 +1,59 @@
+#
+# statistics on how the variable in calls to (un)lock is used
+#
+
+m mutex_lock (
+m & (.curly != 0)
+%{
+	unset Record;
+	unset Sample;
+	Stop;
+%}
+%{
+	if (.mark == 0)
+	{	Next;
+	}
+	.mark = 0;
+
+	. = .nxt;	# (
+	nm = "";
+	c = .nxt;
+	if (c.txt == "&")
+	{	c = c.nxt;
+	}
+	while (c != .jmp)
+	{	nm = nm + c.txt;
+		c = c.nxt;
+	}
+	# nm is the reference to the lock variable
+	# which is often a struct reference like &nm->nm
+
+	w = c.nxt;
+	while (w.curly > 0)
+	{	if (w.typ == "ident")
+		{	b = w.prv;
+			if (b.txt == "&")
+			{	b = b.prv;
+			}
+			if (b.txt == "(")
+			{	b = b.prv;	# should be mutex_lock or mutex_unlock only
+			}
+			mtch = "";
+			while (w.txt == "->" || w.txt == "." || w.typ == "ident")
+			{	mtch = mtch + w.txt;
+				w = w.nxt;
+			}
+			if (mtch == nm)			# reuse
+			{	Record[b.txt]++;
+				Sample[b.txt] = w;
+		}	}
+		w = w.nxt;
+	}
+%}
+%{
+	for (i in Record)
+	{	r = Sample[i.txt];
+		print Record[i.txt] "\t" i.txt "\tline " r.fnm " " r.lnr "\n";
+	}
+	Stop;
+%}

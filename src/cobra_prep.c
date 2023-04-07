@@ -37,6 +37,7 @@ int no_match;
 int parse_macros;
 int p_debug;
 int preserve;
+int pruneifzero;
 int python;
 int read_stdin;
 int stream_lim = 100000;
@@ -47,6 +48,8 @@ int runtimes;
 int scrub;
 int verbose;
 int view;
+
+unsigned long MaxMemory = 24000;	// set default max to 24 GB, override with -MaxMem N
 
 ArgList		*cl_var;	// -var name=xxx, cobra_lib.c
 pthread_t	*t_id;
@@ -800,6 +803,7 @@ usage(char *s)
 	fprintf(stderr, "\t-json               -- generate json output for -pattern/-pe matches (only)\n");
 	fprintf(stderr, "\t-json+              -- generate more detailed json output for -pattern/-pe matches\n");
 	fprintf(stderr, "\t-l or -lib          -- list available predefined cobra -f checks\n");
+	fprintf(stderr, "\t-MaxMem N           -- set the maximum memory use to N MB (default: 24000)\n");
 	fprintf(stderr, "\t-m or -macros       -- parse text of macros (implies -nocpp)\n");
 	fprintf(stderr, "\t-n or -nocpp        -- do not do any C preprocessing%s\n", !no_cpp?"":" (default)");
 	fprintf(stderr, "\t-noqualifiers       -- do not tag qualifiers\n");
@@ -815,6 +819,7 @@ usage(char *s)
 	fprintf(stderr, "\t                       [ is a meta-symbol unless followed by a space\n");
 	fprintf(stderr, "\t                       a tokenpattern preceded by / is a regular expr, escape with \\\n");
 	fprintf(stderr, "\t-preserve           -- preserve temporary files in /tmp\n");
+	fprintf(stderr, "\t-prune              -- after reading in files, remove code between #if 0 and #endif\\\n");
 	fprintf(stderr, "\t-Python             -- recognize Python keywords\n");
 	fprintf(stderr, "\t-quiet              -- do not print script commands executed or nr of matches\n");
 	fprintf(stderr, "\t-recursive \"pattern\" -- use find on pattern to populate a list of files to process (see also -F)\n");
@@ -1572,6 +1577,14 @@ RegEx:			  no_match = 1;		// -e -expr -re or -regex
 			  }
 			  return 0;
 
+		case 'M':
+			  if (strcmp(argv[1], "-MaxMem") == 0)
+			  {	argc--; argv++;
+				MaxMemory = (unsigned long) atoi(argv[1]);
+				break;
+			  }
+			  return usage(argv[1]);
+
 		case 'm': parse_macros = no_cpp = 1;
 			  break;
 
@@ -1604,6 +1617,10 @@ RegEx:			  no_match = 1;		// -e -expr -re or -regex
 
 		case 'p': if (strncmp(argv[1], "-pre", 4) == 0)	// preserve
 			  {	preserve = 1;
+				break;
+			  }
+			  if (strncmp(argv[1], "-prune", 6) == 0) // prune_if_zero
+			  {	pruneifzero = 1;
 				break;
 			  }
 			  if (strncmp(argv[1], "-pat", 4) == 0
@@ -1921,6 +1938,9 @@ cwe_mode:	no_match = 1;	// for consistency with -f
 	}
 	post_process(1);		// collect info from cores
 	strip_comments_and_renumber(1);	// set cmnt_head/cmnt_tail
+	if (pruneifzero)
+	{	prune_if_zero();
+	}
 
 	if (seedfile)
 	{	json_import(seedfile, 0);
@@ -1948,6 +1968,65 @@ do_typedefs(int cid)
 {
 	if (handle_typedefs)
 	{	typedefs(cid);
+	}
+}
+
+void
+prune_if_zero(void)	// omit tokens between #if 0 and #endif
+{	Prim *q, *r, *s;
+	int cnt = 0, nr = 0, n;
+	static int pruned = 0;
+
+	if (pruned)
+	{	return;
+	}
+
+	if (verbose)
+	{	printf("Prune If Zero\n");
+	}
+	if (!stream)
+	for (q = prim; q; q = q->nxt)
+	{	if (strcmp(q->txt, "#if") != 0
+		||  !q->nxt
+		||  strcmp(q->nxt->txt, "0") != 0)
+		{	continue;
+		}
+		s = r = q;
+		n = 0;
+		do {
+			s = s->nxt;
+			n++;
+		} while (s && s->txt[0] != '#');
+
+		if (!s
+		||  strcmp(s->txt, "#endif") != 0
+		||  strcmp(s->fnm, r->fnm) != 0)
+		{	continue;
+		}
+		s = s->nxt;
+		if (!s
+		||  strcmp(s->txt, "EOL") != 0)
+		{	continue;
+		}
+		// remove from r to s->nxt;
+		cnt += n;
+		nr++;
+		if (verbose)
+		{	printf("%s:%d: prune %d tokens\n", q->fnm, q->lnr, n);
+		}
+		if (r == prim)
+		{	prim = q = s->nxt;
+		} else if (r->prv)
+		{	r = r->prv;
+			r->nxt = s->nxt;
+			if (s->nxt)
+			{	s->nxt->prv = r;
+	}	}	}
+	pruned++;
+
+	if (verbose)
+	{	printf("prune: removed %d tokens in %d fragments between #if 0 and #endif\n",
+			cnt, nr);
 	}
 }
 

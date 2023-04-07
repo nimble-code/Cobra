@@ -367,3 +367,50 @@ new in december 30, 2021
    - added an option "dp filter filenam" and "dp filter off" to
      enable or disable a restriction of the output of a dp command
      (specifically "dp *") to a single named file.
+
+4.3 december, 2022
+   - improvement in memory efficiency when deleting/recreating
+     associative arrays in the scripting language
+   - added support for suppressing possible matches in named
+     pattern sets for lines marked with a comment // @suppress SetName
+     as described in the manpage for the dp query command
+   - do not add a backslah in front of a colon in json output (gitbub
+     issue PR #48)
+   - improvements in json formatted output to comply with standard
+   - updated help menus, and small bug fixes
+
+4.4 april 7, 2023
+  - new command-line option to limit the maximum amount of memory that a
+    Cobra run can consume, -MaxMem 4000 (for a 4GB limit, the
+    default maximum is set to 24GB, equivalent to -MaxMem 24000)
+  - new command-line option -prune to remove code between #if 0 and #endif
+    preprocessing directives, even if no preprocessing is used.
+  - added -Wformat-truncation=1 to the makefile for cygwin and linux
+    compiles to prevent incorrect reports from gcc on compilation.
+  - new predefined function for the scripting language to split
+    a string into parts, using a comma as the field delimiter
+    (as used for the index in associative arrays with multiple fields)
+    eg: n = split(i.txt, A), which returns the parts as elements
+    of a new array A (A[0], A[1], etc.) and returns the number of
+    elements found.
+  - fixed bug in cfg query command where repeated calls could
+    report incorrect edge and node numbers
+  - fixed bug in the extends query command binding the current
+    symbol to $$ correctly
+  - avoid reprinting long query command lines when text wraps
+    (unless backspace or word-erase characters are used)
+  - improved efficiency for handling array indices that are
+    small numbers (0..9), which are common
+  - when working with named pattern-sets in inline programs,
+    added a notation to access any bound variables in matches,
+    both the point of definition (x.p_bdef) and the point
+    of reference (x.p_bref), as described under predefined
+    functions in the documentation (programs/functions_predefined.html)
+  - fixed bug to prevent runon matches for pattern expressions,
+    if multiple matches of the pattern follow each other directly
+  - added new command refmod (see manpage doc/refmod.1) and a
+    new directory in the rules directory with associated sub-commands
+    and data-sets
+  - added new script play/tokenize.cobra to tokenize a given
+    code fragment so that it is suitable to use in a pattern
+    expression (e.g.: cobra -f play/tokenize code_fragment.c )

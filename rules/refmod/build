@@ -1,0 +1,86 @@
+#!/bin/bash
+
+if [ $# -gt 1 ]
+then
+	echo "usage: build [create | postprocess]"
+	echo "	create: collect patterns data source file .RM/Ref_Src"
+	echo "	 reading filenames from c_files or using *.c"
+	echo "	postprocess: extract intermediate files including .RM/Ref_Mod"
+	echo "	without argument: do both"
+	echo "  followed optionally by refmod/assess and refmod/check"
+	exit 1
+fi
+
+do_create=1		# by default, do both
+do_postprocess=1	# unless an arg is given
+
+if [ $# -eq 1 ]
+then
+	case $1 in
+	create)
+		do_postprocess=0
+		;;
+	postprocess)
+		do_create=0
+		;;
+	*)
+		echo "usage: build [create | postprocess]"
+		exit 1
+		;;
+	esac
+fi
+
+###  ~/.cobra is used to find the rules/refmod directory
+if [ -s ~/.cobra ]
+then
+	RM=`cat ~/.cobra | grep -e "Rules: " | sed 's;Rules: ;;'`
+	RM="$RM/refmod"
+else
+	echo "error: ~/.cobra not found"
+	echo "      install cobra first"
+	exit 1
+fi
+
+# 1. collect patterns data, prefixed with file:linenr
+
+if [ $do_create -eq 1 ]
+then
+	i_created=0
+	if [ -s c_files ]
+	then	true
+	else	ls *.c > c_files
+		if [ -s c_files ]
+		then	true
+		else	echo "no c_files found"
+			rm -f c_files
+			exit 1
+		fi
+		i_created=1
+	fi
+
+	mkdir -p .RM
+
+	cobra -f refmod/loop_patterns `cat c_files` | grep -e "##" > .RM/Ref_Src
+	if [ $i_created -eq 1 ]
+	then	rm -f c_files
+	fi
+
+	#  for-loops that have only one use of the loop var
+	#  in the control part are filtered out, but these
+	#  still produce a file:linenr line which is
+	#  then removed with the last grep filter
+fi
+
+# 2. postprocess results
+
+if [ $do_postprocess -eq 1 ]
+then
+	$RM/pp_loop.sh > .RM/Ref_Src_stats
+
+	# in:  .RM/Ref_Src (assumes it exists)
+	# out: .RM/Ref_Mod, .RM/Ref_Src_stats, and derived files
+fi
+
+ls -l .RM
+
+exit 0

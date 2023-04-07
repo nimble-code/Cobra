@@ -1,0 +1,68 @@
+.ds X refmod
+.\" nroff -man refmod.1
+.\" place in (depending on your system):
+.\"    /usr/local/man/man1
+.\" or /usr/man/man1
+.\" or /usr/share/man/man1
+.TH REFMOD 1
+.SH NAME
+refmod \- builds or checks metrics on the use of control variables in C for-loops
+.SH SYNOPSIS
+.br
+.B refmod [build assess check] [help]
+.SH DESCRIPTION
+\*X support three arguments: \fBbuild\f1, \fBassess\f1, and \fBcheck\f1,
+optionally followed by an option, including \fBhelp\f1 to print general usage information.
+.br
+The \fBbuild\f1 argument, executed in a directory containing .c files, will use Cobra
+to scan the source, identify for-loops, and build an abstract reference model that
+summarizes how control variables in those for-loops are used.
+.br
+The process consists of two steps: \fBcreate\f1 and \fBpostprocess\f1, that can also be invoked
+separately by providing the relevant option (see Examples below).
+.br
+The \fBassess\f1 argument evaluates the metrics and reports on some outliers seem (patterns
+for the use of control-variables that seem to be used just once in the application) and
+highlights known suspicious uses.
+.br
+The \fBcheck\f1 argument uses the metrics created in the \fBbuild\f1 step to compare the
+patterns seen against a reference model that is stored in the Cobra rules/refmod directory
+by default, or a reference file of the user's choice as an option (see Examples below).
+The step reports statistical outliers in the pattern set compared to the large reference model,
+i.e., a way to write a for-loop that is not seen anywhere else and might therefore
+be susipicious.
+
+.SH EXAMPLES
+.br
+$ refmod build help
+.br
+usage:
+.br
+    refmod build  [create postprocess help]
+.br
+    refmod assess [outliers suspicious]
+.br
+    refmod check  [refmodelfile]
+.br
+$ cd Cobra/src
+.br
+$ refmod build	# creates .RM directory with results
+.br
+ \...
+.br
+$ refmod assess	# provides statistics
+.br
+ \...
+.br
+$ refmod check	# checks metrics against the reference
+.br
+ \...
+.br
+$
+.sp
+.SH AUTHOR
+Gerard Holzmann, gholzmann@acm.org
+.sp
+.SH SEE ALSO
+\fBcobra\f1, \fBcwe\f1, \fBfind_taint\f1, \fBjson_convert\f1.
+.br

@@ -1,0 +1,18 @@
+#
+# use of parameter of a function as target of the return value
+#
+
+pe PE: x:@ident += snprintf ( .* :x .* )
+ps list
+dp PE 1
+# with snprintf:
+# ghostpdf-9.25:   5 matches
+# linux 6.1.7:   183 matches
+#
+# question is this in general a bad, or rarely used pattern?
+#
+# with @ident instead of snprintf
+# on ghostpdl-9.25: 3,368 matches in  1,297,594    937,630 lines of code (1:278)
+# on linux 6.1.7:  75,818 matches in 22,513,559 16,698,086 lines of code (1:220)
+#
+# answer: not sufficiently rare to stand out clearly as suspicious

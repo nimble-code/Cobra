@@ -4,7 +4,7 @@
 # see License file in this directory
 #
 # Version 2, 3 and 4:
-# (c) 2017-2022 Gerard Holzmann, Nimble Research
+# (c) 2017-2023 Gerard Holzmann, Nimble Research
 # same licensing
 
 MAN?=/usr/share/man/man1
@@ -27,7 +27,8 @@ LIBW?=-lpthread		# cygwin
 LIBM?=			# mac
 
 CC?=gcc
-CFLAGS=-I. -Wall ${F} -pedantic -Werror -Wshadow -std=c99 -DYY_NO_INPUT
+CFLAGS=-I. -Wall ${F} -pedantic -Werror -Wshadow -std=c99 -DYY_NO_INPUT -Wformat-truncation=1
+CFLAGSMAC=-I. -Wall ${F} -pedantic -Werror -Wshadow -std=c99 -DYY_NO_INPUT
 
 # adding -DPC uses "dotty" instead of "dot -Tx11" for dot displays
 # adjusts the memory allocator to be more PC friendly
@@ -42,7 +43,7 @@ cygwin:	$(OS)
 	$(CC) $(CFLAGS) -o cobra $(OS) $(LIBW)
 
 mac:	$(OS)
-	$(CC) $(CFLAGS) -o cobra $(OS) $(LIBM)
+	$(CC) $(CFLAGSMAC) -o cobra $(OS) $(LIBM)
 
 app:	c.ar $(APP)/c_api.h
 	cd $(APP); make

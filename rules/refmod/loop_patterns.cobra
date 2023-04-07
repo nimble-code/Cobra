@@ -1,0 +1,269 @@
+# generate a canonical pattern for each loop
+# starting with for loops, later adding do and while loops
+
+# eg for linux-6.1.7
+# time cobra -f refmod/loop_patterns `cat c_files` > .RM/Ref_Src
+# postprocess results: refmod/pp_loop.sh
+
+m for (
+n	# start of control part
+%{
+	global Pattern[];
+	global Tag[];
+	unset Pattern;
+	function checkit(vn, bf, af)
+	{	global Pattern[];
+		p = 1;
+		tag = 0;
+		while (p < 4)
+		{	v = Ident[p, vn];
+			if (v > 0)
+			{	tag = tag + (1<<(p-1));
+			}
+			p++;
+		}
+		if (tag > 0)	# ie it's a likely loop counter
+		{	if (bf.type == "oper")
+			{	b = bf.txt;
+			} else
+			{	b = "_";
+			}
+			if (af.type == "oper")
+			{	a = af.txt;
+			} else
+			{	a = "_";
+			}
+			if (bf.txt != "->" && bf.txt != ".")
+			{	Pattern[vn, b, a]++;	# optionally add ,tag
+				Tag[vn] = tag;
+	}	}	}
+	compact = 1;	# 0 for verbose
+	Stop;
+%}
+%{
+	if (.mark == 0)
+	{	Next;
+	}
+	.mark = 0;
+
+	sc = .;		# start of control part
+	ec = .jmp;	# end of control part
+	cnt = 1;	# 3 parts: init, cond, incr
+	nm = 1;		# for numbering control vars
+
+	unset Ident;	# remove possible earlier contents
+	unset Pattern;	# from these arrays
+	unset Oper;
+	unset Tag;
+
+	while (.seq != ec.seq)
+	{	if (.type == "cpp")
+		{	break;
+		}
+		if (.txt == ";")
+		{	cnt++;
+		} else
+		{	if (@ident		# possible loop variable
+			&& .round == 1)		# exclude fct params
+			{	s = .txt;
+				w = .nxt;
+				while (w.txt == "->" || w.txt == ".")
+				{	s = s + w.txt;
+					w = w.nxt;
+					s = s + w.txt;
+					w = w.nxt;
+				}	# eg the full name is ptr->rec
+				if (!Ident[cnt, s])
+				{	Ident[cnt, s] = nm;	# new ident s seen in part cnt
+					thisname = nm;
+					Oper[thisname] = s + ",";
+					nm++;
+				} else
+				{	thisname = Ident[cnt, s];	# an int
+				}
+
+				# record the pre and post operators
+				# for each var that appears in the control part
+				b = .prv;
+				a = w;
+				if (b.typ != "oper")
+				{	bt = "_,";
+				} else
+				{	bt = b.txt + ",";
+				}
+				if (a.typ != "oper")
+				{	bt = bt + "_,";
+				} else
+				{	bt = bt + a.txt + ",";
+				}
+				if (b.txt != "->" && b.txt != ".")
+				{	Oper[thisname] = Oper[thisname] + bt;
+		}	}	}
+		. = .nxt;
+	}
+
+	if (cnt != 3)	# eg there is a code sequence embedded in control-part
+	{	. = sc;
+		Next;	# give up on this loop
+	}
+
+	. = .nxt;
+	if (.txt != "{")	# body is not enclosed in curly braces
+	{	. = ec;
+		Next;
+	}
+	sb = .;		# start of loop body
+	eb = .jmp;	# end of loop body
+
+	while (.seq != eb.seq)
+	{	if (.type == "cpp")
+		{	break;
+		}
+		if (@ident)
+		{	s = .txt;
+			w = .nxt;
+			p = .prv;
+
+			checkit(s, p, w);
+			while (w.txt == "->" || w.txt == ".")
+			{	s = s + w.txt;
+				w = w.nxt;
+				s = s + w.txt;
+				w = w.nxt;
+				checkit(s, p, w);
+			}
+		}
+		. = .nxt;
+	}
+	. = ec;
+
+	if (!compact)
+	{	print .fnm ":" .lnr ": ";
+		print "for:\n";
+	}
+	Last = "";
+
+	if (size(Pattern) == 0)
+	{	Next;
+	}
+
+	unset LB_Repeats;	# catch repeated pattern in loop body
+	firstone = 1;		# first entry of a loop pattern
+
+	# print .fnm ":" .lnr "\n";	# debug
+	tagged = 1;
+	if (tagged)	# with filename
+	{	print .fnm ":" .lnr "	";
+	}
+	for (i in Pattern)
+	{	# fields:
+		# 0: the variable name seen in **loop body** AA[0]
+		# 1: operator seen before var
+		# 2: operator seen after var
+		# the tag is available separately as Tag[AA[0]]
+		# the tag value (1|2|3 records if var was seen in init, cond, incr
+		# value Pattern[i.txt] gives the nr of times this pattern was seen in loop
+
+		nr = split(i.txt, AA);
+		assert(nr == 3);
+		cntr = 0;
+		if (Last != AA[0])
+		{	if (compact && Last != "")
+			{	firstone = 1;
+				unset LB_Repeats;
+				print "\n";	# same loop, another counter var
+				if (tagged)
+				{	print .fnm ":" .lnr "	";
+			}	}
+
+			Last = AA[0];	# new variable
+			## show how var was used in the control part
+			## 
+			## find the varname in Oper
+			## for the uses of the var in the control-part
+			## in init, cond, and iter:
+			# print Last " ";
+			if (!compact)
+			{	print "Loop counter '" AA[0] "'\n";
+				# in compat mode: varname doesn't matter - one line per var seen
+			}
+			# else {	print "V: " AA[0]; }
+			unset CP_Repeats;	# catch repeated pattern in control part
+
+			for (j in Oper)
+			{	nr2 = split(Oper[j.txt], BB);
+				if (BB[0] == AA[0])		# same varname
+				{
+					if (!compact)
+					{	print "\tin control:";	# there is always at least one entry
+					}
+					nr1 = 1;		# or it wouldnt be a loop counter
+					atleastone = 0;
+
+					# the pairs are stored in reverse order
+					# incr, cond, init -- rather than init, cond, incr
+					# so we save it in array Pairs and reverse the printing
+					# which also allows us to suppress patterns that
+					# have just a single pair in the control portion
+
+					while (nr1 < nr2)	# pre-post pair
+					{	cb = BB[nr1]; nr1++;
+						ca = BB[nr1]; nr1++;
+						if (CP_Repeats[cb, ca] == 0)
+						{	CP_Repeats[cb, ca]++;
+							atleastone = 1;
+							if (!compact)
+							{	print "\tCB: " cb;
+								print "\tCA: " cb;
+							}
+						#	else
+						#	{	print "\t" cb;
+						#		print "\t" ca;
+						#	}
+						}
+						Pairs[cntr] = "\t" + cb + "\t" + ca;
+						cntr++;
+					}
+
+					if (atleastone)
+					{	if (!compact)
+						{	print "\tT: " Tag[AA[0]] "\n";
+		}	}	}	}	}
+		## not always an entry, though likely or it wouldn't be in Pattern
+		bb = AA[1];
+		ba = AA[2];
+		if (LB_Repeats[bb, ba] == 0   && cntr > 1)	# at least 2 pairs in ctrl
+		{	LB_Repeats[bb, ba]++;
+			if (!compact)
+			{	print "\tin loop body:\t";
+				print "LB: " bb "\tLA: " ba "\n";
+			} else
+			{	if (firstone)
+				{	cntr--;
+					while (cntr >= 0)
+					{	print Pairs[cntr]; # print in correct order
+						cntr--;
+					}
+					print  "\t##";
+					firstone = 0;
+				}
+				print "\t" bb "\t" ba;
+	}	}	}
+	if (compact)
+	{	print "\n";
+	}
+	# there can be lines in the output that start with ##
+	# when a standalone identifier name appears in the loop body
+	# that matches a struct field name used in the control part
+	# those lines have no meaningful information
+	#
+	# there can also be lines that dont have a ## field
+	# if the identifier does appear in the loop but not
+	# preceded or followed by an operator, eg as in [ident]  XXX
+%}
+%{
+	if (compact)
+	{	print "\n";
+	}
+	Stop;
+%}

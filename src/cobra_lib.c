@@ -1456,6 +1456,8 @@ load_map(char *s)
 	{	if (strlen(s) + strlen(C_BASE) + 2 < sizeof(a))
 		{	snprintf(a, sizeof(a), "%s/%s", C_BASE, s);
 			fd = fopen(a, "r");
+		} else
+		{	fprintf(stderr, "error: name too long '%s/%s'\n", C_BASE, s);
 		}
 		if (fd == NULL)
 		{	fprintf(stderr, "error: no such file '%s'\n", s);
@@ -1977,7 +1979,8 @@ pre_scan(char *bc)	// non-generic commands
 		}
 		if (strncmp(bc, "cfg", 3) == 0
 		&&  is_blank((uchar) bc[3]))
-		{	cfg(nextarg(bc), "");
+		{	clear("marks", 0);	// V4.4
+			cfg(nextarg(bc), "");
 			return 1;
 		}
 		if (strncmp(bc, "cpp", 3) == 0
@@ -2186,7 +2189,7 @@ pre_scan(char *bc)	// non-generic commands
 			return 1;
 		}
 		if (strncmp(bc, "json", 4) == 0)
-		{	nr_marks(0);
+		{	(void) nr_marks(0);
 			json_plus = (bc[4] == '+');
 			if (cnt > 0)
 			{	if (strlen(bc) > strlen("json "))
@@ -2772,7 +2775,7 @@ extend_range(void *arg)
 		{	break;
 		}
 		if (r_apply(r, r, s, 0))
-		{	if (*t && !r_apply(q, r->nxt, t, 1))
+		{	if (*t && !r_apply(q, r->nxt, t, 1))	// V4.4, was: !r_apply)r, r->nxt, t, 1)
 			{	continue;
 			}
 			local_cnt++;
@@ -3850,6 +3853,8 @@ erase:				if (n > 0)
 			case EOF:
 				goto out;
 			default:
+				putchar(ch);
+				goto Y; // V4.4 no reprint of line needed
 				break;
 			}
 		  X:	printf("%c%s %s", 13, prog_fd?"":":", buf);
@@ -3859,6 +3864,7 @@ erase:				if (n > 0)
 			for (i = 0; i < m; i++)
 			{	putchar(8);
 			}
+		  Y:	;
 			// checking p_stop gets us a way out on interrupts
 		  } while (ch != '\n' && n < sizeof(buf) && p_stop < 10);
 		} // else

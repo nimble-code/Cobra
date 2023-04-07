@@ -136,8 +136,8 @@ extern int	stream_override;
 %token	NR STRING NAME IF IF2 ELSE WHILE FOR IN PRINT ARG SKIP GOTO
 %token	BREAK CONTINUE STOP NEXT_T BEGIN END SIZE RETRIEVE FUNCTION CALL
 %token	ROUND BRACKET CURLY LEN MARK SEQ LNR RANGE FNM FCT
-%token	BOUND NXT PRV JMP UNSET RETURN RE_MATCH FIRST_T LAST_T
-%token	TXT TYP NEWTOK SUBSTR STRLEN SET_RANGES CPU N_CORE SUM
+%token	BOUND MBND_D MBND_R NXT PRV JMP UNSET RETURN RE_MATCH FIRST_T LAST_T
+%token	TXT TYP NEWTOK SUBSTR SPLIT STRLEN SET_RANGES CPU N_CORE SUM
 %token	A_UNIFY LOCK UNLOCK ASSERT TERSE TRUE FALSE VERBOSE
 %token	FCTS MARKS SAVE RESTORE RESET
 %token  ADD_PATTERN DEL_PATTERN CP_PSET
@@ -325,6 +325,7 @@ expr	:'(' expr ')'		{ $$ = $2; }
 				  $1->rgt = new_lex(0, $5, $7);
 				  $$ = $1;
 				}
+	| SPLIT '(' expr ',' NAME ')' { $1->lft = $3; $1->rgt = $5; $$ = $1; }
 	| LLENGTH '(' NAME ')'	{ $1->lft = $3; $$ = $1;}
 	| TOP '(' NAME ')'	{ $1->lft = $3; $$ = $1; }
 	| BOT '(' NAME ')'	{ $1->lft = $3; $$ = $1; }
@@ -370,6 +371,8 @@ e_list	: expr
 	| e_list ',' expr	{ $$ = $2; $$->lft = $1; $$->rgt = $3; }
 	;
 fld	: BOUND
+	| MBND_D
+	| MBND_R
 	| BRACKET
 	| CURLY
 	| FCT
@@ -443,6 +446,8 @@ static struct Keywords {
 	{ "nxt",	NXT },
 	{ "p_start",	JMP },
 	{ "p_end",	BOUND },
+	{ "p_bdef",	MBND_D },
+	{ "p_bref",	MBND_R },
 	{ "print",	PRINT },
 	{ "prv",	PRV },
 	{ "pset",	CP_PSET },
@@ -456,6 +461,7 @@ static struct Keywords {
 	{ "seq",	SEQ },
 	{ "set_ranges",	SET_RANGES },
 	{ "size",	SIZE },
+	{ "split",	SPLIT },
 	{ "Stop",	STOP },
 	{ "strlen",	STRLEN },
 	{ "substr",	SUBSTR },
@@ -1388,6 +1394,16 @@ eval_eq(int eq, Rtype *a, Rtype *rv)	// eq=1: EQ, eq=0: NE
 		if (!a->s)
 		{	a->s = "";
 		}
+		// V4.4: if we compare a token text (as a string) with another string
+		// as in .txt == "\\"
+		// the token could be a single character "\" but the comparison text
+		// cannot be written to match that, it'll be "\\"
+		// the next if handles this special case:
+		if (a->s[0]  == '\\' && a->s[1]  == '\0'
+		&&  rv->s[0] == '\\' && rv->s[1] == '\\' && rv->s[2] == '\0')
+		{	rv->val = (eq)?1:0;
+			break;
+		}
 		if (eq)
 		{	rv->val = (strcmp(a->s, rv->s) == 0);
 		} else
@@ -1536,6 +1552,35 @@ get_var(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)
 	return n;
 }
 
+extern int do_split(char *, const char *, Rtype *, const int);	// cobra_array.c
+
+static void
+split(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)
+{	// q->lft: source string to split on commas
+	// q->rgt: name of target array,
+	//  create if it doesn't exist, unset if it exists
+	// returns nr of fields
+	Rtype a, b, c;
+
+	assert(q->lft && q->rgt);
+	eval_prog(ref_p, q->lft, &a, ix);
+	eval_prog(ref_p, q->rgt, &b, ix);
+
+	if (a.rtyp != STR)
+	{	fprintf(stderr, "error: 1st arg of split is not a string\n");
+		rv->rtyp = STP;
+		return;
+	}
+	if (q->rgt->typ != NAME)
+	{	fprintf(stderr, "error: 2nd arg of split is not a name %d, but %d\n", NAME, q->rgt->typ);
+		rv->rtyp = STP;
+		return;
+	}
+
+	rv->val = do_split(a.s, q->rgt->s, &c, ix);	// cobra_array.c
+	rv->rtyp = VAL;					// the nr of fields
+}
+
 static void
 substr(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)
 {	// q->lft: string
@@ -1669,6 +1714,10 @@ print_args(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)
 		substr(ref_p, q, rv, ix);
 		fprintf(tfd, "%s", rv->s);
 		return;
+	case SPLIT:
+		split(ref_p, q, rv, ix);
+		fprintf(tfd, "%s", rv->s);	// tab separated fields
+		return;
 	case STRLEN:
 		eval_prog(ref_p, q->lft, rv, ix);
 		Assert("strlen", rv->rtyp == STR, q->lft);
@@ -1698,6 +1747,9 @@ print_args(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)
 	case STR:
 		if (rv->s && strchr(rv->s, '\\'))
 		{ char *s;
+		  if (rv->s[1] == '\0')	// a single backslash character
+		  {	fprintf(tfd, "\\");
+		  } else
 		  for (s = rv->s; *s != '\0'; s++)
 		  {	if (*s != '\\' || *(s+1) == '\\')
 			{	fprintf(tfd, "%c", *s);
@@ -2468,9 +2520,15 @@ doindent(void)
 	}
 }
 
+static char *nr_tbl[] = {
+	"0", "1", "2", "3", "4",
+	"5", "6", "7", "8", "9"
+};
+
 static void
 convert2string(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)
-{
+{	int aw = 64;
+
 	assert(q->typ != ',');
 
 	eval_prog(ref_p, q, rv, ix);
@@ -2482,8 +2540,18 @@ convert2string(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)
 		rv->val = rv->ptr->seq;	// was ->mark before
 		// fall thru
 	case VAL:
-		rv->s = (char *) hmalloc(64, ix, 136);	// convert2string
-		snprintf(rv->s, 64, "%d", rv->val);	// convert2string
+		if (rv->val >= 0 && rv->val <= 9)
+		{	rv->s = nr_tbl[rv->val];
+			break;
+		}
+		if (rv->val >= 0)
+		{	if (rv->val < 1000)
+			{	aw = 4;
+			} else if (rv->val < 10000000)
+			{	aw = 8;
+		}	}
+		rv->s = (char *) hmalloc(aw, ix, 136);	// convert2string
+		snprintf(rv->s, aw, "%d", rv->val);	// convert2string
 		break;
 	default:	// STP or PRCD
 		fprintf(stderr, "line %d: error: unexpected type of index (%d)\n",
@@ -2509,8 +2577,11 @@ derive_string(Prim **ref_p, Lextok *q, const int ix, const char *usethis) // q: 
 		if (usethis && strlen(tmp.s) < SZ_STATS)
 		{	r = (char *) usethis;
 		} else
-		{	r = (char *) hmalloc(strlen(tmp.s) + 1, ix, 137);	// derive_string 1
-		}
+		{	if (tmp.rtyp == VAL)
+			{	r = tmp.s;	// V4.4: tmp.s was newly allocated
+			} else
+			{	r = (char *) hmalloc(strlen(tmp.s) + 1, ix, 137);	// derive_string 1
+		}	}
 		strcpy(r, tmp.s);
 	} else
 	{	s = derive_string(ref_p, q->rgt, ix, 0);
@@ -3052,6 +3123,10 @@ next:
 		substr(ref_p, q, rv, ix);
 		break;
 
+	case SPLIT:
+		split(ref_p, q, rv, ix);
+		break;
+
 	case STRLEN:
 		eval_prog(ref_p, q->lft, rv, ix);
 		Assert("strlen", rv->rtyp == STR, q->lft);
@@ -3204,6 +3279,8 @@ next:
 	case    TXT: rv->rtyp = STR; rv->s   = p?p->txt:"";  break;
 	case    JMP: rv->rtyp = PTR; rv->ptr = p?p->jmp:p;  break;
 	case  BOUND: rv->rtyp = PTR; rv->ptr = p?p->bound:p; break;
+	case MBND_D: rv->rtyp = PTR; rv->ptr = p?p->mbnd[0]:p; break;
+	case MBND_R: rv->rtyp = PTR; rv->ptr = p?p->mbnd[1]:p; break;
 	case    NXT: rv->rtyp = PTR; rv->ptr = p?p->nxt:p;   break;
 	case    PRV: rv->rtyp = PTR; rv->ptr = p?p->prv:p;   break;
 

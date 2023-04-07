@@ -81,11 +81,15 @@
 	}
 	function record_counter(howmany, which, qr)
 	{	global ModType[];
+		global nrUnique;
+		global nrMultiple;
 
 		if (howmany == 1)
 		{	add_pattern(Unique_Counter, ., qr);
+			nrUnique++;
 		} else
 		{	add_pattern(Multiple_Counters, ., qr);
+			nrMultiple++;
 		}
 
 		# store additional info in the jmp field
@@ -164,7 +168,7 @@
 		}
 		unset Names;	# applies to one cond at a time
 	}
-	function check_entry(xx)
+	function check_entry(whichset, xx)
 	{
 		y = xx.jmp;	# holds the additional info
 		# y.txt: "ModType"
@@ -207,6 +211,9 @@
 			if (y.mark & Decrement)		# expect LowerBound
 			{	print "decremented (--) ";
 			}
+		}
+		if (whichset == "Multiple")
+		{	print "but has >1 loop-counters";
 		}
 	#	if (y.mark & Equal)
 	#	{	print "== ";
@@ -257,6 +264,7 @@ mark no for
 %}
 
 %{
+	global NoCounter;
 	if (cnt1 > 0)
 	{	if (verbose)
 		{	print "no loop counter found: " cnt1 "\n";
@@ -264,6 +272,7 @@ mark no for
 		for (j in None_Found)
 		{	p = None_Found[j.txt];
 			add_pattern(No_Counter, p, p);
+			nrNoCounter++;
 			if (verbose)
 			{	print "\t" p.fnm ":" p.lnr "\n";
 		}	}
@@ -315,7 +324,6 @@ mark no }
 	||  .txt != "(")
 	{	Next;
 	}
-
 	cond  = .nxt;
 	econd = .jmp;		# end of condition
 	ebody = .prv;		# while
@@ -333,27 +341,34 @@ mark no }
 	. = econd.nxt;
 %}
 # = "do-while loops"
-ps list
-r
+# optionally print out all loop counters-found:
+# ps list
+# r
 
 symbols
 %{
 	# final readout, looking for suspicious uses
-print "Unique\n";
 	n = pset(Unique_Counter);
+	# if (n.seq > 0)
+	# {	print "Unique " nrUnique "\n";
+	# }
 
 	m = n;
 	while (n.seq != 0)
 	{	x = n.p_end;	# x.txt is the counter var
-		check_entry(x);
+		check_entry("Unique", x);
 		n = n.nxt;
 	}
-print "Multiple\n";
+
 	n = pset(Multiple_Counters);
-	n = pset(Multiple_Counters);
+	# if (n.seq > 0)
+	# {	print "Multiple " nrMultiple "\n";
+	# }
+
 	while (n.seq != 0)
 	{	x = n.p_end;	# x.txt is the counter var
-		check_entry(x);
+#		print x.fnm ":" x.lnr ": " x.txt " (M)\n";
+		check_entry("Multiple", x);
 		n = n.nxt;
 	}
 	Stop;

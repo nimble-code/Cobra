@@ -1,0 +1,97 @@
+%{
+	if (@ident)
+	{	n = .nxt;
+		if (n.txt == ":")	# bound variable defintion
+		{	m = n.nxt;
+			if (m.txt == "@")
+			{	p = m.nxt;
+				print .txt ":@" p.txt " ";
+				. = m.nxt;
+				Next;
+	}	}	}
+
+	if (.txt == ":")		# bound variable reference
+	{	n = .nxt;
+		if (n.typ == "ident")
+		{	print ":" n.txt " ";
+			. = n;
+			Next;
+	}	}
+
+	if (.txt == "@")		# type reference or constraint
+	{	. = .nxt;
+		print "@" .txt " ";
+		Next;
+	}
+
+	if (.txt == ".")		# regex .*
+	{	n = .nxt;
+		if (n.txt == "*" || n.txt == "+")
+		{	print "." n.txt " ";
+			. = n;
+			Next;
+	}	}
+	if (.txt == "\\")
+	{	. = .nxt;
+		n = .nxt;
+		if (n.txt == "*")
+		{	. = n;
+			print "\\" .txt "* ";
+			Next;
+		}
+		print "\\" .txt " ";
+		Next;
+	}
+	if (.txt == "<")	# <1> constraint index
+	{	n = .nxt;
+		if (n.typ == const_int)
+		{	m = n.nxt;
+			if (m.txt == ">")	# constraint index
+			{	. = m;
+				print "<" n.txt "> ";
+				Next;
+	}	}	}
+	if (.txt == "[" && .jmp != 0)	# range specifier
+	{	n = .jmp;
+		if (n.seq - .seq >= 3)	# at least two tokens in range
+		{
+L:			m = .nxt;
+			print "[" m.txt;	# no space after [
+			m = m.nxt;
+			while (m.seq < n.seq)
+			{	print " " m.txt; # space between tokens in range
+				m = m.nxt;
+			}
+			print "] ";	# no space before [
+			. = n;
+			Next;
+	}	}
+	if (.txt == "^")	# negation or binary xor?
+	{	warn = "warning: use \\^ for binary xor, ^ for binary negation";
+		. = .nxt;
+		print "^";
+		if (.txt != "[")
+		{	print .txt " ";
+		} else		# negated range
+		{	n = .jmp;
+			goto L;
+		}
+		Next;
+	}
+
+	if (.txt != "EOF")
+	{	n = .nxt;
+		if (n.txt == "*" || n.txt == "+")
+		{	. = n;
+			print .txt n.txt " ";
+		} else
+		{	print .txt " ";
+	}	}
+%}
+%{
+	print "\n";
+	if (warn != "")
+	{	print warn;
+	}
+	Stop;
+%}

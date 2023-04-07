@@ -1,0 +1,68 @@
+#!/bin/bash
+
+###  ~/.cobra is used to find the rules/refmod directory
+if [ -s ~/.cobra ]
+then
+	RM=`cat ~/.cobra | grep -e "Rules: " | sed 's;Rules: ;;'`
+	RM="$RM/refmod"
+else
+	echo "error: ~/.cobra not found"
+	echo "      install cobra first"
+	exit 1
+fi
+
+if [ $# -eq 1 ]
+then
+	if [ -d $1 ]
+	then	if [ -s $1/Ref_Mod_control_sorted ]
+		then	RD=$1
+		else	echo "the reference directory is incomplete"
+			exit 1
+		fi
+	else	echo "reference directory $1 does not exist"
+		exit 1
+	fi
+else
+	if [ $# -eq 0 ]
+	then
+	  # default reference model file (Ref_Mod_control_sorted)
+	  RD=$RM
+	else
+	  echo "usage: check [refdir]"
+	  echo "	without arguments: use the default reference model"
+	  echo "	use a reference model set refdir to find anomalies in new code"
+	  echo "	for instance: check /cygdrive/f/Dropbox_orig/Linux/linux-6.1.7/.RM"
+	  exit 1
+	fi
+fi
+
+# use the reference data to judge new sources for anomalies
+# next: generate .RM/Ref_Src_Space etc for a random new set of sources
+# and see if any of its patterns *never* appear in a large reference set (eg linux-6.1.7)
+
+# assume we are in the src directory to be checked
+# build the reference set and then check it against the model
+# by running anomalies.sh
+
+if [ -s .RM/Ref_Mod_control_sorted ]
+then
+	true	# use existing patterns data
+else
+	echo "Step 1: Building patterns set"
+	$RM/build | grep -v -e "^total" -e "Ref_"
+	$RM/assess > /dev/null 2>&1	# optional, creates Ref_Src_Space
+	if [ -s .RM/Ref_Src_Space ]
+	then	true
+	else
+		sed 's;[ 	][ 	]*; ;g' < .RM/Ref_Src > .RM/Ref_Src_Space
+	fi
+	echo "Step 2: Checking anomalies"
+fi
+
+$RM/anomalies.sh $RD
+
+# in: Reference and .RM/Ref_Mod_control_sorted
+# intermediate: _to_find_, _do_find_, _foo_, _suspicious_, _show_this_
+# stdout: file:linenr and source text for matches
+
+exit 0

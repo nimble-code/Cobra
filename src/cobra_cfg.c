@@ -246,13 +246,16 @@ void
 cfg(char *s, char *unused)
 {	FList *f;
 
+	nr_edges = 0;
+	nr_nodes = 0;
+
 	if (!flist)
 	{	fct_defs();
 	}
 
 	f = find_match_str(s);
 	if (!f)
-	{	printf("function '%s' not found\n", s);
+	{	printf("error: function '%s' not found\n", s);
 		return;
 	}
 
@@ -262,7 +265,6 @@ cfg(char *s, char *unused)
 		{	printf("cannot create '%s'\n", CobraDot);
 			return;
 		}
-
 		fprintf(fd_cg, "digraph cfg {\n");
 		(void) block();
 		printf("edges %d, nodes %d, cyclomatic complexity %d\n",
@@ -273,9 +275,9 @@ cfg(char *s, char *unused)
 		{	if (system(ShowDot) < 0)
 			{	perror(ShowDot);
 		}	}
-		sleep(1);
+		sleep(2);
 		unlink(CobraDot);
 	} else
-	{	printf("not all compound statements are enclosed in curly braces\n");
+	{	printf("error: not all compound statements are enclosed in curly braces\n");
 	}
 }

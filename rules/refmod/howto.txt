@@ -1,0 +1,9 @@
+two steps:
+
+1. build a reference model (or skip and use the predefined one in refmod):
+	build
+	assess
+	 optionally copy this model (file Ref_Mod_control_sorted)
+	 to the rules/refmod directory to use as default
+2. use the reference model, or the default, to check other code
+	check [refdir]

@@ -3187,69 +3187,12 @@ set_operation(char *s)
 }
 
 static void
-prune_if_zero(void)	// omit tokens between #if 0 and #endif
-{	Prim *q, *r, *s;
-	int cnt = 0, nr = 0, n;
-	static int pruned = 0;
-
-	if (pruned)
-	{	return;
-	}
-
-	if (verbose)
-	{	printf("Prune If Zero\n");
-	}
-	if (!stream)
-	for (q = prim; q; q = q->nxt)
-	{	if (strcmp(q->txt, "#if") != 0
-		||  !q->nxt
-		||  strcmp(q->nxt->txt, "0") != 0)
-		{	continue;
-		}
-		s = r = q;
-		n = 0;
-		do {
-			s = s->nxt;
-			n++;
-		} while (s && s->txt[0] != '#');
-
-		if (!s
-		||  strcmp(s->txt, "#endif") != 0
-		||  strcmp(s->fnm, r->fnm) != 0)
-		{	continue;
-		}
-		s = s->nxt;
-		if (!s
-		||  strcmp(s->txt, "EOL") != 0)
-		{	continue;
-		}
-		// remove from r to s->nxt;
-		cnt += n;
-		nr++;
-		if (verbose)
-		{	printf("%s:%d: prune %d tokens\n", q->fnm, q->lnr, n);
-		}
-		if (r == prim)
-		{	prim = q = s->nxt;
-		} else if (r->prv)
-		{	r = r->prv;
-			r->nxt = s->nxt;
-			if (s->nxt)
-			{	s->nxt->prv = r;
-	}	}	}
-	pruned++;
-
-	if (verbose)
-	{	printf("prune: removed %d tokens in %d fragments between #if 0 and #endif\n",
-			cnt, nr);
-	}
-}
-
-static void
 clone_set(Named *x, int ix)
 {	Prim *q = NULL;
 	Match *y;
 	Prim  *r;
+	Bound *b;
+	int n;
 
 	if (x->cloned)
 	{	return;
@@ -3261,6 +3204,15 @@ clone_set(Named *x, int ix)
 		r->typ   = x->nm;	// name of the set
 		r->jmp   = y->from;	// w synonym 'p_start'
 		r->bound = y->upto;	// w synonym 'p_end'
+
+		// V4.4 link to max two bound variables
+		if (y->bind)
+		{	n = 0;
+			for (b = y->bind; b && n < 4; b = b->nxt)
+			{	r->mbnd[n++] = b->bdef;	// where binding was set
+				r->mbnd[n++] = b->ref;	// where match was found
+		}	}
+
 		r->nxt = q;
 		if (q)
 		{	q->prv = r;
@@ -3701,7 +3653,12 @@ cobra_te(char *te, int and, int inv)	// fct is too long...
 						mk_active(s->bindings, 0, s->seq, t->dest, 1-current);
 						anychange = 1;
 						if (is_accepting(s->bindings, t->dest))
-						{	goto L;
+						{
+							if (q_now->nxt && strcmp(q_now->nxt->txt, cur->txt) == 0)
+							{	// V4.4: prevent bad long match
+								cur = q_now->nxt;
+							}
+							goto L;
 						}
 						continue;
 					} // !t->pat
@@ -3757,7 +3714,12 @@ cobra_te(char *te, int and, int inv)	// fct is too long...
 							mk_active(s->bindings, 0, s->seq, t->dest, 1-current);
 							anychange = 1;
 							if (is_accepting(s->bindings, t->dest))
-							{	goto L;
+							{
+								if (q_now->nxt && strcmp(q_now->nxt->txt, cur->txt) == 0)
+								{	// V4.4: prevent bad long match
+									cur = q_now->nxt;
+								}
+								goto L;
 						}	}
 						continue;
 					}
@@ -3967,6 +3929,10 @@ cobra_te(char *te, int and, int inv)	// fct is too long...
 						{	if (verbose)
 							{	printf("\t\tgoto L (%d -> %d) anychange: %d\n",
 									s->seq, t->dest, anychange);
+							}
+							if (q_now->nxt && strcmp(q_now->nxt->txt, cur->txt) == 0)
+							{	// V4.4: prevent bad long match
+								cur = q_now->nxt;
 							}
 							// we found a match at the current token
 							// so even though there may be others, we

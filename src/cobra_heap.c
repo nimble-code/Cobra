@@ -25,7 +25,8 @@
 #endif
 
 #ifdef DEBUG_MEM
-static size_t	 Emu[160];
+static size_t	 Emu[200];
+void report_memory_use(void);
 #endif
 
 typedef long unsigned int	ulong;
@@ -57,6 +58,8 @@ static struct	timeval *stop_time;
 static double	*delta_time;
 
 static void	zap_sem(void);
+
+extern ulong	MaxMemory;
 
 extern int Ncore;
 extern int no_display;
@@ -101,6 +104,11 @@ e_malloc(size_t size)	// bytes
 	{	if (Chunk < size)
 		{	Chunk = size;
 		}
+		if (MaxMemory != 0
+		&&  (total_allocated + Chunk)/(1024*1024) > MaxMemory)
+		{	fprintf(stderr, "cobra: exceeding max memory of %4lu MB (change limit with -MaxMem N)\n", MaxMemory);
+			return 0;
+		}
 		do {
 			have_mem = (size_t *) sbrk(Chunk);
 			Chunk /= 2;
@@ -136,6 +144,9 @@ emalloc(size_t size, const int caller)	// size in bytes
 			caller, total_used, (ulong) size);
 		verbose++;
 		memusage();
+#ifdef DEBUG_MEM
+		report_memory_use();
+#endif
 		exit(1);
 	}
 	memset(n, 0, size);

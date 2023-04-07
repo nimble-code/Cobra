@@ -7,7 +7,7 @@
 #ifndef COBRA_FE
 #define COBRA_FE
 
-#define tool_version	"Version 4.3 - 22 December 2022"
+#define tool_version	"Version 4.4 - 7 April 2022"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -192,6 +192,7 @@ extern void	lock_print(int);
 extern void	memusage(void);
 extern void	post_process(int);
 extern void	prep_pre(void);
+extern void	prune_if_zero(void);
 extern void	remember(const char *, int, int);
 extern void	show_line(FILE *, const char *, int, int, int, int);
 extern void	start_timer(int);

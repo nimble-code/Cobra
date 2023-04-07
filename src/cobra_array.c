@@ -766,6 +766,45 @@ prepopulate(int k, const int ix)
 	}
 }
 
+int
+do_split(char *str, const char *nm, Rtype *rv, const int ix)	// cobra_prog.y
+{	Arr_var *v;
+	int nflds = 0;
+	char *to, *frm;
+	char nr[32];
+
+	rm_aname(nm, 1, ix);		// target array; remove it if it exists
+	v = find_array(nm, ix, 1);	// create a fresh new instance
+
+	if (strlen(str) == 0)
+	{	return 0;
+	}
+
+	rv->rtyp = STR;
+	frm = to = str;
+	while (*to != '\0')
+	{	if (*to == ',')
+		{	*to = '\0';
+			sprintf(nr, "%d", nflds++);
+			rv->s = (char *) hmalloc(strlen(frm)+1, ix, 111);
+			strcpy(rv->s, frm);
+			set_array_element(v, nr, rv, ix);
+			*to = ',';	// restore
+			frm = ++to;
+		} else
+		{	to++;
+	}	}
+	if (strlen(frm) > 0)
+	{	sprintf(nr, "%d", nflds++);
+		rv->s = (char *) hmalloc(strlen(frm)+1, ix, 111);
+		strcpy(rv->s, frm);
+		set_array_element(v, nr, rv, ix);
+	}
+	v->typ = STR;	// v stores strings
+
+	return nflds;
+}
+
 #ifdef STATS
 void
 wrap_stats(void)

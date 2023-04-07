@@ -1,0 +1,77 @@
+#!/bin/bash
+
+if [ -s ~/.cobra ]
+then
+        RM=`cat ~/.cobra | grep -e "Rules: " | sed 's;Rules: ;;'`
+        RM="$RM/refmod"
+else
+        echo "error: ~/.cobra not found"
+        echo "      install cobra first"
+        exit 1
+fi
+
+if [ $# -ge 1 ]
+then
+	case $1 in
+	build)
+		if [ $# -eq 2 ]
+		then
+			case $2 in
+			create)
+				$RM/build create
+				exit $?
+				;;
+			postprocess)
+				$RM/build postprocess
+				exit $?
+				;;
+			*)
+				# fall thru to error exit
+				;;
+			esac
+		else
+			$RM/build
+			exit $?
+		fi
+		;;
+	assess)
+		if [ $# -eq 2 ]
+		then
+			case $2 in
+			outliers)
+				$RM/assess outliers
+				exit $?
+				;;
+			suspicious)
+				$RM/assess suspicious
+				exit $?
+				;;
+			*)
+				# fall thru to error exit
+				;;
+			esac
+		else
+			$RM/assess
+			exit $?
+		fi
+		;;
+	check)
+		if [ $# -eq 2 ]
+		then
+			$RM/check $2
+		else
+			$RM/check
+		fi
+		exit $?
+		;;
+	*)
+		# fall thru to error exit
+		;;
+	esac
+fi
+
+echo "usage:"
+echo "    refmod build  [create postprocess]"
+echo "    refmod assess [outliers suspicious]"
+echo "    refmod check  [refmodelfile]"
+exit 1

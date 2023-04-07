@@ -1,0 +1,77 @@
+#
+# statistics on length of braced code fragments
+# not really useful as a bug-detector
+#
+
+%{
+	unset Round;
+	unset Square;
+	unset Curly;
+	Stop;
+%}
+%{
+	# .range is measure in lines, not characters...
+	# so we have to count them here
+	if (.txt == "(")
+	{	n = -1;
+		q = .;
+		while (q != .jmp)
+		{	n++;
+			q = q.nxt;
+		}
+		Round[n]++;
+		R_Sample[n] = .;
+		Next;
+	}
+	if (.txt == "[")
+	{	n = -1;
+		q = .;
+		while (q != .jmp)
+		{	n++;
+			q = q.nxt;
+		}
+		Square[n]++;
+		S_Sample[n] = .;
+		Next;
+	}
+	if (.txt == "{")
+	{	n = -1;
+		q = .;
+		while (q != .jmp)
+		{	n++;
+			q = q.nxt;
+		}
+		Curly[n]++;
+		C_Sample[n] = .;
+	}
+%}
+%{
+	for (i in Round)
+	{	r = R_Sample[i.txt];
+		print Round[i.txt] "\tR\t" i.txt  "\tline " r.fnm " " r.lnr "\n";
+	}
+	for (i in Square)
+	{	r = S_Sample[i.txt];
+		print Square[i.txt] "\tS\t" i.txt "\tline " r.fnm " " r.lnr "\n";
+	}
+	Tens = 0;
+	Hundreds = 0;
+	Over = 0;
+	for (i in Curly)
+	{	r = C_Sample[i.txt];
+	#	print Curly[i.txt] "\tC\t" i.txt "\tline " r.fnm " " r.lnr "\n";
+		if (i.txt < 10)
+		{	Tens = Tens + Curly[i.txt];
+		}
+		if (i.txt >= 10 && i.txt < 100)
+		{	Hundreds = Hundreds + Curly[i.txt];
+		}
+		if (i.txt >= 100)
+		{	Over = Over + Curly[i.txt];
+	}	}
+	print Tens	"\tC\t" "0-9\n";
+	print Hundreds	"\tC\t" "10-99\n";
+	print Over	"\tC\t" ">100\n";
+	Stop;
+%}
+d

@@ -1,0 +1,78 @@
+#
+# derive statistics on how file descriptors are used
+# and look for outliers
+#
+
+# m open (
+m fopen (
+m & (.curly > 0)
+%{
+	unset Record;
+	Stop;
+%}
+%{
+	if (.mark == 0)
+	{	Next;
+	}
+	.mark = 0;
+	p = .prv;
+	if (p.txt != "=")
+	{	Next;
+	}
+	p = p.prv;
+	if (p.typ != "ident")
+	{	Next;
+	}
+	# could be part of a structure reference
+	# or an array, but we ignore that here
+	q = p.prv;
+	if (q.txt == "." || q.txt == "->" || q.txt == "*")
+	{	Next;
+	}
+
+	# p.txt is a file descriptor
+	# check how it is used in the remainder of the function
+	q = p.nxt;
+	while (q.curly > 0)
+	{	if (q.txt == p.txt)	# match
+		{	b1 = q.prv;	# token before
+			b2 = b1.prv;
+			if (b1.typ == "type" || b2.txt == "FILE")
+			{	Next;	# redeclaration
+			}
+			a1 = q.nxt;	# token after
+
+			# suspicious if an arithmetic operator preceeds or follows
+
+			# not suspicious if in preceded by round brace or comma or followed by comma
+			# if followed by = its reassigned and also not suspicious
+			# (comma is also used as a field separator in the associative array)
+
+			if (b1.txt != "("
+			&&  b1.txt != "."
+			&&  b1.txt != "->"
+			&&  b1.txt != ","
+			&&  b1.txt != "return"
+			&&  a1.txt != ","
+			&&  a1.txt != "=")
+			{	Record[b1.txt, a1.txt]++;
+				Sample[b1.txt, a1.txt] = q;
+			}
+			if (a1.txt == "=")
+			{	Next;	# reassigned
+			}
+		}
+		q = q.nxt;
+	}
+%}
+%{
+	unset AA;
+	for (i in Record)
+	{	nr = split(i.txt, AA);
+		assert(nr == 2);
+		r = Sample[i.txt];
+		print Record[i.txt] "\t" AA[0] "\t" AA[1] "\tline " r.fnm " " r.lnr "\n";
+	}
+	Stop;
+%}
+

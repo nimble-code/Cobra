@@ -1,0 +1,37 @@
+
+## combining linux scans
+## after completing refmod build; refmod assess in each dir
+
+$ cd /cygdrive/f/Dropbox_orig/Linux
+$ cat */*/.RM/*control | sort > /tmp/LL
+
+$ cd .cygdrive/f/Dropbox_orig/Unix
+$ cat */.RM/*control | sort > /tmp/UU
+
+$ cat /tmp/LL /tmp/UU | sort | uniq -c | sort -n > /tmp/LL_UU -> Ref_Mod_control_sorted
+
+$ tail -3 Ref_Mod_Linux	# same as 6.1.7
+  11615  _ = _ <= _ ++
+  18804  _ = _ < ++ _
+ 216373  _ = _ < _ ++
+
+$ tail -3 linux-6.1.7/linux/.RM/Ref_Mod_control_sorted
+   2587  _ = _ <= _ ++
+   4370  _ = _ < ++ _
+  49280  _ = _ < _ ++
+
+$ for i in */*/.RM/*control_sorted Ref_Mod_Linux
+  do	echo -n "$i "; cat $i | awk '$1=="1" { print $2 }' | wc
+  done
+linux-1.0	 29      29      58
+linux-2.0	 37      37      76
+linux-2.4	 83      83     176
+linux-3.0	134     134     286
+linux-4.0	167     167     353
+linux-4.3	162     162     342
+linux-5.0.1	185     185     389
+linux-5.0.9	185     185     389
+linux-6.1.7	192     192     404
+Ref_Mod_Linux		 76      76     157	<-- more selective, as intended
+
+add Unix reference (~200 additional patterns not seen in linux)
