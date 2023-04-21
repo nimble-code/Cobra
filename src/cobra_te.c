@@ -3656,7 +3656,10 @@ cobra_te(char *te, int and, int inv)	// fct is too long...
 						{
 							if (q_now->nxt && strcmp(q_now->nxt->txt, cur->txt) == 0)
 							{	// V4.4: prevent bad long match
-								cur = q_now->nxt;
+								// cur = q_now->nxt;
+							} else
+							{	// V4.4b: correction
+								cur = cur->nxt;
 							}
 							goto L;
 						}
@@ -3717,7 +3720,10 @@ cobra_te(char *te, int and, int inv)	// fct is too long...
 							{
 								if (q_now->nxt && strcmp(q_now->nxt->txt, cur->txt) == 0)
 								{	// V4.4: prevent bad long match
-									cur = q_now->nxt;
+									// cur = q_now->nxt;
+								} else
+								{	// V4.4b: correction
+									cur = cur->nxt;
 								}
 								goto L;
 						}	}
@@ -3932,7 +3938,10 @@ cobra_te(char *te, int and, int inv)	// fct is too long...
 							}
 							if (q_now->nxt && strcmp(q_now->nxt->txt, cur->txt) == 0)
 							{	// V4.4: prevent bad long match
-								cur = q_now->nxt;
+								// cur = q_now->nxt;
+							} else
+							{	// V4.4b: correction
+								cur = cur->nxt;
 							}
 							// we found a match at the current token
 							// so even though there may be others, we
