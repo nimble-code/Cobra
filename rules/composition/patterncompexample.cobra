@@ -1,0 +1,88 @@
+. pattern-composition.cobra 
+
+pe A: if ( .* ) { .* }
+pe B: while ( .* ) { .* }
+pe N: ziltoid = omniscient \;
+
+%{
+z1 = "z1";
+x1 = "A";
+y1 = "A";
+pattern_inside(z1,x1,y1);
+Stop;
+%}
+
+%{
+z2 = "z2";
+x2 = "A";
+y2 = "A";
+pattern_not_inside(z2,x2,y2);
+Stop;
+%}
+
+%{
+z3 = "z3";
+x3 = "A";
+y3 = "A";
+pattern_following(z3,x3,y3);
+Stop;
+%}
+
+%{
+z4 = "z4";
+x4 = "A";
+Stop;
+%}
+pe specificNotA: if ( b .* ) { .* }
+%{
+y4 = "specificNotA";
+pattern_is_not(z4,x4,y4);
+Stop;
+%}
+
+%{
+z5 = "z5";
+x5 = "A";
+y5 = "B";
+pattern_either(z5, x5, y5);
+Stop;
+%}
+ps list
+dp z5
+
+
+%{
+function nested_pats(new_name, pat_name, nest_level){
+  count = 0;
+  prev_name = pat_name;
+  prev_prev_name = "";
+  while ( count < nest_level ) {
+    x = prev_name;
+    y = pat_name;
+    pattern_inside(new_name, pat_name, prev_name);
+    prev_name = new_name;
+    new_name = new_name + "z"; ##ideally would be count.tostr()
+    count = count + 1;
+
+    exists_check = pattern_exists(prev_name);
+    if (exists_check == 0 ) {
+      return;
+    }
+  }
+  ##still need to clean up after ourselves but this is pretty good
+
+}
+Stop;
+%}
+
+%{
+##calling nested patterns on ifs
+nm = "h";
+targ_pat = "A";
+lvl = 4;
+nested_pats(nm, targ_pat, lvl);
+Stop;
+%}
+
+ps list
+dp hzz 

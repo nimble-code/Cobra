@@ -127,6 +127,7 @@ extern void	new_array(char *, int);	// cobra_array.c
 extern void	show_error(FILE *, int);
 extern int	xxparse(void);
 extern Prim	*cp_pset(char *, int);	// cobra_te.c
+extern int	setexists(char *); // cobra_json.c 
 static int	yylex(void);
 
 extern int	stream;
@@ -140,7 +141,7 @@ extern int	stream_override;
 %token	TXT TYP NEWTOK SUBSTR SPLIT STRLEN SET_RANGES CPU N_CORE SUM
 %token	A_UNIFY LOCK UNLOCK ASSERT TERSE TRUE FALSE VERBOSE
 %token	FCTS MARKS SAVE RESTORE RESET
-%token  ADD_PATTERN DEL_PATTERN CP_PSET
+%token  ADD_PATTERN DEL_PATTERN PATTERN_EXISTS CP_PSET
 %token	ADD_TOP ADD_BOT POP_TOP POP_BOT TOP BOT
 %token	OBTAIN_EL RELEASE_EL UNLIST LLENGTH GLOBAL
 %token	DISAMBIGUATE
@@ -243,7 +244,6 @@ b_stmnt	: p_lhs '=' expr { $2->lft = $1; $2->rgt = $3; $$ = $2; }
 				$1->rgt = new_lex(0, $5, $7);
 				$$ = $1;
 			}
-
 	| RELEASE_EL '(' expr ')'	{ $1->lft = $3; $$ = $1;}
 	| POP_TOP '(' NAME ')'		{ $1->lft = $3; $$ = $1;}
 	| POP_BOT '(' NAME ')'		{ $1->lft = $3; $$ = $1;}
@@ -320,6 +320,7 @@ expr	:'(' expr ')'		{ $$ = $2; }
 	| '^' expr %prec UMIN	{ $1->rgt = $2; $$ = $1; }
 	| STRING		{ fixstr($1); $$ = $1; }
 	| CP_PSET '(' s_ref ')'	{ $$->lft = $3; $$ = $1; }
+	| PATTERN_EXISTS '(' NAME ')' {$1->lft = $3; $$ = $1;}
 	| SUBSTR '(' expr ',' expr ',' expr ')' {
 				  $1->lft = $3;
 				  $1->rgt = new_lex(0, $5, $7);
@@ -446,6 +447,7 @@ static struct Keywords {
 	{ "nxt",	NXT },
 	{ "p_start",	JMP },
 	{ "p_end",	BOUND },
+	{ "pattern_exists", PATTERN_EXISTS},
 	{ "p_bdef",	MBND_D },
 	{ "p_bref",	MBND_R },
 	{ "print",	PRINT },
@@ -1530,7 +1532,8 @@ get_var(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)
 	{	assert(ix >= 0 && ix < Ncore);
 		if (q->typ == NAME)
 		{	if (q->core)	// qualified name
-			{	eval_prog(ref_p, q->core, &tmp, ix);
+			{	
+				eval_prog(ref_p, q->core, &tmp, ix);
 				assert(tmp.rtyp == VAL);
 				n = check_var(q->s, tmp.val);
 			} else
@@ -1724,7 +1727,6 @@ print_args(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)
 		rv->rtyp = VAL;
 		rv->val = (int) strlen(rv->s);
 		break;
-
 	case NAME:
 		if (q->rgt)	// q.? on q->rgt
 		{	eval_prog(ref_p, q->rgt, rv, ix);
@@ -3026,7 +3028,6 @@ void
 eval_prog(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)
 {	Prim  *p;
 	Rtype tmp;
-
 	memset(&tmp, 0, sizeof(Rtype));
 	assert(ix >= 0 && ix < Ncore);
 	sep[ix].Nest++;
@@ -3255,7 +3256,8 @@ next:
 		break;
 
 	case NAME:
-		{ Var_nm *n = get_var(ref_p, q, rv, ix);
+		{ 
+		  Var_nm *n = get_var(ref_p, q, rv, ix);
 		  switch (rv->rtyp) {
 		  case VAL:
 			rv->val = n->v;
@@ -3332,7 +3334,14 @@ next:
 		break;
 
 	case ADD_PATTERN:	// name q->lft, from q->rgt->lft, upto q->rgt->rgt
-	case DEL_PATTERN:
+	case DEL_PATTERN:;
+		char* tmpq;
+		tmpq = (char*) malloc((sizeof(q->lft->s)+1));
+		strcpy(tmpq, q->lft->s);
+		eval_prog(ref_p, q->lft, &tmp, ix);
+		if (tmp.rtyp == STR) {
+			q->lft->s = tmp.s;
+		}
 		if (q->lft
 		&&  q->rgt
 		&&  q->rgt->lft
@@ -3353,6 +3362,8 @@ next:
 				} else
 				{	del_pattern(q->lft->s, f, u, ix);
 			}	}
+			q->lft->s = tmpq; 
+			free(tmpq);
 			break;
 		}
 		// error case
@@ -3361,8 +3372,24 @@ next:
 		sep[ix].T_stop++; 
 		rv->rtyp = STP;
 		break;
-	case CP_PSET:
-		rv->ptr = cp_pset(q->lft->s, ix);
+	case PATTERN_EXISTS:
+		eval_prog(ref_p, q->lft, &tmp, ix);
+		rv->rtyp = VAL;
+		
+		if (tmp.rtyp == STR) {
+			rv->val = (int) setexists(tmp.s);
+		} else {
+			rv->val = (int) setexists(q->lft->s);
+		}
+		break; //temporary pattern exists
+	case CP_PSET: 
+		eval_prog(ref_p, q->lft, &tmp, ix);
+		//STR definitions are preferred (A="B"->B)
+		if (tmp.rtyp == STR) 
+		{ rv->ptr = cp_pset(tmp.s, ix);
+		} else 
+		{ rv->ptr = cp_pset(q->lft->s, ix);
+		}
 		if (!rv->ptr)
 		{	show_error(stderr, q->lnr);
 			unwind_stack(ix);

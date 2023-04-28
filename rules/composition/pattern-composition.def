@@ -1,0 +1,378 @@
+%{
+function pattern_inside(new_name, outer_name, inner_name) {
+  outexists = pattern_exists(outer_name);
+  innexists = pattern_exists(inner_name);
+
+  if ( outexists == 1 ) {
+    outer = pset(outer_name);
+  }
+  if ( innexists == 1 ) {
+    inner = pset(inner_name);
+  }
+  ##require both to exist
+  if ( outexists == 0 && innexists == 1) {
+    print "WARNING: Outer pattern " outer_name " does not exist or matched no patterns.\n";
+    return;
+  }
+
+  if ( innexists == 0 && outexists == 1) {
+    print "WARNING: Inner pattern " inner_name " does not exist or matched no patterns.\n";
+    return;
+  }
+
+  if ( innexists == 0 && outexists == 0) {
+    print "WARNING: Outer pattern " outer_name " does not exist or matched no patterns.\n";
+    print "WARNING: Inner pattern " inner_name " does not exist or matched no patterns.\n";
+    return;
+  }
+  ##implicit if both exist
+  inner_anchor = inner;
+  out_st = outer.p_start;
+  out_ed = outer.p_end;
+  inn_st = inner.p_start;
+  inn_ed = inner.p_end;
+
+  out_exists = pattern_exists(outer);
+  inn_exists = pattern_exists(inner);
+  if ( out_exists == 0 && inn_exists == 0 ) {
+    while ( out_st.seq > 0 ) {
+      out_st = out_st.nxt;
+      out_ed = out_ed.prv;
+      inseq=inn_st.seq;
+      while ( inseq > 0 ) {
+        if ( inn_st.seq >= out_st.seq) {
+        if ( inn_st.seq <= out_ed.seq) {
+        if ( inn_ed.seq >= out_st.seq) {
+        if ( inn_ed.seq <= out_ed.seq) {
+          out_st = out_st.prv;
+          out_ed = out_ed.nxt;
+          add_pattern(new_name, out_st, out_ed);
+          out_st = out_st.nxt;
+          out_ed = out_ed.prv;
+	}
+        }
+        }
+        }
+	inner = inner.nxt;
+        inseq = inn_st.seq;
+        inn_st = inner.p_start;
+        inn_ed = inner.p_end;
+
+      }
+      ##resetting the inner loop
+      inner = inner_anchor;
+      inn_st = inner.p_start;
+      inn_ed = inner.p_end;
+      outer = outer.nxt;
+      out_st = outer.p_start;
+      out_ed = outer.p_end;
+    }
+  } 
+
+}
+Stop;
+%}
+
+
+%{
+function pattern_following(new_name, before_name, after_name) {
+  beforeexists = pattern_exists(before_name);
+  afterexists = pattern_exists(after_name);
+
+  if ( beforeexists==1 ) {
+    before = pset(before_name);
+  }
+  if ( afterexists == 1 ) {
+    after = pset(after_name);
+  }
+  
+  ##only really makes sense if both exist, relational
+  if ( beforeexists == 0 && afterexists == 1) {
+    print "WARNING: Before pattern " before_name " has no matches.\n";
+    return;
+  }
+  if ( afterexists == 0 && beforeexists == 1) {
+    print "WARNING: After pattern " after_name " has no matches.\n";
+    return;
+  }
+  if ( afterexists == 0 && beforeexists == 0 )  {
+    print "WARNING: Before pattern " before_name " has no matches.\n";
+    print "WARNING: After pattern " after_name " has no matches.\n";
+    return;
+    
+  }
+
+  resetafter=after;
+  a_st = after.p_start;
+  a_ed = after.p_end;
+  b_ed = before.p_end;
+  b_ed = b_ed.nxt;
+  while (b_ed.seq > 0) { 
+    while (a_st.seq > 0) {
+  
+      if (b_ed.seq == a_st.seq) {
+        b_st = before.p_start;
+        a_ed = after.p_end;  
+        add_pattern(new_name, b_st, a_ed); 
+      }
+      after = after.nxt;
+      a_st = after.p_start;
+    }
+    after = resetafter;
+    a_st = after.p_start;
+
+    before = before.nxt;
+    b_ed = before.p_end;
+    b_ed = b_ed.nxt;
+  }
+}
+Stop;
+%}
+
+%{
+
+function pattern_not_inside(new_name, outer_name, inner_name) {
+  outexists = pattern_exists(outer_name);
+  innexists = pattern_exists(inner_name);
+
+  outer = 0;
+  inner = 0;
+  if ( outexists == 1 ) {
+    outer = pset(outer_name);
+  }
+  
+  if ( innexists == 1 ) {
+    inner = pset(inner_name);  
+  }
+
+  ##need the outer to exist for any of this to make sense
+  if ( outexists == 0 && innexists == 1) {
+    print "WARNING: Outer pattern " outer_name " does not exist or have any pattern matches.\n";
+    return;
+  }
+  if ( outexists == 0 && innexists == 0) {
+    print "WARNING: Outer pattern " outer_name " does not exist or have any pattern matches.\n";
+    print "WARNING: Inner pattern " inner_name " does not exist or have any pattern matches.\n";
+    return;
+  }
+  
+  ##if there's no inner, all the outer can be added.
+  if ( innexists == 0 && outexists == 1 ) {
+    print "WARNING: Inner pattern " inner_name " does not exist. Output will just be the outer pattern assigned to " new_name "\n";
+    out_st = outer.p_start;
+    out_ed = outer.p_end;
+    while ( out_st.seq > 0 ) {
+      add_pattern(new_name, out_st, out_ed);
+      outer = outer.nxt;
+      out_st = outer.p_start;
+      out_ed = outer.p_end;
+    }
+    return;
+  }
+
+  ##implicit both patterns exist  
+  inner_anchor = inner;
+  out_st = outer.p_start;
+  out_ed = outer.p_end;
+  inn_st = inner.p_start;
+  inn_ed = inner.p_end;
+
+  ##probably wrong, fix later
+  out_exists = pattern_exists(outer);
+  inn_exists = pattern_exists(inner);
+  if ( out_exists == 0 && inn_exists == 0 ) {
+    while ( out_st.seq > 0 ) {
+      out_st = out_st.nxt;
+      out_ed = out_ed.prv;
+      inseq = inn_st.seq;
+      flag = 1;
+      while ( inseq > 0 ) {
+        if ( inn_st.seq >= out_st.seq) {
+        if ( inn_st.seq <= out_ed.seq) {
+        if ( inn_ed.seq >= out_st.seq) {
+        if ( inn_ed.seq <= out_ed.seq) {
+          ##this means we've found one of the inner patterns inside of the other pattern, this means we should not add the outer pattern to our new set, 
+          flag = 0;
+        }
+        }
+        }
+        }
+        inner = inner.nxt;
+        inseq = inn_st.seq;
+        inn_st = inner.p_start;
+        inn_ed = inner.p_end;
+      }
+      ##reset the inner loop for the next outer
+      ##yes this is n^2 when nlogn is possible
+      inner = inner_anchor;
+      inn_st = inner.p_start;
+      inn_ed = inner.p_end;
+      if (flag == 1) {
+        ##made it through without finding a match
+        out_st = out_st.prv;
+        out_ed = out_ed.nxt;
+        add_pattern(new_name, out_st, out_ed);
+        out_st = out_st.nxt;
+        out_ed = out_ed.prv;
+      }
+      ##regardless of outcome, move on to the next one
+      outer = outer.nxt;
+      out_st = outer.p_start;
+      out_ed = outer.p_end;
+    }
+  }
+
+}
+Stop;
+%}
+
+%{
+function pattern_either(new_name, pattern1_name, pattern2_name) {
+  p1exists = pattern_exists(pattern1_name);
+  p2exists = pattern_exists(pattern2_name);
+
+  if (p1exists == 1) {
+    pattern1 = pset(pattern1_name);
+    pat1_st = pattern1.p_start;
+    pat1_ed = pattern1.p_end;
+    while ( pat1_st.seq > 0 ) {
+      add_pattern(new_name, pat1_st, pat1_ed);
+      pattern1 = pattern1.nxt;
+      pat1_st = pattern1.p_start;
+      pat1_ed = pattern1.p_end;
+    }
+  } 
+
+  if (p1exists == 0) {
+    print "WARNING: Pattern 1 " pattern1_name " does not exist.\n";
+  }
+
+  if (p2exists == 1) {
+    pattern2 = pset(pattern2_name);
+    pat2_st = pattern2.p_start;
+    pat2_ed = pattern2.p_end;
+    while ( pat2_st.seq > 0 ) {
+      add_pattern(new_name, pat2_st, pat2_ed);
+      pattern2 = pattern2.nxt;
+      pat2_st = pattern2.p_start;
+      pat2_ed = pattern2.p_end;
+    } 
+
+
+  }
+
+  if (p2exists == 0) {
+    print "WARNING: Pattern 2 " pattern2_name " does not exist.\n";
+  }
+
+}
+Stop;
+%}
+
+%{
+function pattern_is_not(new_name, ispat_name, notpat_name) {
+  isexists = pattern_exists(ispat_name);
+  noexists = pattern_exists(notpat_name);
+
+  ispat = 0;
+  if ( isexists==1 ) {
+    ispat = pset(ispat_name);
+  }
+  notpat = 0;
+  if ( noexists==1 ) {
+    notpat = pset(notpat_name);
+  }
+
+  ##if only ispat exists, we take all of it
+  if (isexists==1 && noexists==0) {
+    ##good to have a warning
+    print "WARNING: The not pattern " notpat_name " does not exist. This may be because it matched with nothing or has not been created.\n";
+    is_st = ispat.p_start;
+    is_ed = ispat.p_end;
+    while (is_st.seq > 0 ) {
+      add_pattern(new_name, is_st, is_ed);
+      ispat = ispat.nxt;
+      is_st = ispat.p_start;
+      is_ed = ispat.p_end;
+    }
+    return;
+  }
+
+  if (isexists==0 && noexists==0) {
+    print "WARNING: Neither of the patterns specified has any matches.\n";
+    return;
+  }
+
+  if (isexists==0 && noexists==1) {
+    print "WARNING: The is pattern " ispat_name " does not exist. This may be because it matched with nothing or has not been created.\n";
+    return;
+  }
+
+  ##implicit if both exist
+  ispat_anchor = ispat;
+  notpat_anchor = notpat;
+  is_st = ispat.p_start;
+  is_ed = ispat.p_end;
+  no_st = notpat.p_start;
+  no_ed = notpat.p_end;
+
+  while ( is_st.seq > 0 ) {
+    flag = 1;
+    noseq = no_st.seq;
+    while ( noseq > 0 ) {
+      if ( is_st.seq == no_st.seq ) {
+      if ( is_ed.seq == no_ed.seq ) {
+        flag = 0;
+      }
+      }
+      notpat = notpat.nxt;
+      no_st = notpat.p_start;
+      no_ed = notpat.p_end;
+      noseq = no_st.seq;
+    }
+    if (flag == 1) {
+      add_pattern(new_name, is_st, is_ed);
+    }
+    ##reset loop
+    notpat = notpat_anchor;
+    no_st = notpat.p_start;
+    no_ed = notpat.p_end;
+    noseq = no_st.seq;
+    ##go next
+    ispat = ispat.nxt;
+    is_st = ispat.p_start;
+    is_ed = ispat.p_end;
+  }
+}
+Stop;
+%}
+
+def pattern_inside(x1,y1,z1)
+  %{
+    pattern_inside(x1,y1,z1);
+  %}
+end
+
+def pattern_not_inside(x1,y1,z1)
+  %{
+    pattern_not_inside(x1,y1,z1);
+  %}
+end
+
+def pattern_following(x1,y1,z1)
+  %{
+    pattern_following(x1,y1,z1);
+  %}
+end
+
+def pattern_is_not(x1,y1,z1)
+  %{
+    pattern_is_not(x1,y1,z1);
+  %}
+end
+
+def pattern_either(x1,y1,z1)
+  %{
+    pattern_either(x1,y1,z1);
+  %}
+end
