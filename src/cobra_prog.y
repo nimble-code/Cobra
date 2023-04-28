@@ -354,7 +354,7 @@ expr	:'(' expr ')'		{ $$ = $2; }
 	| TRUE
 	| FALSE
 	;
-s_ref	: NAME
+s_ref	: expr
 	| '*'			{ $$ = new_lex(NAME, 0, 0); $$->s = "*"; }
 	;
 p_ref	: BEGIN
@@ -3362,7 +3362,19 @@ next:
 		rv->rtyp = STP;
 		break;
 	case CP_PSET:
-		rv->ptr = cp_pset(q->lft->s, ix);
+		if (q->lft->typ == STRING)
+		{	rv->ptr = cp_pset(q->lft->s, ix);
+		} else if (q->lft->typ == NAME)
+		{	rv->ptr = cp_pset(q->lft->s, ix);
+			if (rv->ptr == 0)	// could be a var
+			{	Var_nm *n = get_var(ref_p, q->lft, rv, ix);
+				if (rv->rtyp == STR)
+				{	rv->ptr = cp_pset(n->s, ix);
+			}	}
+		} else
+		{	fprintf(stderr, "error: pset arg is not a var, name, or string'\n");
+			rv->ptr = NULL;
+		}
 		if (!rv->ptr)
 		{	show_error(stderr, q->lnr);
 			unwind_stack(ix);
