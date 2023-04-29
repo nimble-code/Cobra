@@ -233,12 +233,12 @@ b_stmnt	: p_lhs '=' expr { $2->lft = $1; $2->rgt = $3; $$ = $2; }
 	| A_UNIFY '(' NAME ',' nr_or_cpu ')' { $1->lft = $5; $1->rgt = $3; $$ = $1; }
 	| A_UNIFY '(' nr_or_cpu ')'	{ $1->lft = $3; $1->rgt = 0; $$ = $1; }
 
-	| ADD_PATTERN '(' NAME ',' t_ref ',' t_ref ')'	{
+	| ADD_PATTERN '(' s_ref ',' t_ref ',' t_ref ')'	{
 				$1->lft = $3;
 				$1->rgt = new_lex(0, $5, $7);
 				$$ = $1;
 			}
-	| DEL_PATTERN '(' NAME ',' t_ref ',' t_ref ')'	{
+	| DEL_PATTERN '(' s_ref ',' t_ref ',' t_ref ')'	{
 				$1->lft = $3;
 				$1->rgt = new_lex(0, $5, $7);
 				$$ = $1;
