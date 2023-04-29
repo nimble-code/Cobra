@@ -3343,19 +3343,32 @@ next:
 			u = handle_arg(ref_p, q->rgt->rgt, rv, ix); // upto
 
 			if (f && u)
-			{	if (verbose)
+			{	char *tmp_nm = "unknown";
+				if (q->lft->typ == STRING)
+				{	tmp_nm = q->lft->s;
+				} else if (q->lft->typ == NAME)
+				{	tmp_nm = q->lft->s;
+					if (!cp_pset(q->lft->s, ix))
+					{	Var_nm *n = get_var(ref_p, q->lft, rv, ix);
+						if (rv->rtyp == STR)
+						{	tmp_nm = n->s;
+					}	}
+				} else
+				{	goto error_case;
+				}
+				if (verbose)
 				{	printf("%s_pattern to set '%s' from %s:%d upto %s:%d\n",
 						(q->typ == ADD_PATTERN) ? "add" : "del",
-						q->lft->s, f->fnm, f->lnr, u->fnm, u->lnr);
+						tmp_nm, f->fnm, f->lnr, u->fnm, u->lnr);
 				}
 				if (q->typ == ADD_PATTERN)
-				{	add_pattern(q->lft->s, 0, f, u, ix);
+				{	add_pattern(tmp_nm, 0, f, u, ix);
 				} else
-				{	del_pattern(q->lft->s, f, u, ix);
+				{	del_pattern(tmp_nm, f, u, ix);
 			}	}
 			break;
 		}
-		// error case
+	error_case:
 		show_error(stderr, q->lnr);
 		unwind_stack(ix);
 		sep[ix].T_stop++; 
