@@ -124,6 +124,7 @@ static void	yyerror(const char *);
 void	eval_prog(Prim **, Lextok *, Rtype *, const int);
 
 extern void	new_array(char *, int);	// cobra_array.c
+extern int	setexists(const char *s);
 extern void	show_error(FILE *, int);
 extern int	xxparse(void);
 extern Prim	*cp_pset(char *, int);	// cobra_te.c
@@ -140,7 +141,7 @@ extern int	stream_override;
 %token	TXT TYP NEWTOK SUBSTR SPLIT STRLEN SET_RANGES CPU N_CORE SUM
 %token	A_UNIFY LOCK UNLOCK ASSERT TERSE TRUE FALSE VERBOSE
 %token	FCTS MARKS SAVE RESTORE RESET
-%token  ADD_PATTERN DEL_PATTERN CP_PSET
+%token  ADD_PATTERN DEL_PATTERN IS_PATTERN CP_PSET
 %token	ADD_TOP ADD_BOT POP_TOP POP_BOT TOP BOT
 %token	OBTAIN_EL RELEASE_EL UNLIST LLENGTH GLOBAL
 %token	DISAMBIGUATE
@@ -319,7 +320,8 @@ expr	:'(' expr ')'		{ $$ = $2; }
 	| '~' expr %prec UMIN	{ $1->rgt = $2; $$ = $1; }
 	| '^' expr %prec UMIN	{ $1->rgt = $2; $$ = $1; }
 	| STRING		{ fixstr($1); $$ = $1; }
-	| CP_PSET '(' s_ref ')'	{ $$->lft = $3; $$ = $1; }
+	| CP_PSET '(' s_ref ')'	{ $1->lft = $3; $$ = $1; }
+	| IS_PATTERN '(' s_ref ')'	{ $1->lft = $3; $$ = $1; }
 	| SUBSTR '(' expr ',' expr ',' expr ')' {
 				  $1->lft = $3;
 				  $1->rgt = new_lex(0, $5, $7);
@@ -421,6 +423,7 @@ static struct Keywords {
 	{ "goto",	GOTO },
 	{ "if",		IF },
 	{ "in",		IN },
+	{ "is_pattern",	IS_PATTERN },
 	{ "jmp",	JMP },
 	{ "last_t",	LAST_T },
 	{ "len",	LEN },
@@ -448,6 +451,7 @@ static struct Keywords {
 	{ "p_end",	BOUND },
 	{ "p_bdef",	MBND_D },
 	{ "p_bref",	MBND_R },
+	{ "pattern_exists", IS_PATTERN },
 	{ "print",	PRINT },
 	{ "prv",	PRV },
 	{ "pset",	CP_PSET },
@@ -3395,6 +3399,29 @@ next:
 			rv->rtyp = STP;
 		} else
 		{	rv->rtyp = PTR;
+		}
+		break;
+	case IS_PATTERN:	// Kenneth McLarney
+		rv->rtyp = VAL;
+		if (q->lft->typ == STRING)
+		{	rv->val = setexists(q->lft->s);
+		} else if (q->lft->typ == NAME)
+		{	rv->val = setexists(q->lft->s);
+			if (rv->val == 0)	// check if var
+			{	Var_nm *n = get_var(ref_p, q->lft, rv, ix);
+				if (rv->rtyp == STR)
+				{	rv->val = setexists(n->s);
+				} else
+				{	rv->val = 0;
+				}
+				rv->rtyp = VAL; // restore
+			}
+		} else
+		{	fprintf(stderr, "error: arg is not a var, name, or string'\n");
+			show_error(stderr, q->lnr);
+			unwind_stack(ix);
+			sep[ix].T_stop++; 
+			rv->rtyp = STP;
 		}
 		break;
 

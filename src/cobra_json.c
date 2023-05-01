@@ -142,6 +142,19 @@ findset(const char *s, int complain, int who)
 	return (Named *) 0;
 }
 
+int
+setexists(const char *s)
+{	Named *x;
+
+	for (x = namedset; x; x = x->nxt)
+	{	if (strcmp(x->nm , s) == 0)
+		{	return 1;
+			break;
+	}	}
+
+	return 0;
+}
+
 void
 add_match(Prim *f, Prim *t, Store *bd)
 {	Match *m;
