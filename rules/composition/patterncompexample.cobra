@@ -47,9 +47,19 @@ y5 = "B";
 pattern_either(z5, x5, y5);
 Stop;
 %}
-ps list
-dp z5
 
+%{
+print "not following \n";
+z6 = "z6";
+x6 = "A";
+y6 = "A";
+pattern_not_following(z6,x6,y6);
+Stop;
+%}
+r
+ps list
+dp z3
+r
 
 %{
 function nested_pats(new_name, pat_name, nest_level){
@@ -84,5 +94,5 @@ nested_pats(nm, targ_pat, lvl);
 Stop;
 %}
 
-ps list
-dp hzz 
+##ps list
+##dp hzz 

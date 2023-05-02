@@ -103,6 +103,7 @@ function pattern_following(new_name, before_name, after_name) {
   }
 
   resetafter=after;
+  resetbefore=before;
   a_st = after.p_start;
   a_ed = after.p_end;
   b_ed = before.p_end;
@@ -113,7 +114,10 @@ function pattern_following(new_name, before_name, after_name) {
       if (b_ed.seq == a_st.seq) {
         b_st = before.p_start;
         a_ed = after.p_end;  
-        add_pattern(new_name, b_st, a_ed); 
+        isit = iscomposite(b_st, a_ed, resetbefore, resetafter);
+        if ( isit == 1 ) {
+          add_pattern(new_name, b_st, a_ed); 
+        }
       }
       after = after.nxt;
       a_st = after.p_start;
@@ -347,6 +351,109 @@ function pattern_is_not(new_name, ispat_name, notpat_name) {
 Stop;
 %}
 
+%{
+function pattern_not_following(newname, before_name, after_name) {
+  beforeexists = pattern_exists(before_name);
+  afterexists = pattern_exists(after_name);
+  ##only need the before to exist
+  if (beforeexists == 0 && afterexists == 1) {
+    print "WARNING: The before pattern " before_name " does not exist. This may be because it matched with nothing or has not been created.\n";
+    return;
+  }
+  if (beforeexists == 0 && afterexists == 0) {
+    print "WARNING: The after pattern " after_name " does not exist. This may be because it matched with nothing or has not been created.\n";
+    print "WARNING: The before pattern " before_name " does not exist. This may be because it matched with nothing or has not been created.\n";
+    return;
+  }
+  ##if there are no matches after, then it is not following
+  ##assign the full before pattern to newname
+  if (beforeexists == 1 && afterexists == 0 ) {
+    before = pset(before_name);
+    b_st = before.p_start;
+    b_ed = before.p_end;
+    while ( b_st.seq > 0 ) {
+      add_pattern(newname, b_st,b_ed);
+      before = before.nxt;
+      b_st = before.p_start;
+      b_ed = before.p_end;
+    }
+    return;
+  } 
+  ##implicit both exist
+  before = pset(before_name);
+  after = pset(after_name);
+  after_anchor = after;
+  b_st = before.p_start;
+  b_ed = before.p_end;
+  before_anchor = before;
+
+  while (b_st.seq > 0 ) {
+    b_ed = b_ed.nxt; ##need the token just after end of before pattern
+    a_st = after.p_start;
+    a_ed = after.p_end;
+    flag = 1;
+    while (a_st.seq > 0 ) {
+      if (a_st.seq == b_ed.seq) {
+        flag = 0;
+      }
+      after = after.nxt;
+      a_st = after.p_start;
+      a_ed = after.p_end;
+
+    }
+    if (flag == 1) {
+      ##this just means that a smaller pattern isnt followed by another smaller pattern
+      b_ed = b_ed.prv;
+      isit = iscomposite(b_st,b_ed, before_anchor, after_anchor);
+      if ( isit == 0 ) {
+        add_pattern(newname, b_st, b_ed);
+      }
+    }
+    after = after_anchor;
+
+    before = before.nxt;
+    b_st = before.p_start;
+    b_ed = before.p_end;
+  }  
+}
+%}
+
+%{
+function iscomposite(o_st, o_ed, st_pat, ed_pat) {
+  p_st = st_pat.p_start;
+  p_ed = st_pat.p_end;
+  anchor_pat = ed_pat;
+  while ( p_st.seq > 0 ) {
+    if (p_st.seq == o_st.seq && p_ed.seq != o_ed.seq) {
+      ##start has a match
+      b_st = ed_pat.p_start;
+      b_ed = ed_pat.p_end;
+      p_ed = p_ed.nxt;
+      while (b_st.seq > 0 ) {
+        if ( b_ed.seq == o_ed.seq && p_ed.seq == b_st.seq ) {
+          ##both the start pattern and the end pattern completely fill the original pattern
+          return 1;
+        }
+        ##print "original " o_st.seq " to " o_ed.seq " \n";
+        ##print "st " p_st.seq " to " p_ed.seq " \n";
+        ##print "ed " b_st.seq " to " b_ed.seq " \n";
+        ##print "\n";
+        ed_pat = ed_pat.nxt;
+        b_st = ed_pat.p_start;
+        b_ed = ed_pat.p_end;
+      }
+    }
+    ed_pat = anchor_pat;
+
+    st_pat = st_pat.nxt;
+    p_st = st_pat.p_start;
+    p_ed = st_pat.p_end;
+  }
+  return 0;
+}
+%}
+
+
 def pattern_inside(x1,y1,z1)
   %{
     pattern_inside(x1,y1,z1);
@@ -374,5 +481,11 @@ end
 def pattern_either(x1,y1,z1)
   %{
     pattern_either(x1,y1,z1);
+  %}
+end
+
+def pattern_not_following(x1,y1,z1)
+  %{
+    pattern_not_following(x1,y1,z1);
   %}
 end
