@@ -456,7 +456,16 @@ function pattern_not_following(newname, before_name, after_name, match_binding) 
     flag = 1;
     while (a_st.seq > 0 ) {
       if (a_st.seq == b_ed.seq) {
-        flag = 0;
+        ta = after.p_bdef;
+        tb = before.p_bdef;
+        if ( match_binding == 0 ) {
+          flag = 0;
+        }
+        if (match_binding == 1 ) {
+          if (ta.txt == tb.txt ) {
+            flag = 0;
+          }
+        }
       }
       after = after.nxt;
       a_st = after.p_start;
@@ -468,19 +477,7 @@ function pattern_not_following(newname, before_name, after_name, match_binding) 
       b_ed = b_ed.prv;
       isit = iscomposite(b_st,b_ed, before_anchor, after_anchor);
       if ( isit == 0 ) {
-        b_bnd = before.p_bdef;
-        a_bnd = after.p_bdef;
-        if (b_bnd.txt == "" || a_bnd.txt == "") {
-          match_binding=0;
-        }
-        if (match_binding == 1 ) {
-          if (b_bnd.txt == a_bnd.txt) {
-            add_pattern(newname, b_st, b_ed);
-          }
-        }
-        if (match_binding == 0 ) {
-          add_pattern(newname, b_st, b_ed);
-        }
+        add_pattern(newname, b_st, b_ed);
       }
     }
     after = after_anchor;
