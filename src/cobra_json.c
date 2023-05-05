@@ -142,21 +142,6 @@ findset(const char *s, int complain, int who)
 	return (Named *) 0;
 }
 
-int 
-setexists(const char *s)
-{	Named *x;
-	int b;
-	b = 0;
-	for (x = namedset; x; x = x->nxt)
-	{
-		if (strcmp(x->nm , s) == 0) {
-			b = 1;
-			break;
-		}
-	}
-	return b;
-}
-
 void
 add_match(Prim *f, Prim *t, Store *bd)
 {	Match *m;
@@ -267,6 +252,7 @@ void
 add_pattern(const char *s, const char *msg, Prim *from, Prim *upto, int cid)
 {	Named *x;
 	Match *om;
+
 	do_lock(cid);		// could be a lock on just s
 
 	om = matches;		// save old value
