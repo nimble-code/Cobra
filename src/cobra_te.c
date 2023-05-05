@@ -160,6 +160,7 @@ static int	Seq   = 1;
 static int	ncalls;
 static int	nerrors;
 static int	has_positions;
+static int	fullmatch;
 
 static Nd_Stack *clone_nd_stack(Nd_Stack *);
 static int	 check_constraints(Nd_Stack *);
@@ -1491,6 +1492,7 @@ is_accepting(Store *b, int s)
 
 //		cur = q_now;	// move ahead, avoid overlap
 
+		fullmatch = 1;
 		return 1;
 	}
 	return 0;
@@ -3654,6 +3656,7 @@ cobra_te(char *te, int and, int inv)	// fct is too long...
 						anychange = 1;
 						if (is_accepting(s->bindings, t->dest))
 						{
+#if 0
 							if (q_now->nxt && strcmp(q_now->nxt->txt, cur->txt) == 0)
 							{	// V4.4: prevent bad long match
 								// cur = q_now->nxt;
@@ -3661,6 +3664,7 @@ cobra_te(char *te, int and, int inv)	// fct is too long...
 							{	// V4.4b: correction
 								cur = cur->nxt;
 							}
+#endif
 							goto L;
 						}
 						continue;
@@ -3718,6 +3722,7 @@ cobra_te(char *te, int and, int inv)	// fct is too long...
 							anychange = 1;
 							if (is_accepting(s->bindings, t->dest))
 							{
+#if 0
 								if (q_now->nxt && strcmp(q_now->nxt->txt, cur->txt) == 0)
 								{	// V4.4: prevent bad long match
 									// cur = q_now->nxt;
@@ -3725,6 +3730,7 @@ cobra_te(char *te, int and, int inv)	// fct is too long...
 								{	// V4.4b: correction
 									cur = cur->nxt;
 								}
+#endif
 								goto L;
 						}	}
 						continue;
@@ -3936,17 +3942,21 @@ cobra_te(char *te, int and, int inv)	// fct is too long...
 							{	printf("\t\tgoto L (%d -> %d) anychange: %d\n",
 									s->seq, t->dest, anychange);
 							}
+#if 0
 							if (q_now->nxt && strcmp(q_now->nxt->txt, cur->txt) == 0)
 							{	// V4.4: prevent bad long match
 								// cur = q_now->nxt;
-							} else
+							}
+							else
 							{	// V4.4b: correction
 								cur = cur->nxt;
 							}
+#endif
 							// we found a match at the current token
 							// so even though there may be others, we
 							// move on; is_accepting() already cleared
-							// the states
+							// the states; we must still break from the loop
+							// as forced by fullmatch
 							goto L;
 						}
 					}	// if matching, may set anychange
@@ -3959,13 +3969,18 @@ cobra_te(char *te, int and, int inv)	// fct is too long...
 
 		L:	mustbreak = 0;
 			free_list(current);
+			// if fullmatch is nonzero, so is anychange
 			if (anychange)
 			{	current = 1 - current;	// move forward
+				if (fullmatch)
+				{	fullmatch = 0;
+					break;
+				}
 			} else
 			{	break;			// no match of pattern, Next
 			}
 		}	// for-loop look-ahead match attempt on token q_now
-	}		// for-loop starting match attempt cur
+	}	// for-loop starting match attempt cur
 
 	te_regstop();
 

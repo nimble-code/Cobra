@@ -136,7 +136,7 @@ extern int	stream_override;
 
 %token	NR STRING NAME IF IF2 ELSE WHILE FOR IN PRINT ARG SKIP GOTO
 %token	BREAK CONTINUE STOP NEXT_T BEGIN END SIZE RETRIEVE FUNCTION CALL
-%token	ROUND BRACKET CURLY LEN MARK SEQ LNR RANGE FNM FCT
+%token	ROUND BRACKET CURLY LEN MARK SEQ LNR RANGE FNM FCT ITOSTR
 %token	BOUND MBND_D MBND_R NXT PRV JMP UNSET RETURN RE_MATCH FIRST_T LAST_T
 %token	TXT TYP NEWTOK SUBSTR SPLIT STRLEN SET_RANGES CPU N_CORE SUM
 %token	A_UNIFY LOCK UNLOCK ASSERT TERSE TRUE FALSE VERBOSE
@@ -339,6 +339,7 @@ expr	:'(' expr ')'		{ $$ = $2; }
 	| RETRIEVE '(' NAME ',' expr ')' { $1->rgt = $3; $1->lft = $5; $$ = $1; }
 	| RE_MATCH '(' p_lhs ',' STRING ')' { $1->lft = $3; $1->rgt = $5; $$ = $1; }
 	| RE_MATCH '(' STRING ')' { $1->lft = 0; $1->rgt = $3; $$ = $1; }
+	| ITOSTR '(' expr ')'	{ $1->lft = $3; $$ = $1; }
 	| DISAMBIGUATE '(' NAME ')' { $1->rgt = $3; $$ = $1; }
 	| NAME '(' actuals ')'  { $$ = new_lex(CALL, $1, $3); }
 	| '@' NAME		{ $1->rgt = $2; $$ = $1; }
@@ -424,6 +425,7 @@ static struct Keywords {
 	{ "if",		IF },
 	{ "in",		IN },
 	{ "is_pattern",	IS_PATTERN },
+	{ "itostr",	ITOSTR },
 	{ "jmp",	JMP },
 	{ "last_t",	LAST_T },
 	{ "len",	LEN },
@@ -3177,6 +3179,10 @@ next:
 	case RE_MATCH:
 		rv->rtyp = VAL;
 		rv->val  = re_matches(ref_p, q, ix);
+		break;
+
+	case ITOSTR:
+		convert2string(ref_p, q->lft, rv, ix);
 		break;
 
 	case '[':
