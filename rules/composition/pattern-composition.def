@@ -1,5 +1,5 @@
 %{
-function pattern_inside(new_name, outer_name, inner_name) {
+function pattern_inside(new_name, outer_name, inner_name, match_binding) {
   outexists = pattern_exists(outer_name);
   innexists = pattern_exists(inner_name);
 
@@ -38,7 +38,7 @@ function pattern_inside(new_name, outer_name, inner_name) {
     while ( out_st.seq > 0 ) {
       out_st = out_st.nxt;
       out_ed = out_ed.prv;
-      inseq=inn_st.seq;
+      inseq=inn_ed.seq;
       while ( inseq > 0 ) {
         if ( inn_st.seq >= out_st.seq) {
         if ( inn_st.seq <= out_ed.seq) {
@@ -46,7 +46,20 @@ function pattern_inside(new_name, outer_name, inner_name) {
         if ( inn_ed.seq <= out_ed.seq) {
           out_st = out_st.prv;
           out_ed = out_ed.nxt;
-          add_pattern(new_name, out_st, out_ed);
+          
+          out_bnd = outer.p_bdef;
+          inn_bnd = inner.p_bdef;
+          if (out_bnd.txt == "" || inn_bnd.txt == "") {
+            match_binding = 0;
+          }
+          if (match_binding == 1) {
+            if (inn_bnd.txt == out_bnd.txt) {
+              add_pattern(new_name, out_st, out_ed);
+            }
+          }
+          if (match_binding == 0) {
+            add_pattern(new_name, out_st, out_ed);
+          }
           out_st = out_st.nxt;
           out_ed = out_ed.prv;
 	}
@@ -54,7 +67,7 @@ function pattern_inside(new_name, outer_name, inner_name) {
         }
         }
 	inner = inner.nxt;
-        inseq = inn_st.seq;
+        inseq = inn_ed.seq;
         inn_st = inner.p_start;
         inn_ed = inner.p_end;
 
@@ -75,7 +88,7 @@ Stop;
 
 
 %{
-function pattern_following(new_name, before_name, after_name) {
+function pattern_following(new_name, before_name, after_name, match_binding) {
   beforeexists = pattern_exists(before_name);
   afterexists = pattern_exists(after_name);
 
@@ -116,7 +129,20 @@ function pattern_following(new_name, before_name, after_name) {
         a_ed = after.p_end;  
         isit = iscomposite(b_st, a_ed, resetbefore, resetafter);
         if ( isit == 1 ) {
-          add_pattern(new_name, b_st, a_ed); 
+
+          before_bnd = before.p_bdef;
+          after_bnd = after.p_bdef;
+          if (before_bnd.txt == "" || after_bnd.txt == "") {
+            match_binding = 0;
+          }
+          if (match_binding == 1) {
+            if (before_bnd.txt == after_bnd.txt) {
+              add_pattern(new_name, b_st, a_ed);
+            }
+          }
+          if (match_binding == 0) {
+            add_pattern(new_name, b_st, a_ed);
+          } 
         }
       }
       after = after.nxt;
@@ -135,7 +161,7 @@ Stop;
 
 %{
 
-function pattern_not_inside(new_name, outer_name, inner_name) {
+function pattern_not_inside(new_name, outer_name, inner_name, match_binding) {
   outexists = pattern_exists(outer_name);
   innexists = pattern_exists(inner_name);
 
@@ -160,7 +186,7 @@ function pattern_not_inside(new_name, outer_name, inner_name) {
     return;
   }
   
-  ##if there's no inner, all the outer can be added.
+  ##if theres no inner, all the outer can be added.
   if ( innexists == 0 && outexists == 1 ) {
     print "WARNING: Inner pattern " inner_name " does not exist. Output will just be the outer pattern assigned to " new_name "\n";
     out_st = outer.p_start;
@@ -195,7 +221,7 @@ function pattern_not_inside(new_name, outer_name, inner_name) {
         if ( inn_st.seq <= out_ed.seq) {
         if ( inn_ed.seq >= out_st.seq) {
         if ( inn_ed.seq <= out_ed.seq) {
-          ##this means we've found one of the inner patterns inside of the other pattern, this means we should not add the outer pattern to our new set, 
+          ##this means weve found one of the inner patterns inside of the other pattern, this means we should not add the outer pattern to our new set, 
           flag = 0;
         }
         }
@@ -215,7 +241,19 @@ function pattern_not_inside(new_name, outer_name, inner_name) {
         ##made it through without finding a match
         out_st = out_st.prv;
         out_ed = out_ed.nxt;
-        add_pattern(new_name, out_st, out_ed);
+        out_bnd = outer.p_bdef;
+        inn_bnd = inner.p_bdef;
+        if (out_bnd.txt == "" || inn_bnd.txt == "") {
+          match_binding = 0;
+        }
+        if (match_binding == 1) {
+          if (out_bnd.txt == inn_bnd.txt) {
+            add_pattern(new_name, out_st, out_ed);
+          }
+        } 
+        if (match_binding == 0) {
+          add_pattern(new_name, out_st, out_ed);
+        }
         out_st = out_st.nxt;
         out_ed = out_ed.prv;
       }
@@ -231,7 +269,7 @@ Stop;
 %}
 
 %{
-function pattern_either(new_name, pattern1_name, pattern2_name) {
+function pattern_either(new_name, pattern1_name, pattern2_name, match_binding) {
   p1exists = pattern_exists(pattern1_name);
   p2exists = pattern_exists(pattern2_name);
 
@@ -256,7 +294,19 @@ function pattern_either(new_name, pattern1_name, pattern2_name) {
     pat2_st = pattern2.p_start;
     pat2_ed = pattern2.p_end;
     while ( pat2_st.seq > 0 ) {
-      add_pattern(new_name, pat2_st, pat2_ed);
+      pat1_bnd = pattern1.p_bdef;
+      pat2_bnd = pattern2.p_bdef;
+      if (pat1_bnd.txt == "" || pat2_bnd.txt == "") {
+        match_binding = 0;
+      }
+      if (match_binding == 1) {
+        if (pat1_bnd.txt == pat2_bnd.txt) {
+          add_pattern(new_name, pat2_st, pat2_ed);
+        }
+      }
+      if (match_binding == 0 ) {
+        add_pattern(new_name, pat2_st, pat2_ed);
+      }
       pattern2 = pattern2.nxt;
       pat2_st = pattern2.p_start;
       pat2_ed = pattern2.p_end;
@@ -274,7 +324,7 @@ Stop;
 %}
 
 %{
-function pattern_is_not(new_name, ispat_name, notpat_name) {
+function pattern_is_not(new_name, ispat_name, notpat_name, match_binding) {
   isexists = pattern_exists(ispat_name);
   noexists = pattern_exists(notpat_name);
 
@@ -335,7 +385,19 @@ function pattern_is_not(new_name, ispat_name, notpat_name) {
       noseq = no_st.seq;
     }
     if (flag == 1) {
-      add_pattern(new_name, is_st, is_ed);
+      is_bnd = ispat.p_bdef;
+      no_bnd = notpat.p_bdef;
+      if (is_bnd.txt == "" || no_bnd.txt == "" ) {
+        match_binding = 0;
+      }
+      if (match_binding == 1) {
+        if (is_bnd.txt == no_bnd.txt) {
+          add_pattern(new_name, is_st, is_ed);
+        }
+      }
+      if (match_binding == 0) {
+        add_pattern(new_name, is_st, is_ed);
+      }
     }
     ##reset loop
     notpat = notpat_anchor;
@@ -352,7 +414,7 @@ Stop;
 %}
 
 %{
-function pattern_not_following(newname, before_name, after_name) {
+function pattern_not_following(newname, before_name, after_name, match_binding) {
   beforeexists = pattern_exists(before_name);
   afterexists = pattern_exists(after_name);
   ##only need the before to exist
@@ -406,7 +468,19 @@ function pattern_not_following(newname, before_name, after_name) {
       b_ed = b_ed.prv;
       isit = iscomposite(b_st,b_ed, before_anchor, after_anchor);
       if ( isit == 0 ) {
-        add_pattern(newname, b_st, b_ed);
+        b_bnd = before.p_bdef;
+        a_bnd = after.p_bdef;
+        if (b_bnd.txt == "" || a_bnd.txt == "") {
+          match_binding=0;
+        }
+        if (match_binding == 1 ) {
+          if (b_bnd.txt == a_bnd.txt) {
+            add_pattern(newname, b_st, b_ed);
+          }
+        }
+        if (match_binding == 0 ) {
+          add_pattern(newname, b_st, b_ed);
+        }
       }
     }
     after = after_anchor;
@@ -434,10 +508,6 @@ function iscomposite(o_st, o_ed, st_pat, ed_pat) {
           ##both the start pattern and the end pattern completely fill the original pattern
           return 1;
         }
-        ##print "original " o_st.seq " to " o_ed.seq " \n";
-        ##print "st " p_st.seq " to " p_ed.seq " \n";
-        ##print "ed " b_st.seq " to " b_ed.seq " \n";
-        ##print "\n";
         ed_pat = ed_pat.nxt;
         b_st = ed_pat.p_start;
         b_ed = ed_pat.p_end;
@@ -454,38 +524,38 @@ function iscomposite(o_st, o_ed, st_pat, ed_pat) {
 %}
 
 
-def pattern_inside(x1,y1,z1)
+def pattern_inside(x1,y1,z1,w1)
   %{
-    pattern_inside(x1,y1,z1);
+    pattern_inside(x1,y1,z1,w1);
   %}
 end
 
-def pattern_not_inside(x1,y1,z1)
+def pattern_not_inside(x1,y1,z1,w1)
   %{
-    pattern_not_inside(x1,y1,z1);
+    pattern_not_inside(x1,y1,z1,w1);
   %}
 end
 
-def pattern_following(x1,y1,z1)
+def pattern_following(x1,y1,z1,w1)
   %{
-    pattern_following(x1,y1,z1);
+    pattern_following(x1,y1,z1,w1);
   %}
 end
 
-def pattern_is_not(x1,y1,z1)
+def pattern_is_not(x1,y1,z1,w1)
   %{
-    pattern_is_not(x1,y1,z1);
+    pattern_is_not(x1,y1,z1,w1);
   %}
 end
 
-def pattern_either(x1,y1,z1)
+def pattern_either(x1,y1,z1,w1)
   %{
-    pattern_either(x1,y1,z1);
+    pattern_either(x1,y1,z1,w1);
   %}
 end
 
-def pattern_not_following(x1,y1,z1)
+def pattern_not_following(x1,y1,z1,w1)
   %{
-    pattern_not_following(x1,y1,z1);
+    pattern_not_following(x1,y1,z1,w1);
   %}
 end
