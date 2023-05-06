@@ -3060,6 +3060,24 @@ set_overlaps(Match *a, Match *b)	//  a starts before and ends during b
 
 }
 
+static void
+strip_quotes(char *s)
+{
+	if (*s == '"' || '\'')
+	{	memcpy(s, s+1, strlen(s));
+	}
+	while (*s != '\0')
+	{	if (*s == '"' || *s == '\'')
+		{	if (*(s+1) == '\0')
+			{	*s = '\0';
+				break;
+			} else
+			{	*s = ' ';
+		}	}
+		s++;
+	}
+}
+
 void
 set_operation(char *s)
 {	int nr;
@@ -3073,11 +3091,13 @@ set_operation(char *s)
 	{	printf("no target set name define\n");
 		return;
 	}
+	strip_quotes(SetName);
+	strip_quotes(s);
 	while (isspace((uchar) *s))
 	{	s++;
 	}
 	if (!isalpha((uchar) *s))
-	{	printf("bad target setname '%s'\n", s);
+	{	printf("bad setname '%s'\n", s);
 		return;
 	}
 

@@ -1660,7 +1660,7 @@ pre_scan(char *bc)	// non-generic commands
 		return 1;
 
 	case 's':	// save, seed, setlinks, source, stream
-		if (strncmp(bc, "save", strlen("save")) == 0)
+		if (strncmp(bc, "save ", strlen("save ")) == 0)
 		{	bc += strlen("save") - 1;
 			while (isspace((uchar) *bc))
 			{	bc++;
@@ -1669,7 +1669,7 @@ pre_scan(char *bc)	// non-generic commands
 		} else if (strncmp(bc, "setlinks", strlen("setlinks")) == 0)
 		{	set_links();	// cobra_fcg.c
 			return 1;
-		} else if (strncmp(bc, "seed", 4) == 0)
+		} else if (strncmp(bc, "seed ", 5) == 0)
 		{	a = nextarg(bc);
 			json_import(a, 0);	// read Cobra generated json output, single-core
 			return 1;
@@ -1787,7 +1787,7 @@ pre_scan(char *bc)	// non-generic commands
 		return 1;
 
 	case 'p':
-		if (strncmp(bc, "pat", 3) == 0)
+		if (strncmp(bc, "pat ", 4) == 0)
 		{	// printf("pattern expression: '%s'\n", bc+3);
 			a = check_qualifiers(bc+3);
 			if (a)
@@ -1796,7 +1796,7 @@ pre_scan(char *bc)	// non-generic commands
 			}
 			return 1;
 		}
-		if (strncmp(bc, "pe",  2) == 0)
+		if (strncmp(bc, "pe ",  3) == 0)
 		{	// printf("pattern expression: '%s'\n", bc+2);
 			a = check_qualifiers(bc+2);
 			if (a)
@@ -1805,7 +1805,7 @@ pre_scan(char *bc)	// non-generic commands
 			}
 			return 1;
 		}
-		if (strncmp(bc, "ps", 2) == 0)	// pattern set
+		if (strncmp(bc, "ps ", 3) == 0)	// pattern set
 		{	a = nextarg(bc);
 			if (strncmp(a, "create", 6) == 0)		// ps create setname
 			{	b = nextarg(a);
@@ -1991,7 +1991,7 @@ pre_scan(char *bc)	// non-generic commands
 		break;
 
 	case 'd':	// default action on empty command
-		if (strncmp(bc, "dp", 2) == 0)
+		if (strncmp(bc, "dp ", 3) == 0)
 		{	patterns_display(nextarg(bc));
 			return 1;
 		}
