@@ -1,0 +1,183 @@
+## some experimental pattern composition functions
+## credit: kmclearney@sonatype.com 2023
+
+requires 4.4
+
+%{
+	function pattern_inside(new_name, outer_name, inner_name) # matches in outer that contain a match in inner
+	{
+		if (pattern_exists(outer_name) == 0)
+		{	print "error: set " outer_name " does not exist\n";
+			return;
+		}
+		if (pattern_exists(inner_name) == 0)
+		{	print "error: set " inner_name " does not exist\n";
+			return;
+		}
+		outer  = pset(outer_name);
+		out_st = outer.p_start;
+		out_ed = outer.p_end;
+
+		inner  = pset(inner_name);
+		inn_st = inner.p_start;
+		inn_ed = inner.p_end;
+	
+		inner_anchor = inner;
+		while (out_st.seq > 0)		# each outer pattern
+		{
+			out_st = out_st.nxt;
+			out_ed = out_ed.prv;
+			inseq  = inn_st.seq;
+			while (inseq > 0)	# each inner pattern
+			{	if (inn_st.seq >= out_st.seq
+				&&  inn_st.seq <= out_ed.seq
+				&&  inn_ed.seq >= out_st.seq
+				&&  inn_ed.seq <= out_ed.seq)
+				{	out_st = out_st.prv;
+					out_ed = out_ed.nxt;
+					add_pattern(new_name, out_st, out_ed);
+					out_st = out_st.nxt;
+					out_ed = out_ed.prv;
+				}
+
+				inner  = inner.nxt;
+				inn_st = inner.p_start;
+				inn_ed = inner.p_end;
+				inseq  = inn_st.seq;	# moved down
+			}
+			outer  = outer.nxt;	# advance
+			out_st = outer.p_start;
+			out_ed = outer.p_end;
+
+			inner  = inner_anchor;	# reset
+			inn_st = inner.p_start;
+			inn_ed = inner.p_end;
+		}
+	}
+
+	function is_composite(o_st, o_ed, st_pat, ed_pat)	# helper function
+	{	p_st = st_pat.p_start;
+		p_ed = st_pat.p_end;
+		anchor_pat = ed_pat;
+
+		while (p_st.seq > 0)	# for each match in st_pat
+		{	if (p_st.seq == o_st.seq
+			&&  p_ed.seq != o_ed.seq)
+			{	# start matches
+				b_st = ed_pat.p_start;
+				b_ed = ed_pat.p_end;
+				p_ed = p_ed.nxt;
+				while (b_st.seq > 0)
+				{	if (b_ed.seq == o_ed.seq
+					&&  p_ed.seq == b_st.seq)
+					{	# st_pat and ed_pat together
+						# fill the o_st pattern
+						return 1;
+					}
+					ed_pat = ed_pat.nxt;
+					b_st = ed_pat.p_start;
+					b_ed = ed_pat.p_end;
+				}
+			}
+			ed_pat = anchor_pat;
+	
+			st_pat = st_pat.nxt;
+			p_st = st_pat.p_start;
+			p_ed = st_pat.p_end;
+		}
+		return 0;
+	}
+
+	function pattern_following(new_name, before_name, after_name)
+	{
+		if (pattern_exists(before_name) == 1)
+		{	before = pset(before_name);
+		} else
+		{	print "error: " before_name " does not exist\n";
+			return;
+		}
+	  	if (pattern_exists(after_name) == 1)
+		{	after = pset(after_name);
+		} else
+		{	print "error: " after_name " does not exist\n";
+			return;
+		}
+	
+		orig_after  = after;
+		orig_before = before;
+		a_st = after.p_start;
+		a_ed = after.p_end;
+		b_ed = before.p_end;
+		b_ed = b_ed.nxt;
+
+		while (b_ed.seq > 0)
+		{ 	while (a_st.seq > 0)	# for each after match
+			{	if (b_ed.seq == a_st.seq)
+				{	b_st = before.p_start;
+					a_ed = after.p_end;  
+					if (is_composite(b_st, a_ed, orig_before, orig_after) == 1)
+					{	add_pattern(new_name, b_st, a_ed); 
+					}
+				}
+				after = after.nxt;
+				a_st = after.p_start;
+			}
+			after = orig_after;
+			a_st = after.p_start;
+	
+			before = before.nxt;
+			b_ed = before.p_end;
+			b_ed = b_ed.nxt;
+		}
+	}
+
+	# find nested patterns up to level N
+	# and record patterns found in set set_nameN
+	function nested_pattern(set_name, pat_name, N)
+	{	count = 1;
+		o_name = set_name;
+		prev_name = pat_name;
+		set_name = o_name + "1";
+		while (count < N)
+		{	pattern_inside(set_name, pat_name, prev_name);
+			if (pattern_exists(set_name) == 0)
+			{	return count - 1;
+			}
+			count++;
+			prev_name = set_name;
+			set_name = o_name + itostr(count);
+		}
+		return 0;
+	}
+	Stop;
+%}
+
+def pattern_inside(x1,y1,z1);
+  %{
+    pattern_inside(x1,y1,z1);
+    Stop;
+  %}
+end
+
+def pattern_not_inside(x1,y1,z1)
+  pattern_inside("y2", y1, z1);	# matches in y1 that contain a z1
+  ps x1 = y1 - y2;		# delete only those
+  ps delete y2;			# matches in y1 that do not contain a z1
+end
+
+def pattern_following(x1,y1,z1)
+  %{
+    pattern_following(x1,y1,z1);
+    Stop;
+  %}
+end
+
+def pattern_not_following(x1,y1,z1)
+  pattern_following("y2", y1, z1);
+  ps x1 = y1 - y2;
+  ps delete y2;
+end
+
+def pattern_either(x1,y1,z1)
+  ps x1 = y1 + z1;
+end

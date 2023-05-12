@@ -1,0 +1,35 @@
+## some simple examples of using the pattern composition functions
+## from rules/composition
+## credit: kmclearney@sonatype.com 2023
+
+. composition/pc.def 
+
+pe A: if  ( .* ) { .* }	# define some sets to work with
+pe B: for ( .* ) { .* }
+
+# arguments below are quoted to avoid
+# them from being interpreted as variable names
+
+pattern_inside       ("z1", "A", "A");
+pattern_following    ("z2", "A", "A");
+pattern_not_inside   ("z3", "A", "A");
+pattern_either       ("z4", "A", "B");
+pattern_not_following("z5", "A", "A");
+
+%{
+	# find nested 'if' patterns, up to level N;
+	x = nested_pattern("h", "A", 10);
+	print "max level found: " x "\n";
+	Stop;
+%}
+
+ps list
+
+# dp A
+# dp h5
+# dp z1
+# dp z2
+# dp z3
+# dp z4
+# dp z5
+# dp h4
