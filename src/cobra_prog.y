@@ -3393,6 +3393,10 @@ next:
 			{	Var_nm *n = get_var(ref_p, q->lft, rv, ix);
 				if (rv->rtyp == STR)
 				{	rv->ptr = cp_pset(n->s, ix);
+				}
+				if (rv->ptr == 0)
+				{	rv->rtyp = PTR;
+					break; // valid syntax, but set does not exist (yet)
 			}	}
 		} else
 		{	fprintf(stderr, "error: pset arg is not a var, name, or string'\n");

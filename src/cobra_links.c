@@ -904,13 +904,13 @@ find_decl(Prim *p, int level)
 	{	p->bound = p->prv;
 		return 1;
 	}
-
 	x = p->nxt;
 	if (x->txt[0] == '('		// fct def or call
 	||  x->txt[0] == ':')		// labelname
 	{	return 1;
 	}
 	x = p->prv;
+	if (x)
 	if (x->txt[0] == '.'
 	|| strcmp(x->txt, "goto") == 0		// labelname
 	|| strcmp(x->txt, "->") == 0)		// struct field
@@ -958,6 +958,7 @@ find_decl(Prim *p, int level)
 		}
 		counts[MISSED]++;
 	}
+
 	return 0;
 }
 
@@ -1091,6 +1092,7 @@ var_links(char *unused1, char *unused2)	// symbols command
 			}
 			continue;
 		}
+
 		// printf("%s:%d: at '%s' (%s)\n", cur->fnm, cur->lnr, cur->txt, cur->typ);
 		if ((strcmp(cur->typ, "type") == 0	// mine declarations
 		||   strcmp(cur->typ, "modifier") == 0)

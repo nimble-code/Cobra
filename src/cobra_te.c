@@ -3063,7 +3063,7 @@ set_overlaps(Match *a, Match *b)	//  a starts before and ends during b
 static void
 strip_quotes(char *s)
 {
-	if (*s == '"' || '\'')
+	if (*s == '"' || *s == '\'')
 	{	memcpy(s, s+1, strlen(s));
 	}
 	while (*s != '\0')
@@ -3100,7 +3100,6 @@ set_operation(char *s)
 	{	printf("bad setname '%s'\n", s);
 		return;
 	}
-
 	nr = sscanf(s, "%s %c %s", name1, &op, name2);
 	if (nr != 3
 	|| !isalpha((uchar) name1[0])
