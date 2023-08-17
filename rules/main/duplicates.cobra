@@ -1,0 +1,274 @@
+# detect duplicate code blocks of a minimum given length
+# optionally abstracting identifiers, constants, operators, strings
+
+# variables:
+# MinLength;	minimum length of matches in tokens, default: 60
+# Type;		0 = exact (default), 1 = @ident, 2 = @const, 4 = @oper, 8 = @str
+# Detail:	0 = no source listing (default), 1 = with listings (diff format)
+# Extend:	0 = do not lengthen matches, 1 = try to find longer matches (default)
+
+# example:
+# cobra -f play/duplicates -var MinLength=80 -var Type=15 -var Detail=1 -var Extend=0 *.c
+
+requires 4.5	# for src_ln() and hash()
+
+def dup_init(min_len, basic_mode)
+ %{
+	N = min_len;		# length of fragment
+	Mode = basic_mode;	# 0 = exact, 1 = @ident, 2 = @const, 4 = @oper
+	unset Fragment;
+	unset Reference;
+	unset word;
+	ix = 0;
+	startup = N-1;
+
+	function matching(aa, bb)
+	{	a = aa;
+		b = bb;
+		k = 0;
+		while (a.txt  == b.txt
+		||    (a.type == b.type
+		    && Mode != 0
+		    && (((Mode & 1) && a.type == "ident")
+		||      ((Mode & 2) && a.type == "const")
+		||      ((Mode & 4) && a.type == "oper")
+		||      ((Mode & 8) && a.type == "str"))))
+		{	k++;
+			a = a.nxt;
+			b = b.nxt;
+		}
+		return k-1;
+	}
+
+	function printseq(from, upto, tag)
+	{
+		print tag from.fnm ":" from.lnr;
+		while (from.seq <= upto.seq)
+		{	print " " from.txt;
+			if (from.lnr > xn)
+			{	print "\n" tag from.fnm ":" from.lnr;
+				xn = from.lnr;
+			}
+			from = from.nxt;
+		}
+		print "\n";
+	}
+
+	Stop;
+ %}
+end
+
+def dup_collect(extend_matches)
+ # three steps, 1: collect data
+ %{
+	if (. == End)
+	{	Stop;
+	}
+	if (Mode == 0)
+	{	word[ix] = .txt;	# default mode: exact match
+	} else
+	{	if (@ident && (Mode & 1))
+		{	word[ix] = "@I";
+		} else
+		{	if (@const && (Mode & 2))
+			{	word[ix] = "@C";
+			} else
+			{	if (@oper && (Mode & 4))
+				{	word[ix] = "@O";
+				} else
+				{	if (@str && (Mode & 8))
+					{	word[ix] = "@S";
+					} else
+					{	word[ix] = .txt;
+	}	}	}	}	}
+
+	ix = (ix + 1) % N;
+	if (startup > 0)
+	{	startup--;
+	} else
+	{	val = hasharray(word, ix);	# cumulative over array elements
+		# print "hash2: " val "\n";
+		str_val = itostr(val);	# convert once, not 3 times
+		Fragment[str_val]++;
+		n = Fragment[str_val];
+		Reference[n,str_val] = .;
+	}
+ %}
+ # 2: find longer matches based on the N-matches an mark endpoints
+ %{
+	print "Step 2 " size(Fragment) "\n";
+	for (i in Fragment)
+	{	n = Fragment[i.txt];
+		if (n > 1)	# there is at least one match
+		{	m = n;
+			n = 1;
+			while (n <= m)
+			{	r[n] = Reference[n,i.txt]; # r[1] .. r[m], n = 1 .. m
+				n++;
+			}
+			# all of the n tokens in r[1..m]
+			# match in the preceding N tokens
+			# check if the match can be extended
+			base = r[1];	# base of all matches in this set
+			j = 2;		# first of the 1..m-1 matches
+			while (j <= m)
+			{	ref = r[j];
+				if (base.txt != ref.txt
+				||  base.seq == ref.seq)
+				{	# likely base or ref at eof
+					j++;
+					continue;
+				}
+				if (extend_matches)
+				{	cnt = matching(base, ref);
+				} else
+				{	cnt = 0;
+				}
+				z = cnt;	# move base end-point forward by cnt tokens
+				while (z > 0)
+				{	ref = ref.nxt;
+					base = base.nxt;
+					z--;
+				}
+				if (N + cnt > ref.mark)	# update ref with longest match
+				{	ref.mark = N + cnt;	# length of match in tokens
+					ref.bound = base;
+					ref.len = j;		# reuse field for match # (>=1)
+				}
+				j++;
+			}
+		}
+	}
+	seqnr = 1;
+	p = Begin;
+	q = Begin;
+	lastp = p;
+	lastq = q;
+	Stop;
+ %}
+ # 3: record the matches in a pattern set
+!echo "Step 3"
+ %{
+	if (.mark >= N)			# non-zero: matches sequence at .bound
+	{	bnd = .bound;
+		p = .;			# match point
+		q = bnd;		# base to match
+		cnt = .mark;
+		while (cnt > 1)		# find start of ref and base
+		{	p = p.prv;
+			q = q.prv;
+			cnt--;
+		}
+		if (.len < 2)
+		{	print .fnm ":" .lnr ": " .txt "  len=" .len "  mark=" .mark "\n";
+			Next;
+		}
+		assert(.len >= 2);
+		# range 1: p.seq ... .seq
+		# range 2: q.seq ... bnd.seq
+		if (p.seq == lastp.seq
+		||  q.seq == lastq.seq)
+		{	Next;
+		}
+		if (p.seq == 0 || p.seq >= .seq
+		||  q.seq == 0 || q.seq >= bnd.seq)
+		{	Next;
+		}
+		# sanity check of tokens (given that we use hashes)
+		cnt10 = matching(p, q);
+		if (cnt10 < N)
+		{	Next;
+		}
+		if (p.seq > bnd.seq
+		||   .seq < q.seq)
+		{	add_pattern(Dup, p, .);	# add as pair
+			add_pattern(Dup, q, bnd);
+			lastp = p;
+			lastq = q;
+	}	}
+ %}
+end
+
+def dup_report(detailed)
+ %{
+	print "Step 4: Report\n";	# print matches in diff format
+	seqnr = 1;
+	x = pset(Dup);		# retrieve the pairs
+	while (x.seq != 0)
+	{	xa = x.p_start;
+		xb = x.p_end;
+		x = x.nxt;
+
+		if (xb.mark == 0 && yb.mark > 0)
+		{	print "error: out of step, trying to recover\n";
+			continue;	# should not happen
+		}
+		if (x.seq == 0)
+		{	break;
+		}
+
+		ya = x.p_start;
+		yb = x.p_end;
+
+		if (xa.mark >= 345
+		||  ya.mark >= 345)	# suppress walking matches
+		{	x = x.nxt;
+			continue;
+		}
+
+		if (ya.txt == "EOF") { ya = ya.nxt; }
+		if (yb.txt == "EOF") { yb = yb.nxt; }
+		if (xa.txt == "EOF") { xa = xa.nxt; }
+		if (xb.txt == "EOF") { xb = xb.nxt; }
+
+		print seqnr " match of " xb.mark " tokens ";
+		print ya.fnm ":" ya.lnr "-" yb.lnr " <> " ;
+		if (xa.fnm != ya.fnm)
+		{	print xa.fnm ":";
+		}
+		print xa.lnr "-" xb.lnr "\n";
+
+		if (detailed != 0)
+		{	printseq(ya, yb, "< ");
+			print "---\n";
+			printseq(xa, xb, "> ");
+			print "\n";
+		}
+		seqnr++;
+
+		ifrom = xa;
+		iupto = xb;
+		while (ifrom.seq < iupto.seq)
+		{	ifrom.mark = ifrom.mark + 345;
+			ifrom = ifrom.nxt;
+		}
+		ifrom = ya;
+		iupto = yb;
+		while (ifrom.seq < iupto.seq)
+		{	ifrom.mark = ifrom.mark + 345;
+			ifrom = ifrom.nxt;
+		}
+
+		x = x.nxt;
+	}
+	Stop;
+ %}
+ %{	# remove suppress marks
+	if (.mark >= 345)
+	{	.mark = .mark - 345;
+	}
+ %}
+end
+
+def duplicates(MinLength, Type, Detail, Extend)
+	dup_init(MinLength, Type)
+	dup_collect(Extend)
+	dup_report(Detail)
+end
+
+r
+ps delete Dup		# omit from a possible earlier run
+duplicates(60, 0, 0, 1)	# default parameters
+# Dup contains pairs of matches
+ps list
+

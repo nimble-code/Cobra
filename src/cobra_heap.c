@@ -82,7 +82,7 @@ void
 memusage(void)	// used in cobra_lib.c
 {
 	zap_sem();
-	if (verbose == 1)
+	if (verbose == 1 || MaxMemory != 24000)
 	{	printf("Memory used     : %4lu MB\n", total_used/(1024*1024));
 		printf("Memory allocated: %4lu MB\n", total_allocated/(1024*1024));
 	}
@@ -164,8 +164,9 @@ emalloc(size_t size, const int caller)	// size in bytes
 void
 report_memory_use(void)
 {	int j;
+
 	for (j = 0; j < sizeof(Emu)/sizeof(size_t); j++)
-	{	if (Emu[j])
+	{	if (Emu[j] > 0)
 		{	printf("Emu[%d]	%lu\n", j, Emu[j]);
 	}	}
 	printf("tfree: %6d\n", tfree);
@@ -207,7 +208,7 @@ hmalloc(size_t size, const int ix, const int caller)	// size in bytes
 		{
 			HeapSz = (int) size * sizeof(size_t);
 		}
-		heap[ix]   = (size_t *) emalloc(HeapSz * sizeof(char), 40);
+		heap[ix]   = (size_t *) emalloc(HeapSz * sizeof(char), caller);
 		heapsz[ix] = HeapSz / sizeof(size_t);	// words
 		unlock_print(ix);
 	}
@@ -219,7 +220,7 @@ hmalloc(size_t size, const int ix, const int caller)	// size in bytes
 
 #ifdef DEBUG_MEM
 	assert(caller >= 0 && caller < sizeof(Emu)/sizeof(size_t));
-	Emu[caller] += size;
+	Emu[caller] += (int) size;
 #endif
 
 	return m;

@@ -1,0 +1,93 @@
+# JPL/Semmle Java Coding Standard
+# All Critical Properties
+
+requires 4.4
+quiet on
+. java/jpl.def
+
+CA1	# Critical, Arithmetic, Rule 1
+CA2	# has no testcase
+CA3
+CA4	# has no testcase
+CA5
+CCA1
+CCA2	# has no testcase
+CCA3
+CCA4	# has no testcase
+CCA5
+CCA6
+CCS1
+CCS2	# has no testcase
+CCS3	# has no testcase
+CCS4	# has no testcase
+CCS5	# tbd
+CCS6
+CCT1
+CCT2
+CCT3
+CCW1
+CCW2
+CCW3	# tbd
+CCW4
+CCW5
+CD1
+CD2	# tbd
+CD3
+CD4
+CEN1	# tbd
+CEN2
+CEN3
+CEQ1
+CEQ2
+CEQ3
+CEQ4
+CEQ5
+CEQ6
+CEQ7
+CEQ8	# tbd
+CEQ9	# tbd
+CEQ10	# tbd
+CEQ11
+CXC1
+CXC2	# out of scope
+CXC3	# has no testcase
+CXP1
+CXP2
+CXT1
+CXT2
+CIC1
+CIC2
+CIC3
+CJO1	# tbd
+CJO2
+CJO3a
+CJO3b
+CJO3c	# tbd
+CJO3d
+CLE1
+CLE2
+CLE3	# tbd
+CLE4	# tbd
+CLE5	# tbd
+CLE6
+CLE7
+CN1
+CN2	# tbd
+CR1
+CRL1
+CRL2
+CS1
+CS2	# tbd
+CS3
+CT1
+
+ps list
+!rm -f _JavaJpl_.txt
+track start _JavaJpl_.txt
+terse on
+dp *
+terse off
+track stop
+!echo "detailed results are in file _JavaJpl_.txt"
+
+quiet off

@@ -1,0 +1,26 @@
+# Java checks for the CERT java coding standard
+# the P12 rules are not all defined yet (work in progress 8/2023)
+# P18 and P27 are more complete
+
+requires 4.5
+
+quiet on
+. java/Cert_P27_L1.def
+
+# P27
+SER01_J
+SEC01-J
+ENV03-J
+ENV04-J
+JNI01-J
+
+ps list
+!rm -f _JavaCertP27_.txt
+track start _JavaCertP27_.txt
+terse on
+dp *
+terse off
+track stop
+!echo "detailed results are in file _JavaCertP27_.txt"
+
+quiet off

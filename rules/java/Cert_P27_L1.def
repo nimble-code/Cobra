@@ -1,0 +1,57 @@
+## Priority P27 / Level 1 rule CERT Java Coding Standard
+
+def SER01_J
+	r
+	pe public class x:@ident implements Serializable { .* private :x ( .* ) { .* } .* }
+	pe & SER01_Ja: Serializable { .* ^private void [writeObject readObject readObjectNoData] ( .* ) .* }
+	r
+	# possibly, the next two checks should also be restricted to
+	# serializable classes with private constructors; in that case:
+	# omit the reset above and add the & qualifier
+	pe SER01_Jb: Serializable { .* ^protected Object [readResolve writeReplace] ( ) .* }
+	pe SER01_Jc: Serializable { ^[writeObject readObject readObjectNoData]* }
+	ps SER01_Jab = SER01_Ja + SER01_Jb
+	ps SER01_J = SER01_Jab + SER01_Jc
+	ps delete SER01_Ja
+	ps delete SER01_Jb
+	ps delete SER01_Jab
+	ps delete SER01_Jc
+	ps caption SER01_J  Do not deviate from the proper signatures of serialization methods
+end
+
+def SEC01-J
+	r
+	pe SEC01_J: { ^cleanAFilenameAndPath* new FileInputStream ( ^@str ) .* }
+	# a hardcoded string as arg to FileInputStream is ok
+	# can add check that the arg of FileInputStream matches that of cleanAFilenameAndPath
+	ps caption SEC01_J Do not allow tainted variables in privileged blocks
+end
+
+def ENV03-J
+	r
+	pe ENV03_Ja: permission java \. security \. AllPermission
+	pe ENV03_Jb: x:@ident = super \. getPermissions ( .* ) .* :x \. add ( new ReflectPermission ( @str ) )
+	# the second pattern is perhaps too specific to the example of non-compliance
+	ps ENV03_J = ENV03_Ja + ENV03_Jb
+	ps delete ENV03_Ja
+	ps delete ENV03_Jb
+	ps caption ENV03_J Do not grant dangerous combinations of permissions
+end
+
+def ENV04-J
+	r
+	# JVM command-line flag, ie not in the code itself
+	# so unless this is run over the command-line script
+	# this will not catch the disabling
+	pe ENV04_J: java - Xverify : none @ident
+	ps caption ENV04_J Do not disable bytecode verifiation
+end
+
+def JNI01-J
+	# rule labeled as "under construction" since May 2021
+	# similar check as reported for Parasoft
+	# whether the call is safe must be determined by the end-user
+	r
+	pe JNI01_J:  public ^{* { .* System \. loadLibrary ( .* ) .* }
+	ps caption JNI01_J Safely invoke standard APIs that perform tasks using the immediate caller's class loader instance (loadLibrary)
+end

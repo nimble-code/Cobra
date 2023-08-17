@@ -40,7 +40,7 @@ cleaned_up(FILE *fd, const char *tp)
 		case '\"':
 		case '\'':
 #ifdef ESCAPE_COLON
- // GitHub issue PR #48
+		// GitHub issue PR #48
 		case ':':
 #endif
 			fprintf(fd, "\\");
@@ -94,6 +94,10 @@ clr_matches(int which)
 		free_match = m;
 		for (b = m->bind; b; b = nb)
 		{	nb = b->nxt;
+			if (b == nb)	// internal error
+			{	fprintf(stderr, "internal error: clr_matches\n");
+				nb = 0;
+			}
 			b->bdef = (Prim *) 0;
 			b->ref  = (Prim *) 0;
 			b->nxt  = free_bound;
@@ -171,7 +175,6 @@ add_match(Prim *f, Prim *t, Store *bd)
 	}
 	m->from = f;
 	m->upto = t;
-
 	for (b = bd; b; b = b->nxt)
 	{	if (free_bound)
 		{	n = free_bound;
@@ -703,7 +706,13 @@ do_markups(const char *setname)
 						b->ref?b->ref->lnr:0,
 						b->ref?b->ref->txt:"",
 						b->bdef?b->bdef->lnr:0);
-	}	}	}	}
+				}
+				if (b->nxt == b)
+				{	b->nxt = 0;
+					fprintf(stderr, "internal error: bound variables (%s)\n", setname);
+					break;
+				}
+	}	}	}
 
 	if (gui)
 	{	if (strlen(setname) == 0)
@@ -875,7 +884,7 @@ show_line(FILE *fdo, const char *fnm, int n, int from, int upto, int tag)
 	}	}
 
 	if ((fdi = fopen(fnm, "r")) == NULL)
-	{	if (verbose)
+	{	if (verbose || n < 0)	// n<- means called from inline program
 		{	fprintf(stderr, "show_line, cannot open '%s'\n", fnm);
 		}
 		return;

@@ -62,6 +62,11 @@ struct Var_nm {
 	Var_nm	*nxt;
 };
 
+static char *nr_tbl[] = {
+	"0", "1", "2", "3", "4",
+	"5", "6", "7", "8", "9"
+};
+
 #ifndef MAX_STACK
   #define MAX_STACK	512	// recursive fct calls
 #endif
@@ -140,7 +145,7 @@ extern int	stream_override;
 %token	BOUND MBND_D MBND_R NXT PRV JMP UNSET RETURN RE_MATCH FIRST_T LAST_T
 %token	TXT TYP NEWTOK SUBSTR SPLIT STRLEN SET_RANGES CPU N_CORE SUM
 %token	A_UNIFY LOCK UNLOCK ASSERT TERSE TRUE FALSE VERBOSE
-%token	FCTS MARKS SAVE RESTORE RESET
+%token	FCTS MARKS SAVE RESTORE RESET SRC_LN HASH HASHARRAY
 %token  ADD_PATTERN DEL_PATTERN IS_PATTERN CP_PSET
 %token	ADD_TOP ADD_BOT POP_TOP POP_BOT TOP BOT
 %token	OBTAIN_EL RELEASE_EL UNLIST LLENGTH GLOBAL
@@ -212,6 +217,11 @@ stmnt	: IF '(' expr ')' c_prog optelse {
 b_stmnt	: p_lhs '=' expr { $2->lft = $1; $2->rgt = $3; $$ = $2; }
 	| p_lhs '=' NEWTOK '(' ')' { $2->lft = $1; $2->rgt = $3; $$ = $2; };
 	| ASSERT '(' expr ')'	{ $1->lft = $3; $$ = $1; }
+	| SRC_LN '(' expr ',' expr ',' expr ')'	{
+				$1->lft = new_lex(0, $3, $5);
+				$1->rgt = $7;
+				$$ = $1;
+			}
 	| GLOBAL glob_list	{ $$ = $1; handle_global($2); }
 	| GOTO   NAME		{ $1->lft = $2; $$ = $1; }
 	| PRINT args		{ $1->lft = $2; $$ = $1; }
@@ -321,6 +331,8 @@ expr	:'(' expr ')'		{ $$ = $2; }
 	| '^' expr %prec UMIN	{ $1->rgt = $2; $$ = $1; }
 	| STRING		{ fixstr($1); $$ = $1; }
 	| CP_PSET '(' s_ref ')'	{ $1->lft = $3; $$ = $1; }
+	| HASH '(' expr ')'	{ $1->lft = $3; $$ = $1; }
+	| HASHARRAY '(' expr ',' expr ')' { $1->lft = $3; $$->rgt = $5; $$ = $1; }
 	| IS_PATTERN '(' s_ref ')'	{ $1->lft = $3; $$ = $1; }
 	| SUBSTR '(' expr ',' expr ',' expr ')' {
 				  $1->lft = $3;
@@ -422,6 +434,8 @@ static struct Keywords {
 	{ "function",	FUNCTION },
 	{ "global",	GLOBAL },
 	{ "goto",	GOTO },
+	{ "hash",	HASH },
+	{ "hasharray",	HASHARRAY },
 	{ "if",		IF },
 	{ "in",		IN },
 	{ "is_pattern",	IS_PATTERN },
@@ -468,6 +482,7 @@ static struct Keywords {
 	{ "set_ranges",	SET_RANGES },
 	{ "size",	SIZE },
 	{ "split",	SPLIT },
+	{ "src_ln",	SRC_LN },
 	{ "Stop",	STOP },
 	{ "strlen",	STRLEN },
 	{ "substr",	SUBSTR },
@@ -507,12 +522,51 @@ static struct Keywords ops[] = {	// for tok2txt only
 };
 
 ulong
+hash2_cum(const char *s, const int seq)	// cumulative
+{	static uint64_t h = 0;
+	static char t = 0;
+
+	if (seq == 0)
+	{	t = *s++;
+		h = 0x88888EEFL ^ (0x88888EEFL << 31);
+	} else	// add a space as separator
+	{	h ^= ((h << 7) ^ (h >> (57))) + ' ';
+	}
+	while (*s != '\0')
+	{	h ^= ((h << 7) ^ (h >> (57))) + *s++;
+	}
+	return ((h << 7) ^ (h >> (57))) ^ t;
+}
+
+ulong
+hash3(const char *s)	// debugging version of hash2
+{
+	if (sizeof(ulong) == 8)
+	{	uint64_t h = 0x88888EEFL ^ (0x88888EEFL << 31);
+		const char t = *s++;
+		while (*s != '\0')
+		{
+			h ^= ((h << 7) ^ (h >> (57))) + *s++;
+		}
+		return ((h << 7) ^ (h >> (57))) ^ t;
+	} else
+	{	ulong h = 0x88888EEFL;
+		const char t = *s++;
+
+		while (*s != '\0')
+		{	h ^= ((h << 8) ^ (h >> (24))) + *s++;
+		}
+		return ((h << 7) ^ (h >> (25))) ^ t;
+	}
+}
+
+ulong
 hash2(const char *s)
 {
 	if (sizeof(ulong) == 8)
 	{	uint64_t h = 0x88888EEFL ^ (0x88888EEFL << 31);
 		const char t = *s++;
- 
+
 		while (*s != '\0')
 		{	h ^= ((h << 7) ^ (h >> (57))) + *s++;
 		}
@@ -1849,6 +1903,60 @@ str2val(Rtype *rv)
 }
 
 static void
+val2str(Rtype *rv, const int ix)
+{	int aw = 64;
+
+	if (rv->rtyp == VAL)
+	{	if (rv->val >= 0 && rv->val <= 9)
+		{       rv->s = nr_tbl[rv->val];
+			rv->rtyp = STR;
+                        return;
+                }
+                if (rv->val >= 0)
+                {       if (rv->val < 1000)
+                        {       aw = 4;
+                        } else if (rv->val < 10000000)
+                        {       aw = 8;
+                }       }
+                rv->s = (char *) hmalloc(aw, ix, 135);  // val2str
+                snprintf(rv->s, aw, "%d", rv->val);     // val2str
+	} else if (!rv->rtyp)
+	{	rv->s = "";
+	}
+	rv->rtyp = STR;
+}
+
+typedef struct R_S R_S;
+struct R_S {
+	char *s;
+	R_S *nxt;
+};
+
+#define MAXSTR	4096
+#define MINSTR	  16
+
+R_S *r_str[MAXSTR];
+R_S *r_free;
+
+static void
+recycle_str(char *s, const int ix)
+{	int n = strlen(s)+1;
+	R_S *r;
+
+	if (n >= MINSTR && n < MAXSTR)
+	{	if (r_free != NULL)
+		{	r = r_free;
+			r_free = r_free->nxt;
+		} else
+		{	r = (R_S *) hmalloc(sizeof(R_S), ix, 150);
+		}
+		r->s = s;
+		r->nxt = r_str[n];
+		r_str[n] = r;
+	}
+}
+
+static void
 plus(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)	// strings or values
 {	Rtype tmp;
 	memset(&tmp, 0, sizeof(Rtype));
@@ -1877,18 +1985,34 @@ plus(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)	// strings or values
 	{	str2val(rv);
 	} else if (tmp.rtyp == STR
 	&&  rv->rtyp == VAL)
-	{	str2val(&tmp);
+	{	val2str(rv, ix);
 	}
-
 	Assert("plus1", tmp.rtyp == rv->rtyp, q->lft);
 	Assert("plus2", tmp.rtyp == VAL || tmp.rtyp == STR, q->rgt);
 
 	if (tmp.rtyp == VAL)
 	{	rv->val = tmp.val + rv->val;
 	} else if (tmp.rtyp == STR)
-	{	int n = strlen(tmp.s)+strlen(rv->s)+1;
-		char *s = (char *) hmalloc(n, ix, 134);	// plus
-		snprintf(s, n, "%s%s", tmp.s, rv->s);	// plus
+	{	int n = strlen(tmp.s) + strlen(rv->s) + 1;
+		char *s;
+		if (n < MAXSTR && r_str[n] != NULL)
+		{	R_S *r_p = r_str[n];
+			s = r_str[n]->s;
+			assert(strlen(s) == n-1);
+			r_str[n] = r_str[n]->nxt;
+
+			r_p->nxt = r_free;
+			r_free = r_p;
+		} else
+		{	s = (char *) hmalloc(n, ix, 134);	// plus
+		}
+		snprintf(s, n, "%s%s", tmp.s, rv->s);		// plus
+		if (strlen(rv->s) >= MINSTR)
+		{	recycle_str(rv->s, ix);
+		}
+		if (strlen(tmp.s) >= MINSTR)
+		{	recycle_str(tmp.s, ix);
+		}
 		rv->s = s;
 	} else
 	{	fprintf(stderr, "line %d: error: invalid addition attempt\n", q->lnr);
@@ -2344,7 +2468,7 @@ do_assignment(Prim **ref_p, Lextok *q, Rtype *rv, const int ix, Prim *p)
 		{	printf("token: '%s'\n", rv->s);
 		}
 		Assert("rhs = (2)", rv->rtyp == VAL, RHS);
-// rhs is VAL
+		// rhs is VAL
 		if (LHS->lft)	// get the q in q.mark = ...
 		{	Var_nm *n = get_var(ref_p, LHS->lft, &tmp, ix);
 
@@ -2352,7 +2476,7 @@ do_assignment(Prim **ref_p, Lextok *q, Rtype *rv, const int ix, Prim *p)
 			{	n->rtyp = PTR;		// its the q in q.mark
 			}
 			if (!n->pm)
-			{	n->pm = (Prim *) hmalloc(sizeof(Prim), ix, 135);	// do_assignment
+			{	n->pm = (Prim *) hmalloc(sizeof(Prim), ix, 135); // do_assignment
 				n->pm->fnm = n->pm->txt = n->pm->typ = "";
 				n->pm->len = 0;
 				n->pm->seq = -1;
@@ -2525,11 +2649,6 @@ doindent(void)
 	{	printf("  ");
 	}
 }
-
-static char *nr_tbl[] = {
-	"0", "1", "2", "3", "4",
-	"5", "6", "7", "8", "9"
-};
 
 static void
 convert2string(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)
@@ -2878,8 +2997,6 @@ do_sum(Prim **ref_p, Lextok *q, Rtype *rv, int ix)
 	return 0;
 }
 
-// static Prim *zz;	// debugging
-
 static int
 save_int(int a, char *b, Rtype *rv, const int ix)
 {
@@ -3026,6 +3143,70 @@ handle_arg(Prim **ref_p, Lextok *from, Rtype *rv, const int ix)
 	}
 
 	return n->pm;
+}
+
+static int
+get_cumulative(Prim **ref_p, Lextok *q, Rtype *rv, int with_start, const int ix)
+{	int cntr, nb = 0;
+	ulong cumulative;
+	int na, sv = 0;	// default start value
+
+	// 0: retrieve array size and the optional start index
+
+	na = array_sz(q->lft->s, ix);
+	if (na <= 0)
+	{	return 1;	// not an array
+	}
+
+	if (with_start)
+	{	eval_prog(ref_p, q->rgt, rv, ix);
+		if (rv->rtyp == STR && isdigit((int) (rv->s[0])))
+		{	rv->val = atoi(rv->s);
+		} else if (rv->rtyp != VAL)
+		{	return 2;	// not start value given
+		}
+		sv = rv->val;
+
+		// 1: find the starting index in the array
+#if 1
+		nb = na-sv-1;
+		rv->s = array_ix(q->lft->s, nb, ix);
+		rv->rtyp = STR;
+#else
+		for (cntr = 0, nb = na-1; cntr < na; cntr++, nb--)
+		{	rv->s = array_ix(q->lft->s, nb, ix);
+			if (atoi(rv->s) == sv)
+			{	break;	// found
+		}	}
+		if (cntr == na)	// not found
+		{	printf("error: index %d not found in array %s\n", sv, q->lft->s);
+			return 3;
+		}
+#endif
+		assert(nb >= 0 && nb < na);
+	}
+
+	// printf("'%s' is an array of size: %d -- start @ %d found at %d\n", q->lft->s, na, sv, nb);
+
+	// 2: compute the cumulative hash over the array elements
+	//    backwards from nb, modulo na
+
+	eval_aname(ref_p, q, rv, ix); 		// retrieve string stored
+	assert(rv->rtyp == STR);
+	cumulative = hash2_cum(rv->s, 0);	// initialize and first call
+
+	for (cntr = 1; cntr < na; cntr++)
+	{	nb = (nb == 0)? na-1 : nb-1;
+		rv->s = array_ix(q->lft->s, nb, ix);
+		rv->rtyp = STR;
+		eval_aname(ref_p, q, rv, ix); // retrieve string stored
+		assert(rv->rtyp == STR);
+		cumulative = hash2_cum(rv->s, cntr);
+	}
+	rv->val = cumulative;
+	rv->rtyp = VAL;
+
+	return 0;
 }
 
 void
@@ -3358,11 +3539,12 @@ next:
 				{	tmp_nm = q->lft->s;
 				} else if (q->lft->typ == NAME)
 				{	tmp_nm = q->lft->s;
-					if (!cp_pset(q->lft->s, ix))
+					if (!is_pset(q->lft->s))
 					{	Var_nm *n = get_var(ref_p, q->lft, rv, ix);
 						if (rv->rtyp == STR)
 						{	tmp_nm = n->s;
-					}	}
+						}
+					}
 				} else
 				{	goto error_case;
 				}
@@ -3375,8 +3557,9 @@ next:
 				{	add_pattern(tmp_nm, 0, f, u, ix);
 				} else
 				{	del_pattern(tmp_nm, f, u, ix);
-			}	}
-			break;
+				}
+				break;
+			}
 		}
 	error_case:
 		show_error(stderr, q->lnr);
@@ -3411,6 +3594,51 @@ next:
 		{	rv->rtyp = PTR;
 		}
 		break;
+
+	case HASHARRAY:
+		if (q->lft->typ == NAME)
+		{	// associative array of na elements
+			// return incremental hash over all string elements stored
+			// starting at index rv->val
+
+			if (get_cumulative(ref_p, q, rv, 1, ix) == 0)
+			{	break;
+		}	} // else, an error code was returned and reported
+
+		fprintf(stderr, "error: hash arg %s is not an array of strings\n", q->lft->s);
+		show_error(stderr, q->lnr);
+		unwind_stack(ix);
+		sep[ix].T_stop++; 
+		rv->rtyp = STP;	
+		break;
+
+	case HASH:	// V 4.5
+		eval_prog(ref_p, q->lft, rv, ix);
+		if (rv->rtyp == STR)
+		{	ulong h1 = hash3(rv->s);
+			rv->val = h1;
+			rv->rtyp = VAL;
+			break;
+		}
+		if (q->lft->typ == NAME)
+		{	Var_nm *n = get_var(ref_p, q->lft, rv, ix);
+			if (rv->rtyp == STR)
+			{	ulong h1 = hash3(n->s);
+				rv->val = h1;
+				rv->rtyp = VAL;
+				break;
+			} // else, it is not a scalar var
+			if (get_cumulative(ref_p, q, rv, 0, ix) == 0)
+			{	break; // default start value 0
+		}	}
+
+		fprintf(stderr, "error: hash arg %s does not evaluate to a string'\n", q->lft->s);
+		show_error(stderr, q->lnr);
+		unwind_stack(ix);
+		sep[ix].T_stop++; 
+		rv->rtyp = STP;	
+		break;
+
 	case IS_PATTERN:	// Kenneth McLarney
 		rv->rtyp = VAL;
 		if (q->lft->typ == STRING)
@@ -3461,6 +3689,29 @@ next:
 			sep[ix].T_stop++; 
 			rv->rtyp = STP;
 			break;
+		}
+		break;
+
+	case SRC_LN:	// V 4.5
+		{	int from_nr, upto_nr;
+			char *from_fnm;
+
+			Assert("src_ln0", q->lft && q->lft->lft && q->lft->rgt && q->rgt, q);
+
+			eval_prog(ref_p, q->rgt, rv, ix);	// upto
+			Assert("src_ln3", rv->rtyp == VAL, q->rgt);
+			upto_nr = rv->val;
+
+			eval_prog(ref_p, q->lft->rgt, rv, ix);	// from
+			Assert("src_ln2", rv->rtyp == VAL, q->lft->rgt);
+			from_nr = rv->val;
+			Assert("src_ln2", from_nr <= upto_nr, q->lft->rgt);
+
+			eval_prog(ref_p, q->lft->lft, rv, ix);	// fnm
+			Assert("src_ln1", rv->rtyp == STR, q->lft->lft);
+			from_fnm = rv->s;
+
+			show_line(stdout, from_fnm, -1, from_nr, upto_nr, 0);
 		}
 		break;
 
@@ -3649,6 +3900,7 @@ next:
 		case FCTS:
 		case SAVE:
 		case RESET:
+		case SRC_LN:
 
 		case TOP:
 		case BOT:
@@ -3752,7 +4004,6 @@ mk_var(const char *s, const int t, const int ix)
 	n->rtyp = t;
 	n->s  = "";
 	n->cdepth = Cdepth[ix];
-//	printf("mk_var: new %s depth %d\n", n->nm, n->cdepth);
 
 	if (lastn)
 	{	n->nxt = lastn->nxt;

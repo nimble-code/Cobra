@@ -414,3 +414,15 @@ new in december 30, 2021
   - added new script play/tokenize.cobra to tokenize a given
     code fragment so that it is suitable to use in a pattern
     expression (e.g.: cobra -f play/tokenize code_fragment.c )
+
+4.5 august 13, 2023
+ - added built-in functions for inline programs: src_ln, hash, hasharray
+ - efficiency improvements (reducing memory use) of string handling in inline progs
+ - added new checker libraries for the JPl/Semmle Java coding guidelines
+ - added checkers for CERT Java rules, criticality Level 1
+ - added checker for locating duplicate code (main/duplicates.cobra)
+ - fixed bug that disallowed script names (def..end) starting with F, G, or B
+ - fixed bug in performing set operations on pattern sets with bound variables
+ - fixed bug in accuracy of linecounting in cobra_lex.c
+ - fixed bug in command-line defined parameter handling in inline functions
+ - fixed bug in the handling of pattern set names in pattern queries

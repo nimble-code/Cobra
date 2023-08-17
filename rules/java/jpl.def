@@ -1,0 +1,879 @@
+requires 4.4
+
+symbols
+
+## Critical :: Arithmetic
+
+def CA1	# critical - arithmetic, rule 1
+	r
+	m =
+	m /[-+*/%]=
+	m no /"
+	# remove matches where '(long)' appears somewhere other than the start
+	# and check for an overall cast
+	%{
+		if (.mark == 0) { Next; }
+		q = .nxt;
+		cast_all = 0;
+		if (q.txt == "(")	# cast
+		{	r = q.nxt;
+			if (r.txt == "long")
+			{	cast_all = 1;	
+			}
+			q = q.jmp;	# )
+			q = q.nxt;
+		}
+		while (q.txt != ";" && q.curly > 0)
+		{	if (q.txt == "(")
+			{	q = q.nxt;
+				if (q.txt == "long")
+				{	.mark = 0;
+					Next;
+			}	}
+			q = q.nxt;
+		}
+		if (cast_all == 1)
+		{	add_pattern(CA1, ., q);
+			Next;
+		}
+		# check if the lhs var type is long
+		q = .prv;
+		if (q.type == "ident")
+		{	p = q.bound;
+			if (p.seq > 0 && p.txt == "long")
+			{	add_pattern(CA1, ., p);
+				Next;
+		}	}
+		
+	%}
+	ps caption CA1 Avoid casting result of an integer expression to long
+end
+
+def CA2	# critical - arithmetic, rule 2
+	r
+	m /[-+*/%]=
+	m no /"
+	# look for cases where the lhs is an int and the rhs a long
+	%{
+		if (.mark == 0) { Next; }
+
+		q = .prv;	# lhs
+		if (q.type == "ident")
+		{	p = q.bound;
+			if (p.seq == 0
+			|| (p.txt != "int" && p.txt != "short"))
+			{	Next;
+		}	}
+
+		q = .nxt;	# rhs
+		# is there a long ident or cast anywhere on the rhs
+		has_long = 0;
+		if (q.txt == "(")	# cast
+		{	r = q.nxt;
+			if (r.txt == "long")
+			{	has_long = 1;	
+			}
+			q = q.jmp;	# )
+			q = q.nxt;
+		}
+		while (has_long == 0 && q.txt != ";" && q.curly > 0)
+		{	if (q.type == "ident")
+			{	p = q.bound;
+				if (p.seq > 0 && p.txt == "long")
+				{	has_long = 1;
+				}
+			} else
+			{	if (q.txt == "(")
+				{	q = q.nxt;
+					if (q.txt == "long")
+					{	has_long = 1;
+			}	}	}
+			q = q.nxt;
+		}
+		if (has_long)
+		{	pp = .prv;
+			add_pattern(CA2, pp, q);
+		}
+	%}
+	ps caption CA2 Avoid implicit narrowing in compound assignment
+end
+
+def CA3	# critical - arithmetic, rule 3
+	r
+	# find p?e1:e2
+	pe Tmp: @ident ? [@ident @chr @const] : [@ident @chr @const]
+	%{
+		x = pset("Tmp");
+		while (x.seq > 0)
+		{	y = x.p_start;
+			z = x.p_end;
+			while (y != z)
+			{	if (y.txt == ":")
+				{	yb = y.prv;
+					ya = y.nxt;
+					good = 1;
+					if (yb.type == "ident")
+					{	r = yb.bound;
+						if (r.seq > 0)
+						{	yb = r;
+						} else
+						{	good = 0;
+					}	}
+					if (ya.type == "ident")
+					{	r = ya.bound;
+						if (r.seq > 0)
+						{	ya = r;
+						} else
+						{	good = 0;
+					}	}
+					if (good && yb.type != ya.type)
+					{	add_pattern(CA3, y, z);
+				}	}
+				y = y.nxt;
+			}
+			x = x.nxt;
+		}
+		Stop;
+	%}
+	ps delete Tmp
+	ps caption CA3 Avoid type mismatch in conditional expressions
+end
+
+def CA4 # critical - artihmetic, rule 4
+	r
+	m @const_oct
+	ps create CA4
+	ps caption CA4 Avoid using octal literals
+end
+
+def CA5 # critical - arithmetic, rule 5
+	r
+	m ==
+	%{
+		if (.mark == 0) { Next; }
+		. mark = 0;
+		b = .prv;
+		a = .nxt;
+		if (a.type == "const_flt"
+		||  b.type == "const_flt")
+		{	add_pattern(CA5, b, a);
+			Next;
+		}
+		if (b.type == "ident")
+		{	r = b.bound;
+			if (r.seq > 0
+			&&  (r.txt == "float"
+			  || r.txt == "double"))	
+			{	add_pattern(CA5, b, a);
+				Next;
+		}	}
+		if (a.type == "ident")
+		{	r = a.bound;
+			if (r.seq > 0
+			&&  (r.txt == "float"
+			  || r.txt == "double"))	
+			{	add_pattern(CA5, b, a);
+		}	}
+	%}
+	ps caption CA5 Do not test floating point equality
+end
+
+## Critical :: Concurrency
+
+## Concurrency / API Misuse (6)
+
+def CCA1
+	r
+	# class has new Thread() but not @Override public void run()
+	pe CCA1: class @ident { ^run* new Thread ( ) ^run* }
+	ps caption CCA1 Avoid ineffective thread definitions
+end
+
+def CCA2
+	r
+	pe CCA2: Thread \. [setPriority getPriority]
+	ps caption CCA2 Avoid setting thread priorities
+end
+
+def CCA3
+	r
+	pe CCA3: notify ( )
+	ps caption CCA3 Avoid using notify
+end
+
+def CCA4
+	r
+	pe CCA4: Thread \. yield
+	ps caption CCA4 Do not call Thread.yield
+end
+
+def CCA5
+	r
+	pe CCA5: while ( .* ) { \;* }
+	ps caption CCA5 Do not spin on field
+end
+
+def CCA6
+	r
+	pe CCA6: class @ident { .* new Thread ( ) { .* } \. start .* }
+	ps caption CCA6 Do not start a thread in a constructor
+end
+
+## Concurrency / Synchronization (6)
+
+def CCS1
+	# any var accessed in synchronized context should never be accessed outside it
+	r
+	%{
+		global SyncVars[];
+		global NonSync[];
+
+		# 1: for each class collect vars accessed in synchronized context
+		if (.txt != "class") { Next; }
+		. = .nxt;	# ident
+		. = .nxt;	# {
+		if (.txt != "{") { Next; }
+		e = .jmp;
+		b = .nxt;
+
+		unset SyncVars;
+		unset NonSync;
+		while (b.seq < e.seq)
+		{
+			if (b.txt == "synchronized")	# synchronized(this) <<<<
+			{	b = b.nxt;
+				while (b.txt != "{")
+				{	b = b.nxt;
+				}
+				if (b.txt == "{")
+				{	f = b.jmp;
+					while (b.seq < f.seq)
+					{	if (b.type == "ident")
+						{	SyncVars[b.txt] = b;
+						}
+						b = b.nxt;
+				}	}
+			} else
+			{	if (b.type == "ident")
+				{	NonSync[b.txt] = b;
+			}	}
+			b = b.nxt;
+		}
+		# at end of class definition
+		for (i in SyncVars)
+		{	e = NonSync[i.txt];
+			if (e.seq > 0)
+			{	f = SyncVars[i.txt];
+				if (e.seq > f.seq)
+				{	add_pattern(CCS1, f, e);
+				} else
+				{	add_pattern(CCS1, e, f);
+		}	}	}
+
+		unset SyncVars;
+		unset NonSync;
+	%}
+	ps caption CCS1 Avoid data races by accessing shared variables under synchronization
+end
+
+def CCS2
+	r
+	pe CCS2: synchronized ^{* { \;* }
+	ps caption CCS2 Avoid empty synchronized blocks
+end
+
+def CCS3
+	r
+	pe CCS3: class @ident { ^synchronized* synchronized ^{* { .* writeObject .* } ^synchronized* }
+	ps caption CCS3 Avoid inconsistent synchronization for writeObject
+end
+
+def CCS4
+	# tbd
+	r
+	ps caption CCS4 Avoid inconsisten synchronization of overriding methods
+end
+
+def CCS5
+	#tbd
+	r
+	ps caption CCS5 Avoid synchronizing set but not get
+end
+
+def CCS6
+	r
+	pe CCS6: synchronized ( x:@ident ) { .* :x [= +- -= *= /=] .* }
+	ps caption CCS6 Do not synchronize on a field and update it
+end
+
+
+## Concurrency / Thread Safety (3)
+
+def CCT1
+	r
+	pe CCT1:  { .* private static . x:@ident \; .* public . @ident ( ) { .* :x = new .* } .* }
+	# x not initialzed in declaration
+	# and initializable multiple times in public fct
+	ps caption CCT1 Avoid lazy initialization of a static field
+end
+def CCT2
+	# DateFormat is not thread-safe
+	r
+	pe CCT2: class x:@ident implements Runnable { .* private static DateFormat @ident = .* } .* new Thread ( new :x .* )
+	ps caption CCT2 Avoid static fields of type DateFormat or its descendants
+end
+def CCT3
+	r
+	pe CCT3a: class @ident ^{* { .* \. lock ( ) ^unlock* }
+	pe CCT3b: class @ident ^{* { .* x:@ident \. lock ( ) .* if ( .* ) { .* :x \. unlock ( ) .* } .* }
+	ps CCT3 = CCT3a + CCT3b
+	ps delete CCT3a
+	ps delete CCT3b
+	ps caption CCT3 Ensure that a method releases locks on exit
+end
+
+## Concurrency / Waiting (5)
+
+def CCW1
+	r
+	pe CCW1: synchronized ( . ) { .* synchronized ( . ) { .* \. wait ( ) .* } .* }
+	ps caption CCW1 Avoid calling Object.wait while two locks are held
+	# wait releases only one lock
+end
+
+def CCW2
+	r
+	pe CCW2: synchronized ( . ) { .* Thread \. sleep ( @const )
+	ps caption CCW2 Avoid calling Thread.sleep with a lock held
+end
+
+def CCW3
+	r
+	# tbd
+	ps caption CCW3 Avoid calling wait on a Condition interface
+end
+
+def CCW4
+	r
+	pe CCW4: Thread \. sleep ( .* )
+	ps caption CCW4 Avoid controlling thread interaction by using ineffective or wasteful methods
+end
+
+def CCW5
+	r
+	m \. wait
+	n	# wait
+	n	# ( )
+	m & (
+	b; b	# \.
+	%{
+		# eliminate matches within loops
+		if (.txt == "while" || .txt == "for")
+		{	om = .;
+			. = .nxt;
+			if (.txt != "(") { Next; }
+			. = .jmp; 			# )
+			. = .nxt;
+			if (.txt == "{")
+			{	e = .jmp;		# }
+			} else
+			{	if (.txt == ";")
+				{	. = .prv;	# )
+					. = .jmp;	# (
+					. = .prv;	# while
+					. = .prv;	# }
+					if (.txt == "}") # do..while
+					{	e = .;
+						b = .jmp;
+					} else
+					{	. = om;
+						Next;
+					}
+				} else
+				{	. = om;
+					Next;
+				}
+			}
+			b = .nxt;
+			while (b.seq < e.seq)
+			{	b.mark = 0;
+				b = b.nxt;
+			}
+			. = om;
+		}
+	%}
+	ps create CCW5
+	ps caption CCW5 Do not call wait outside a loop
+end
+
+## Critical :: Declarations
+
+def CD1
+	r
+	%{
+		unset ClassDefs;
+		unset ContainsExtends;
+		Stop;
+	%}
+	%{
+		if (.txt == "class")
+		{	. = .nxt;
+			if (@ident)
+			{	c = .nxt;
+				if (c.txt == "{")
+				{	ClassDefs[.txt] = c;
+					c.mark = 1;
+		}	}	}
+	%}
+	# class def bodies are marked
+	# select the ones that contain an extends keyword
+	c extends
+	%{
+		if (.mark == 1)
+		{	.mark = 0;
+			a = .prv;	# @ident
+			ContainsExtends[a.txt] = .;
+		}
+	%}
+	%{
+		function class_contains_def(cls, fd)
+		{	from = cls;
+			upto = cls.jmp;
+			while (from.seq < upto.seq)
+			{	if (from.txt == fd)
+				{	b = from.prv;
+					a = from.nxt;
+					if (b.type == "type"
+					&&  a.txt == "(")
+					{	return 1;
+				}	}
+				from = from.nxt;
+			}
+			return 0;
+		}
+		Stop;
+	%}
+	# find fct calls in :y, check if it's defined both in :x and in :y
+	%{
+		for (i in ContainsExtends)
+		{	y = ContainsExtends[i.txt];	# {
+			z = y.jmp;
+			# find fct calls inside the extends part
+			unset FctDefs;
+			unset FctCalls;
+			while (y.seq < z.seq)
+			{	# remember any fct defs
+				b = y.prv;	# before
+				a = y.nxt;	# after
+				if (y.type == "ident" && a.txt == "(" && b.type == "type")
+				{	# likely fct def
+					FctDefs[y.txt] = y;
+				}
+				if (y.txt == "extends")
+				{	y = y.nxt;
+					z = y;		# name of the extends class
+					s = y.nxt;	# { start
+					e = s.jmp;	# } end
+					# find fct calls
+					while (s != e)
+					{	if (s.type == "ident")
+						{	n = s.nxt;
+							if (n.txt == "(")
+							{	FctCalls[s.txt] = z;
+						}	}
+						s = s.nxt;
+				}	}
+				y = y.nxt;
+			}
+			# now FctDefs and FctCalls have been populated
+			# if there's overlap, we need to search further
+			for (j in FctCalls)
+			{	k = FctDefs[j.txt];
+				if (k.seq > 0)
+				{	# yes
+					m = FctCalls[j.txt];	# name of the extends class
+					# find j.txt in class m.txt
+					n = ClassDefs[m.txt];
+					if (n.seq > 0)
+					{	if (class_contains_def(n, j.txt))
+						{	add_pattern(CD1, k, k);
+			}	}	}	}
+		}
+		Stop;
+	%}
+	ps caption CD1 Avoid ambiguity when calling a method that is in both a superclass and an outer class
+end
+
+def CD2
+	r
+	# tbd, may already be covered in CD1
+	ps caption CD2 Avoid confusing non-override of package-private method
+end
+
+def CD3
+	r
+	pe CD3: { .* class x:@ident { .* y:@type z:@ident .* } .* class @ident extends :x { .* :y :z .* } .* }
+	ps caption CD3 Avoid hinding a field in a super class
+end
+
+def CD4
+	r
+	pe CD4: case . : ^[case break]* case
+	ps caption CD4 Include break in a case statement
+end
+
+## Critical :: Encapsulation (3)
+
+def CEN1
+	r
+	# tbd -- requires looking at the data type declarations
+	ps caption CEN1 Avoid casting from an abstract collection to a concrete implementation type
+end
+
+def CEN2
+	r
+	pe CEN2: public static final @ident [ ] @ident =
+	ps caption CEN2 Avoid declaring array constants
+end
+
+def CEN3
+	r
+	pe CEN3: static interface @ident { public static final . @ident = @const \; }
+	ps caption CEN3 Avoid defining an interface only to hold constants
+end
+
+## Critical :: Equality
+
+def CEQ1
+	r
+	pe CEQ1a: { .* x:@ident = new . [ ] .* :x \. equals .* }
+	pe CEQ1b: { .* x:@ident = new . [ ] .* \. equals ( :x ) .* }
+	ps CEQ1 = CEQ1a + CEQ1b
+	ps delete CEQ1a
+	ps delete CEQ1b
+	ps caption CEQ1 Avoid comparing arrays using Object.equals
+dp *
+end
+
+def CEQ2
+	r
+	pe CEQ2a: { .* [Integer String] x:@ident .* == .* }
+	pe CEQ2b: ( .* [Integer String] x:@ident .* ) { .* == .* }
+	%{
+		function checkCEQ(nm)
+		{	x = pset(nm);
+			if (x.seq == 0)
+			{	return;
+			}
+			xd = x.p_bdef;
+			# xr = x.p_bref; # not set in pe
+			if (xd.seq == 0)
+			{	return;
+			}
+			while (x.seq != 0)
+			{	y = x.p_start;
+				z = x.p_end;
+				while (y.seq < z.seq)
+				{	if (y.txt == "==")
+					{	a = y.prv;
+						b = y.nxt;
+						if (a.txt == xd.txt
+						||  b.txt == xd.txt)
+						{	add_pattern(CEQ2_and_3, xd, y);
+					}	}
+
+					y = y.nxt;
+				}
+				x = x.nxt;
+		}	}
+		checkCEQ("CEQ2a");
+		checkCEQ("CEQ2b");
+		Stop;
+	%}
+	ps delete CEQ2a
+	ps delete CEQ2b
+	ps caption CEQ2_and_3 Avoid comparing object identity of boxed types or strings
+end
+
+def CEQ3
+	# included in CEQ2_and_3
+end
+
+def CEQ4
+	# every class that implements a custom equals method should also implement hasCode
+	r
+	pe CEQ4: class @ident { ^hashCode* public boolean equals ( .* ) ^hashCode* }
+	ps caption CEQ4 Avoid hashed instances that do not define hashCode
+end
+
+def CEQ5
+	r
+	pe CEQ5: class @ident ^{* { ^equals* public int compareTo ( .* ) ^equals*}
+	ps caption CEQ5 Avoid overriding compareTo but not equals
+end
+
+def CEQ6
+	r
+	pe CEQ4: class @ident { ^equals* public int hashCode ( .* ) ^equals* }
+	# the other case is covered by CEQ4
+	ps caption CEQ6 Avoid overriding only one of equals and hashCode
+end
+
+def CEQ7
+	r
+	pe CEQ7: public boolean equals ( .* ) { .* instanceof .* }
+	ps caption CEQ7 Avoid possible inconsistency due to instanceof in equals
+end
+
+def CEQ8
+	r
+	# tbd
+	ps caption CEQ8 Avoid reference comparisons with operands of type Object
+end
+
+def CEQ9
+	r
+	# tbd
+	ps caption CEQ9 Avoid unintentionally overloading Object.equals
+end
+
+def CEQ10
+	r
+	# tbd
+	ps caption CEQ10 Do not make calls of the form x.equals(y) with incomparable types
+end
+
+def CEQ11
+	r
+	pe CEQ11: boolean equals ( .* ) { ^instanceof* }
+	ps caption CEQ11 Ensure that an implementation of equals inspects its argument type
+end
+
+## Critical :: Exceptions
+
+def CXC1
+	r
+	pe CXC1: catch ( [Throwable Exception] .* )
+	ps caption CXC1 Avoid catching Throwable or Exception
+end
+
+def CXC2
+	r
+	# out of scope
+	ps caption CXC2 Do not dereference a variable that is null
+end
+
+def CXC3
+	r
+	pe CXC3: finally { .* [return throw break continue] .* }
+	ps caption CXC3 Ensure that finally-blocks complete normally
+end
+
+## Critical :: Expressions
+
+def CXP1
+	r
+	pe CXP1: public static . @ident ( .* ) { .* @type x:@ident .* return :x = .* }
+	ps caption CXP1 Avoid assigning to a local variable in a 'return' statement
+end
+
+def CXP2
+	r
+	pe CXP2: null & [@ident @const]
+	ps caption CXP2 Avoid accidentally using a bitwise logical operator instead of a conditional operator
+end
+
+## Critical :: Extensibility
+
+def CXT1
+	r
+	pe CXT1: getClass ( .* ) \. getResource ( .* )
+	ps caption CXT1 Avoid calling getClass().getResource()
+end
+
+def CXT2
+	r
+	pe CXT2: [Runtime System] \. [halt exit]
+	ps caption CXT2 Avoid forcible termination of the JVM
+end
+
+## Critical :: Incomplete Code
+
+def CIC1
+	r
+	pe CIC1: { \;* }
+	ps caption CIC1 Avoid empty blocks or statements
+end
+
+def CIC2
+	r
+	pe CIC2a: [for while if] ( .* ) {* \;* }*
+	pe CIC2b: do {* \;* }* while
+	pe CIC2c: \; \;
+	ps CIC2ab = CIC2a + CIC2b
+	ps CIC2 = CIC2ab + CIC2c
+	ps delete CIC2a
+	ps delete CIC2b
+	ps delete CIC2c
+	ps delete CIC2ab
+	ps caption CIC2 Avoid empty statements
+end
+
+def CIC3
+	r
+	# check instead that every switch has a default clause
+	pe CIC3: switch ( .* ) { ^default* }
+	ps caption CIC3 Ensure that a switch includes cases for all enum constants
+end
+
+## Critical :: Java Objects
+
+def CJO1	# Cloning
+	r
+	# tbd
+	ps caption CJ01 Ensure that a subclass clone method calls super.clone
+end
+
+def CJO2	# Garbage Collection
+	r
+	pe CJ02: [System Runtime] \. runFinalizersOnExit
+	ps caption CJ02 Do not call System.runFinalizersOnExit or Runtime.runFinalizersOnExit
+end
+
+def CJO3a	# Serialization
+	r
+	pe CJO3a: private static final ^long serialVersionUID
+	ps caption CJO3a Ensure that a 'serialVersionUID' field declared in a serializable class is of the correct type
+end
+
+def CJO3b	# Serialization
+	r
+	pe CJO3b: class @ident implements Comparator < .* > {
+	ps caption CJO3b Ensure that a class that implements Comparator and used to construct a sorted collection is serializable
+end
+
+def CJO3c	# Serialization
+	r
+	# tbd
+	ps caption CJO3c Ensure that a non-serializable immediate superclass of a serializable class declares a default constructor
+end
+
+def CJO3d	# Serialization
+	r
+	pe CJO3d: class @ident { .* class @ident implements Serializable { .* } .* }
+	ps caption CJO3d Ensure that a non-static serializable nested class is enclosed in a serializable class
+end
+
+## Critical :: Logic Errors
+
+def CLE1
+	r
+	pe CLE1: class @ident { ^RUNTIME* \. isAnnotationPresent ^RUNTIME* }
+	# replacing the 2nd ^RUNTIME* with .* doesnt seem to work
+	ps caption CLE1 Annotate annotations with a RUNTIME retention policy
+end
+
+def CLE2
+	r
+	pe CLE2: = ( String [ ] ) new Object [ ]
+	ps caption CLE2 Avoid array downcasts
+end
+
+def CLE3
+	r
+	# tbd
+	ps caption CLE3 Avoid type mismatch when calling Collection.contains
+end
+
+def CLE4
+	r
+	# tbd
+	ps caption CLE4 Avoid type mismatch when calling Collection.remove
+end
+
+def CLE5
+	r
+	# tbd
+	ps caption CLE5 Do not call a non-final method from a constructor
+end
+
+def CLE6
+	r
+	pe CLE6: x:@ident \. y:@ident = :x \. :y
+	ps caption CLE6 Do not perform self-assignment
+end
+
+def CLE7
+	r
+	pe CLE7a: [if for while] ( .* ) ^{
+	pe CLE7b: do ^{
+	ps CLE7 = CLE7a + CLE7b
+	ps delete CLE7a
+	ps delete CLE7b
+	ps caption CLE7 Include braces for control structures
+end
+
+## Critical :: Naming
+
+def CN1
+	r
+	pe CN1: class x:@ident { .* @type :x ( .* ) .* }
+	ps caption CN1 Avoid declaring a method with the same name as its declaring type
+end
+
+def CN2
+	r
+	# tbd would need list of all superclass method names
+	ps caption CN2 Avoid naming a method with the same name as a superclass method but with different capitalization
+end
+
+## Critical :: Random
+
+def CR1
+	r
+	pe CR1: Math \. abs ( .* )	# too strict, but gives warnings where needed
+	ps caption CR1 Avoid using Math.abs to generate a non-negative random integer
+end
+
+## Critical :: Resource Leaks
+
+def CRL1
+	r
+	pe CRL1: class @ident { .* new FileReader ^close* }
+	ps caption CRL1 Ensure that an input resource is closed on completion
+end
+
+def CRL2
+	# could be combined with CRL1
+	r
+	pe CRL2: class @ident { .* new FileWriter ^close* }
+	ps caption CRL2 Ensure that an output resource is closed on completion
+end
+
+## Critical :: Strings
+
+def CS1
+	r
+	pe CS1: { .* String [ ] x:@ident .* @str + :x .* }
+	ps caption CS1 Avoid appending an array to a string without converting it to a string
+end
+
+def CS2
+	r
+	# tbd
+	ps caption CS2 Avoid calling the default implementation of toString
+end
+
+def CS3
+	r
+	pe CS3: { .* String [ ] x:@ident .* \. println ( :x ) .* }
+	ps caption CS3 Avoid printing an array without converting it to a string
+end
+
+## Critical :: Types
+
+def CT1
+	r
+	pe CT1: [Boolean Character Byte Short Integer Long Float Double]
+	ps caption CT1 Avoid boxed types
+end

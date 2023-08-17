@@ -267,7 +267,8 @@ set_array_element(Arr_var *a, const char *el, Rtype *rv, const int ix)
 		e->s = rv->s;
 		if (isdigit((int) rv->s[0]))
 		{	e->val = atoi(e->s);
-			rv->rtyp = VAL;
+		//	rv->rtyp = VAL;	// 6/2023, omit default coercion
+		//	because user may rely on elements being strings
 		} else
 		{	e->val = 1;
 		}

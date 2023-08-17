@@ -145,8 +145,8 @@ static State	*states;
 static Store	*free_stored;
 static State	*free_state;
 static Rlst	*re_list;
-static char	SetName[256];	// for a new named set of pattern matches
-static char	*pattern_filter;	// filename filter on dp output, pattern_full and pattern_matched
+static char	SetName[256];	 // for a new named set of pattern matches
+static char	*pattern_filter; // filename filter on dp output, pattern_full and pattern_matched
 
 static PrimStack *prim_stack;
 static PrimStack *prim_free;
@@ -1762,7 +1762,7 @@ check_level(void)
 }
 
 static void
-free_bind(Bound *b)
+free_bind(Bound *b, int who, Match *m)
 {
 	b->bdef = (Prim *) 0;
 	b->ref  = (Prim *) 0;
@@ -1771,7 +1771,7 @@ free_bind(Bound *b)
 }
 
 static Match *
-free_m(Match *m)
+free_m(Match *m, int who)
 {	Bound *b, *nb;
 	Match *nm;
 
@@ -1785,8 +1785,13 @@ free_m(Match *m)
 
 	for (b = m->bind; b; b = nb)
 	{	nb = b->nxt;
-		free_bind(b);
+		if (nb == b)	// internal error
+		{	b->nxt = nb = 0;
+			fprintf(stderr, "internal error: free_m\n");
+		}
+		free_bind(b, who, m);
 	}
+	m->bind = (Bound *) 0;
 
 	return nm;
 }
@@ -1811,9 +1816,9 @@ again:
 			}
 			// else, drop the match
 			if (!prv)
-			{	matches = free_m(m);
+			{	matches = free_m(m, 1);
 			} else
-			{	prv->nxt = free_m(m);
+			{	prv->nxt = free_m(m, 2);
 			}
 			goto again;
 	}	}
@@ -2039,7 +2044,7 @@ reverse_delete(Named *q)
 	{	reverse_delete(q->nxt);
 		r = q->m;
 		while (r)
-		{	r = free_m(r);	// recycle
+		{	r = free_m(r, 3);	// recycle
 	}	}
 }
 
@@ -2066,7 +2071,7 @@ patterns_delete(void)
 			q->nxt = NULL;		// recycle Named items q as well?
 			r = q->m;
 			while (r)
-			{	r = free_m(r);	// recycle Match elements
+			{	r = free_m(r, 4);	// recycle Match elements
 			}			// and bindings
 			if (!json_format && !no_match && !no_display)
 			{	printf("pattern set '%s' deleted\n", SetName);
@@ -2290,7 +2295,11 @@ pattern_matched(Named *curset, int which, int N, int M)
 						m->bind->ref->txt, m->bind->ref->lnr);
 				}
 				for (q = m->bind->nxt; q; q = q->nxt)
-				{	if (!q->bdef
+				{	if (q->nxt == q)	// internal error
+					{	q->nxt = 0;
+						fprintf(stderr, "internal error: pattern_matched\n");
+					}
+					if (!q->bdef
 					|| !q->ref)
 					{	continue;
 					}
@@ -2355,7 +2364,7 @@ pattern_matched(Named *curset, int which, int N, int M)
 						fprintf(fd, "\n");
 						show_line(fd, m->upto->fnm, 0, b-5, b+1, a);
 		}	}	}	}
-// if (track_fd) { fprintf(track_fd, "which %d n %d\n", which, n); }
+		// if (track_fd) { fprintf(track_fd, "which %d n %d\n", which, n); }
 		if (which != 0
 		&&  n == which)
 		{	break;
@@ -2547,9 +2556,9 @@ patterns_display(const char *te)	// dp [name help *] [n [N [M]]]
 		strcpy(pattern_filter, nm);
 		return;
 	}
-
 	if (isalpha((uchar) te[j]) || te[j] == '*' || te[j] == '_')	// named set
-	{	nr = sscanf(&te[j], "%s %d %d %d", nm, &a, &b, &c);
+	{	a = b = c = 0;
+		nr = sscanf(&te[j], "%s %d %d %d", nm, &a, &b, &c);
 		switch (nr) {
 		case 1: a =  0;
 		case 2: b = -1;
@@ -2749,6 +2758,27 @@ setname(char *s)
 	strncpy(SetName, s, sizeof(SetName)-1);
 }
 
+static Bound *
+clone_bound(Bound *b)
+{	Bound *r, *n;
+	Bound *cloned = (Bound *) 0;
+
+	for (r = b; r; r = r->nxt)
+	{	if (free_bound)
+		{	n = free_bound;
+			free_bound = n->nxt;
+		} else
+		{	n = (Bound *) emalloc(sizeof(Bound), 156);
+		}
+		n->bdef = r->bdef;
+		n->ref  = r->ref;
+		n->nxt = cloned;
+		cloned = n;
+	}	// reverses order
+
+	return cloned;
+}
+
 static void
 set_union(Match *a, Match *b)
 {	Match *m, *p, *q = a;
@@ -2764,7 +2794,7 @@ L:	for (m = q; m; m = m->nxt)
 	{	p = (Match *) emalloc(sizeof(Match), 100);
 		p->from = m->from;
 		p->upto = m->upto;
-		p->bind = m->bind;
+		p->bind = clone_bound(m->bind);
 		p->nxt = n->m;
 		n->m = p;
 		cnt++;
@@ -2831,7 +2861,7 @@ set_difference(Match *a, Match *b, int how)	// how==1: a-b, how==0: a&b
 		p = (Match *) emalloc(sizeof(Match), 100);
 		p->from = m->from;
 		p->upto = m->upto;
-		p->bind = m->bind;
+		p->bind = clone_bound(m->bind);
 		p->nxt = n->m;
 		n->m = p;
 		cnt++;
@@ -2865,7 +2895,7 @@ copy_set(const char *s)
 	{	p = (Match *) emalloc(sizeof(Match), 100);
 		p->from = m->from;
 		p->upto = m->upto;
-		p->bind = m->bind;
+		p->bind = clone_bound(m->bind);
 		p->nxt = n->m;
 		n->m = p;
 		cnt++;
@@ -2948,7 +2978,7 @@ set_during(Match *a, Match *b)		// a contains (all of) b
 		p = (Match *) emalloc(sizeof(Match), 100);
 		p->from = m->from;
 		p->upto = m->upto;
-		p->bind = m->bind;
+		p->bind = clone_bound(m->bind);
 		p->nxt = n->m;
 		n->m = p;
 		cnt++;
@@ -2979,7 +3009,7 @@ set_meets(Match *a, Match *b)		// the end of a is immediately followed by the st
 		p = (Match *) emalloc(sizeof(Match), 100);
 		p->from = m->from;
 		p->upto = m->upto;
-		p->bind = m->bind;
+		p->bind = clone_bound(m->bind);
 		p->nxt = n->m;
 		n->m = p;
 		cnt++;
@@ -3011,7 +3041,7 @@ set_precedes(Match *a, Match *b)	// (all of) a precedes (all of) b
 		p = (Match *) emalloc(sizeof(Match), 100);
 		p->from = m->from;
 		p->upto = m->upto;
-		p->bind = m->bind;
+		p->bind = clone_bound(m->bind);
 		p->nxt = n->m;
 		n->m = p;
 		cnt++;
@@ -3044,7 +3074,7 @@ set_overlaps(Match *a, Match *b)	//  a starts before and ends during b
 		p = (Match *) emalloc(sizeof(Match), 100);
 		p->from = m->from;
 		p->upto = m->upto;
-		p->bind = m->bind;
+		p->bind = clone_bound(m->bind);
 		p->nxt = n->m;
 		n->m = p;
 		cnt++;
@@ -3232,7 +3262,10 @@ clone_set(Named *x, int ix)
 			for (b = y->bind; b && n < 4; b = b->nxt)
 			{	r->mbnd[n++] = b->bdef;	// where binding was set
 				r->mbnd[n++] = b->ref;	// where match was found
-		}	}
+				if (b == b->nxt)	// internal error
+				{	b->nxt = 0;
+					fprintf(stderr, "internal error: clone_set\n");
+		}	}	}
 
 		r->nxt = q;
 		if (q)
@@ -3268,6 +3301,14 @@ clone_all(int ix)		// create a single list of matches from all sets
 	}
 	
 	return h;
+}
+
+int
+is_pset(const char *s)
+{	Named *x;
+
+	x = findset(s, 0, 15);
+	return (x != NULL);
 }
 
 Prim *
@@ -3377,7 +3418,10 @@ ps_update(int whatchanged)
 		for (b = m->bind; b; b = b->nxt)
 		{	b->bdef = ps_fix(b->bdef, 0, whatchanged);
 			b->ref  = ps_fix(b->ref, 1, whatchanged);
-	}	}
+			if (b == b->nxt)	// internal error
+			{	b->nxt = 0;
+				fprintf(stderr, "internal error: ps_update\n");
+	}	}	}
 }
 #endif
 

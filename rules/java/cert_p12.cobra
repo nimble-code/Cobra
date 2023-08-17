@@ -1,0 +1,54 @@
+# Java checks for the CERT java coding standard
+# the P12 rules are not all defined yet (work in progress 8/2023)
+# P18 and P27 are more complete
+
+requires 4.5
+
+quiet on
+. java/Cert_P12_L1.def
+
+# P12
+IDS01_J
+IDS07_J
+IDS11_J
+IDS16_J
+OBJ01_J
+OBJ05_J
+OBJ11_J
+MET06_J
+ERR08_J
+FIO08_J
+FIO14_J
+SER05_J
+SEC02_J
+SEC03_J
+SEC04_J
+SEC05_J
+SEC06_J
+ENV00_J
+ENV01_J
+MSC02_J
+MSC03_J
+DRD00
+DRD01_X
+DRD05_J
+DRD06
+DRD07_X
+DRD09
+DRD11
+DRD12
+DRD13
+DRD14_J
+DRD19
+DRD20_C
+
+ps list
+!rm -f _JavaCertP12_.txt
+track start _JavaCertP12_.txt
+terse on
+dp *
+terse off
+track stop
+!echo "detailed results are in file _JavaCertP12_.txt"
+
+quiet off

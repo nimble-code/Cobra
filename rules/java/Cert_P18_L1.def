@@ -1,0 +1,103 @@
+## Priority P18 / Level 1 rule CERT Java Coding Standard
+
+def IDS00_J
+	r
+	# direct use of username argument to prepare sql query without validity checking
+	pe IDS00_J: ( .* String u:@ident .* ) throws SQLException { .* String x:@ident = ^\;* + :u + ^\;* \; .* [sql connection] \. [executeQuery prepareStatement] ( :x ) .* }
+	ps caption IDS00_J Prevent SQL injection
+end
+
+def OBJ13_J
+	r
+	# :y is mutable even though :x is not
+	pe OBJ13_Ja: public static final x:@ident [ ] y:@ident = { .* } \;
+	pe OBJ13)Jb: private static final x:@ident [ ] y:@ident = { .* } .* { .* return :y \; .* }
+	ps OBJ13_J = OBJ13_Ja + OBJ13_Jb
+	ps delete OBJ13_Ja
+	ps delete OBJ13_Jb
+	ps caption OBJ13_J Ensure that references to mutable objects are not exposed
+end
+
+def FIO05_J
+	r
+	pe FIO05_Ja: { .* private char \[ \] x:@ident .* return CharBuffer \. wrap ( :x ) \; .* }
+	pe FIO05_Jb: { .* private char \[ \] x:@ident .* return :x \. duplicate ( ) \; .* }
+	pe FIO05_Jc: { .* CharBuffer x:@ident \; .* :x = CharBuffer \. allocate ( .* ) .* return CharBuffer \. wrap ( :x ) \; .* }
+	pe FIO05_Jd: { .* CharBuffer x:@ident \; .* :x = CharBuffer \. allocate ( .* ) .* return :x \. duplicate    (    ) \; .* }
+	ps FIO05_Jab = FIO05_Ja + FIO05_Jb
+	ps delete FIO05_Ja
+	ps delete FIO05_Jb
+	ps FIO05_Jcd = FIO05_Jc + FIO05_Jd
+	ps delete FIO05_Jc
+	ps delete FIO05_Jd
+	ps FIO05_J = FIO05_Jab + FIO05_Jcd
+	ps delete FIO05_Jab
+	ps delete FIO05_Jcd
+	ps caption FIO05_J Do not expose buffers or their backing arrays methods to untrusted code
+end
+
+def SER08_J
+	r
+	# tbd
+	ps caption SER08_J Minimize privileges before deserializing from a privileged context
+end
+
+def SEC07_J
+	r
+	pe SEC07_J: protected @ident @ident ( .* ) { .* @ident = new Permissions ( ) \; .* }
+	ps caption SEC07_J Call the superclass getPermissions() method when writing a custom class loader
+end
+
+def ENV05_J
+	r
+	# deemed not amenable to automatic verification
+	# refers to a check of command-line options
+	ps caption ENV05_J Do not deploy an application that can be remotely monitored
+end
+
+def ENV06_J
+	r
+	# deemed not amenable to automatic verification
+	# pattern matches example given in standard using a main fct for testing
+	pe ENV06_J: class @ident { .* public static void main ( .* ) { .* } .* }
+	ps caption ENV06_J Production code must not contain debugging entry points
+end
+
+def JNI03_J	# under construction (since 2014), no examples available
+	r
+	# tbd
+	ps caption JNI03_J Do not use direct pointers to Java objects in JNI code
+end
+
+## Android only ##
+
+def DRD01_J
+	r
+	# out of scope
+	ps caption DRD01_J Limit the accessibility of an app's sensitive content provider
+end
+
+def DRD08_J
+	r
+	# tbd
+	ps caption DRD08_J Always canonicalize a URL received by a content provider
+end
+
+def DRD10_J
+	r
+	# out of scope
+	ps caption DRD10_J Do not release apps that are debuggable
+end
+
+def DRD17_J	# under construction (since 2014) - no examples provided
+	r
+	# tbd
+	ps caption DRD17_J Do not use the Android cryptographic security provider encryption default for AES
+end
+
+def DRD18_J	# under construction (since 2015) - no examples provided
+	r
+	# tbd
+	ps caption DRD18_J Do not use the default behavior in a cryptographic library if it does not use recommended practices
+end
+

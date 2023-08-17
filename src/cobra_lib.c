@@ -1111,6 +1111,7 @@ check_list(ArgList *lst, char *c, char *s, int len)
 				// move forward
 				if (cntr-- <= 0)
 				{	*s = '\0';
+					strcat(s, c);	// new 4.5
 					return;
 				}
 				*s++ = *c++;
@@ -1144,9 +1145,10 @@ static char *
 replace_args(char *c, ArgList *a)	// in def-macro
 {	char *s, *t;
 	int len = strlen(c)+1;
+	int len2 = len;
 
 	if (cnt_delta(cl_var, c, &len) +
-	    cnt_delta(a,      c, &len) == 0)
+	    cnt_delta(a,      c, &len2) == 0)	// dont subtract from len twice
 	{	s = (char *) emalloc(len * sizeof(char), 56);
 		strcpy(s, c);
 		return s;
@@ -1154,15 +1156,12 @@ replace_args(char *c, ArgList *a)	// in def-macro
 
 	assert(len > 0);
 	s = t = (char *) emalloc(len * sizeof(char), 57);
-
 	if (cl_var != NULL)	// command-line params, if any
 	{	check_list(cl_var, c, s, len);
-		c = t;	// take result as the new input
+		c = s;	// take result as the new input -- 4.5: was c = t;
 		s = t = (char *) emalloc(len * sizeof(char), 58);
 	}
-
 	check_list(a, c, s, len);	// replace actual params
-
 	return t;
 }
 
@@ -1936,22 +1935,34 @@ pre_scan(char *bc)	// non-generic commands
 		return 1;
 
 	case 'B':	// browse file
+		if (strlen(bc) > 1 && !isspace((uchar) *(bc+1)))
+		{	break;
+		}
 		a = nextarg(bc);
 		b = nextarg(a);
 		browse(a, b);
 		return 1;
 
 	case 'V':	// view file with window.tcl
+		if (!isspace((uchar) *(bc+1)))
+		{	break;
+		}
 		a = nextarg(bc);
 		b = nextarg(a);
 		popup_window(a, atoi(b));
 		return 1;
 
 	case 'F':
+		if (strlen(bc) > 1 && !isspace((uchar) *(bc+1)))
+		{	break;
+		}
 		(void) listfiles(1, nextarg(bc));
 		return 1;
 
 	case 'G':
+		if (!isspace((uchar) *(bc+1)))
+		{	break;
+		}
 		dogrep(nextarg(bc));
 		return 1;
 

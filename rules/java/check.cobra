@@ -3,7 +3,7 @@
 requires 3.9
 
 quiet on
-. Java/check.def
+. java/check.def
 
 J01
 J02

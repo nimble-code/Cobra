@@ -515,7 +515,7 @@ char_or_str(int which, int cid)
 			{	fprintf(stderr, "%s:%d: error: unterminated string or character constant\n",
 					Px.lex_fname, Px.lex_lineno);
 			}
-			Px.lex_lineno++;
+		//	Px.lex_lineno++;	// V4.5, omitted, nextchar already incremented
 			break;
 	}	}
 	assert(m < MAXYYTEXT);

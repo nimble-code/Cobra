@@ -760,6 +760,13 @@ static void
 set_par(const char *varname, const char *value)	// single-core
 {	ArgList *a;
 
+	for (a = cl_var; a; a = a->nxt)
+	{	if (strcmp(a->nm, varname) == 0)	// previously defined
+		{	a->s  =    (char *) emalloc (strlen(value)+1, 22);
+			strcpy(a->s, value);
+			return;
+	}	}
+
 	a     = (ArgList *) emalloc(sizeof(ArgList), 20);
 	a->nm =    (char *) emalloc(strlen(varname)+1, 21);
 	strcpy(a->nm, varname);

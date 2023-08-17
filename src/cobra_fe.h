@@ -7,7 +7,7 @@
 #ifndef COBRA_FE
 #define COBRA_FE
 
-#define tool_version	"Version 4.4 - 2 June 2023"
+#define tool_version	"Version 4.5 - 16 August 2023"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -163,6 +163,7 @@ extern int	add_file(char *, int, int);
 extern int	check_config(void);
 extern int	c_lex(int);
 extern int	do_markups(const char *);
+extern int	is_pset(const char *);
 extern int	json_convert(const char *);
 extern int	listfiles(int, const char *);
 extern int	matches2marks(int);

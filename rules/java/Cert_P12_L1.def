@@ -1,0 +1,238 @@
+## Priority P12 / Level 1 rule CERT Java Coding Standard
+
+def IDS01_J
+	r
+	# dont use a string in fct calls before normalizing it:
+	# if normalize is called it should be the first call
+	pe IDS01_J: { .* String x:@ident .* ^normalize ( :x ) .* normalize ( :x
+	# stops working if we add .* ) .* } at the end
+	ps caption IDS01_J Normalize strings before validating them
+end
+
+def IDS07_J
+	r
+	# using result of getProperty in an exec without checking it with Pattern.matches()
+	pe IDS07_J: { .* x:@ident = System \. getProperty ( .* ) ^[matches matcher]* exec ( .* :x .* ) .* }
+	ps caption IDS07_J Sanitize untrusted data passed to the Runtime.exec() method
+end
+
+def IDS11_J
+	r
+	# use normalize, replaceAll, and matcher only in that order
+	# triggers: no such command/script '*'
+	pe IDS11_J: { .* x:@ident = ^\;* normalize ( .* ) .* matcher ( :x ) .* :x \. replaceAll ( .* ) .* }
+	ps caption IDS11_J Perform any string modifications before validation
+end
+
+def IDS16_J
+	r
+	# uses parameter string unchecked in string concatenation, which is used in a write command
+	pe IDS16_J: @ident ( .* String x:@ident .* ) ^{* { ^:x* y:@ident = ^\;* \+ :x ^\;* \; .* write ( .* :y .* ) .* }
+	ps caption IDS16_J Prevent XML Injection
+end
+
+def OBJ01_J
+	r
+	# :x is used internally and should be private
+	pe OBJ01_J: class @ident { .* public [static final]* [String @type] [\[ \]]* x:@ident .* @ident ( .* ) { .* :x .* } .* }
+	ps caption OBJ01_J Limit accessibility of fields
+end
+
+def OBJ05_J
+	r
+	# unless .clone'd
+	pe OBJ05_Ja: class @ident { .* private . [\[ \]]* x:@ident .* return :x [\[ \]]* ^\. .* }
+	pe OBJ05_Jb: class @ident { .* private HashTable < .* > x:@ident .* return :x \; .* }
+	ps OBJ05_J = OBJ05_Ja + OBJ05_Jb
+	ps delete OBJ05_Ja
+	ps delete OBJ05_Jb
+	ps caption OBJ05_J Do not return references to private mutable class members
+end
+
+def OBJ11_J
+	r
+	# tbd; vague
+	ps caption OBJ11_J Be wary of letting constructors throw exceptions
+end
+
+def MET06_J
+	r
+	pe MET06_Ja: { .* clone \. x:@ident ( .* ) .* ^final @type :x ( .* ) { .* } .* }
+	pe MET06_Jb: { .* ^final* . x:@ident ( .* ) { .* } .* clone \. :x ( .* ) .* }
+	ps MET06_J = MET06_Ja + MET06_Jb
+	ps delete MET06_Ja
+	ps delete MET06_Jb
+	ps caption MET06_J Do not invoke overridable methods in clone()
+end
+
+def ERR08_J
+	r
+	pe ERR08_J: catch ( NullPointerException @ident )
+	ps caption ERR08_J Do not catch NullPointerException or any of its ancestors
+end
+
+def FIO08_J
+	r
+	pe FIO08_J: ( [byte char] ) in \. read ( )
+	ps caption FIO08_J Distinguish between characters or bytes read from a stream and -1
+end
+
+def FIO14_J
+	r
+	pe FIO14_Ja: class @ident { .* new FileOutputStream ^close* }
+	pe FIO14_Jb: class @ident { .* new FileOutputStream .* \. [halt exit] ( .* ) .* }
+	ps FIO14_J = FIO14_Ja + FIO14_Jb
+	ps delete FIO14_Ja
+	ps delete FIO14_Jb
+	ps caption FIO14_J Perform proper cleanup at program termination
+end
+
+def SER05_J
+	r
+	pe SER05_J: class @ident implements Serializable { .* ^static class @ident implements Serializable .* }
+	ps caption SER05_J Do not serialize instances of inner classes
+end
+
+### added August '23:
+
+def SEC02_J
+	r
+	pe SEC02_J: class @ident extends java \. io \. File { .* public String getPath ( ) .* }
+	ps caption SEC02_J Do not base security checks on untrusted sources
+end
+
+def SEC03_J
+	r
+	# tbd
+	ps caption SEC03_J Do not load trusted classes after allowing untrusted code to load arbitrary classes
+end
+
+def SEC04_J
+	r
+	# access field in private object in public fct without check
+	pe SEC04_J: { .* private @ident < .* > x:@ident = new .* public @type @ident ( .* ) { ^getSecurityManager* :x \. .* } ^getSecurityManager* }
+	ps caption SEC04_J Protect sensitive operations with security manager checks
+end
+
+def SEC05_J
+	r
+	# should be private or final, not public
+	pe SEC05_J: public . @ident ( .* ) { .* getDeclaredField .* }
+	ps caption SEC05_J Do not use reflection to increase accessibility of classes, methods, or fields
+end
+
+def SEC06_J
+	r
+	# tbd
+	ps caption SEC06_J Do not rely on the default auto signature verification provided by URLClassLoader and java.util.jar
+end
+
+def ENV00_J
+	r
+	# to broad; no example given
+	ps caption ENV00_J Do not sign code that performs only unprivileged operations
+end
+
+def ENV01_J
+	r
+	# tbd
+	ps caption ENV01_J Place all security-sensitive code in a single JAR and sign and seal it
+end
+
+def MSC02_J
+	r
+	pe MSC02_J: import java \. util \. Random \;
+	ps caption MSC02_J Generate strong random numbers
+end
+
+def MSC03_J
+	r
+	# possible hard-coded url or local file
+	pe MSC03_Ja: /[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+
+	# hardcoded username
+	pe MSC03_Jb: \.getConnection ( ^,* , @str , .* )
+	# hardcoded password
+	pe MSC03_Jc: \.getConnection ( ^,* , ^,* , @str )
+	ps MSC03_Jab = MSC03_Ja + MSC03_Jb
+	ps MSC03_J = MSC03_Jab + MSC03_Jc
+	ps delete MSC03_Ja
+	ps delete MSC03_Jb
+	ps delete MSC03_Jab
+	ps delete MSC03_Jc
+	ps caption MSC03_J Never hard code sensitive information
+end
+
+## Android (DRD Rules)
+
+def DRD00
+	r
+	# out of scope
+	ps caption DRD00 Do not store sensitive information on external storage unless encrypted
+end
+
+def DRD01_X
+	r
+	# out of scope
+	ps caption DRD01_X Limit the accessibility of an apps sensitive content provided
+end
+
+def DRD05_J
+	r
+	# too broad, no examples
+	ps caption DRD05_J Do not grant URI permission on implicit intents
+end
+
+def DRD06
+	r
+	# too broad, no examples
+	ps caption DRD06 Do not act on malicious intents
+end
+
+def DRD07_X
+	r
+	# labeled "under construction"
+	ps caption DRD07_X Protext exported services with strong permission
+end
+
+def DRD09
+	r
+	# much too broad
+	ps caption DRD09 Restrict access to sensitive activivities
+end
+
+def DRD11
+	r
+	# labeled "under construction"
+	ps caption DRD11 Ensure that sensitive data is kept secure
+end
+
+def DRD12
+	r
+	# labeled "under construction"
+	ps caption DRD12 Do not trust data that is world writable
+end
+
+def DRD13
+	r
+	# labeled "under construction"
+	ps caption DRD13 Do not provide addJavascriptInterface method access in a WebView...
+end
+
+def DRD14_J
+	r
+	# labeled "under construction"
+	ps caption DRD14_J Check that a calling app has appropriate permissions before responding
+end
+
+def DRD19
+	r
+	# tbd, not java specific
+	ps caption DRD19 Properly verify server certificate on SSL/TLS
+end
+
+def DRD20_C
+	r
+	# labeled "under construction"
+	ps caption DRD20_C Specify permissions when creating files via the NDK
+end
+
