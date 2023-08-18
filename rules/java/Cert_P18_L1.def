@@ -58,8 +58,8 @@ end
 def ENV06_J
 	r
 	# deemed not amenable to automatic verification
-	# pattern matches example given in standard using a main fct for testing
-	pe ENV06_J: class @ident { .* public static void main ( .* ) { .* } .* }
+	# pattern matches example given in standard using a main fct for debugging
+	pe ENV06_J: class @ident { .* public static void main ( .* ) { .* DEBUG .* } .* }
 	ps caption ENV06_J Production code must not contain debugging entry points
 end
 

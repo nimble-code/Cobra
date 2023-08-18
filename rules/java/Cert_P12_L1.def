@@ -34,14 +34,14 @@ end
 def OBJ01_J
 	r
 	# :x is used internally and should be private
-	pe OBJ01_J: class @ident { .* public [static final]* [String @type] [\[ \]]* x:@ident .* @ident ( .* ) { .* :x .* } .* }
+	pe OBJ01_J: class @ident { .* public [static final]* [String @type] [\[ \]]* x:@ident ^( .* @ident ( .* ) { .* :x .* } .* }
 	ps caption OBJ01_J Limit accessibility of fields
 end
 
 def OBJ05_J
 	r
 	# unless .clone'd
-	pe OBJ05_Ja: class @ident { .* private . [\[ \]]* x:@ident .* return :x [\[ \]]* ^\. .* }
+	pe OBJ05_Ja: class @ident { .* private ^int [\[ \]]* x:@ident .* return :x [\[ \]]* ^\. .* }
 	pe OBJ05_Jb: class @ident { .* private HashTable < .* > x:@ident .* return :x \; .* }
 	ps OBJ05_J = OBJ05_Ja + OBJ05_Jb
 	ps delete OBJ05_Ja
