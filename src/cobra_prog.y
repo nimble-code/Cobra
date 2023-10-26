@@ -1594,8 +1594,11 @@ get_var(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)
 				assert(tmp.rtyp == VAL);
 				n = check_var(q->s, tmp.val);
 			} else
-			{	n = mk_var(q->s, 0, ix);
-			}
+			{	if (q->s)
+				{	n = mk_var(q->s, 0, ix);
+				} else
+				{	return n;
+			}	}
 			rv->rtyp = n->rtyp;
 		} else
 		{	if (Ncore > 1) fprintf(stderr, "(%d) ", ix);

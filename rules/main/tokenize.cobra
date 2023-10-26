@@ -82,16 +82,16 @@ L:			m = .nxt;
 	if (.txt != "EOF")
 	{	n = .nxt;
 		if (n.txt == "*" || n.txt == "+")
-		{	. = n;
-			print .txt n.txt " ";
+		{	print .txt " " n.txt " ";
+			. = n;
 		} else
 		{	print .txt " ";
 	}	}
 %}
 %{
 	print "\n";
-	if (warn != "")
-	{	print warn;
+	if (warn != 0)
+	{	print warn "\n";
 	}
 	Stop;
 %}

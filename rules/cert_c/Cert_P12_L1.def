@@ -1,0 +1,210 @@
+## Priority P12 / Level 1 rules CERT C Coding Standard
+
+def ENV32_C
+	r
+	pe AtExit: atexit ( @ident )
+	pe AtSignal: signal ( . , @ident )
+	# added fcts called in signal handlers, because of this sentence
+	# in the rules description:
+	# "This [undefined] behavior can occur only when an exit function is
+	# invoked from an exit handler or when an exit function is called from
+	# within a signal handler."
+	# https://wiki.sei.cmu.edu/confluence/display/c/ENV32-C*
+ %{
+	unset Fcts;	# fcts to check for nested exit or longjmp
+	p = pset(AtExit);
+	while (p.seq > 0)
+	{	a = p.p_start;
+		a = a.nxt;	# (
+		a = a.nxt;	# @ident
+		Fcts[a.txt]++;
+		p = p.nxt;
+	}
+	p = pset(AtSignal);
+	while (p.seq > 0)
+	{	a = p.p_start;
+		a = a.nxt;	# (
+		a = a.nxt;	# .
+		a = a.nxt;	# ,
+		a = a.nxt;	# @ident
+		Fcts[a.txt]++;
+		p = p.nxt;
+	}
+	Stop;
+ %}
+	r
+	fcts
+ %{
+	if (.mark == 0)
+	{	Next;
+	}
+	if (Fcts[.txt] == 0)
+	{	.mark = 0;
+		Next;
+	}
+	while (.txt != "{")
+	{	. = .nxt;
+	}
+	e = .jmp;
+	if (e.seq == 0)
+	{	Next;
+	}
+	a = .;
+	while (a.seq < e.seq)
+	{	if (a.txt == "exit"
+		||  a.txt == "_Exit"
+		||  a.txt == "quick_exit"
+		||  a.txt == "longjmp")
+		{	add_pattern("ENV32_C", ., a);
+		}
+		a = a.nxt;
+	}
+ %}
+	ps caption ENV32_C Exit handlers must return normally
+	ps delete AtExit
+	ps delete AtSignal
+end
+
+def ENV33_C
+	r
+	pe ENV33_C: system ( .* )
+	ps caption ENV33_C Do not call system()
+end
+
+def EXP33_C
+	# find uninitialized stack variables, and
+	# uninitialized memory returned by;
+	#  aligned_alloc()
+	#  calloc()
+	#  malloc()
+	#  realloc()
+	# compare also with:
+	#    main/suspicious.def  <- variant used below
+	#    play/dfs_uninit.cobra
+	#    cwe/cwe_457.cobra (src_app/cwe_457.c)
+	r
+	# a: scalar declared, not initialized in declaration, then used on rhs of assignment
+	pe EXP33_Ca: { .* ^[static extern] [modifier type]+ x:@ident ^= ^:x* = :x ^= .* }
+
+	# b: same, then passed as parameter, with or without a dereference
+	# but allow [fs]scanf sprintf snprintf etc...
+	pe EXP33_Cb: { .* ^[static extern] [modifier type]+ x:@ident ^= ^:x* ^[if for while sprintf snprintf scanf sscanf fscanf] ( .* :x .* ) \; .* }
+
+	# c: memory allocated and not initialized with memset or memcpy
+	#    does not check here if :x itself is initialized before use
+	pe EXP33_Cc: { .* x:@ident = [aligned_alloc calloc malloc] ( .* ) \; ^[memset memcpy]* :x .* }
+
+	# d: using uninitialized pointer in sprintf call (line 80-99 in .txt)
+	pe EXP33_Cd: { .* @type * x:@ident ^= ^:x* [sprintf fprintf printf] ( .* :x .* ) .* }
+
+	# e: passing an uninitialized structure to mbrlen (lines 149-159)
+	pe EXP33_Ce: { .* @ident x:@ident \; ^:x* mbrlen ( .* :x ) .* }
+
+	# f: using uninitialized memory to seed a random number generator (lines 163-174)
+	pe EXP33_Cf: { .* [@type @modifier] x:@ident [, \;] ^:x* srandom ( .* :x .* ) .* }
+
+	ps EXP33_Cab = EXP33_Ca + EXP33_Cb
+	ps EXP33_Ccd = EXP33_Cc + EXP33_Cd
+	ps EXP33_Cef = EXP33_Ce + EXP33_Cf
+	ps EXP33_Cad = EXP33_Cab + EXP33_Ccd
+	ps EXP33_C = EXP33_Cad + EXP33_Cef
+	ps delete EXP33_Cab
+	ps delete EXP33_Ccd
+	ps delete EXP33_Cef
+	ps delete EXP33_Cad
+	ps delete EXP33_Ca
+	ps delete EXP33_Cb
+	ps delete EXP33_Cc
+	ps delete EXP33_Cd
+	ps delete EXP33_Ce
+	ps delete EXP33_Cf
+	ps caption EXP33_C Do not read uninitialized memory
+end
+
+def FIO34_C
+	r
+	# check the case where the return value of getchar is assigned
+	# to char iso int or w_char_t iso w_int_t
+	pe FIO34_C: { .* [wchar_t char] x:@ident .* :x = [getchar getc fgetc getwc ungetc] ( .* ) .* }
+	ps caption FIO34_C Distinguish between characters read from a file and EOF or WEOF
+end
+
+def FIO37_C
+	# check a common case where the contents of buf is assumed to be nonzero without testing
+	r
+	pe FIO37_C: { .* [fgets fgetws] ( x:@ident .* ) ^:x* :x [ strlen ( :x ) - @const ] .* }
+	ps caption FIO37_C Do not assume that fgets() or fgetws() returns a nonempty string when successful
+end
+
+def MSC41_C
+	# placeholder functions containing 'authenticate,' 'verify,' or 'validate'
+	r
+	m /authenticate (
+	m /validate (
+	m /verify (
+	n	# (
+	n	# @str
+	m & @str
+	b
+	b
+	ps create MSC41_C
+	ps caption MSC41_C Do not hard code sensitive information
+end
+
+def POS30_C
+	# readlink can return -1 on error
+	# and does not necessarily null-terminate the input :y
+	# allowing :x to be equal to the buffer size
+	r
+	pe POS30_C: { .* x:@ident = readlink ( .* , y:@ident , sizeof ( :y ) ) .* :y [ :x ] .* }
+	ps caption POS30_C Use the readlink function properly	# not very informative
+end
+
+def POS36_C
+	# setuid preceding setgid
+	r
+	pe POS36_C: setuid ( getuid ( ) ) .* setgid ( getgid ( ) )
+	ps caption POS36_C Observe correct revocation order while relinquishing priviliges
+end
+
+def POS47_C
+	# Because the default condition for POSIX is PTHREAD_CANCEL_DEFERRED, it is
+	# not necessary to invoke pthread_setcanceltype()
+	# instead, call pthread_testcancel() at safet points to terminate a thread
+	r
+	pe POS47_C: pthread_setcanceltype ( PTHREAD_CANCEL_ASYNCHRONOUS .* )
+	ps caption POS47_C Do not use threads that can be canceled asynchronously
+end
+
+def STR32_C
+	# 1: catch a simple case of initialing a fixed-size array with too many characters
+	pe TMP1: char @ident [ @const ] = @str
+	# check that len(@str) < @const
+ %{
+	p = pset(TMP1);
+	while (p.seq > 0)
+	{	b = p.p_start;
+		e = p.p_end;
+		a = b;
+		a = a.nxt;	# @ident
+		a = a.nxt;	# [
+		a = a.nxt;	# @const
+		m = a.txt;
+		b = a.nxt;	# ]
+		b = b.nxt;	# =
+		b = b.nxt;	# @str
+		s = b.txt;
+		n = strlen(s);
+		if (n >= m)
+		{	add_pattern(STR32_Ca, b, e);
+		}
+		p = p.nxt;
+	}
+	Stop;
+ %}
+	# 2: check cases where the result of strncpy may not be null-terminated
+	pe STR32_Cb: strncpy ( x:@ident , @ident , sizeof ( :x ) ) \; @ident = strlen ( :x )
+	ps delete TMP1
+	ps caption STR32_Ca Length of string assignment exceeds capacity of array
+	ps caption STR32_Cb Do not pass a non-null terminated char sequence to a library fct that expects a string
+end

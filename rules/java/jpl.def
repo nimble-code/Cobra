@@ -295,7 +295,7 @@ def CCS4
 end
 
 def CCS5
-	#tbd
+	# tbd
 	r
 	ps caption CCS5 Avoid synchronizing set but not get
 end
@@ -659,7 +659,8 @@ end
 
 def CXC2
 	r
-	# out of scope
+	# see main/reverse_null.def
+	# or misra/misra1997.def m97_R107
 	ps caption CXC2 Do not dereference a variable that is null
 end
 

@@ -1,0 +1,483 @@
+## Priority P18 / Level 1 rules CERT C Coding Standard
+
+def ARR38_C
+	# the general case is hard to capture in a pattern
+	# but we can catch some cases
+	r
+	pe ARR38_Ca: wmemcpy ( @ident , x:@ident , sizeof ( :x ) ) \;
+	# because if :x is wchar_t the 3rd argument should be: wcslen(:x)+1
+	pe ARR38_Cb: { .* x:@modifier <1> @ident [ y:@ident ] .* sizeof ( ^:x ) * :y @1 (.txt == "long" || .txt == "short")
+	pe ARR38_Cd: { .* x:@type <1> @ident [ y:@ident ] .* sizeof ( ^:x ) * :y @1 (.txt == "int" || .txt == "char")
+	pe ARR38_Cc: { .* wchar_t x:@ident [ .* ] .* y:@ident = sizeof ( * :x ) \; .* z:@ident = sizeof ( :x ) \; .* [fread fwrite] ( :x , :y , :z , @ident ) .* }
+
+	ps ARR38_Cab = ARR38_Ca + ARR38C_b
+	ps ARR38_Ccd = ARR38_Cc + ARR38C_d
+	ps ARR38_C = ARR38_Cab + ARR38_Ccd
+	ps delete ARR38_Ca
+	ps delete ARR38_Cb
+	ps delete ARR38_Cc
+	ps delete ARR38_Cab
+	ps delete ARR38_Ccd
+
+	ps caption ARR38_C Guarantee that library functions do not form invalid pointers
+end
+
+def ERR33_C
+	# check error codes on library functions
+	r
+ %{
+	if (!@ident)
+	{	Next;
+	}
+	p = substr(.txt, 0, 1);
+	if (p == "a")
+	{	if (#aligned
+		||  #alloc
+		||  #asctime_s
+		||  #at_quick_exit
+		||  #atexit)
+		{	goto check;
+		}
+		Next;
+	}
+	if (p == "b")
+	{	if (#bsearch
+		||  #bsearch_s
+		||  #btowc)
+		{	goto check;
+		}
+		Next;
+	}
+	if (p == "c")
+	{	if (#c16rtomb
+		||  #c32rtomb
+		||  #calloc
+		||  #clock
+		||  #cnd_broadcast
+		||  #cnd_init
+		||  #cnd_timedwait
+		||  #cnd_wait
+		||  #ctime_s)
+		{	goto check;
+		}
+		Next;
+	}
+	if (p == "f")
+	{	if (#fclose
+		||  #fflush
+		||  #fgetc
+		||  #fgetpos
+		||  #fgets
+		||  #fgetwc
+		||  #fopen
+		||  #fopen_s
+#		||  #fprintf
+		||  #fprintf_s
+		||  #fputc
+		||  #fputs
+		||  #fputwc
+		||  #fputws
+		||  #fread
+		||  #freopen
+		||  #freopen_s
+		||  #fscanf
+		||  #fscanf_s
+		||  #fseek
+		||  #fsetpos
+		||  #ftell
+		||  #fwprintf
+		||  #fwprintf_s
+		||  #fwrite
+		||  #fwscanf
+		||  #fwscanf_s)
+		{	goto check;
+		}
+		Next;
+	}
+	if (p == "g")
+	{	if (#getc
+		||  #getchar
+		||  #getenv
+		||  #getenv_s
+		||  #gets_s
+		||  #getws
+		||  #getwchar
+		||  #gmtime
+		||  #gmtime_s)
+		{	goto check;
+		}
+		Next;
+	}
+	if (p == "l")
+	{	if (#localtime
+		||  #localtime_s)
+		{	goto check;
+		}
+		Next;
+	}
+	if (p == "m")
+	{	if (#malloc
+		||  #mblen
+		||  #mbrlen
+		||  #mbrtoc16
+		||  #mbrto32
+		||  #mbrtowc
+		||  #mbsrtowcs
+		||  #mbsrtowcs_s
+		||  #mbtowc
+		||  #memchr
+		||  #mktime
+		||  #mtx_init
+		||  #mtx_lock
+		||  #mtx_timedlock
+		||  #mtx_trylock
+		||  #mtx_unlock)
+		{	goto check;
+		}
+		Next;
+	}
+	if (p == "p")
+	{	if (#printf_s
+		||  #putc
+		||  #putwc)
+		{	goto check;
+		}
+		Next;
+	}
+	if (p == "r")
+	{	if (#raise
+		||  #realloc
+		||  #remove
+		||  #rename)
+		{	goto check;
+		}
+		Next;
+	}
+	if (p == "s")
+	{	if (#scanf
+		||  #scanf_s
+		||  #setlocale
+		||  #setvbuf
+		||  #signal
+		||  #snprintf
+		||  #snprintf_s
+		||  #sprintf
+		||  #sprintf_s
+		||  #sscanf
+		||  #sscanf_s
+		||  #strchr
+		||  #strerror_s
+		||  #strftime
+		||  #strpbrk
+		||  #strrchr
+		||  #strstr
+		||  #strtod
+		||  #strtof
+		||  #strtoimax
+		||  #strtok
+		||  #strtok_s
+		||  #strtol
+		||  #strtold
+		||  #strtoll
+		||  #strtoul
+		||  #strtoull
+		||  #strtoumax
+		||  #strxfrm
+		||  #swprintf
+		||  #swprintf_s
+		||  #swscanf
+		||  #swscanf_s)
+		{	goto check;
+		}
+		Next;
+	}
+	if (p == "t")
+	{	if (#thrd_create
+		||  #thrd_detach
+		||  #thrd_join
+		||  #thrd_sleep
+		||  #time
+		||  #timespec_get
+		||  #tmpfile
+		||  #tmpfile_s
+		||  #tmpnam
+		||  #tmpnam_s
+		||  #tss_create
+		||  #tss_get)
+		{	goto check;
+		}
+		Next;
+	}
+	if (p == "u")
+	{	if (#ungetc
+		||  #ungetwc)
+		{	goto check;
+		}
+		Next;
+	}
+	if (p == "v")
+	{	if (#vfprintf
+		||  #vfprintf_s
+		||  #vfscanf
+		||  #vfscanf_s
+		||  #vfwprintf
+		||  #vfwprintf_s
+		||  #vfwscanf
+		||  #vwscanf_s
+		||  #vprintf_s
+		||  #vscanf
+		||  #vscanf_s
+		||  #vsnprintf
+		||  #vsnprintf_s
+		||  #vsprintf
+		||  #vsprintf_s
+		||  #vsscanf
+		||  #vsscanf_s
+		||  #vswprintf
+		||  #vswprintf_s
+		||  #vswscanf
+		||  #vswscanf_s
+		||  #vwprintf_s
+		||  #vwscanf
+		||  #vwscanf_s)
+		{	goto check;
+		}
+		Next;
+	}
+	if (p == "w")
+	{	if (#wcrtomb
+		||  #wcschr
+		||  #wcsftime
+		||  #wcspbrk
+		||  #wcsrchr
+		||  #wcsrtombs
+		||  #wcsrtombs_s
+		||  #wcsstr
+		||  #wcstod
+		||  #wcstof
+		||  #wcstoimax
+		||  #wcstok
+		||  #wcstok_s
+		||  #wcstol
+		||  #wcstold
+		||  #wcstoll
+		||  #wcstombs
+		||  #wcstombs_s
+		||  #wcstoul
+		||  #wcstoull
+		||  #wcstoumax
+		||  #wcsxfrm
+		||  #wctob
+		||  #wctomb
+		||  #wctomb_s
+		||  #wctrans
+		||  #wctype
+		||  #wmemchr
+		||  #wprintf+s
+		||  #wscanf
+		||  #wscanf_s)
+		{	goto check;
+		}
+		Next;
+	}
+	Next;
+ check:
+	if (.round > 0)
+	{	Next;	# in condition or argliist
+	}
+	p = .prv;
+	if (match(.txt, "/[<>=]"))
+	{	Next;	# likely checked
+	}
+	add_pattern(ERR33_C, p, .);
+ %}
+	ps caption ERR33_C Detect and handle standard library errors
+end
+
+def EXP34_C
+	# compage with also: main/reverse_null.def
+	# and misra/misra1997.def m97_R107, which is:
+	# pe m97_R107: @ident ( .* * x:@ident .* ) { ^:x* ^[/= /> /<] :x ^[/= /> /<] .* }
+	r
+	pe EXP34_Ca: { .* x:@ident = /malloc ( .* ) ^:x* [memcpy memset free] ( .* :x .* ) .* }
+	pe EXP34_Cb: { .* x:@ident = @ident ( .* ) ^:x* :x -> .* }
+	# failing to check non-nullness of ptr parameter:
+	pe EXP34_C2: @ident ( .* * x:@ident .* ) { ^:x* ^[/= /> /<] :x ^[/= /> /<] .* }
+	ps EXP34_C1 = EXP34_Ca + EXP34_b
+	ps delete EXP34_Ca
+	ps delete EXP34_Cb
+	ps caption EXP34_C2 Missing check for non-nullness of pointer parameter
+	ps caption EXP34_C1 Do not dereference null pointers
+end
+
+def FIO30_C
+	# Exclude user input from format strings
+	r
+	pe FIO30_Ca: @type @ident ( .* @type * x:@ident .* ) { .* snprintf ( y:@ident , .* :x .* ) .* [fprintf syslog] ( . , :y ) .* }
+	pe FIO30_Cb: @type @ident ( .* x:@ident .* ) { .*  printf ( :x .* ) .* }
+	ps FIO30_C = FIO30_Ca + FIO30C_b
+	ps delete FIO30_Ca
+	ps delete FIO30_Cb
+	ps caption FIO30_C Exclude user input from format strings
+end
+
+def MEM30_C
+	r
+	pe MEM30_Ca: for ( ^\;* \; ^\;* \; x:@ident = :x -> @ident } { .* free ( :x ) .* }
+	pe MEM30_Cb: { .* free ( x:@ident ) ^:x* @ident ( .* :x .* ) .* }
+	pe MEM30_Cc: { .* y:@ident = realloc ( x:@ident .* ) ^[:x :y]* free ( :x ) .* }
+	ps MEM30_Cab = MEM30_Ca + MEM30_Cb
+	ps MEM30_C = MEM30_Cab + MEM30_Cc
+	ps delete MEM30_Ca
+	ps delete MEM30_Cb
+	ps delete MEM30_Cab
+	ps delete MEM30_Cc
+	ps caption MEM30_C Do not access freed memory
+end
+
+def MEM34_C
+	r
+	pe MEM34_Ca: { .* x:@ident = @str ^:x* free ( :x ) .* }
+	pe MEM34_Cb: { .* @type x:@ident [ .* ] .* realloc ( :x .* ) .* }
+	ps MEM34_C = MEM34_Ca + MEM34_Cb
+	ps delete MEM34_Ca
+	ps delete MEM34_Cb
+	ps caption MEM34_C Only free memory allocated dynamically
+end
+
+def MSC32_C
+	r
+	pe MSC32_Ca: { ^srandom* random ( ) .* }
+	pe MSC32_Cb: { <1> ^srandom* ( ^srandom* random ( ) .* ) .* } @1 (.curly == 1)
+	# the second version is needed because the implicit matching of
+	# brace pairs interferes with the .* match sequences
+	ps MSC32_C = MSC32_Ca + MSC32_Cb
+	ps delete MSC32_Ca
+	ps delete MSC32_Cb
+	ps caption MSC32_C Properly seed pseudorandom number generators
+end
+
+def POS35_C
+	# time of check vs time of use issues
+	r
+	pe POS35_Ca: { .* lstat ( x:@ident , & y:@ident ) .* if ( .* :y .* ) { .* open ( :x , . ) ^fstat* } .* }
+	pe POS35_Cb: { .* ( lstat ( x:@ident , & y:@ident ) .* ) .* if ( .* :y .* ) { .* open ( :x , . ) ^fstat* } .* }
+	ps caption POS35_C Avoid race conditions while checking for the existence of a symbolic link
+end
+
+def POS37_C
+	# must test that setuid ( 0 ) fails after dropping priviliges
+	# can downselect matches by looking for the exact sequences of tests
+	# i.e., that the last test has arg 0, which is tested for fail
+	r
+	pe POS37_C: { .* [seteuid setuid] ( 0 ) .* [seteuid setuid] ( [geteuid getuid] ( ) ) ^[setuid seteuid]* }
+	ps caption POS37_C Ensure that privilege relinquishment is successful
+end
+
+def POS39_C
+	# use ntohl etc to convert network read integers to host byte ordering
+	# can be made more precise by checking arg of the ntohl call
+	r
+	pe POS39_C: { .* recv ( @ident , ^,* & x:@ident , .* ) ^[ntohl ntohs ntons htons htonl]* :x .* }
+	ps caption POS39_C Use the correct byte ordering when transferring data between systems
+end
+
+def POS54_C
+	r
+ %{
+	if (!@ident)
+	{	Next;
+	}
+	if (#fmemopen
+	||  #open_memstream
+	||  #posix_memalign)
+	{	goto checkit;
+	}
+	Next;
+ checkit:
+	if (.round > 0)
+	{	Next;	# in condition or arglist
+	}
+	p = .prv;
+	if (match(.txt, "/[<>=]"))
+	{	Next;
+	}
+	add_pattern(POS54_C, p, .);
+ %}
+	ps caption POS54_C Detect and handle POSIX library errors
+end
+
+def SIG30_C
+	r
+	# first find fcts called in signal handlers
+	# then check the bodies of those fcts
+	m signal (
+	n	# (
+	n	# eg SIGINT
+	n	# ,
+	n	# fct-name
+	%{
+		unset Table;
+		Stop;
+	%}
+	%{
+		if (.mark == 0)
+		{	Next;
+		}
+		.mark = 0;
+		Table[.txt]++;
+	%}
+	fcts
+	%{
+		if (.mark == 0)
+		{	Next;
+		}
+		p = Table[.txt];
+		if (p == 0)
+		{	Next;
+		}
+		q = .;
+		while (q.seq > 0 && q.txt != "{")	# start of fct body
+		{	q = q.nxt;
+		}
+		e = q.jmp;
+		if (e.seq == 0)
+		{	Next;
+		}
+		while (q.seq < e.seq)
+		{	if (q.txt == "fputs"
+			||  q.txt == "free"
+			||  q.txt == "longjmp"
+			||  q.txt == "raise")
+			{	q = q.nxt;
+				if (q.txt == "(")
+				{	q = q.prv;
+					add_pattern(SIG30_C, ., q);
+			}	}
+			q = q.nxt;
+		}
+	%}
+	ps caption SIG30_C Call only asynchronous-safe functions within signal handlers
+end
+
+def STR31_C
+	# examples of dangerous copies
+	pe STR31_Ca: { .* char x:@ident [ . ] .* gets ( x:@ident ) .* }
+	pe STR31_Cb: { while ( ( x:@ident = getchar ( ) ) != @chr && :x != EOF) { * @ident ++ = ( .* ) :x \; .* } .* }
+	pe STR31_Cc: { .* char x:@ident [ . ] .* fscanf ( . , /%s , :x ) .* }
+	pe STR31_Cd: { .* char x:@ident [ . ] .* y:@ident = getenv ( @str ) ^:y* [strcpy memcpy] ( :x , :y .* ) .* }
+	pe STR31_Ce: { .* char x:@ident [ . ] .* sprintf ( :x , /%s , .* ) .* }
+	ps STR31_Cab = STR31_Ca + STR31_Cb
+	ps STR31_Ccd = STR31_Cc + STR31_Cd
+	ps STR31_Cabcd = STR31_Cab + STR31_Ccd
+	ps STR31_C = STR31_Cabcd + STR31_Ce
+	ps delete STR31_Ca
+	ps delete STR31_Cb
+	ps delete STR31_Cc
+	ps delete STR31_Cd
+	ps delete STR31_Ce
+	ps delete STR31_Cab
+	ps delete STR31_Ccd
+	ps delete STR31_Cabcd
+	ps caption STR31_C Guarantee that storage for strings has sufficient space for char data and the null terminator
+end

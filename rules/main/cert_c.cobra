@@ -1,0 +1,64 @@
+# checks for the CERT C coding standard
+# top priority levels P27, P18, and P12
+
+requires 4.5
+
+quiet on
+. cert_c/Cert_P27_L1.def
+. cert_c/Cert_P18_L1.def
+. cert_c/Cert_P12_L1.def
+
+# P27
+MSC33_C
+STR38_C
+
+# P18
+ARR38_C
+ERR33_C
+EXP34_C
+FIO30_C
+MEM30_C
+MEM34_C
+MSC32_C
+POS35_C
+POS37_C
+POS39_C
+POS54_C
+SIG30_C
+STR31_C
+
+# P12
+ENV32_C
+ENV33_C
+EXP33_C
+FIO34_C
+FIO37_C
+MSC41_C
+POS30_C
+POS36_C
+POS47_C
+STR32_C
+
+ps list
+
+!rm -f _Cert_C_.txt
+track start _Cert_C_.txt
+	terse on
+	dp *
+	terse off
+track stop
+
+# report
+!if [ -s _Cert_C_.txt ] ; then echo "detailed results are in file _Cert_C_.txt"; fi
+# cleanup
+!if [ -s _Cert_C_.txt ] ; then true; else rm -f _Cert_C_.txt; fi
+
+quiet off
+
+## Cobra 4.5 sources (1.3s):
+## $ cobra -f cert_c *.[ch]
+##   1: ERR33_C, 139 patterns :: Detect and handle standard library errors
+##   2: EXP34_C2, 211 patterns :: Missing check for non-nullness of pointer parameter
+##   3: ENV32_C, 1 patterns :: Exit handlers must return normally
+##   4: ENV33_C, 12 patterns :: Do not call system()
+## detailed results are in file _Cert_C_.txt

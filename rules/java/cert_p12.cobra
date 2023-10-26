@@ -1,6 +1,4 @@
-# Java checks for the CERT java coding standard
-# the P12 rules are not all defined yet (work in progress 8/2023)
-# P18 and P27 are more complete
+# Java checks for the CERT java coding standard, P12 L1
 
 requires 4.5
 

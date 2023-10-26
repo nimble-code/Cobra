@@ -39,6 +39,7 @@ extern void	clear_seen(void);
 extern void	comments_or_source(int);
 extern int	is_comments_or_source(void);
 extern int	has_stop(void);
+extern int	setexists(const char *);
 
 static FILE	*prog_fd;
 static const char *C_MAIN  = "main";
@@ -1845,6 +1846,13 @@ pre_scan(char *bc)	// non-generic commands
 			} else if (strncmp(a, "rename", 6) == 0)	// ps renamed name1 name2
 			{	patterns_rename(nextarg(a));
 				return 1;
+			} else if (strncmp(a, "exists", 6) == 0)
+			{	char *s = nextarg(a);
+				if (!setexists(s))
+				{	fprintf(stderr, "Stop: set '%s' does not exist or is empty\n", s);
+					return 0;
+				}
+				return 1;
 			} else if (*a != '\0')	// eg ps C = A & B
 			{	b = a;
 				while (!isspace((uchar) *b))
@@ -1863,7 +1871,7 @@ pre_scan(char *bc)	// non-generic commands
 				}
 				return 1;
 			}
-			printf("usage: ps [create delete list [name]]\n");
+			printf("usage: ps [create delete list exists [name]]\n");
 			break;
 		}
 		break;

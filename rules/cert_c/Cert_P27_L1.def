@@ -1,0 +1,18 @@
+## Priority P27 / Level 1 rules CERT C Coding Standard
+
+def MSC33_C
+	r
+	# paraphrasing, similar to the Parasoft and Polyspace checks
+	pe MSC33_C: [asctime asctime_r] ( .* )
+	ps caption MSC33_C Do not use asctime(), use strftime instead
+end
+
+def STR38_C
+	r
+	pe STR38_Ca: { .* wchar_t ^\;* x:@ident .* [strncpy strcpy strlen]  ( .* :x .* ) .* }
+	pe STR38_Cb: { .* char ^\;* x:@ident .* [wcsncpy wcslen] ( .* :x .* ) .* }
+	ps STR38_C = STR38_Ca + STR38_Cb
+	ps delete STR38_Ca
+	ps delete STR38_Cb
+	ps caption STR38_C Do not confuse narrow and wide character strings and functions
+end

@@ -2300,7 +2300,7 @@ pattern_matched(Named *curset, int which, int N, int M)
 						fprintf(stderr, "internal error: pattern_matched\n");
 					}
 					if (!q->bdef
-					|| !q->ref)
+					||  !q->ref)
 					{	continue;
 					}
 					if (!heading)
@@ -3260,8 +3260,10 @@ clone_set(Named *x, int ix)
 		if (y->bind)
 		{	n = 0;
 			for (b = y->bind; b && n < 4; b = b->nxt)
-			{	r->mbnd[n++] = b->bdef;	// where binding was set
-				r->mbnd[n++] = b->ref;	// where match was found
+			{	if (b->bdef && b->ref)
+				{	r->mbnd[n++] = b->bdef;	// where binding was set
+					r->mbnd[n++] = b->ref;	// where match was found
+				}
 				if (b == b->nxt)	// internal error
 				{	b->nxt = 0;
 					fprintf(stderr, "internal error: clone_set\n");
@@ -3473,14 +3475,22 @@ cobra_te(char *te, int and, int inv)	// fct is too long...
 
 	p = te;
 	for (p = te; *p != '\0'; p++)
-	{	if (*p == ':'
-		&&   p > te+1
-		&& *(p+1) != '@'
-		&& *(p+1) != ' ' 
-		&& *(p-1) != ' '
-		&& *(p-1) != '^'
-		&& *(p-1) != '[')
+	{	if (*p != ':'
+		||   p <= te+1)
+		{	continue;
+		}
+		if (*(p+1) != '@'
+		&&  *(p+1) != ' ' 
+		&&  *(p-1) != ' '
+		&&  *(p-1) != '^'
+		&&  *(p-1) != '[')
 		{	fprintf(stderr, "warning: is a space missing before : in '%c:%c'?\n",
+				*(p-1), *(p+1));
+		}
+		if (*(p+2) == ','
+		&&  *(p-1) == ' '
+		&&  isalpha((int)*(p+1)))
+		{	fprintf(stderr, "warning: is a space missing before , in '%c:%c,'?\n",
 				*(p-1), *(p+1));
 	}	}
 	anychange = 0;

@@ -1,0 +1,299 @@
+## find cases where a fct passes a pointer to a stack variable to
+## another function on returning, or to a fct which may store it in
+## persistent memory (global or static)
+
+# !echo Step0
+# 0: include also the simpler case of returning the address of a local variable
+#    see: misra/misra1997.def m97_rule106
+
+ps delete ReturnsLocal
+pe R1: { .* @type [*]* x:@ident .* return & :x .* }
+pe R2: { .* @type x:@ident [ .* ] .* return :x .* }
+ps ReturnsLocal = R1 + R2
+ps caption ReturnsLocal Do not return the address of a local variable
+ps delete R1
+ps delete R2
+%{	# for direct reporting, matching the other checks below
+	p = pset("ReturnsLocal");
+	while (p.seq != 0)
+	{	a = p.p_start;
+		b = p.p_end;
+
+		v = p.p_bdef;
+		w = p.p_bref;
+		if (w.seq != 0)
+		{	print w.fnm ":" w.lnr ": returning address of local '";
+			print w.txt "' declared at " v.fnm ":" v.lnr;
+			print " in fct '" a.txt "()'\n";
+		}
+		p = p.nxt;
+	}
+	Stop;
+%}
+
+# !echo Step1
+# 1: check if there are any fcts that stores a ptr parameter
+#    into another variable - if none, we are done
+
+ps delete Fct_Stores_Param
+ps delete Passing_Local_Address
+
+pe Fct_Stores_Param: @ident ( .* * x:@ident .* ) { .* @ident = :x \; .* }
+ps exists Fct_Stores_Param
+# ps list
+
+# !echo Step2
+# 2: check if the lhs of the assignments are to persistent
+#    memory (i.e., a static local or a global variable)
+
+%{
+	p = pset("Fct_Stores_Param");
+	while (p.seq != 0)
+	{	a = p.p_start;
+		b = p.p_end;
+
+		v = p.p_bdef;
+		w = p.p_bref;
+
+		lhs = w.prv;	# = :x
+		lhs = lhs.prv;	# @ident = :x
+
+		llhs = lhs.prv;	# is there a . or -> prefix?
+		while (llhs.txt == "." || llhs.txt == "->")
+		{	lhs = llhs.prv;
+			llhs = lhs.prv;
+		}
+		if (lhs.txt == "]" && lhs.jmp != 0)
+		{	lhs = lhs.jmp;
+			lhs = lhs.prv;
+			llhs = lhs.prv;
+		}
+
+		cnt = 0;
+		# find the declaration of the lhs
+		saw_static = 0;
+		saw_struct = 0;
+		saw_type   = 0;
+
+		while (a != b)
+		{
+			if (a.txt == ";" || a.txt == "{")
+			{	saw_static = 0;
+				saw_struct = 0;
+				saw_type   = 0;
+			} else
+			{	if (a.txt == "static")
+				{	saw_static = 1;
+				} else
+				{	if (a.txt == "struct")
+					{	saw_struct = 1;
+					} else
+					{	if (a.type == "type")
+						{	saw_type = 1;
+			}	}	}	}
+
+			if (a == w)
+			{
+				a = b;	# no decl seen, so it is likely global
+				break;	# point of reference on rhs of assignment
+			}
+
+			if (a.txt == lhs.txt)
+			{	# use of the target var
+				pa = a.prv;
+				while (pa.txt == "*")
+				{	pa = pa.prv;
+				}
+				if (pa.txt == "}" && pa.jmp != 0)
+				{	pa = pa.jmp;
+					pa = pa.prv;
+				}
+				pb = pa.prv;
+				#   pb        pa         a
+				# static     type    * @ident
+				# static typedefname * @ident
+				if (pb.txt == "static"
+				&& (pa.type == "type" || pa.type == "ident"))
+				{	a = b;	# persistent
+					break;
+				}
+				pc = pb.prv;
+
+				#   pc     pb       pa         a
+				# static struct structname * @ident
+
+				if (pc.txt == "static"
+				&&  pb.txt == "struct"
+				&&  pa.type == "ident")
+				{	a = b;	# persistent, dont delete
+					break;
+				}
+				if (pa.type == "type"
+				||  pa.type == "modifier"
+				||  pb.txt == "struct"
+				||  saw_struct == 1	# new
+				||  saw_type   == 1	# new
+				||  pb.txt == "{"
+				||  pb.txt == ";")	# ; typedefname * @ident = :x
+				{	if (saw_static == 0)
+					{	break;	# local, safe
+				}	}
+			}
+			a = a.nxt;
+		}
+		if (a != b)
+		{	# the bound var is not persistent
+			ff = p.p_start;
+			tt = p.p_end;
+			del_pattern(Fct_Stores_Param, ff, tt);	# omit match
+		}
+		p = p.nxt;
+	}
+	Stop;
+%}
+
+# !echo Step3
+ps exists Fct_Stores_Param		# stop if Fct_Stores_Param has no remaining matches
+
+# 3: find functions that pass the address of a local variable to a function
+#    other than sscanf or memset
+
+# case1: base of an array
+pe C1: { .* @type x:@ident \[ .* \] .* @ident <1> ( .* :x .* ) \; .* } @1 (.txt != "memset")
+
+# case2: ptr to scalar
+pe C2: { .* @type x:@ident .* @ident <1> ( .* & :x .* ) \; .* } @1 (.txt != "sscanf" && .txt != "memset")
+
+# combine these two sets
+ps Passing_Local_Address = C1 + C2
+ps delete C1
+ps delete C2
+
+ps exists Passing_Local_Address
+# ps list
+# terse on
+# dp Passing_Local_Address
+# terse off
+
+# !echo Step4
+# 4: the token before the @type should not be 'extern'
+#    omit matches that refer to an extern variable
+
+%{
+	p = pset("Passing_Local_Address");
+	while (p.seq != 0)
+	{	v = p.p_bdef;	# x:@ident --def of bound variable
+		v = v.prv;	# @type x:@ident
+		v = v.prv;	# . @type x:@ident
+		if (v.txt == "extern")
+		{	ff = p.p_start;
+			tt = p.p_end;
+			del_pattern(Passing_Local_Address, ff, tt);	# omit match
+		}
+		p = p.nxt;
+	}
+	Stop;
+%}
+
+# ps list
+
+# !echo Step5
+ps exists Passing_Local_Address		# stop if Passing_Local_Address has no remaining matches
+
+# 5: collect the names of the functions called with a ptr to a local
+
+%{
+	unset Fcts;
+	unset Pars;
+	function store_fct(t, u)
+	{	global Fcts[];
+		global Pars[];
+		ot = t;
+		cnt = 1;
+		rnd = t.round;
+ 		s = t.nxt;
+ 		z = t.prv;	# &
+ 		z = z.prv;
+ 		if (z.type == "ident")	# means that & is binary, not unary
+ 		{	return;
+ 		}
+ 		if (s.txt == ")" && z.txt == "(" && rnd > 1) # likely cast (p *) (&x)
+ 		{	rnd--; # fct params
+ 		}
+		# find start of param list, and the fct name before it
+		while (t.round >= rnd && t.seq > u.seq)
+		{	if (t.txt == ","
+			&&  t.round == rnd)
+			{	cnt++;	# parameter nr
+			}
+			t = t.prv;
+		}
+		fn = t.prv;
+		if (t.txt == "(" && fn.type == "ident")
+		{	Fcts[fn.txt] = fn;	# place of call
+			Pars[fn.txt] = cnt;	# parameter nr
+			# if multiple calls to the same fct are found
+			# only the last one is kept
+		}
+	}
+
+	p = pset("Passing_Local_Address");
+	while (p.seq != 0)
+	{	a = p.p_start;	# start of match
+		b = p.p_end;	# end of match
+
+		v = p.p_bdef;	# bound var def
+		w = p.p_bref;	# bound var ref
+
+		while (a != b)
+		{	if (a == w)	# bound var ref
+			{	store_fct(a, p.p_start);
+			}
+			a = a.nxt;
+		}
+		p = p.nxt;
+	}
+	Stop;
+%}
+
+# ps list
+
+# 6: check if any of the fcts in Fct_Stores_Param 
+#    match a fct called in Passing_Local_Address
+# !echo Step6
+%{
+	p = pset("Fct_Stores_Param");
+	while (p.seq != 0)
+	{	a = p.p_start;	# fct name
+		b = p.p_end;	# end of fct
+
+		n = Pars[a.txt];
+		if (n > 0)
+		{	v = p.p_bdef;
+			w = p.p_bref;
+			t = v;
+			cnt = 1;
+			while (t.round >= v.round && t.seq > a.seq)
+			{	if (t.txt == ","
+				&&  t.round == v.round)
+				{	cnt++;
+				}
+				t = t.prv;
+			}
+			if (cnt == n)
+			{	zz = Fcts[a.txt];
+				print a.fnm ":" a.lnr " ptr param '" v.txt;
+				print "' may be assigned to persistent storage at line ";
+				print w.lnr " when called from " zz.fnm ":" zz.lnr "\n";
+			#	if (a.seq < zz.fnm)
+			#	{	add_pattern(BadCalls, a, zz);
+			#	} else
+			#	{	add_pattern(BadCalls, zz, a);
+			#	}
+		}	}
+		p = p.nxt;
+	}
+#	unset Fcts;
+#	unset Pars;
+	Stop;
+%}

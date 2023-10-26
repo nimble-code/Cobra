@@ -152,7 +152,7 @@ setexists(const char *s)
 
 	for (x = namedset; x; x = x->nxt)
 	{	if (strcmp(x->nm , s) == 0)
-		{	return 1;
+		{	return (x->m != NULL)?1:0;
 			break;
 	}	}
 
