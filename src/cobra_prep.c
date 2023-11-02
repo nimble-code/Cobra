@@ -1406,6 +1406,11 @@ do_configure(const char *s)
 	char *h;
 	char *f;
 
+	if (!s || strlen(s) == 0)
+	{	fprintf(stderr, "usage: cobra -configure dirname\n");
+		return 1;
+	}
+
 	f = (char *) emalloc(strlen(s) + strlen("/basic.cobra") + 1, 31);
 	sprintf(f, "%s/basic.cobra", s);
 
