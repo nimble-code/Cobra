@@ -8,9 +8,9 @@ though a lot of query and rule libraries have been
 developed, and are included in the distribution, that target
 C or C-like languages. The original version of the tool
 (version 1.0) was developed at NASA/JPL and cleared
-for public release in April 2016. The current version (3.0)
+for public release in April 2016. The current version (4.6)
 is a significantly extended version of the tool,
-released under the same license in June 2019.
+released under the same license.
 
 ## Installation
 
@@ -22,14 +22,15 @@ released under the same license in June 2019.
    which gives you a directory with a set of
    sub-directories like this:
 
-   drwxrwxr-x 2 gh gh 4096 May 16 12:59 bin_linux  # executables for linux  
-   drwxrwxr-x 2 gh gh 4096 May 16 12:59 bin_cygwin # executables for cygwin  
-   drwxrwxr-x 2 gh gh 4096 May 16 12:59 bin_mac    # executables for macs  
    drwxrwxr-x 2 gh gh 4096 May 16 10:03 doc     # change history, manpage, license  
    drwxrwxr-x 2 gh gh 4096 May 16 10:03 gui     # optional small tcl/tk script  
    drwxrwxr-x 8 gh gh 4096 May 16 15:55 rules   # cobra checker libraries  
    drwxrwxr-x 1 gh gh 4096 May 16 12:43 src     # cobra source files  
    drwxrwxr-x 1 gh gh 4096 May 16 12:43 src_app # standalone cobra checkers  
+
+* you can also download binaries from the last stable release of Cobra
+  from the Releases tab -- they are in three .zip files with precompiled
+  binaries of cobra and related tools for cygwin, linux, and mac.
 
 * to compile the tool (if you are not using precompiled executables in one
   of the ./bin_... directories)
