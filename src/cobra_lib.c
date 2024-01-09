@@ -1453,7 +1453,8 @@ load_map(char *s)
 	int h;
 
 	if ((fd = fopen(s, "r")) == NULL)
-	{	if (strlen(s) + strlen(C_BASE) + 2 < sizeof(a))
+	{	int formatted_file_name = strlen(s) + strlen(C_BASE) + 2;
+		if (formatted_file_name < sizeof(a))
 		{	snprintf(a, sizeof(a), "%s/%s", C_BASE, s);
 			fd = fopen(a, "r");
 		} else
