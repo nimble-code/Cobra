@@ -51,6 +51,8 @@ int view;
 
 unsigned long MaxMemory = 24000;	// set default max to 24 GB, override with -MaxMem N
 
+#define SET_TO_NEXT_ARG(v) if (argc > 2) {(v) = argv[2]; argc--; argv++; } else { fprintf(stderr, "error: Missing argument\n"); return usage(argv[1]); }
+
 ArgList		*cl_var;	// -var name=xxx, cobra_lib.c
 pthread_t	*t_id;
 
@@ -1443,6 +1445,7 @@ F:		fprintf(stderr, "cobra: configuration failed\n");
 int
 main(int argc, char *argv[])
 {	int i;
+	char* next_arg;
 
 	progname = (char *) emalloc(strlen(argv[0]) + 1, 112);
 	strcpy(progname, argv[0]);
@@ -1494,7 +1497,8 @@ main(int argc, char *argv[])
 				break;
 			  }
 			  if (strcmp(argv[1], "-configure") == 0)
-			  {	return do_configure(argv[2]);
+			  {	SET_TO_NEXT_ARG(next_arg);
+				return do_configure(next_arg);
 			  }
 			  if (strncmp(argv[1], "-cwe", 4) == 0
 			  &&  strstr(progname, "cwe") != NULL)
@@ -1502,9 +1506,8 @@ main(int argc, char *argv[])
 				goto cwe_mode;
 			  }
 			  // -c commands
-			  cobra_commands = argv[2];
+			  SET_TO_NEXT_ARG(cobra_commands);
 			  no_match = 1;
-			  argc--; argv++;
 			  break;
 
 		case 'd': if (verbose)
@@ -1531,15 +1534,14 @@ main(int argc, char *argv[])
 				break;
 			  }
 RegEx:			  no_match = 1;		// -e -expr -re or -regex
-			  cobra_texpr = check_negations(argv[2]);
-			  argc--; argv++;
+			  SET_TO_NEXT_ARG(next_arg);
+			  cobra_texpr = check_negations(next_arg);
 			  if (view)
 			  {	p_debug = 5;
 			  }
 			  break;
 
-		case 'f': cobra_target = argv[2];
-			  argc--; argv++;
+		case 'f': SET_TO_NEXT_ARG(cobra_target);
 			  no_match = 1;	// quiet mode
 			  if (view)
 			  {	if (verbose)
@@ -1549,8 +1551,7 @@ RegEx:			  no_match = 1;		// -e -expr -re or -regex
 			  }	}
 			  break;
 
-		case 'F': file_list = argv[2];	// file args read from file_list
-			  argc--; argv++;
+		case 'F': SET_TO_NEXT_ARG(file_list);	// file args read from file_list
 			  break;
 
 		case 'g': if (strcmp(argv[1], "-global") == 0)
@@ -1639,14 +1640,15 @@ RegEx:			  no_match = 1;		// -e -expr -re or -regex
 			  ||  strncmp(argv[1], "-pe", 3) == 0)	// pattern expression
 			  {	no_match = 1;
 				if (argc > 2)
-				{	cobra_texpr = pattern(argv[2]);
-					argc--; argv++;
+				{	SET_TO_NEXT_ARG(next_arg)
+					cobra_texpr = pattern(next_arg);
 					if (view)
 					{	p_debug = 5;
 						(void) set_base();
 					}
 					break;
-			  }	}
+			  	}
+			  }
 			  return usage(argv[1]);
 
 		case 'P': if (strcmp(argv[1], "-Python") == 0)
@@ -1669,11 +1671,12 @@ RegEx:			  no_match = 1;		// -e -expr -re or -regex
 			  ||  strcmp(argv[1], "-re") == 0)
 			  {	goto RegEx;
 			  }
-			  if (strcmp(argv[1], "-recursive") == 0
-			  &&  argv[2][0] != '-')
-			  {	recursive = argv[2]; // populate file_list
-				argc--; argv++;
-				break;
+			  if (strcmp(argv[1], "-recursive") == 0) {
+			  	SET_TO_NEXT_ARG(next_arg);
+				if (next_arg[0] != '-')
+			  	{	recursive = next_arg; // populate file_list
+					break;
+			  	}
 			  }
 			  return usage(argv[1]);
 
