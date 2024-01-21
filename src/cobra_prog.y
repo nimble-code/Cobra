@@ -143,7 +143,7 @@ extern int	stream_override;
 %token	BREAK CONTINUE STOP NEXT_T BEGIN END SIZE RETRIEVE FUNCTION CALL
 %token	ROUND BRACKET CURLY LEN MARK SEQ LNR RANGE FNM FCT ITOSTR
 %token	BOUND MBND_D MBND_R NXT PRV JMP UNSET RETURN RE_MATCH FIRST_T LAST_T
-%token	TXT TYP NEWTOK SUBSTR SPLIT STRLEN SET_RANGES CPU N_CORE SUM
+%token	TXT TYP NEWTOK SUBSTR SPLIT STRLEN STRCHR STRRCHR SET_RANGES CPU N_CORE SUM
 %token	A_UNIFY LOCK UNLOCK ASSERT TERSE TRUE FALSE VERBOSE
 %token	FCTS MARKS SAVE RESTORE RESET SRC_LN HASH HASHARRAY
 %token  ADD_PATTERN DEL_PATTERN IS_PATTERN CP_PSET
@@ -339,7 +339,10 @@ expr	:'(' expr ')'		{ $$ = $2; }
 				  $1->rgt = new_lex(0, $5, $7);
 				  $$ = $1;
 				}
-	| SPLIT '(' expr ',' NAME ')' { $1->lft = $3; $1->rgt = $5; $$ = $1; }
+	| SPLIT '(' expr ',' NAME ')'            { $1->lft = $3; $1->rgt = $5; $1->s = ",";   $$ = $1; }
+	| SPLIT '(' expr ',' STRING ',' NAME ')' { $1->lft = $3; $1->rgt = $7; $1->s = $5->s; $$ = $1; }
+	| STRCHR '(' expr ',' STRING ')'	 { $1->lft = $3; $1->rgt =  0; $1->s = $5->s; $$ = $1;  }
+	| STRRCHR '(' expr ',' STRING ')'	 { $1->lft = $3; $1->rgt =  0; $1->s = $5->s; $$ = $1;  }
 	| LLENGTH '(' NAME ')'	{ $1->lft = $3; $$ = $1;}
 	| TOP '(' NAME ')'	{ $1->lft = $3; $$ = $1; }
 	| BOT '(' NAME ')'	{ $1->lft = $3; $$ = $1; }
@@ -484,6 +487,8 @@ static struct Keywords {
 	{ "split",	SPLIT },
 	{ "src_ln",	SRC_LN },
 	{ "Stop",	STOP },
+	{ "strchr",	STRCHR },
+	{ "strrchr",	STRRCHR },
 	{ "strlen",	STRLEN },
 	{ "substr",	SUBSTR },
 	{ "sum",	SUM },
@@ -1615,7 +1620,7 @@ get_var(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)
 	return n;
 }
 
-extern int do_split(char *, const char *, Rtype *, const int);	// cobra_array.c
+extern int do_split(char *, const char *, const char *, Rtype *, const int);	// cobra_array.c
 
 static void
 split(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)
@@ -1624,6 +1629,13 @@ split(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)
 	//  create if it doesn't exist, unset if it exists
 	// returns nr of fields
 	Rtype a, b, c;
+	// q->s == string to split on, defaults to ","
+
+	if (strlen(q->s) != 1)
+	{	fprintf(stderr, "error: split argument '%s' is not a single character\n", q->s);
+		rv->rtyp = STP;
+		return;
+	}
 
 	assert(q->lft && q->rgt);
 	eval_prog(ref_p, q->lft, &a, ix);
@@ -1640,8 +1652,55 @@ split(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)
 		return;
 	}
 
-	rv->val = do_split(a.s, q->rgt->s, &c, ix);	// cobra_array.c
-	rv->rtyp = VAL;					// the nr of fields
+	rv->val = do_split(a.s, q->rgt->s, q->s, &c, ix);	// cobra_array.c
+	rv->rtyp = VAL;						// nr of fields
+}
+
+static void
+do_common(Prim **ref_p, Lextok *q, Rtype *rv, int which, const int ix)
+{	Rtype a;
+	char *ptr;
+	// q->s == string to find
+
+	if (q->s == 0 || strlen(q->s) != 1)
+	{	fprintf(stderr, "error: %s argument '%s' is not a single character\n",
+			(which == STRCHR)?"strchr":"strrchr", q->s);
+		rv->rtyp = STP;
+		return;
+	}
+
+	assert(q->lft && !q->rgt);
+	eval_prog(ref_p, q->lft, &a, ix);
+
+	if (a.rtyp != STR)
+	{	fprintf(stderr, "error: 1st arg of split is not a string\n");
+		rv->rtyp = STP;
+		return;
+	}
+	if (which == STRCHR)
+	{	ptr = strchr(a.s, (int) *(q->s));
+	} else
+	{	ptr = strrchr(a.s, (int) *(q->s));
+	}
+
+	if (!ptr)
+	{	rv->val = 0;
+	} else
+	{	rv->val = 1 + (int) (ptr - a.s);
+	}
+	rv->rtyp = VAL;		// index of first or last match
+}
+
+static void
+do_strchr(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)	// index of q->s in q->lft
+{
+	do_common(ref_p, q, rv, STRCHR, ix);
+}
+
+static void
+do_strrchr(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)
+{
+	do_common(ref_p, q, rv, STRRCHR, ix);
 }
 
 static void
@@ -1780,6 +1839,14 @@ print_args(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)
 	case SPLIT:
 		split(ref_p, q, rv, ix);
 		fprintf(tfd, "%s", rv->s);	// tab separated fields
+		return;
+	case STRCHR:
+		do_strchr(ref_p, q, rv, ix);
+		fprintf(tfd, "%d", rv->val);
+		return;
+	case STRRCHR:
+		do_strrchr(ref_p, q, rv, ix);
+		fprintf(tfd, "%d", rv->val);
 		return;
 	case STRLEN:
 		eval_prog(ref_p, q->lft, rv, ix);
@@ -1941,6 +2008,7 @@ struct R_S {
 R_S *r_str[MAXSTR];
 R_S *r_free;
 
+#ifdef RECYCLE_STR
 static void
 recycle_str(char *s, const int ix)
 {	int n = strlen(s)+1;
@@ -1958,6 +2026,7 @@ recycle_str(char *s, const int ix)
 		r_str[n] = r;
 	}
 }
+#endif
 
 static void
 plus(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)	// strings or values
@@ -2010,12 +2079,16 @@ plus(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)	// strings or values
 		{	s = (char *) hmalloc(n, ix, 134);	// plus
 		}
 		snprintf(s, n, "%s%s", tmp.s, rv->s);		// plus
+#ifdef RECYCLE_STR
+		// noticed that some of these strings pointed to
+		// are not always constant
 		if (strlen(rv->s) >= MINSTR)
 		{	recycle_str(rv->s, ix);
 		}
 		if (strlen(tmp.s) >= MINSTR)
 		{	recycle_str(tmp.s, ix);
 		}
+#endif
 		rv->s = s;
 	} else
 	{	fprintf(stderr, "line %d: error: invalid addition attempt\n", q->lnr);
@@ -2167,7 +2240,6 @@ static void
 do_incr_decr(Prim **ref_p, Lextok *q, Rtype *rv, const int ix, Prim *p)
 {	Rtype tmp;
 	memset(&tmp, 0, sizeof(Rtype));
-
 	assert(ix >= 0 && ix < Ncore);
 	// LHS must store a value, like .mark or q.mark
 	if (LHS->typ == '[')
@@ -2183,6 +2255,7 @@ do_incr_decr(Prim **ref_p, Lextok *q, Rtype *rv, const int ix, Prim *p)
 			show_error(stderr, q->lnr);
 			return;
 		}
+
 		if (!incr_aname_el(ref_p, LHS->lft, &tmp, q->typ, rv, ix))	// do_incr LHS->lft->s: array name
 		{	fprintf(stderr, "error: unexpected array type: expected value\n");
 			show_error(stderr, q->lnr);
@@ -3315,6 +3388,14 @@ next:
 
 	case SPLIT:
 		split(ref_p, q, rv, ix);
+		break;
+
+	case STRCHR:
+		do_strchr(ref_p, q, rv, ix);
+		break;
+
+	case STRRCHR:
+		do_strrchr(ref_p, q, rv, ix);
 		break;
 
 	case STRLEN:

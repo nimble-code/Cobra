@@ -928,6 +928,12 @@ prep_transitions(Nd_Stack *t, int src)
 again:	if (t->n)	// NNODE
 	{	s = t->n->tok;
 
+		if (!s)
+		{	fprintf(stderr, "cobra: bad expression\n");
+			memusage();
+			noreturn();
+		}
+
 		if (*s == '^')
 		{	s++;
 			if (*s == '.')
@@ -2151,6 +2157,7 @@ pattern_matched(Named *curset, int which, int N, int M)
 	FILE *fd = track_fd?track_fd:stdout;
 	char *t;
 	int notsamefile = 0;
+	int ttag = 0;
 
 	if (verbose)
 	{	fprintf(stderr, "genmatch>%s\n", curset?curset->nm:"??");
@@ -2284,7 +2291,8 @@ pattern_matched(Named *curset, int which, int N, int M)
 			if (m->bind)
 			{	Bound *q;
 				int heading = 0;
-	
+
+				ttag = 0;
 				if (m->bind->bdef
 				&&  m->bind->ref)
 				{	heading++;
@@ -2293,6 +2301,7 @@ pattern_matched(Named *curset, int which, int N, int M)
 						m->bind->bdef->txt, m->bind->bdef->lnr);
 					fprintf(fd, " :%s (ln %d)",
 						m->bind->ref->txt, m->bind->ref->lnr);
+					ttag = m->bind->ref->lnr;
 				}
 				for (q = m->bind->nxt; q; q = q->nxt)
 				{	if (q->nxt == q)	// internal error
@@ -2353,7 +2362,7 @@ pattern_matched(Named *curset, int which, int N, int M)
 					m->from->mark = omark; // cur can change
 				} else
 				{	if (strcmp(m->from->fnm, m->upto->fnm) == 0)
-					{	show_line(fd, m->from->fnm, 0, a, b, 0);
+					{	show_line(fd, m->from->fnm, 0, a, b, ttag);
 					} else
 					{	show_line(fd, m->from->fnm, 0, a-1, a+5, a);
 						fprintf(fd, " ...");
@@ -3526,7 +3535,9 @@ cobra_te(char *te, int and, int inv)	// fct is too long...
 	{	reinit_te();
 		nerrors = 0;
 	}
-	// printf("IN: '%s'\n", te);
+	if (verbose)
+	{	printf("IN: '%s'\n", te);
+	}
 	thompson(te);
 
 	if (!nd_stack || nerrors > 0)
@@ -3537,17 +3548,20 @@ cobra_te(char *te, int and, int inv)	// fct is too long...
 
 	if (nd_stack->nxt)	// error
 	{	Nd_Stack *q = nd_stack;
-		while (q)
-		{	printf("\tseq %d\n", q->seq);
-			printf("\tvis %d\n", q->visited);
-			printf("\tn   %s\n", q->n?q->n->tok:"--");
-			printf("\tlft %p\n", (void *) q->lft);
-			printf("\trgt %p\n", (void *) q->rgt);
-			printf("\tpnd %p\n", (void *) q->pend);
-			printf("---\n");
-			q = q->nxt;
-		}
-		assert(!nd_stack->nxt);
+		if (verbose)
+		{	while (q)
+			{	fprintf(stderr, "\tseq %d\n", q->seq);
+				fprintf(stderr, "\tvis %d\n", q->visited);
+				fprintf(stderr, "\tn   %s\n", q->n?q->n->tok:"--");
+				fprintf(stderr, "\tlft %p\n", (void *) q->lft);
+				fprintf(stderr, "\trgt %p\n", (void *) q->rgt);
+				fprintf(stderr, "\tpnd %p\n", (void *) q->pend);
+				fprintf(stderr, "---\n");
+				q = q->nxt;
+		}	}
+		fprintf(stderr, "cobra: error in expression\n");
+		noreturn();
+	//	assert(!nd_stack->nxt);
 	}
 
 	if (has_positions)

@@ -16,6 +16,11 @@
  #include <sys/times.h>
 #endif
 
+#define check_argc(n, s)	if (argc <= n) \
+				{ fprintf(stderr, "error: missing argument for '%s'\n", s); \
+				  return usage(argv[1]); \
+				}
+
 int ada;
 int across_file_match;
 int all_headers;
@@ -1308,6 +1313,28 @@ pattern(char *p)
 		}
 	}
 //	printf("inp: %s\nout: %s\n", q, m);
+
+//	do a final check to see if the number of \( and \)
+//	symbols are properly matched in a pattern expression
+//	1/21/24: note that for pe we added \\, for use as re
+//	so we must check for the matching of unescaped ( and )
+	q = m;
+	int cnt1 = 0, cnt2 = 0;
+	while (*q != '\0')
+	{	if ((*q == '(' || *q == ')')
+		&&  (q == m || *(q-1) != '\\'))
+		{	if (*q == '(')
+			{	cnt1++;
+			} else
+			{	cnt2++;
+		}	}
+		q++;
+	}
+	if (cnt1 != cnt2)
+	{	fprintf(stderr, "error: the number of \\( and \\) meta-symbols don't match\n");
+		return NULL;
+	}
+
 	return m;
 }
 
@@ -1494,7 +1521,8 @@ main(int argc, char *argv[])
 				break;
 			  }
 			  if (strcmp(argv[1], "-configure") == 0)
-			  {	return do_configure(argv[2]);
+			  {	check_argc(2, "-configure");
+				return do_configure(argv[2]);
 			  }
 			  if (strncmp(argv[1], "-cwe", 4) == 0
 			  &&  strstr(progname, "cwe") != NULL)
@@ -1502,6 +1530,7 @@ main(int argc, char *argv[])
 				goto cwe_mode;
 			  }
 			  // -c commands
+			  check_argc(2, "-c");
 			  cobra_commands = argv[2];
 			  no_match = 1;
 			  argc--; argv++;
@@ -1531,6 +1560,7 @@ main(int argc, char *argv[])
 				break;
 			  }
 RegEx:			  no_match = 1;		// -e -expr -re or -regex
+			  check_argc(2, "-e -re or -regex");
 			  cobra_texpr = check_negations(argv[2]);
 			  argc--; argv++;
 			  if (view)
@@ -1538,7 +1568,8 @@ RegEx:			  no_match = 1;		// -e -expr -re or -regex
 			  }
 			  break;
 
-		case 'f': cobra_target = argv[2];
+		case 'f': check_argc(2, "-f");
+			  cobra_target = argv[2];
 			  argc--; argv++;
 			  no_match = 1;	// quiet mode
 			  if (view)
@@ -1549,7 +1580,8 @@ RegEx:			  no_match = 1;		// -e -expr -re or -regex
 			  }	}
 			  break;
 
-		case 'F': file_list = argv[2];	// file args read from file_list
+		case 'F': check_argc(2, "-F");
+			  file_list = argv[2];	// file args read from file_list
 			  argc--; argv++;
 			  break;
 
@@ -1638,15 +1670,18 @@ RegEx:			  no_match = 1;		// -e -expr -re or -regex
 			  if (strncmp(argv[1], "-pat", 4) == 0
 			  ||  strncmp(argv[1], "-pe", 3) == 0)	// pattern expression
 			  {	no_match = 1;
-				if (argc > 2)
-				{	cobra_texpr = pattern(argv[2]);
-					argc--; argv++;
-					if (view)
-					{	p_debug = 5;
-						(void) set_base();
-					}
-					break;
-			  }	}
+				check_argc(2, "-p");
+			 	cobra_texpr = pattern(argv[2]);
+				if (!cobra_texpr)	// there was an error
+				{	return 1;
+				}
+				argc--; argv++;
+				if (view)
+				{	p_debug = 5;
+					(void) set_base();
+				}
+				break;
+			  }
 			  return usage(argv[1]);
 
 		case 'P': if (strcmp(argv[1], "-Python") == 0)
@@ -1669,12 +1704,13 @@ RegEx:			  no_match = 1;		// -e -expr -re or -regex
 			  ||  strcmp(argv[1], "-re") == 0)
 			  {	goto RegEx;
 			  }
-			  if (strcmp(argv[1], "-recursive") == 0
-			  &&  argv[2][0] != '-')
-			  {	recursive = argv[2]; // populate file_list
-				argc--; argv++;
-				break;
-			  }
+			  if (strcmp(argv[1], "-recursive") == 0)
+			  {	check_argc(2, "-recursive");
+			  	if (argv[2][0] != '-')
+			  	{	recursive = argv[2]; // populate file_list
+					argc--; argv++;
+					break;
+			  }	}
 			  return usage(argv[1]);
 
 		case 's': if (strcmp(argv[1], "-scrub") == 0)

@@ -768,7 +768,7 @@ prepopulate(int k, const int ix)
 }
 
 int
-do_split(char *str, const char *nm, Rtype *rv, const int ix)	// cobra_prog.y
+do_split(char *str, const char *nm, const char *sep, Rtype *rv, const int ix)	// cobra_prog.y
 {	Arr_var *v;
 	int nflds = 0;
 	char *to, *frm;
@@ -777,14 +777,15 @@ do_split(char *str, const char *nm, Rtype *rv, const int ix)	// cobra_prog.y
 	rm_aname(nm, 1, ix);		// target array; remove it if it exists
 	v = find_array(nm, ix, 1);	// create a fresh new instance
 
-	if (strlen(str) == 0)
+	if (strlen(str) == 0
+	||  strlen(sep) != 1)
 	{	return 0;
 	}
 
 	rv->rtyp = STR;
 	frm = to = str;
 	while (*to != '\0')
-	{	if (*to == ',')
+	{	if (*to == *sep)
 		{	*to = '\0';
 			sprintf(nr, "%d", nflds++);
 			rv->s = (char *) hmalloc(strlen(frm)+1, ix, 111);
