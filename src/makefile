@@ -59,6 +59,7 @@ install:
 	@echo "use one of: install_linux, install_cygwin, or install_mac"
 
 install_linux: linux c.ar man
+	mkdir -p ../bin_linux
 	cp -f cobra ../bin_linux
 	cp -f ../gui/window.tcl ../bin_linux
 	cp -f ../gui/icobra.tcl ../bin_linux/icobra
