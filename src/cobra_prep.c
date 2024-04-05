@@ -53,6 +53,7 @@ int runtimes;
 int scrub;
 int verbose;
 int view;
+int sysml2;
 
 unsigned long MaxMemory = 24000;	// set default max to 24 GB, override with -MaxMem N
 
@@ -843,6 +844,7 @@ usage(char *s)
 	fprintf(stderr, "\t-stream N           -- set stdin stream buffer-limit to N  (default %d)\n", stream_lim);
 	fprintf(stderr, "\t-stream_margin N    -- set stdin window margin to N tokens (default %d)\n", stream_margin);
 	fprintf(stderr, "\t-stream_override    -- override warning about a non-streamable script\n");
+	fprintf(stderr, "\t-Sysml2             -- recognize SysML v2 keywords\n");
 	fprintf(stderr, "\t-terse              -- disable output from d, l, and p commands, implies -quiet\n");
 	fprintf(stderr, "\t-text               -- no token types, just text-strings and symbols\n");
 	fprintf(stderr, "\t-tok                -- only tokenize the input\n");
@@ -1740,6 +1742,13 @@ RegEx:			  no_match = 1;		// -e -expr -re or -regex
 			  } else if (strcmp(argv[1], "-stream_override") == 0)
 			  {	stream_override++;
 				break;
+			  }
+			  return usage(argv[1]);
+
+		case 'S': 
+			  if (strcmp(argv[1], "-Sysml2") == 0)
+			  {	sysml2 = no_cpp = 1;
+			  	break;
 			  }
 			  return usage(argv[1]);
 

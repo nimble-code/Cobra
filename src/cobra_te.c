@@ -1225,11 +1225,19 @@ mk_trans(int src, int match, char *pat, int dest, int cond)	// called from main.
 			strncat(g, b,   n);
 			pat = g;
 		} else if (*(b+1) != '\0')	 // ignore x: and :
-		{	if (b == pat)		 // variable reference :x
-			{	pat = b+1;	 // not really needed
-				t->recall = pat; // match the current text to string under this name
-			} else
-			{	*b++ = '\0';	 // variable binding x:@ident
+		{
+            if (b == pat)		 // variable reference :x
+            {
+                if ( // check for complex operators
+//                    *(pat+1)==':' || *(pat+1)=='>'
+                        !isalpha(*(pat + 1)) && *(pat + 1) != '@' && *(pat + 1) != '_'
+                        ) {
+//            the : is the begin of an operator like ::> :> :, we treat it as normal char sequence
+                } else {
+                    pat = b + 1;     // not really needed
+                    t->recall = pat; // match the current text to string under this name
+                }
+			}  else {	*b++ = '\0';	 // variable binding x:@ident
 				t->saveas = pat; // on match, bind current text to "x"
 				pat = b;	 // the pattern to match (eg @ident)
 	}	}	}

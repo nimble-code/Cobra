@@ -118,7 +118,7 @@ static const struct {
 	{ "constant",	"key",	ada_t },
 	{ "declare",	"key",	ada_t },
 
-	{ "def",	"key",	python_t },
+	{ "def",	"key",	python_t | sysml2_t },
 	{ "del",	"key",	python_t },
 	{ "except",	"key",	python_t },
 	{ "exec",	"key",	python_t },
@@ -179,7 +179,7 @@ static const struct {
 	{ "new",	"key",	cpp_t | ada_t | java_t },
 	{ "not",	"key",	cpp_t | ada_t | python_t },
 	{ "or",		"key",	cpp_t | ada_t | python_t },
-	{ "package",	"key",  ada_t | java_t },
+	{ "package",	"key",  ada_t | java_t | sysml2_t},
 	{ "private",	"specifier",	cpp_t | ada_t | java_t },
 	{ "protected",	"specifier",	cpp_t | ada_t | java_t },
 	{ "public",	"specifier",  cpp_t | java_t },
@@ -196,13 +196,43 @@ static const struct {
 	{ "finally",	"key",  java_t | python_t },
 	{ "final",	"key",  java_t },
 	{ "implements",	"key",  java_t },
-	{ "import",	"key",  java_t | python_t },
+	{ "import",	"key",  java_t | python_t | sysml2_t},
 	{ "instanceof",	"key",  java_t },
 	{ "native",	"key",  java_t },
 	{ "strictfp",	"key",  java_t },
 	{ "super",	"key",  java_t },
 	{ "throws",	"key",  java_t },
 	{ "transient",	"key",  java_t },
+
+	// sysml2 element model elements
+	// todo: complete this, just used the common ones for now
+    { "part", "element", sysml2_t },
+	{ "action", "element", sysml2_t },
+	{ "port", "element", sysml2_t },
+	{ "flow", "element", sysml2_t },
+	{ "item", "element", sysml2_t },
+	{ "connector", "element", sysml2_t },
+	{ "accept", "element", sysml2_t },
+	{ "actor", "element", sysml2_t },
+	{ "metadata", "element", sysml2_t },
+	{ "attribute", "element", sysml2_t },
+	{ "package", "element", sysml2_t },
+	{ "interface", "element", sysml2_t },
+	{ "requrement", "element", sysml2_t },
+	{ "stakeholder", "element", sysml2_t },
+	{ "view", "element", sysml2_t },
+	{ "viewpoint", "element", sysml2_t},
+	{ "state", "element", sysml2_t },
+	{ "variant", "element", sysml2_t },
+	{ "variation", "element", sysml2_t },
+	{ "verification", "element", sysml2_t },
+	{ "doc", "element", sysml2_t },
+
+	
+
+    { "ref", "key", sysml2_t},
+	{ "redefines", "key", sysml2_t},
+
 	{ 0, 0, 0 }
 };
 
@@ -671,14 +701,15 @@ name(int c, int cid)
 	}
 	for (n = 0; c_name[n].str; n++)
 	{	if (strcmp(c_name[n].str, Px.lex_yytext) == 0)
-		{	if (cplusplus + java + python + ada == 0
+		{	if (cplusplus + java + python + ada + sysml2 == 0
 			&&  !(c_name[n].lang & c_t))
 			{	break;
 			}
 			if ((!(c_name[n].lang & (c_t | cpp_t)) && cplusplus)
 			||  (!(c_name[n].lang & java_t)   && java)
 			||  (!(c_name[n].lang & python_t) && python)
-			||  (!(c_name[n].lang & ada_t)    && ada))
+			||  (!(c_name[n].lang & ada_t)    && ada)
+			||  (!(c_name[n].lang & sysml2_t)  && sysml2))
 			{	break;
 			}
 			show2(c_name[n].typ, Px.lex_yytext, cid);
@@ -819,7 +850,20 @@ operator(int c, int cid)
 		break;
 
 	case ':':
-		dst = ifnext(':', "::", ":", cid);
+        n = nextchar(cid);
+        switch (n) {
+            case ':':
+                dst = ifnext('>', "::>", "::", cid);
+                break;
+            case '>':
+                dst = ifnext('>', ":>>", ":>", cid);
+                break;
+            default:
+                pushback(n, cid);
+                dst = ":";
+                break;
+        }
+
 		break;
 
 	case '!':

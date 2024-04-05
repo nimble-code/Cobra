@@ -148,6 +148,7 @@ extern int	stream;
 extern int	stream_lim;
 extern int	stream_margin;
 extern int	verbose;
+extern int  sysml2;
 
 extern int	json_format;
 extern int	json_plus;
