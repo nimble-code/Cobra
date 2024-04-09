@@ -716,7 +716,7 @@ scope_up(int level, int cid)	// single-core
 }
 
 static void
-typedefs(int cid)
+typedefs_classic(int cid)
 {	Prim *p; // recognizes basic typedefed names
 	Prim *c;
 
@@ -760,6 +760,73 @@ typedefs(int cid)
 				}
 				printf("\n");
 	}	}	}
+}
+
+static int
+identification(Prim **cc, int cid)
+{	Prim *c = *cc;
+
+	// parses sysml 2 indentifiers: < shortname > longname
+
+	if( c && strcmp(c->txt, "<") == 0 )
+	{	// printf("template: %s\n", c->txt);
+		c = c->nxt;
+		if( c && strcmp(c->typ, "ident" ) == 0 )
+		{	// printf("record typename: %s\n", c->txt);
+			record_typename(c, cid);
+		}
+		c = c->nxt; // skip the >
+		c = c->nxt;
+	}
+
+	if( c && strcmp(c->typ, "ident" ) == 0 )
+	{	// printf("record typename: %s\n", c->txt);
+		record_typename(c, cid);
+		cc = &c;
+		return 1;
+	}
+	return 0;
+}
+
+static void
+typedefs_sysml2(int cid)
+{	// Prim *p; // recognizes basic typedefed names
+	Prim *c;
+
+	assert(cid >= 0 && cid < Ncore);
+	for (c = Px.lex_prim; c != Px.lex_plst; c = c->nxt)
+	{	
+		if( strcmp(c->txt, "}") == 0 )
+		{
+			scope_up(c->curly, cid);
+			continue;
+		}
+		if( strcmp(c->typ, "ident" ) == 0 && is_typename(c, cid) ) 
+		{ c->typ = "type";
+		}
+		if( strcmp(c->typ, "element" ) == 0 ) 
+		{ 	// printf("element: %s\n", c->txt);
+			c = c->nxt;
+			// todo: complete usage definitions including shortname to be parsed
+			if( c && strcmp(c->txt, "def" ) == 0 ) 
+			{ 	// printf("DEF: %s\n", c->txt);
+				c = c->nxt;
+				identification(&c, cid);
+			} else if( c && strcmp(c->typ, "ident" ) == 0 ) 
+			{	printf("USAGE: %s\n", c->txt);
+				c->typ = "usage";
+				record_typename(c, cid);
+	}	}	}
+}
+
+static void
+typedefs(int cid)
+{	if( sysml2 )
+	{	typedefs_sysml2(cid);
+	}
+	else
+	{	typedefs_classic(cid);
+	}
 }
 
 static void
