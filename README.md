@@ -82,3 +82,38 @@ released under the same license.
 
 * for basic usage, to get started using Cobra, see doc/BasicUsage.txt
    and online for more detailed tutorials: [http://spinroot.com/cobra]
+
+
+## SysML v2 Usage
+
+Basic usage with pattern on commandline:
+```shell
+cobra -Sysml2 -pe PATTERN *.sysml
+```
+
+Also the pattern search mode and inline programs are supported:
+```shell
+cobra -Sysml *.sysml
+```
+
+
+`-Sysml2` switches cobra to the SysML v2 mode, such that its keywords element names and syntax is recognized. The following new matchers are defined:
+1. @element matches sysml elements, e.g., part, package, port, ...
+1. @usage matches usages
+
+The following existing ones are supported and extended
+1. @type matches all defined types, including names of definitions in the model
+1. @key matches all defined SysML v2 keywords
+
+Examples 0:
+
+Match recursive definitions (simplified example):
+```shell
+cobra -Sysml2 -pe '@element def x:@ident { .* : :x .*  } *.sysml
+```
+Here we match first an element as defined by the standard (e.g., part) followed by the keyword `def` followed by an indentifier. In the body we match for a `:` that indicates an usage followed by the name of the definition. Thought, we ignore here short names and some other cases.
+
+Using the interactive prompt:
+```
+m @element def 
+```
