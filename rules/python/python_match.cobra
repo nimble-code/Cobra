@@ -1,0 +1,44 @@
+## Python: the final clause of a match statement shall be default, unless all cases are covered
+## JPL R40
+
+m match
+n :
+# c top no default	# cannot use top for python-style nesting which is not based on { ... }
+
+# check for missing defaults at the right level of indentation (ie 'top')
+# and for a default clause preceding a case clause
+%{
+	if (.mark == 0)
+	{	Next;
+	}
+	j = .jmp;
+	if (j.seq == 0)
+	{	Next;
+	}
+	a = .nxt;	# IND
+	saw_default = 0;
+	current_indent = a.len;
+	orig_indent = a.len;
+	while (a.seq <= j.seq)
+	{	if (a.txt == "IND")
+		{	current_indent = a.len;
+		} else
+		{	if (current_indent == orig_indent)
+			{	if (a.txt == "default")
+				{	saw_default++;
+				}
+				if (a.txt == "case"
+				&& saw_default > 0)
+				{	add_pattern(P6, ., a);
+		}	}	}
+		a = a.nxt;
+	}
+	if (saw_default == 0)
+	{	add_pattern(P5, ., a);
+	}
+%}
+
+ps caption P5 The final clause of a match statement shall be default (missing default at top level)
+ps caption P6 The final clause of a match statement shall be default (saw default before case)
+ps list
+dp *

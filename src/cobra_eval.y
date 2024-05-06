@@ -10,6 +10,7 @@
 // parser for boolean and
 // arithmetic expressions
 
+#define YYMAXDEPTH 32000
 #define YYSTYPE	Lexptr
 #define YYDEBUG 0
 

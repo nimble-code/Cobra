@@ -31,12 +31,14 @@ extern char	*C_TMP;
 extern int	echo;
 extern int	runtimes;
 extern int	read_stdin;
+extern int	showprog;
 extern char	*pattern(char *);
 extern char	*unquoted(char *);
 extern char	*progname;
 extern void	clear_file_list(void);
 extern void	clear_seen(void);
 extern void	comments_or_source(int);
+extern void	handle_html(void);
 extern int	is_comments_or_source(void);
 extern int	has_stop(void);
 extern int	setexists(const char *);
@@ -244,6 +246,13 @@ reproduce(const int seq, const char *s)
 	static char src[1024];
 	static char tag[1024];
 	FILE *fd = track_fd ? track_fd : stdout;
+	static char totag[2];
+
+	if (z == cur->bound)
+	{	strcpy(totag, "-");
+	} else
+	{	strcpy(totag, "^");
+	}
 
 	do {	// back to start of line
 		cur = (cur)?cur->prv:0;
@@ -266,7 +275,7 @@ reproduce(const int seq, const char *s)
 		if (!r || r->lnr != cur->lnr)
 		{	if (r)
 			{	fprintf(fd, "%s\n", src);
-				if (strchr(tag, '^'))
+				if (strchr(tag, totag[0]))
 				{	fprintf(fd, "%s\n", tag);
 			}	}
 			if (cobra_texpr)
@@ -297,9 +306,10 @@ reproduce(const int seq, const char *s)
 			strcat(src, " ");
 	
 			for (i = 0; i < strlen(cobra_txt()); i++)
-			{	if (cur->mark
-				||  (cur > q && cur <= z))
-				{	strcat(tag, "^");
+			{	if (cur->mark)
+				{	strcat(tag, ".");
+				} else if ((cur > q && cur <= z))
+				{	strcat(tag, totag);
 				} else
 				{	strcat(tag, " ");
 			}	}
@@ -309,7 +319,7 @@ reproduce(const int seq, const char *s)
 		cur = (cur)?cur->nxt:0;
 	}
 	fprintf(fd, "%s\n", src);
-	if (strchr(tag, '^'))
+	if (strchr(tag, totag[0]))
 	{	fprintf(fd, "%s\n", tag);
 	}
 	cur = q;	// undo
@@ -1617,7 +1627,7 @@ pre_scan(char *bc)	// non-generic commands
 			prog(prog_fd);
 			fclose(prog_fd);
 			prog_fd = NULL;
-			if (preserve)
+			if (preserve && !showprog)
 			{	printf("wrote: %s\n", CobraProg);
 			}
 		} else
@@ -1983,6 +1993,10 @@ pre_scan(char *bc)	// non-generic commands
 			} else
 			{	help("", "");
 			}
+			return 1;
+		}
+		if (strcmp(bc, "html") == 0)
+		{	handle_html();
 			return 1;
 		}
 		break;
@@ -2763,6 +2777,9 @@ contains(char *s, char *t)	// 1, assume a range is selected
 	{	fprintf(stderr, "error: c[ontains]: unsupported qualifier\n");
 		return;
 	}
+	if (python && top_only)
+	{	fprintf(stderr, "error: the qualifier 'top' is not supported in python mode\n");
+	}
 	if (!*s)
 	{	fprintf(stderr, "error: invalid query -- missing pattern\n");
 		return;
@@ -3211,6 +3228,9 @@ readf(char *s, char *t)		// append command
 		{	post_process(0);
 		}
 		strip_comments_and_renumber(0);	// set cmnt_head/cmnt_tail
+		if (html)
+		{	handle_html();
+		}
 		ctokens(1);			// calls set_ranges
 		if (gui)
 		{	printf("opened file %s\n", s);

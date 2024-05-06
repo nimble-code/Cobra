@@ -43,12 +43,13 @@ def dup_init(min_len, basic_mode)
 	function printseq(from, upto, tag)
 	{
 		print tag from.fnm ":" from.lnr;
+		xn = -1;
 		while (from.seq <= upto.seq)
-		{	print " " from.txt;
-			if (from.lnr > xn)
+		{	if (from.lnr > xn && xn >= 0)
 			{	print "\n" tag from.fnm ":" from.lnr;
-				xn = from.lnr;
 			}
+			xn = from.lnr;
+			print " " from.txt;
 			from = from.nxt;
 		}
 		print "\n";
@@ -60,6 +61,7 @@ end
 
 def dup_collect(extend_matches)
  # three steps, 1: collect data
+!echo -n "step 1 "; date
  %{
 	if (. == End)
 	{	Stop;
@@ -95,8 +97,9 @@ def dup_collect(extend_matches)
 	}
  %}
  # 2: find longer matches based on the N-matches an mark endpoints
+!echo -n "step 2 "; date
  %{
-	print "Step 2 " size(Fragment) "\n";
+	# print "Step 2 " size(Fragment) "\n";
 	for (i in Fragment)
 	{	n = Fragment[i.txt];
 		if (n > 1)	# there is at least one match
@@ -144,10 +147,13 @@ def dup_collect(extend_matches)
 	q = Begin;
 	lastp = p;
 	lastq = q;
+	unset Fragment;
+	unset Reference;
+	unset word;
 	Stop;
  %}
  # 3: record the matches in a pattern set
-!echo "Step 3"
+!echo -n "step 3 "; date
  %{
 	if (.mark >= N)			# non-zero: matches sequence at .bound
 	{	bnd = .bound;
@@ -190,14 +196,18 @@ def dup_collect(extend_matches)
 end
 
 def dup_report(detailed)
+!echo -n "step 4 "; date
  %{
-	print "Step 4: Report\n";	# print matches in diff format
+	# print "Step 4: Report\n";	# print matches in diff format
 	seqnr = 1;
+	if (dup_shortcut)	# user-defined, if set skip this report
+	{	Stop;
+	}
 	x = pset(Dup);		# retrieve the pairs
 	while (x.seq != 0)
 	{	xa = x.p_start;
 		xb = x.p_end;
-		x = x.nxt;
+		x = x.nxt;	# second half of match pair
 
 		if (xb.mark == 0 && yb.mark > 0)
 		{	print "error: out of step, trying to recover\n";
@@ -216,12 +226,24 @@ def dup_report(detailed)
 			continue;
 		}
 
+		nrtok = xb.mark;
+####
+		while ((yb.fnm != ya.fnm || xb.fnm != xa.fnm) && nrtok > 0)
+		{	yb = yb.prv;
+			xb = xb.prv;
+			nrtok--;
+		}
+		if (nrtok <= 0)
+		{	print xa.fnm ": bad nrtok\n";
+			continue;
+		}
+####
 		if (ya.txt == "EOF") { ya = ya.nxt; }
-		if (yb.txt == "EOF") { yb = yb.nxt; }
+		if (yb.txt == "EOF") { yb = yb.prv; }
 		if (xa.txt == "EOF") { xa = xa.nxt; }
-		if (xb.txt == "EOF") { xb = xb.nxt; }
+		if (xb.txt == "EOF") { xb = xb.prv; }
 
-		print seqnr " match of " xb.mark " tokens ";
+		print seqnr " match of " nrtok " tokens ";
 		print ya.fnm ":" ya.lnr "-" yb.lnr " <> " ;
 		if (xa.fnm != ya.fnm)
 		{	print xa.fnm ":";
@@ -270,5 +292,5 @@ r
 ps delete Dup		# omit from a possible earlier run
 duplicates(60, 0, 0, 1)	# default parameters
 # Dup contains pairs of matches
-ps list
+# ps list
 

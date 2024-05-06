@@ -1,0 +1,23 @@
+## Python: maximum line length 72 characters (PEP0008)
+
+m IND
+%{
+	if (.mark == 0)
+	{	Next;
+	}
+	sol = .;
+	length = .len;
+	. = .nxt;
+	while (.txt != "IND" && .txt != "EOF")
+	{	length = length + .len + 1;  # +1 for spaces between tokens
+		. = .nxt;
+	}
+	eol = .prv;
+	length--;	# last token on line
+	if (length > 72)
+	{	add_pattern(P9, sol, eol);
+		print .fnm ":" .lnr ": length: " length "\n";
+	}	
+%}
+ps caption P9 Do not use lines longer then 72 characters (PEP0008)
+dp *

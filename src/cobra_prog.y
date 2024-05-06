@@ -12,6 +12,7 @@
 
 // parser for inline programs
 
+#define YYMAXDEPTH 32000
 #define YYSTYPE	Lexptr
 #define YYDEBUG 1
 #define yyparse xxparse
@@ -86,6 +87,8 @@ static Var_nm	**v_free;	// freelist for v_names
 static Function	 *functions;
 static Prim	  none;
 static Lextok	 *p_tree;
+static Lextok	 *break_out;
+static Lextok	 *break_nm;
 static Var_nm	 *lab_lst;
 Separate	 *sep;		// thread local copies of globals
 
@@ -102,13 +105,15 @@ static int	*t_stop;
 char	*derive_string(Prim **, Lextok *, const int, const char *);
 
 static Block	*pop_context(int, int);
-static Lextok	*mk_for(Lextok *, Lextok *, Lextok *, Lextok *);
+static Lextok	*mk_for(Lextok *, Lextok *, Lextok *, Lextok *, Lextok *);
+static Lextok	*mk_foreach(Lextok *, Lextok *, Lextok *, Lextok *);
 static Lextok	*new_lex(int, Lextok *, Lextok *);
 static Var_nm	*mk_var(const char *, const int, const int);
 static Var_nm	*check_var(const char *, const int);
+static void	 set_break(void);
 
 // to reduce the number of cache-misses in multicore mode:
-	#define DUP_TREES
+#define DUP_TREES
 
 #ifdef DUP_TREES
  static void	 clear_dup(void);
@@ -116,6 +121,10 @@ static Var_nm	*check_var(const char *, const int);
 #endif
 
 static Lextok	*add_return(Lextok *);
+#ifdef DEBUG
+static void	dump_tree(Lextok *, int);
+#endif
+static void	dump_graph(FILE *, Lextok *, char *);
 static void	handle_global(Lextok *);
 static void	add_fct(Lextok *);
 static void	fixstr(Lextok *);
@@ -137,9 +146,10 @@ static int	yylex(void);
 
 extern int	stream;
 extern int	stream_override;
+extern int	showprog;
 %}
 
-%token	NR STRING NAME IF IF2 ELSE WHILE FOR IN PRINT ARG SKIP GOTO
+%token	NR STRING NAME IF IF2 ELSE WHILE FOR FOREACH IN PRINT ARG SKIP GOTO
 %token	BREAK CONTINUE STOP NEXT_T BEGIN END SIZE RETRIEVE FUNCTION CALL
 %token	ROUND BRACKET CURLY LEN MARK SEQ LNR RANGE FNM FCT ITOSTR
 %token	BOUND MBND_D MBND_R NXT PRV JMP UNSET RETURN RE_MATCH FIRST_T LAST_T
@@ -193,7 +203,14 @@ stmnt	: IF '(' expr ')' c_prog optelse {
 			   $$ = $1; }
 	| FOR '(' NAME IN NAME ')' c_prog {
 			   n_blocks++; v_cnt++; a_cnt++;
-			   $$ = mk_for($1, $3, $5, $7); }
+			   // $5 is assumed to be an array name
+			   // if not, this is a skip
+			   set_break();
+			   $$ = new_lex(';', mk_for($1, $3, $5, $7, break_nm), break_out); }
+	| FOREACH '(' NAME IN NAME ')' c_prog {
+			    n_blocks++; v_cnt++;
+			    set_break();
+			    $$ = new_lex(';', mk_foreach($3, $5, $7, break_nm), break_out); }
 	| FUNCTION NAME '(' params ')' c_prog {
 			   $1->lft = new_lex(0, $2, $4);
 
@@ -269,8 +286,10 @@ b_stmnt	: p_lhs '=' expr { $2->lft = $1; $2->rgt = $3; $$ = $2; }
 	| NEXT_T
 	| STOP
 	;
-t_ref	: NAME
-	| p_ref
+t_ref	: p_ref
+	| NAME  '.' fld		{ $2->lft = $1; $2->rgt = $3; $$ = $2; }
+	| NAME
+	| '.' fld %prec UMIN	{ $1->lft =  0; $1->rgt = $2; $$ = $1; }
 	| '.'
 	;
 nr_or_cpu: NR
@@ -434,6 +453,7 @@ static struct Keywords {
 	{ "first_t",	FIRST_T },
 	{ "fnm",	FNM },
 	{ "for",	FOR },
+	{ "foreach",	FOREACH },
 	{ "function",	FUNCTION },
 	{ "global",	GLOBAL },
 	{ "goto",	GOTO },
@@ -587,6 +607,16 @@ hash2(const char *s)
 	}
 }
 
+static void
+set_break(void)
+{
+	break_out = new_lex(SKIP, 0, 0);
+	break_nm  = new_lex(NAME, 0, 0);
+	break_nm->s = (char *) emalloc(8*sizeof(char), 74);
+	snprintf(break_nm->s, 8, "_L%d_", v_cnt);
+	mk_lab(break_nm, break_out); // destination for break
+}
+
 static Lextok *
 add_return(Lextok *p)
 {	Lextok *e;
@@ -619,36 +649,204 @@ new_lex(int tp, Lextok *lft, Lextok *rgt)
 	return p;
 }
 
+static void
+replace_break(Lextok *b, Lextok *out)
+{
+	if (!b)
+	{	return;
+	}
+	if (b->typ == BREAK)
+	{	b->typ = GOTO;
+		b->lft = out;
+	}
+	replace_break(b->lft, out);
+	replace_break(b->rgt, out);
+}
+
+static void
+replace_continue(Lextok *b, Lextok *stub)
+{
+	if (!b)
+	{	return;
+	}
+	if (b->typ == CONTINUE)
+	{	b->typ = ';';
+		b->lft = stub->lft;
+		b->rgt = stub->rgt;
+	}
+	replace_continue(b->lft, stub);
+	replace_continue(b->rgt, stub);
+}
+
 static Lextok *
-mk_for(Lextok *a, Lextok *nm, Lextok *ar, Lextok *body)
+mk_foreach_token_in_pattern(Lextok *nm, Lextok *p, Lextok *body, Lextok *out)
+{	static int ln = 0;
+
+	// foreach (nm in p)
+	// p->typ == NAME and p->s is the name of the pset variable
+	// that points to a token with p_start and p_end set (jmp and bound)
+	// with jmp.seq <= bound.seq
+
+	Lextok *from = new_lex('.', p, new_lex(JMP,    0, 0));	// from = p.jmp
+	Lextok *upto = new_lex('.', p, new_lex(BOUND,  0, 0));	// upto = p.bound
+
+	Lextok *temp  = new_lex(NAME, 0, 0); temp->s = "temp";
+	Lextok *init1 = new_lex('=', temp, upto);		// temp = upto
+	Lextok *init2 = new_lex('=', nm, from);			// nm = from (loop init)
+
+	Lextok *seq1 = new_lex('.',   nm, new_lex(SEQ, 0, 0));	// nm.seq
+	Lextok *seq2 = new_lex('.', temp, new_lex(SEQ, 0, 0));	// temp.seq (p.bound.seq)
+	Lextok *seq3 = new_lex('.', from, new_lex(SEQ, 0, 0));	// from.seq
+	Lextok *nxt  = new_lex('.',   nm, new_lex(NXT, 0, 0));	// nm.nxt
+
+	Lextok *cond = new_lex(LE, seq1, seq2);			// nm.seq <= temp.seq (p.bound.seq)
+	Lextok *incr = new_lex('=', nm, nxt);			// nm = nm.nxt        (loop increment)
+
+	Lextok *loop = new_lex(NAME, 0, 0);
+	loop->s = (char *) emalloc(8*sizeof(char), 74);
+	snprintf(loop->s, 8, "_%d@_", ln++);
+	Lextok *gt  = new_lex(GOTO, loop, 0);			// goto _%d@_ (loop start)
+
+	Lextok *s1  = new_lex(';', body, incr);			// body ; nm = nm.nxt
+	Lextok *s2  = new_lex(';', s1, gt);			// body ; nm = nm.nxt ; goto loop
+	Lextok *whl = new_lex(WHILE, cond, s2);			// while cond (nm.seq <= p.bound.seq)
+	mk_lab(loop, whl);					// loop : while (nm.seq <= p.bound.seq)
+
+	Lextok *both = new_lex(';', init2, whl);		// nm = from ; loop: while ...
+	Lextok *prep = new_lex(';', init1, both);		// temp = upto ; nm = from ; loop: while ...
+								// which is the complete loop
+	// 'continue'
+	Lextok *c_nxt  = new_lex('.', nm, new_lex(NXT, 0, 0));	// nm.nxt
+	Lextok *c_incr = new_lex('=', nm, c_nxt);		// nm = nm.nxt
+	Lextok *c_gt  = new_lex(GOTO, loop, 0);			// goto _%d@_ (loop start)
+	Lextok *c_continue = new_lex(';', c_incr, c_gt);
+	replace_continue(body, c_continue);
+
+	// prepend a validity check:
+	// if a pattern set is referenced that is empty or undefined
+	// we check that the starting sequence number from.seq in seq3 is not zero
+
+	Lextok *zero  = new_lex(NR, 0, 0);
+	Lextok *brk   = new_lex(GOTO, out, 0);
+	Lextok *cc    = new_lex(EQ, seq3, zero);
+	Lextok *ff    = new_lex(IF, cc, brk);	// if (seq3 == 0) goto out
+	Lextok *top   = new_lex(';', ff, prep);
+
+	return top;
+}
+
+static Lextok *
+mk_foreach(Lextok *nm, Lextok *p, Lextok *body, Lextok *out)
+{	Lextok *whl, *seq, *cond, *asgn, *nxt, *zero, *loop;
+	Lextok *s1, *s2, *gt;
+	static int ln = 0;
+	int is_set;
+
+	// p is either a Set name or a Pattern from a set
+	// check which it is
+	if (!p || !p->s)
+	{	fprintf(stderr, "foreach: bad format: missing name\n");
+		return new_lex(STOP, 0, 0);
+	}
+	// patten set p->s must exist before the inline program
+	// starts -- i.e., it cannot be created first as part of
+	// the inline program....
+
+	// replace 'break' with 'goto out' and 'continue' with 'skip'
+	replace_break(body, out);
+
+	is_set = is_pset(p->s);
+	if (!is_set)
+	{	if (p->typ == NAME)
+		{	return mk_foreach_token_in_pattern(nm, p, body, out);
+		}
+		fprintf(stderr, "error: unexpected type '%d' of '%s'\n", p->typ, p->s);
+		return new_lex(STOP, 0, 0);
+	}
+
+	// mk_foreach_pattern_set:
+	// printf("foreach %s\n", p->s);
+	//	 a1   ;		pset(p)
+	//	 nm   ;		nm = pset(p)
+	// loop: whl  ;		nm.seq > 0
+	//	 body ;
+	//	 asgn ;		nm = nm.nxt
+	//	 goto loop
+
+	zero = new_lex(NR, 0, 0);
+
+	Lextok *a1 = new_lex(CP_PSET, p, 0);
+	Lextok *a2 = new_lex('=', nm, a1);		// creates var p->s
+
+	seq  = new_lex('.', nm, new_lex(SEQ, 0, 0));	// nm.seq
+	nxt  = new_lex('.', nm, new_lex(NXT, 0, 0));	// nm.nxt
+	cond = new_lex(GT,  seq, zero);			// seq > 0
+	asgn = new_lex('=', nm, nxt);			// nm = nm.nxt
+
+	loop = new_lex(NAME, 0, 0);
+	loop->s = (char *) emalloc(8*sizeof(char), 74);
+	snprintf(loop->s, 8, "_@%d@_", ln++);		// start of loop
+
+	gt  = new_lex(GOTO,  loop, 0);
+	s1  = new_lex(';',   body, asgn);
+	s2  = new_lex(';',   s1, gt);
+
+	whl = new_lex(WHILE, cond, s2);
+	mk_lab(loop, whl);
+
+	Lextok *both = new_lex(';', a2, whl);
+
+	// 'continue'
+	Lextok *c_nxt  = new_lex('.', nm, new_lex(NXT, 0, 0));	// nm.nxt
+	Lextok *c_incr = new_lex('=', nm, c_nxt);		// nm = nm.nxt
+	Lextok *c_gt  = new_lex(GOTO, loop, 0);			// goto _%d@_ (loop start)
+	Lextok *c_continue = new_lex(';', c_incr, c_gt);
+	replace_continue(body, c_continue);
+
+	return both;
+}
+
+static Lextok *
+mk_for(Lextok *a, Lextok *nm, Lextok *ar, Lextok *body, Lextok *out)
 {	Lextok *mrk, *seq, *asgn1, *asgn2, *loop;
 	Lextok *cond, *whl, *txt;
 	Lextok *setv, *one, *incr, *zero;
 	Lextok *s1, *s2, *s3, *s4, *gt;
+	Lextok *tt, *asgn3, *c_gt, *c_skp, *c_continue;
 	static int ln = 0;	// parse time only
-	int ix;
+	int ix = 0;
 
 	// printf("for %s in %s\n", nm->s, ar->s);
-	//	 asgn ;		nm.seq = size(ar);
-	// loop: whl  ;		nm.mark < nm.seq
-	//	 setv ;		nm.txt = retrieve(ar, nm.mark)
-	//	 incr ;		nm.mark++
-	//	 body ;
+	//	 asgn1 ;	nm.seq = size(ar);
+	//	 asgn2 ;	nm.mark = 0;
+	// loop: whl   ;	nm.mark < nm.seq
+	//	 setv  ;	nm.txt = retrieve(ar, nm.mark)
+	//	 incr  ;	nm.mark++
+	//	 body  ;
 	//	 goto loop
-
-	for (ix = 0; ix < Ncore; ix++)
-	{	Var_nm *vn = mk_var(nm->s, PTR, ix);		// nm
-		if (vn) { vn->rtyp = PTR; } // in case its an older var
-	}	// so that we can use the var to cnt in nm.mark and nm.seq
 
 	one  = new_lex(NR, 0, 0); one->val = 1;		// 1
 	zero = new_lex(NR, 0, 0); 			// 0
-	mrk  = new_lex('.', nm, new_lex(MARK, 0, 0));	// nm.mark
-	seq  = new_lex('.', nm, new_lex(SEQ,  0, 0));	// nm.seq
-	txt  = new_lex('.', nm, new_lex(TXT,  0, 0));	// nm.txt
 
-	asgn1 = new_lex('=', seq, new_lex(SIZE, 0, ar));	// seq = size(ar)
-	asgn2 = new_lex('=', mrk, zero);			// mrk = 0
+	replace_break(body, out);
+
+	// target index variable
+	(void) mk_var(nm->s, STR, ix);	// creates or casts nm to STR
+
+	// loop info
+	for (ix = 0; ix < Ncore; ix++)	// separate vars to support independent scans
+	{	Var_nm *vn = mk_var("__tmp__", PTR, ix); // internal loop counts
+		if (vn) { vn->rtyp = PTR; } // in case its an existing var
+	}
+	tt = new_lex(NAME, 0, 0); tt->s = "__tmp__";
+
+	mrk   = new_lex('.', tt, new_lex(MARK, 0, 0));	// tt.mark
+	seq   = new_lex('.', tt, new_lex(SEQ,  0, 0));	// tt.seq
+	txt   = new_lex('.', tt, new_lex(TXT,  0, 0));	// tt.txt
+
+	asgn1 = new_lex('=', seq, new_lex(SIZE, 0, ar));// seq = size(ar)
+	asgn2 = new_lex('=', mrk, zero);		// mrk = 0
+	asgn3 = new_lex('=', nm, txt);	// nm.s = tt.txt
 
 	cond = new_lex(LT,  mrk, seq);			// mrk < seq
 	incr = new_lex('=', mrk, new_lex('+', mrk, one)); // mrk++
@@ -661,11 +859,18 @@ mk_for(Lextok *a, Lextok *nm, Lextok *ar, Lextok *body)
 	gt  = new_lex(GOTO,  loop, 0);	// shouldnt be needed
 	s1  = new_lex(';',   body, gt);
 	s2  = new_lex(';',   incr, s1);
-	s3  = new_lex(';',   setv, s2);
-	whl = new_lex(WHILE, cond, s3);
+	s3  = new_lex(';',   asgn3, s2);
+	s4  = new_lex(';',   setv, s3);
+	whl = new_lex(WHILE, cond,  s4);
 	mk_lab(loop, whl);
-
 	s4  = new_lex(';',  asgn2, whl);
+
+	// 'continue'
+	c_skp = new_lex(SKIP, 0, 0);		// shouldnt be needed
+	c_gt  = new_lex(GOTO, loop, 0);		// goto _%d@_ (loop start)
+	c_continue = new_lex(';', c_skp, c_gt);
+
+	replace_continue(body, c_continue);
 
 	return new_lex(';',  asgn1, s4);
 }
@@ -674,6 +879,7 @@ static void
 mk_lab(Lextok *t, Lextok *p)
 {	Var_nm *n;
 
+	// printf("mk_lab '%s' %p\n", t->s, (void *) p);
 	assert(p);
 	for (n = lab_lst; n; n = n->nxt)
 	{	if (strcmp(n->nm, t->s) == 0)
@@ -702,7 +908,6 @@ mk_lab(Lextok *t, Lextok *p)
 static Lextok *
 find_label(char *s)
 {	Var_nm *n;
-
 	for (n = lab_lst; n; n = n->nxt)
 	{	if (strcmp(n->nm, s) == 0)
 		{	return (Lextok *) n->pm;
@@ -866,18 +1071,21 @@ tok2txt(Lextok *t, FILE *x)
 {	int i;
 	char buf[1024], *s;
 
-	if (!t)
+	if (!t || !x)
 	{	return;
 	}
 
-	if (x != stdout)
+	if (x != stdout && x != stderr)
 	{	fprintf(x, "N%d:%d: ", t->tag, t->lnr);
 	}
+
 	for (i = 0; key[i].s; i++)
 	{	if (t->typ == key[i].t)
 		{	fprintf(x, "%s", key[i].s);
 			break;
 	}	}
+
+	if (!t->s) { t->s = "?"; }
 
 	if (t->typ == NAME || t->typ == STRING)
 	{	strncpy(buf, t->s, sizeof(buf)-1);
@@ -911,7 +1119,7 @@ tok2txt(Lextok *t, FILE *x)
 			{	fprintf(x, "%d", t->typ);
 	}	}	}
 
-	if (x == stdout)
+	if (x == stdout || x == stderr)
 	{	fprintf(x, "\n");
 	}
 }
@@ -1012,16 +1220,15 @@ clr_tags(Lextok *t)
 }
 #endif
 
-#undef DEBUG
 #ifdef DEBUG
 static void
 indent(int level, const char *s)
 {	int i;
 
 	for (i = 0; i < level; i++)
-	{	printf(" \t");
+	{	fprintf(stderr, "   ");
 	}
-	printf("%s", s);
+	fprintf(stderr, "%s", s);
 }
 
 static void
@@ -1029,16 +1236,16 @@ dump_tree(Lextok *t, int i)
 {
 	if (!t || (t->visit&16))
 	{	indent(i, "");
-		printf("<<%p::%d>>\n", (void *) t, t?t->typ:-1);
+		fprintf(stderr, "<<%p::%d>> %s\n", (void *) t, t?t->typ:-1, t && t->typ == NAME?t->s:"");
 		return;
 	}
 	t->visit |= 16;
 	indent(i, "");
 
-	printf("<%p> ", (void *) t);
+	fprintf(stderr, "<%p><%d> ", (void *) t, t?t->typ:-1);
 
-	if (t->s) { printf("%s%s ", t->f?"fct ":"", t->s); }
-	tok2txt(t, stdout);
+	if (t->s) { fprintf(stderr, "%s%s ", t->f?"fct ":"", t->s); }
+	tok2txt(t, stderr);
 	if (t->lft)
 	{	indent(i, "L:\n");
 		dump_tree(t->lft, i+1);
@@ -1058,6 +1265,61 @@ dump_tree(Lextok *t, int i)
 	if (t->c)
 	{	indent(i, "c:\n");
 		dump_tree(t->c, i+1);
+	}
+}
+#endif
+
+static void
+dump_graph(FILE *fd, Lextok *t, char *tag)
+{	int i;
+
+	// similar to draw_fsm, but simpler
+
+	if (!t || (t->visit&16))
+	{	fprintf(fd, "N%p;\n", (void *) t);
+		return;
+	}
+	t->visit |= 16;
+	if (t && t->s && strchr(t->s, '\n'))
+	{	if (t->s[0] != '\n')
+		{ fprintf(fd, "N%p [label=\"%s %d %c..<nl> ", (void *) t, tag, t?t->typ:-1, t->s[0]);
+		} else
+		{ fprintf(fd, "N%p [label=\"%s %d %s ", (void *) t, tag, t?t->typ:-1, "...<nl>");
+		}
+	} else
+	{	fprintf(fd, "N%p [label=\"%s %d %s ", (void *) t, tag, t?t->typ:-1, t && t->s?t->s:"");
+	}
+        for (i = 0; key[i].s; i++)
+        {       if (t->typ == key[i].t)
+                {       fprintf(fd, "%s", key[i].s);
+                        break;
+        }       }
+	switch (t->typ) {	// needs more cases
+	case NR: fprintf(fd, "NR %d", t->val); break;
+	case EQ: fprintf(fd, "EQ"); break;
+	case LE: fprintf(fd, "<="); break;
+	case GE: fprintf(fd, ">="); break;
+	case LT: fprintf(fd, "<"); break;
+	case GT: fprintf(fd, ">"); break;
+	case '.': fprintf(fd, "."); break;
+	case ';': fprintf(fd, ";"); break;
+	case '=': fprintf(fd, "="); break;
+	case ARG: fprintf(fd, "arg"); break;
+	case STRING: fprintf(fd, "str"); break;
+	case SKIP: fprintf(fd, "skip"); break;
+	case IF2: fprintf(fd, "if2"); break;
+	case IF:  fprintf(fd, "if"); break;
+	case GOTO: fprintf(fd, "goto"); break;
+	}
+	fprintf(fd, "\" shape=box];\n");
+
+	if (t->lft)
+	{	fprintf(fd, "N%p -> N%p;\n", (void *) t, (void *) t->lft);
+		dump_graph(fd, t->lft, "L");
+	}
+	if (t->rgt)
+	{	fprintf(fd, "N%p -> N%p;\n", (void *) t, (void *) t->rgt);
+		dump_graph(fd, t->rgt, "R");
 	}
 }
 
@@ -1087,7 +1349,6 @@ clean_tree(Lextok *t)
 	{	clean_tree(t->c);
 	}
 }
-#endif
 #endif
 
 static Lextok *
@@ -1412,7 +1673,11 @@ yyerror(const char *s)
 {
 	printf("line %d: %s ", p_lnr, s);
 	if (yylval)
-	{	tok2txt(yylval, stdout);
+	{	if (yylval->typ == EOF)
+		{	printf("near EOF\n");
+		} else
+		{	tok2txt(yylval, stdout);
+		}
 	} else
 	{	printf("near '%s'\n", yytext);
 	}
@@ -1606,8 +1871,16 @@ get_var(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)
 			}	}
 			rv->rtyp = n->rtyp;
 		} else
-		{	if (Ncore > 1) fprintf(stderr, "(%d) ", ix);
-			fprintf(stderr, "line %d: unexpected variable type, in ", q->lnr);
+		{	if (q->lft && q->lft->typ == NAME
+			&&  q->rgt
+			&&  (q->rgt->typ == JMP || q->rgt->typ == BOUND))
+			{	static Prim notoken;
+				memset(&notoken, 0, sizeof(Prim));
+				// refers to an aatribute of a non-token name
+				return get_var(ref_p, q->lft, rv, ix);	// new 2024/3/14
+			}
+			if (Ncore > 1) fprintf(stderr, "(%d) ", ix);
+			fprintf(stderr, "line %d: unexpected variable type %d, in ", q->lnr, q->typ);
 			tok2txt(q, stderr);
 			show_error(stderr, q->lnr);
 			rv->rtyp = STP;
@@ -2413,8 +2686,7 @@ do_assignment(Prim **ref_p, Lextok *q, Rtype *rv, const int ix, Prim *p)
 	}
 
 	if (LHS->rgt)	// .mark = ... , q.mark = ..., .txt = ..., q.txt = ...
-	{
-		if (LHS->rgt->typ == TXT
+	{	if (LHS->rgt->typ == TXT
 		||  LHS->rgt->typ == TYP
 		||  LHS->rgt->typ == FNM)
 		{	eval_prog(ref_p, RHS, rv, ix);
@@ -2535,8 +2807,8 @@ do_assignment(Prim **ref_p, Lextok *q, Rtype *rv, const int ix, Prim *p)
 			rv->rtyp = STP;
 			return;
 		}
-
 		eval_prog(ref_p, RHS, rv, ix);
+
 		if (rv->rtyp == STR && isdigit((uchar) rv->s[0]))
 		{	rv->rtyp = VAL;
 			rv->val = atoi(rv->s);
@@ -2547,7 +2819,6 @@ do_assignment(Prim **ref_p, Lextok *q, Rtype *rv, const int ix, Prim *p)
 		// rhs is VAL
 		if (LHS->lft)	// get the q in q.mark = ...
 		{	Var_nm *n = get_var(ref_p, LHS->lft, &tmp, ix);
-
 			if (!n->rtyp)			// new variable
 			{	n->rtyp = PTR;		// its the q in q.mark
 			}
@@ -2676,8 +2947,7 @@ do_dot(Prim **ref_p, Lextok *q, Rtype *rv, const int ix, Prim *p)
 	} else if (!q->lft)
 	{	eval_prog(ref_p, q->rgt, rv, ix);
 	} else // q->lft	e.g.:	q.txt
-	{	Var_nm *n, dummy;
-
+	{	Var_nm *n = 0, dummy;
 		assert(ix >= 0 && ix < Ncore);
 		switch (q->lft->typ) {
 		case END:
@@ -2688,6 +2958,13 @@ do_dot(Prim **ref_p, Lextok *q, Rtype *rv, const int ix, Prim *p)
 			Assert("dodot", rv->rtyp == PTR, q->lft);
 			n = &dummy;
 			n->pm = rv->ptr;
+			break;
+		case '.':
+			eval_prog(ref_p, q->lft, rv, ix);
+			if (rv->rtyp == PTR)
+			{	n = &dummy;
+				n->pm = rv->ptr;
+			}
 			break;
 		default:
 			n = get_var(ref_p, q->lft, rv, ix);
@@ -3203,15 +3480,22 @@ handle_arg(Prim **ref_p, Lextok *from, Rtype *rv, const int ix)
 		return NULL;
 	}
 
-	if (from->typ == '.')
-	{	return *ref_p;
+	if (from->typ != NAME)	// new 3/20/2024
+	{	eval_prog(ref_p, from, rv, ix);
+		if (rv->rtyp == PTR)
+		{	return rv->ptr;
+		}
+		fprintf(stderr, "error: bad add/del_pattern call\n");
+		return NULL;
 	}
+//	if (from->typ == '.')
+//	{	return *ref_p;
+//	}
 
 	if (from->typ != NAME)
 	{	fprintf(stderr, "error: bad add/del_pattern command\n");
 		return NULL;
 	}
-
 	n = get_var(ref_p, from, rv, ix);
 	if (!n || rv->rtyp != PTR || !n->pm)
 	{	bad_ref(n, rv, from);
@@ -3283,6 +3567,40 @@ get_cumulative(Prim **ref_p, Lextok *q, Rtype *rv, int with_start, const int ix)
 	rv->rtyp = VAL;
 
 	return 0;
+}
+
+static void
+name_to_set(Prim **ref_p, Lextok *q, Rtype *rv, int ix)
+{	Var_nm *v;
+	Lextok *n = q->lft;
+
+
+	switch (n->typ) {
+	case STRING:
+		rv->ptr = cp_pset(n->s, ix);
+		rv->rtyp = PTR;
+		break;
+	case NAME:
+		rv->ptr = cp_pset(n->s, ix);
+		if (rv->ptr == NULL)	// could be a var
+		{	v = get_var(ref_p, n, rv, ix);
+			if (rv->rtyp == STR)
+			{	rv->ptr = cp_pset(v->s, ix);
+			}
+			if (verbose && !rv->ptr)
+			{	fprintf(stderr, "warning: no such set '%s'\n", (v && v->s)?v->s:n->s);
+		}	}
+		rv->rtyp = PTR;
+		break;
+	default:
+		fprintf(stderr, "error: pset arg is not a name, variable, or string'\n");
+		rv->ptr = NULL;
+		rv->rtyp = STP;
+
+		show_error(stderr, q->lnr);
+		unwind_stack(ix);
+		sep[ix].T_stop++; 
+	}
 }
 
 void
@@ -3497,6 +3815,16 @@ next:
 	case     SEQ: rv->val = p?p->seq:0; break;
 
 	case	RANGE:
+		  if (p
+		  &&  p->jmp
+		  &&  p->bound
+		  &&  p->bound->seq >= p->jmp->seq
+		  &&  p->jmp->seq > 0
+		  &&  strcmp(p->jmp->fnm, p->bound->fnm) == 0
+		  &&  strcmp(p->txt, "Pattern") == 0) // start of pattern
+		  {	rv->val = p->bound->lnr - p->jmp->lnr;
+			break;
+		  }
 		  if (p && (p->bound || p->jmp))
 		  {	Prim *d = p->bound?p->bound:p->jmp;
 			if (strcmp(d->fnm, p->fnm) == 0)
@@ -3575,12 +3903,22 @@ next:
 			{	doindent();
 				printf("Then\n");
 			}
+			if (q->rgt && q->rgt->typ == GOTO
+			&&  q->a && q->a->typ == NAME)
+			{
+				q->a = find_label(q->a->s); // 3/15/2024
+			}
 			q = q->a;
 			goto next;
 		} else if (q->b)	// else part
 		{	if (sep[ix].P_debug == 2)
 			{	doindent();
 				printf("Else\n");
+			}
+			if (q->rgt && q->rgt->typ == GOTO
+			&&  q->b && q->b->typ == NAME)
+			{
+				q->b = find_label(q->b->s); // 3/15/2024
 			}
 			q = q->b;
 			goto next;
@@ -3612,7 +3950,7 @@ next:
 		&&  q->rgt
 		&&  q->rgt->lft
 		&&  q->rgt->rgt)
-		{	Prim *f, *u;
+		{	Prim *f, *u;	
 
 			f = handle_arg(ref_p, q->rgt->lft, rv, ix); // from
 			u = handle_arg(ref_p, q->rgt->rgt, rv, ix); // upto
@@ -3652,31 +3990,7 @@ next:
 		rv->rtyp = STP;
 		break;
 	case CP_PSET:
-		if (q->lft->typ == STRING)
-		{	rv->ptr = cp_pset(q->lft->s, ix);
-		} else if (q->lft->typ == NAME)
-		{	rv->ptr = cp_pset(q->lft->s, ix);
-			if (rv->ptr == 0)	// could be a var
-			{	Var_nm *n = get_var(ref_p, q->lft, rv, ix);
-				if (rv->rtyp == STR)
-				{	rv->ptr = cp_pset(n->s, ix);
-				}
-				if (rv->ptr == 0)
-				{	rv->rtyp = PTR;
-					break; // valid syntax, but set does not exist (yet)
-			}	}
-		} else
-		{	fprintf(stderr, "error: pset arg is not a var, name, or string'\n");
-			rv->ptr = NULL;
-		}
-		if (!rv->ptr)
-		{	show_error(stderr, q->lnr);
-			unwind_stack(ix);
-			sep[ix].T_stop++; 
-			rv->rtyp = STP;
-		} else
-		{	rv->rtyp = PTR;
-		}
+		name_to_set(ref_p, q, rv, ix);	// sets rv->ptr and rv->rtyp
 		break;
 
 	case HASHARRAY:
@@ -3762,9 +4076,7 @@ next:
 				{	break;
 			}	}
 			fprintf(stderr, "\n");
-#ifdef DEBUG
-			dump_tree(q->lft, 0);
-#endif
+//			dump_tree(q->lft, 0);
 			if (0) fprintf(stderr, "%d: [seq %d ln %d] EVAL_PROG typ %3d ",
 				ix, p->seq, p->lnr, q->typ);
 
@@ -4064,7 +4376,6 @@ mk_var(const char *s, const int t, const int ix)
 	{	// printf("mk_var: global match %s depth %d\n", g->nm, g->cdepth);
 		return g;	// global match
 	}
-
 	if (v_free[ix])
 	{	n = v_free[ix];
 		n->rtyp = n->v = 0;
@@ -4306,6 +4617,39 @@ exec_prog(Prim **q, int ix)
 		do_unlock(ix);
 	}
 #endif
+
+	if (showprog == 1 && ix == 0)
+	{	FILE *fd = fopen(CobraDot, "a");
+
+		if (!fd)
+		{	fprintf(stderr, "cannot create '%s'\n", CobraDot);
+		} else
+		{	fprintf(fd, "digraph prog {\n");
+			fprintf(fd, "node [margin=0 fontsize=8];\n");
+			fprintf(fd, "start [shape=plaintext];\n");
+			fprintf(fd, "start -> N%p;\n", (void *) p_tree);
+			clr_marks(p_tree);
+			dump_graph(fd, p_tree, "U");
+			fprintf(fd, "}\n");
+			fclose(fd);
+			if (!json_format)
+			{	printf("wrote '%s'\n", CobraDot);
+			}
+			if (system(ShowDot) < 0)
+			{	perror(ShowDot);
+			}
+ #if 1
+			sleep(1); // before the dot file is removed
+ #else
+			exit(0);
+ #endif
+		}
+ #ifdef DEBUG
+		clr_marks(p_tree);
+		dump_tree(p_tree, 0);
+ #endif
+	}
+
 	eval_prog(q, p_tree, &rv, ix);
 
 	if (sep[ix].P_debug == 2)
@@ -4380,7 +4724,7 @@ prep_prog(FILE *nfd)
 	none.fnm = none.typ = none.txt = "";
 	ini_blocks();
 
-	if (preserve || p_debug == 3)
+	if (!showprog && (preserve || p_debug == 3))
 	{	FILE *x = fopen(CobraDot, "a");
 		if (!x)
 		{	printf("cannot create '%s'\n", CobraDot);
@@ -4411,7 +4755,7 @@ prep_prog(FILE *nfd)
 	{	return 0;
 	}
 
-	if (preserve || p_debug == 4)
+	if (!showprog && (preserve || p_debug == 4))
 	{	FILE *x = fopen(FsmDot, "a");
 		if (!x)
 		{	printf("cannot create '%s'\n", FsmDot);

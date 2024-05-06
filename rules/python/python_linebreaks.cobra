@@ -1,0 +1,5 @@
+## Python: put line breaks before, not after binary operators (PEP0008)
+
+pe R10: @oper IND
+ps caption R10 Put line breaks before, not after binary operators in multi-line expressions
+dp *

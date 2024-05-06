@@ -1,0 +1,14 @@
+## Python P4: if-else-if chains must end with else
+## JPL R39
+
+m elif
+n :
+j
+n
+m no elif
+m no else
+# l
+ps create P4
+ps caption P4 If-else-if chains must end with an else
+# ps list
+dp *

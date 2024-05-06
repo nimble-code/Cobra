@@ -1,0 +1,6 @@
+## Python Rule P2: do not use expressions with side-effects
+
+pe P2: [if while] ^:* [++ -- += -= \/= *= = %=] ^:* :
+ps caption P2 Do not use expressions with side-effects
+# ps list
+dp *

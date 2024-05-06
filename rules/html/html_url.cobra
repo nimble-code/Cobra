@@ -1,0 +1,25 @@
+## find urls embedded in html pages
+## assumes the tool was started in html mode
+## cobra -html ...
+%{
+	if (@str && ~html)	# of type string and containing "html"
+	{	q = strrchr(.txt, "/");
+		if (q <= 0)
+		{	q = 1;	# skip the "
+		}
+		r = .len;
+		b = substr(.txt, q, r-q-1);
+		URL[b]++;
+	}
+%}
+track start tmp
+%{
+	for (i in URL)
+	{	print URL[i.txt] "\t" i.txt "\n";
+	}
+	Stop;
+%}
+track stop
+!sort -n tmp
+!wc -l tmp
+!rm -f tmp

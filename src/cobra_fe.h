@@ -7,7 +7,7 @@
 #ifndef COBRA_FE
 #define COBRA_FE
 
-#define tool_version	"Version 4.6 - 21 January 2024"
+#define tool_version	"Version 4.7 - 6 May 2024"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -130,6 +130,7 @@ extern int	count;
 extern int	cplusplus;
 extern int	Ctok;
 extern int	gui;
+extern int	html;
 extern int	java;
 extern int	Ncore;
 extern int	Nfiles;

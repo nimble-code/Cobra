@@ -1,0 +1,169 @@
+# check correct nesting of tags
+# ./cobra -html -f html/html_check.cobra $Dropbox/Websites/cobra/commands/mark.html
+%{
+	inlist = 0;
+	intable = 0;
+	function show_stack()
+	{	g = list_top(Tags);
+		while (g.lnr > 0)
+		{	print ">>> '" g.txt "' " g.lnr ":" g.seq "\n";
+			list_pop(Tags);
+			g = list_top(Tags);
+		}
+	}
+	Stop;
+%}
+%{
+	Stop;
+	j = .jmp;
+	b = .bound;
+	print .seq " " .txt "\t";
+	if (j.seq > 0)
+	{	print "j=" j.seq ;
+	}
+	if (b.seq > 0)
+	{	print "\tb=" b.seq;
+	}
+	print "\t" .typ "\n";
+%}
+r
+m @tag
+= "nr of tags seen:"
+%{
+	x = .bound;
+	if (.mark == 1)
+	{	.mark = 0;
+		if (x.lnr == 0)
+		{	if (.txt == "td"
+			||  .txt == "th"
+			||  .txt == "tr"
+			||  .txt == "title"
+			||  .txt == "head"
+			||  .txt == "html")
+			{	print .fnm ":";
+				print .lnr ": <" .txt "> is not paired with a closing tag\n";
+			}
+			Next;
+		}
+	} else
+	{	Next;
+	}
+
+	b = .prv;
+	if (b.txt == "/")
+	{	Close[.txt] = .;
+again:		n = list_top(Tags);
+# print "Top: " n.txt ":" n.seq "\n";
+		if (n.seq == 0)
+		{	print .fnm ":" .lnr ": error: misplaced tag </" .txt ">\n";
+		} else
+		{
+# print .lnr ":" .txt " (need: " n.txt ")\n";
+			if (n.txt != .txt)
+			{	if (n.txt == "p")
+				{	list_pop(Tags);
+print .fnm ":" .lnr ": can this happen?\n";
+					goto again;
+				}
+				if (inlist > 0
+				&&  n.txt == "li"
+				&&  (.txt == "ol" || .txt == "ul"))
+				{	print n.lnr ":" .lnr ": unclosed list tag: <" n.txt ">";
+				#	print "\t" inlist ":" intable;
+					print "\n";
+					list_pop(Tags);
+					goto again;
+				}
+				if (intable > 0
+				&&  .txt == "table"
+				&&  (n.txt == "td" || n.txt == "tr"))
+				{	print n.fnm ":";
+					print n.lnr ":" .lnr ": unclosed table tag: <" n.txt ">";
+				#	print "\t" inlist ":" intable;
+					print "\n";
+					list_pop(Tags);
+					goto again;
+				}
+				if (intable > 0
+				&&  n.txt == "table"
+				&&  (.txt == "td" || .txt == "tr"))
+				{	print n.fnm ":";
+					print n.lnr ":" .lnr ": misplaced tag </" .txt ">\n";
+					Next;
+				} else
+				{	if (inlist == 0 || n.txt != "li")
+					{	print .fnm ":";
+						print .lnr ": ";
+						print "saw </" .txt ">, expected </" n.txt "> matching line " n.lnr;
+					#	print ">\t" inlist ":" intable;
+						print "\n";
+# show_stack(); Stop;
+						list_pop(Tags);
+						goto again;
+				}	}
+			}
+			list_pop(Tags);
+			if (inlist > 0
+			&& (n.txt == "ol" || n.txt == "ul"))
+			{	inlist--;
+			} else
+			{	if (intable > 0
+				&& n.txt == "table")
+				{	intable--;
+			}	}
+		#	if (intable == 0
+		#	&&  (n.txt == "td" || n.txt == "tr"))
+		#	{	# print n.fnm ":";
+		#		print n.lnr ":" .lnr;
+		#		print ": error: saw </td> or </tr> outside <table>\n";
+		#	}
+		}
+		Next;
+	}
+	# not a close tag: it's an open tag
+	Open[.txt] = .;
+	n = list_tok();
+	n.seq = .seq;
+	n.txt = .txt;
+	n.fnm = .fnm;
+	n.lnr = .lnr;
+	list_push(Tags, n);
+# print .lnr " Push:" n.txt ":" n.seq "\n";
+	if (.txt == "ul" || .txt == "ol")
+	{	inlist++;
+	} else
+	{	if (.txt == "table")
+		{	intable++;
+	}	}
+	if (inlist == 0
+	&&  .txt == "li")
+	{	print .fnm ":";
+		print .lnr ": error: saw <li> outside ol or ul list\n";
+	}
+#	if (intable == 0
+#	&&  (.txt == "td" || .txt == "tr"))
+#	{	# print .fnm ":";
+#		print .lnr ": error: saw <td> or </r> outside <table>\n";
+#	}
+
+%}
+=
+%{
+	# these do not pair actually matching tags, but just the last seen copies
+	for (i in Open)
+	{	c = Close[i.txt];
+		if (c.seq == 0 && i.txt != "li" && i.txt != "p")
+		{	o = Open[i.txt];
+			print n.fnm ":";
+			print "error: missing close tag for " i.txt " " o.lnr ":" o.seq "\n";
+	}	}
+	n = list_top(Tags);
+	while (n.lnr > 0)
+	{	print n.fnm ":";
+		print "error: missing close tag for '" n.txt "' matching the one on lnr " n.lnr ":" n.seq "\n";
+		list_pop(Tags);
+		n = list_top(Tags);
+	}
+	Stop;
+%}
+=

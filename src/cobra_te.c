@@ -3260,8 +3260,11 @@ clone_set(Named *x, int ix)
 
 	for (y = x->m; y; y = y->nxt)
 	{	r = (Prim *) hmalloc(sizeof(Prim), ix, 144);
-		r->seq = Seq++;
+		r->txt = "Pattern";
 		r->typ   = x->nm;	// name of the set
+		r->fnm = y->from?y->from->fnm:"fnm";
+		r->lnr = y->from?y->from->lnr:0;
+		r->seq = Seq++;
 		r->jmp   = y->from;	// w synonym 'p_start'
 		r->bound = y->upto;	// w synonym 'p_end'
 

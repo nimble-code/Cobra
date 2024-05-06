@@ -1,0 +1,46 @@
+## Python Rule P1: do not assign to the control variable in the body of a for-loop
+
+pe Tmp: for x:@ident in ^:* : .* :x
+%{
+	f = pset(Tmp);
+	while (f.seq != 0)
+	{	x = f.p_start;
+		y = f.p_end;
+		b = f.p_bdef;
+		r = f.p_bref;
+		# print "bound variable: " b.seq ":" r.seq "\n";
+
+		while (x.seq <= y.seq)
+		{	if (x.txt == ":")	# start of range
+			{	j = x.jmp;
+				# print x.seq ":" x.lnr " -> " j.seq ":" j.lnr "\n";
+				x = x.nxt;
+				while (x.seq < j.seq)
+				{	if (x.txt == b.txt)
+					{	n = x.nxt;
+						if (n.typ == "oper"
+						&&  match(n.txt, "/=")
+						&&  n.txt != "=="
+						&&  n.txt != "!=")
+						{	sx = f.p_start;
+						#	print x.fnm ":" x.lnr ": assignment to control variable '" x.txt "' of for-loop\n";
+						#	print "<<" x.lnr ":" x.seq ">>" x.txt ">>\n";
+							add_pattern(P1, sx, x);
+					}	}
+					x = x.nxt;
+				}
+				Stop;
+			}
+
+			# print x.txt " ";
+			x = x.nxt;
+		}
+		print "\n";
+		f = f.nxt;
+	}
+	Stop;
+%}
+ps delete Tmp
+ps caption P1 Assignment to the control variable of a for-loop
+# ps list
+dp *

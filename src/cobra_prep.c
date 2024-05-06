@@ -9,6 +9,10 @@
 #include <fcntl.h>
 #include <dirent.h>
 #include "cobra_pre.h"
+#include <strings.h>
+#ifdef _WINDOWS
+ #define strcasecmp	stricmp
+#endif
 
 #ifdef PC
  #include <time.h>
@@ -31,6 +35,7 @@ int eol;
 int eof = 1;	// new default v 3.9
 int gui;
 int has_suppress_tags;
+int html;
 int java;
 int Ncore = 1;
 int Nfiles;
@@ -51,6 +56,7 @@ int stream_margin_set;
 int stream_override;
 int runtimes;
 int scrub;
+int showprog;
 int verbose;
 int view;
 
@@ -137,6 +143,663 @@ static Prim *cmnt_tail;
 static Prim *s_prim = 0;
 static Prim *s_plst = 0;
 
+static char *Tname[] = { // all except <!DOCTYPE and comments <!--
+	"a",		"abbr",		"acronym",
+	"address",	"applet",	"area",
+	"article",	"aside",	"audio",
+	"b",		"base",		"basefont",
+	"bdi",		"bdo",		"big",
+	"blockquote",	"body",		"br",
+	"button",	"canvas",	"caption",
+	"center",	"cite",		"code",
+	"col",		"colgroup",	"data",
+	"datalist",	"dd",		"del",
+	"details",	"dfn",		"dialog",
+	"dir",		"div",		"dl",
+	"dt",		"em",		"embed",
+	"fieldset",	"figcaption",	"figure",
+	"font",		"footer",	"form",
+	"frame",	"frameset",	"h1",
+	"h2",		"h3",		"h4",
+	"h5",		"h6",		"head",
+	"header",	"hgroup",	"hr",
+	"html",		"i",		"iframe",
+	"img",		"input",	"ins",
+	"kbd",		"label",	"legend",
+	"li",		"link",		"main",
+	"map",		"mark",		"menu",
+	"meta",		"meter",	"nav",
+	"noframes",	"noscript",	"object",
+	"ol",		"optgroup",	"option",
+	"output",	"p",		"param",
+	"picture",	"pre",		"progress",
+	"q",		"rp",		"rt",
+	"ruby",		"s",		"samp",
+	"script",	"search",	"section",
+	"select",	"small",	"source",
+	"span",		"strike",	"strong",
+	"style",	"sub",		"summary",
+	"sup",		"svg",		"table",
+	"tbody",	"td",		"template",
+	"textarea",	"tfoot",	"th",
+	"thead",	"time",		"title",
+	"tr",		"track",	"tt",
+	"u",		"ul",		"var",
+	"video",	"wbr",
+	0
+};
+
+static char *Selfclosing[] = {
+	"area",
+	"br",
+	"col",
+	"embed",
+	"hr",
+	"img",
+	"input",
+	"link",
+	"meta",
+	"source",
+	"track",
+	"wbr",
+	0
+};
+
+static char *NestingTags[] = {	// likely needs more entries
+	"b",
+	"cite",
+	"dfn",
+	"em",
+	"font",
+	"i",
+	"mark",
+	"ol",
+	"small",
+	"strong",
+	"table",
+	"tt",
+	"ul",
+	0
+};
+
+static int
+istagname(const char *s)
+{	int i;
+
+	if (s)
+	for (i = 0; Tname[i] != 0 && *Tname[i] <= *s; i++)
+	{	if (strcasecmp(Tname[i], s) == 0) // strings.h
+		{	return i;
+	}	}
+	return -1;
+}
+
+static int
+is_nesting(const char *s)
+{	int i;
+
+	for (i = 0; NestingTags[i] != 0; i++)
+	{	if (strcasecmp(s, NestingTags[i]) == 0)
+		{	return 1;
+	}	}
+	return 0;
+}
+
+static int
+is_selfclosing(const char *s)
+{	int i;
+
+	for (i = 0; Selfclosing[i] != 0; i++)
+	{	if (strcasecmp(s, Selfclosing[i]) == 0)
+		{	return 1;
+	}	}
+	return 0;
+}
+
+static Prim *
+find_close_tag(Prim *q, int tn)
+{	Prim *b, *f, *oq = q;
+	int ntn, tag_closed = 0;
+
+	if (tn < 0)
+	{	return (Prim *) 0;
+	}
+
+	q = q->nxt; // scan ahead starting with the next token after the tag field
+
+	if (oq->prv != NULL)
+	for ( ; q && strcmp(q->fnm, oq->fnm) == 0; q = q->nxt)
+	{
+		// we're searching forward starting at a tagname
+		// and first try to find the closing > of that tag
+
+		if (strcmp(q->typ, "cmnt") == 0) // html comment
+		{	continue;
+		}
+
+		if (!tag_closed
+		&&  strcmp(q->txt, ">") == 0
+		&&  oq->prv->jmp == NULL)
+		{	tag_closed = 1;
+			oq->prv->jmp = q;
+			q->jmp = oq->prv;
+			continue;
+		}
+
+		if (!q->txt
+		|| (ntn = istagname(q->txt)) < 0)
+		{	continue;
+		}
+		if (is_nesting(q->txt))
+		{	if (q->bound	// nesting
+			&&  q->bound->seq > q->seq)
+			{
+				q = q->bound;
+				// skip over nesting tag structures
+			}
+			continue;
+		}
+
+		if (!q->txt
+		||  tn != ntn)
+		{	continue;
+		}
+
+		b = q->prv;
+		f = q->nxt;
+
+		if (!b
+		||  !b->txt
+		||  !f
+		||  !f->txt
+		||  strcmp(f->txt, ">") != 0)
+		{	continue;
+		}
+
+		if (strcmp(b->txt, "<") == 0)
+		{	// not </...: ran into the next tag of the same type
+			// before seeing a closing tag -- use this
+			// as an implicit close, without bound field
+			break;
+		}
+		if (strcmp(b->txt, "/") != 0
+		||  !b->prv
+		||  !b->prv->txt
+		||  strcmp(b->prv->txt, "<") != 0)
+		{	continue;
+		}
+		if (b->prv->jmp == NULL)
+		{	b->prv->jmp = f;
+			f->jmp = b->prv;
+		}
+		// found a proper closing tag
+		// oq is the opening tag
+		oq->typ = "tag";
+		oq->bound = q;
+		q->typ = "tag";
+		q->bound = oq;
+#if 0
+	printf("%d::%d:%s (%s) -> -b-> %d::%d:%s (%s)\n",
+		oq->lnr, oq->seq, oq->prv->txt, oq->txt,
+		 q->lnr,  q->seq,  q->prv->txt,  q->txt);
+#endif
+		return q;
+	}
+
+	oq->typ = "tag";
+	return (Prim *) 0;			
+}
+
+static Prim *
+find_next(Prim *q, char *s)	// >
+{
+	while (q)
+	{	if (q->txt && strcmp(q->txt, s) == 0)
+		{	return q;
+		}
+		q = q->nxt;
+	}
+	return (Prim *) 0;
+}
+
+static Prim *
+find_end(Prim *q)	// -- >
+{	Prim *oq = q;
+	Prim *r = (Prim *) 0;
+
+	while (q)
+	{	if (q->txt && strcmp(q->txt, "--") == 0)
+		{	q = q->nxt;
+			if (q->txt && strcmp(q->txt, ">") == 0)
+			{	r = q;
+				break;
+		}	}
+		q = q->nxt;
+	}
+	if (r)
+	{	for (q = oq; q->seq <= r->seq; q = q->nxt)
+		{	q->typ = "cmnt";
+	}	}
+	return r;
+}
+
+#define ISOPEN	1
+#define ISCLOSE	2
+
+static int
+istag_field(Prim *p)
+{
+	if (strcmp(p->txt, "<") == 0
+	&& p->nxt != NULL)
+	{	if (isalpha((int) p->nxt->txt[0])
+		&& istagname(p->nxt->txt) >= 0)
+		{	return ISOPEN;
+		}
+		if (strcmp(p->nxt->txt, "/") == 0
+		&&  p->nxt->nxt
+		&&  isalpha((int) p->nxt->nxt->txt[0])
+		&&  istagname(p->nxt->nxt->txt) >= 0)
+		{	return ISCLOSE;
+	}	}
+	return 0;
+}
+
+typedef struct T_Stack T_Stack;
+struct T_Stack {
+	Prim *p;
+	T_Stack *nxt;
+};
+T_Stack *tstack;
+T_Stack *tstack_free;
+
+static void
+push_tstack(Prim *ptr)
+{	T_Stack *t;
+
+	if (tstack_free)
+	{	t = tstack_free;
+		tstack_free = t->nxt;
+	} else
+	{	t = emalloc(sizeof(T_Stack), 3);
+	}
+	t->p = ptr;
+	t->nxt = tstack;
+	tstack = t;
+}
+
+static Prim *
+pop_tstack(Prim *ptr)
+{	Prim *t = (Prim *) 0;
+	T_Stack *q;
+
+	if (!tstack)
+	{	fprintf(stderr, "%s:%d: tstack error (%s)\n",
+			ptr->fnm, ptr->lnr, ptr->txt);
+		return t;
+	}
+	if (strcmp(tstack->p->txt, ptr->txt) != 0)
+	{	if (tstack->nxt && strcmp(tstack->nxt->p->txt, ptr->txt) == 0)
+		{	// it's out of order with the next tag
+			fprintf(stderr, "%s:%d: tag </%s> is out of order, expected </%s>\n",
+				ptr->fnm, ptr->lnr, ptr->txt, tstack->p->txt);
+			q = tstack->nxt;
+			t = q->p;
+			tstack->nxt = tstack->nxt->nxt;
+			q->nxt = tstack_free;
+			tstack_free = q;
+		} else
+		{	fprintf(stderr, "%s:%d: expected </%s> matching line %d saw </%s>\n",
+				ptr->fnm, ptr->lnr, tstack->p->txt, tstack->p->lnr, ptr->txt);
+		}
+		return t;
+	}
+	t = tstack->p;
+	q = tstack;
+	tstack = tstack->nxt;
+	q->nxt = tstack_free;
+	tstack_free = q;
+	return t;
+}
+
+static void
+clear_stack(void)
+{	T_Stack *t;
+
+	while (tstack)
+	{	t = tstack;
+		tstack = tstack->nxt;
+		t->nxt = tstack_free;
+		tstack_free = t;
+	}
+}
+
+static void
+warn_stack(const char *fnm)
+{	T_Stack *t;
+
+	if (tstack)
+	{	fprintf(stderr, "%s: error: unclosed tags at end of file:", fnm);
+		for (t = tstack; t; t = t->nxt)
+		{	fprintf(stderr, " <%s> (ln %d)", t->p->txt, t->p->lnr);
+		}
+		fprintf(stderr, "\n");
+	}
+}
+
+static void
+set_jmp(Prim *p)
+{	Prim *op = p;
+	assert(p != NULL && p->txt[0] == '<');
+	while (p && strcmp(p->txt, ">") != 0)
+	{	p = p->nxt;
+	}
+	if (p)
+	{	op->jmp = p;
+		p->jmp = op;
+	}
+}
+
+static int
+spaces_only(const char *s)
+{
+	while (*s != '\0')
+	{	if (*s != ' ' && *s != '\"')
+		{	return 0;
+		}
+		s++;
+	}
+	return 1;
+}
+
+static void
+end_of_block(Prim *ptr)
+{	Prim *q;
+
+	// restrict to first line of block only
+	// check that the next indent is larger
+	for (q = ptr->nxt; q; q = q->nxt)
+	{	if (q->mark == 0)
+		{	continue;
+		}
+		if (q->mark <= ptr->mark)
+		{	return;
+		}
+		break;
+	}
+	if (!q)
+	{	return; // does not start a new range
+	}
+
+	// find first token with q->mark <= ptr->mark or eof
+	for (q = ptr->nxt; q && strcmp(q->txt, "EOF") != 0; q = q->nxt)
+	{	if (q->mark <= ptr->mark
+		&& (q->mark > 0
+		 || strcmp(q->txt, "IND") == 0))
+		{	ptr->jmp = q;
+			if (q->jmp == (Prim *) 0)
+			{	q->jmp = ptr;
+			}
+			break;
+	}	}
+
+	if (q && strcmp(q->txt, "EOF") == 0)
+	{	ptr->jmp = q;
+		if (q->jmp == (Prim *) 0)
+		{	q->jmp = ptr;
+	}	}
+}
+
+#if 0
+static void
+python_show(const char *s)
+{	Prim *ptr;
+
+	// debugging
+	for (ptr = prim; ptr; ptr = ptr->nxt)
+	{	printf("%s seq:%3d: lnr:%3d: txt:%s\ttyp:%s\tj:%d:%p :: m:%d l:%d\n",
+			s, ptr->seq, ptr->lnr, ptr->txt, ptr->typ,
+			ptr->jmp?ptr->jmp->seq:0,
+			(void *) ptr->jmp, ptr->mark, ptr->len);
+	}
+}
+#endif
+
+void
+handle_python(void)
+{	Prim *ptr, *b;
+	int tnr;
+
+	// added 2/2024 -- notes:
+	// remove type cpp sequences of spaces that do not follow an EOL token
+	// use the remaining markers to define the ranges for blocks at the same
+	// level of nesting
+	// then remove the remaining space sequences of type cpp and EOL markers
+
+	for (ptr = prim; ptr; ptr = ptr->nxt)
+	{	if (strcmp(ptr->typ, "cpp") != 0
+		||  strcmp(ptr->txt, "EOL") != 0)
+		{	continue;
+		}
+		b = ptr->nxt;
+
+		// remove empty lines:
+		// if the next two tokens are spaces
+		// followed by EOL then remove that pair
+		while (strcmp(b->typ, "cpp") == 0
+		      && spaces_only(b->txt)
+		      && b->nxt
+		      &&  strcmp(b->nxt->typ, "cpp") == 0
+		      &&  strcmp(b->nxt->txt, "EOL") == 0)
+		{	b = b->nxt->nxt;
+			// leave links of skipped tokens in place
+			// to preserve links from cmnts to source stream
+		}
+
+		if (b != ptr->nxt)	// skip over these pairs
+		{	ptr->nxt = b;
+			b->prv = ptr;
+		}
+		if (strcmp(b->typ, "cpp") != 0
+		||  spaces_only(b->txt) == 0
+		||  b->len < 2)
+		{	continue; // not an indent
+		}
+
+		if (b->len == 2
+		&&  b->nxt
+		&&  strcmp(b->nxt->txt, "EOL") == 0)
+		{	b->txt = "IND";	// mark as zero indent
+			continue;
+		}
+		// level of nesting is: b->len - 2
+		// (accounting for the quotes around the space string)
+		b->mark = b->len - 1;	// keep it +1, reset later
+	}
+
+	// look for marked tokens only and build ranges
+	for (ptr = prim; ptr; ptr = ptr->nxt)
+	{	if (ptr->mark > 0)
+		{	end_of_block(ptr); // connect jmp to next_lower_or_eof
+			//  search forward to the first level of nesting
+			//  that is less than this one and connect it in .jmp
+			// when two nested blocks have the same end point
+			// they backward jump for the end is for the first of these only
+	}	}
+
+	// reset .mark to zero and replace spaces with token "IND"
+	// with the nesting level recorded in the .len field
+	// there's a small risk here that the .len field can
+	// indicate a string longer than 3 chars, but the
+	// string is an uneditable constant string so it is safe
+	for (ptr = prim; ptr; ptr = ptr->nxt)
+	{	if (ptr->mark > 0)
+		{	ptr->len = ptr->mark; // still +1
+			ptr->mark = 0;
+			ptr->txt = "IND";
+	}	}
+
+	// drop the EOL markers unless -eol was set
+	// and drop indented empty lines
+A:	for (ptr = prim; ptr; ptr = ptr->nxt)
+	{	if (strcmp(ptr->txt, "IND") == 0
+		&&  ptr->len >= 2
+		&&  ptr->nxt
+		&&  strcmp(ptr->nxt->txt, "EOL") == 0)
+		{	if (ptr == prim)
+			{	prim = ptr->nxt->nxt;
+				prim->prv = (Prim *) 0;
+				goto A;
+			}
+			assert(ptr->prv);
+			b = ptr->prv;
+			b->nxt = ptr->nxt->nxt;
+			if (b->nxt)
+			{	b->nxt->prv = b;
+			}
+			ptr = b;
+		}
+		if (eol != 0
+		||  strcmp(ptr->txt, "EOL") != 0)
+		{	continue;
+		}
+		if (ptr == prim)
+		{	prim = ptr->nxt;
+			if (prim)
+			{	prim->prv = (Prim *) 0;
+			}
+			goto A;
+		}
+		assert(ptr->prv);
+		b = ptr->prv;
+		b->nxt = ptr->nxt;
+		if (b->nxt)
+		{	ptr->nxt->prv = b;
+		}
+		ptr = b;
+	}
+
+	// move startpt of each block forward to first ':'
+	for (ptr = prim; ptr; ptr = ptr->nxt)
+	{	if (strcmp(ptr->txt, "IND") == 0
+		&&  strcmp(ptr->typ, "cpp") == 0
+		&&  ptr->jmp != (Prim *) 0)
+		{	for (b = ptr; b /* && b->lnr == ptr->lnr */; b = b->nxt)
+			{	if (strcmp(b->txt, ":") == 0)
+				{	b->jmp = ptr->jmp;
+					break;
+			}	}
+			ptr->jmp = 0;
+	}	}
+
+	// renumber
+	count = 0;
+	for (ptr = prim; ptr; ptr = ptr->nxt)
+	{	ptr->seq = ++count;
+	}
+	tnr = 0;
+	for (ptr = cmnt_head; ptr; ptr = ptr->nxt)
+	{	ptr->seq = ++tnr;
+	}
+	if (!no_match)
+	{	printf("python: %5d src tokens\n", count);
+		printf("python: %5d cmnt tokens\n", tnr);
+	}
+}
+
+void
+handle_html(void)
+{	Prim *ptr, *ct, *prm;
+#if 0
+	added 1/2024 -- notes:
+	the identifier of all html tags are marked with type 'tag'
+	the .jmp field of the preceding < points with the matching > of the same tag
+	and vice versa (they point to each other)
+	the .bound field points to the tag identifier of the corresponding closing tag,
+	and vice versa (they point to each other)
+	if the closing tag can be found; it remains 0 if not found or if self-closing
+
+	year7/show_tags.cobra shows links (cobra -html -f year7/prog.cobra ...)
+	year7/html_check performs basic checks on html tag
+#endif
+	// new: first tag lists and table, doctype and comments
+	clear_stack();
+	prm = prim;
+	for (ptr = prim; ptr; ptr = ptr->nxt)
+	{	int tg = istag_field(ptr);	// '<' @ident or '<' / @ident
+
+		if (strcmp(prm->fnm, ptr->fnm) != 0)
+		{	warn_stack(prm->fnm);
+			clear_stack();
+			prm = ptr;
+		}
+
+		switch (tg) {
+		case ISOPEN:
+			ct = ptr->nxt;
+			break;
+		case ISCLOSE:
+			ct = ptr->nxt->nxt;
+			break;
+		default:
+			ct = ptr->nxt;
+			// <!DOCTYPE and <!-- comments
+			if (ct
+			&&  strcmp(ct->txt, "!") == 0
+			&&  ct->nxt)
+			{	if (strcmp(ct->nxt->txt, "DOCTYPE") == 0)
+				{	ptr->typ = "tag";
+					ptr->jmp = find_next(ct->nxt, ">");
+				} else
+				if (strcmp(ct->nxt->txt, "--") == 0)
+				{	// comment
+					ptr->typ = "cmnt";
+					ptr->jmp = find_end(ct->nxt); // -- >
+			}	}
+			if (ptr->jmp)
+			{	ptr->jmp->jmp = ptr;
+			}
+			continue;
+		}
+
+		if (is_nesting(ct->txt))
+		{	if (tg == ISOPEN)
+			{	push_tstack(ct);
+				ct->typ = "tag";
+				set_jmp(ptr);
+			} else
+			{	Prim *t;
+				t = pop_tstack(ct);
+				if (t)
+				{	ct->typ = "tag";
+					ct->bound = t;
+					t->bound = ct;
+	}	}	}	}
+	warn_stack(prm->fnm);
+	// second pass: non-nesting html tags, skip over nestables while
+	// looking for matching close tag
+	int tn = 0;
+	for (ptr = prim; ptr; ptr = ptr->nxt)
+	{	int tg = istag_field(ptr);
+		switch (tg) {
+		case ISOPEN:
+			ct = ptr->nxt;
+			break;
+		case ISCLOSE:
+			ct = ptr->nxt->nxt;
+			break;
+		default:
+			continue;
+		}
+
+		if (is_selfclosing(ct->txt))
+		{	continue;
+		}
+		if (tg == ISOPEN)
+		{	tn = istagname(ct->txt);
+			find_close_tag(ct, tn); // set bound fields, skip nestings and comments
+	}	}
+}
+
 // externally visible functions:
 
 void
@@ -218,7 +881,6 @@ strip_comments_and_renumber(int reset_ranges)	// split streams
 	if (reset_ranges)
 	{	set_ranges(prim, plst, 1);
 	}
-
 	if (verbose)
 	{	printf("%d source tokens and %d comments\n", scnt, ccnt);
 	}
@@ -810,6 +1472,7 @@ usage(char *s)
 	fprintf(stderr, "\t-f file             -- execute commands from file and stop (cf -view)\n");
 	fprintf(stderr, "\t-F file             -- read file names to process from file instead of command line (see also -recursive)\n");
 	fprintf(stderr, "\t-global             -- allow pattern matches (pe) to cross file boundaries\n");
+	fprintf(stderr, "\t-html               -- recognize html tags\n");
 	fprintf(stderr, "\t-Idir, -Dstr, -Ustr -- preprocessing directives\n");
 	fprintf(stderr, "\t-Java               -- recognize Java keywords\n");
 	fprintf(stderr, "\t-json               -- generate json output for -pattern/-pe matches (only)\n");
@@ -840,6 +1503,7 @@ usage(char *s)
 	fprintf(stderr, "\t-runtimes           -- report runtimes of commands executed, if >1s\n");
 	fprintf(stderr, "\t-scrub              -- produce output in scrub-format\n");
 	fprintf(stderr, "\t-seed file          -- read JSON formatted output from file to seed initial pattern sets\n");
+	fprintf(stderr, "\t-showprog           -- show a dot graph of the code generated for the first inline program\n");
 	fprintf(stderr, "\t-stream N           -- set stdin stream buffer-limit to N  (default %d)\n", stream_lim);
 	fprintf(stderr, "\t-stream_margin N    -- set stdin window margin to N tokens (default %d)\n", stream_margin);
 	fprintf(stderr, "\t-stream_override    -- override warning about a non-streamable script\n");
@@ -1076,9 +1740,7 @@ seq_scan(int argc, char *argv[])
 	}
 	start_timer(0);
 	for (i = 1; i < argc; i++)
-	{
-// printf("%d '%s'\n", i, argv[i]);
-		fn = strip_directives(argv[i], 0);	// single-core
+	{	fn = strip_directives(argv[i], 0);	// single-core
 		(void) add_file(fn, 0, 1);
 		Preproc[0] = op;			// restore
 	}
@@ -1592,6 +2254,13 @@ RegEx:			  no_match = 1;		// -e -expr -re or -regex
 			  }
 			  break;
 
+		case 'h': if (strcmp(argv[1], "-html") == 0)
+			  {	html = 1;
+			  	handle_typedefs = 0;
+			  	break;
+			  }
+			  return usage(argv[1]);
+
 		case 'I': add_preproc(argv[1]);
 			  break;
 
@@ -1659,12 +2328,16 @@ RegEx:			  no_match = 1;		// -e -expr -re or -regex
 		case 'N': Nthreads(&argv[1][2]);
 			  break;
 
-		case 'p': if (strncmp(argv[1], "-pre", 4) == 0)	// preserve
+		case 'p': if (strncmp(argv[1], "-pre", 4) == 0)	// preserve temp files
 			  {	preserve = 1;
 				break;
 			  }
-			  if (strncmp(argv[1], "-prune", 6) == 0) // prune_if_zero
+			  if (strncmp(argv[1], "-prune", 6) == 0) // prune_if_zero: #if 0 .. #endif
 			  {	pruneifzero = 1;
+				break;
+			  }
+			  if (strncmp(argv[1], "-python", 7) == 0)
+			  {	python = no_cpp = 1;
 				break;
 			  }
 			  if (strncmp(argv[1], "-pat", 4) == 0
@@ -1720,6 +2393,11 @@ RegEx:			  no_match = 1;		// -e -expr -re or -regex
 			  if (strcmp(argv[1], "-seed") == 0)
 			  {	argc--; argv++;
 				seedfile = argv[1];
+				break;
+			  }
+			  if (strcmp(argv[1], "-showprog") == 0)
+			  {	showprog = 1;
+			//	preserve = 1;
 				break;
 			  }
 			  if (strcmp(argv[1], "-stream") == 0)
@@ -1980,12 +2658,16 @@ cwe_mode:	no_match = 1;	// for consistency with -f
 				progname);
 			return 1;
 	}	}
-
 	if (Ctok)
 	{	return 0;
 	}
 	post_process(1);		// collect info from cores
 	strip_comments_and_renumber(1);	// set cmnt_head/cmnt_tail
+	if (html)
+	{	handle_html();
+	} else if (python)
+	{	handle_python();
+	}
 	if (pruneifzero)
 	{	prune_if_zero();
 	}

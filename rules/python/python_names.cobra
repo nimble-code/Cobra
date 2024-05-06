@@ -1,0 +1,5 @@
+## Python: names to avoid according to PEP0008
+
+pe P7: [l O I] <1> @1(.typ == "ident")
+ps caption P7 Dont use single-letter identifier names l O or I (PEP0008)
+dp *

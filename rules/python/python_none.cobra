@@ -1,0 +1,6 @@
+## Python: comparisons with None shall be made using identity checks (is or is_not)
+## JPL R49
+
+pe P8: ^[is not] None ^is
+ps caption P8 Comparisons with None shall be made using identity checks (is or is_not)
+dp *

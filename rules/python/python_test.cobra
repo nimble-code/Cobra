@@ -1,0 +1,19 @@
+## print all marked block ranges
+## from the initial : to the end of the block
+%{
+	j = .jmp;
+	if (j.seq == 0 || j.seq < .seq || .txt == "(")
+	{	Next;
+	}
+	n = .nxt;
+	p = j.prv;
+
+	print .lnr " " .txt " ";	# .txt == ":"
+	while (n.seq <= p.seq)
+	{	if (n.txt != "IND")
+		{	print n.txt " ";
+		}
+		n = n.nxt;
+	}
+	print "\n\n";
+%}

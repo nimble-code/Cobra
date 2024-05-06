@@ -1,0 +1,72 @@
+# check table formats for a consistent nr of columns
+m < @tag
+n
+m & table
+# count <tr> tags in each table
+%{
+	if (.mark == 0 || .bound == 0)
+	{	Next;
+	}
+	.mark = 0;
+	a = .nxt;
+	b = .bound;
+	tr_cnt = 0;
+	td_cnt = 0;
+	unset TD;
+	while (a.seq < b.seq)
+	{	p = a.prv;
+		if (p.txt == "<" && a.typ == "tag")
+		{	if (a.txt == "table")	# nested table
+			{	a = a.bound;	# skip - checked separately
+			}
+			if (a.txt == "tr")
+			{	tr_cnt++;
+				td_cnt = 0;
+			}
+			if (a.txt == "td" || a.txt == "th")
+			{	td_cnt++;
+				q = p;	# from here to p.jmp
+				j = p.jmp;
+				while (q.seq < j.seq)
+				{	if (q.txt == "colspan")
+					{	q = q.nxt;	# =
+						q = q.nxt;	# N
+						if (q.typ == "const_int")
+						{	N = q.txt;
+						#	print q.lnr ": colspan: " N "\n";
+							td_cnt = td_cnt + N - 1;
+							break;
+					}	}
+					q = q.nxt;
+				}
+		}	}
+		if (p.txt == "/" && a.typ == "tag")
+		{	if (a.txt == "tr")
+			{	TD[td_cnt]++;
+				td_cnt = 0;
+		}	}
+		a = a.nxt;
+	}
+	print .fnm ":" .lnr ": table has " tr_cnt " rows, with ";
+	cnt = 0;
+	for (i in TD)
+	{	cnt++;
+	}
+	if (cnt == 1)
+	{	print i.txt " columns\n";
+	} else
+	{	print "an inconsistent nr of columns:";
+		cnt = 0;
+		for (i in TD)
+		{	if (cnt > 0)
+			{	print ", and";
+			}
+			print " " i.txt;
+			if (TD[i.txt] > 1)
+			{	print " (" TD[i.txt] "x)";
+			}
+			cnt++;
+		}
+		print "\n";
+	}
+%}

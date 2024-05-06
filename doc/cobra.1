@@ -167,6 +167,10 @@ are treated as comments and skipped.
 print a summary of command line arguments.
 
 .TP
+.B \-html
+Recognize html tags and perform basic checks on matching tags.
+
+.TP
 .B \-Idir
 Passed as a directive to the C preprocessor, if used.
 See also \f3\-cpp\f1, \f3\-D\f1 and \f3\-U\f1.
@@ -328,7 +332,11 @@ accumulated files named \f2/tmp/cobra_*\f1 and \f2/tmp/_f_*\f1.
 
 .TP
 .B \-Python
-Recognize Python keywords.
+or
+.B \-python
+Recognize Python keywords, and (v4.7) handle block statements and ranges
+(recognizing indentation semantics).
+
 .TP
 .B \-quiet
 Quiet mode.
@@ -353,6 +361,10 @@ Report the runtime of all commands executed, if it exceeds one second.
 .TP
 .B \-scrub
 Produce output in the format expected by the \f2scrub\f1 tool.
+
+.TP
+.B \-showprog
+Generate a dot graph (graphviz) visualization for the first inline program.
 
 .TP
 .B \-stream N

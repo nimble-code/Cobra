@@ -159,7 +159,9 @@ add_top(const char *nm, Prim *n, const int ix)		// add at start
 	} else
 	{	n->nxt = t->head;
 		n->prv = 0;
-		t->head->prv = n;
+		if (t->head != NULL)
+		{	t->head->prv = n;
+		}
 		t->head = n;
 		t->len++;
 	}

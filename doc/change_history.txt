@@ -426,3 +426,20 @@ new in december 30, 2021
  - fixed bug in accuracy of linecounting in cobra_lex.c
  - fixed bug in command-line defined parameter handling in inline functions
  - fixed bug in the handling of pattern set names in pattern queries
+
+4.6 january 21, 2024
+ - small fixes
+
+4.7 may 5, 2024
+ - added -html commandline flag to recognize and pair html tags
+ - added rules/html with some checkers
+ - added -python to parse python code with indentation semantics
+ - added rules/python with some checkers
+ - added -showprog to show a dot graph of the first inline program defined
+ - improved output for the pre (p) display command, improved use of ^ characters
+ - added 'foreach' statement for inline programs
+   allowing: foreach (x in Patternset)
+             { foreach (t in x)
+               { ... }
+             }
+ - other small updates and bug fixes

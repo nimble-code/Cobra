@@ -12,6 +12,7 @@
 #include "cobra_pre.h"
 
 extern int eol;
+extern int html;
 
 static const struct {
 	char	*str;
@@ -442,6 +443,35 @@ c_comment(int cid)	/* c comment */
 			show2("cmnt", Px.lex_yytext, cid);
 			break;
 	}	}
+	assert(m < MAXYYTEXT);
+	Px.lex_yytext[m] = '\0';
+}
+
+static void
+triple_quoted(int cid)	// python string
+{	int n;
+	int m = 3;	// have """
+
+	assert(cid >= 0 && cid < Ncore);
+	strcpy(Px.lex_yytext, "\"\"\"");
+	while ((n = nextchar(cid)) != EOF)
+	{	m = append_char(n, m, cid);
+		if (n != '\"')
+		{	continue;
+		}
+		m = append_char(n, m, cid);
+		if (n != '\"')
+		{	continue;
+		}
+		m = append_char(n, m, cid);
+		if (n != '\"')
+		{	continue;
+		}
+		assert(m < MAXYYTEXT);
+		Px.lex_yytext[m] = '\0';
+		show2("str", Px.lex_yytext, cid);
+		break;
+	}
 	assert(m < MAXYYTEXT);
 	Px.lex_yytext[m] = '\0';
 }
@@ -965,21 +995,64 @@ t_lex(int cid)
 	}
 }
 
+static void
+whitespace(int cid)	// feb.24
+{	int n;
+	char ws[NOUT];
+
+	strcpy(ws, "\"");
+	for (;;)
+	{	n = nextchar(cid);
+		switch (n) {
+		case ' ':
+			strcat(ws, " ");
+			break;
+		case '\t':
+			strcat(ws, "    ");
+			break;
+		default:
+			pushback(n, cid);
+			strcat(ws, "\"");
+			show2("cpp", ws, cid);
+			return;
+	}	}
+}
+
 int
 c_lex(int cid)	// called in cobra_prep.c
 {	int n=0;
 	char *t;
 
 	assert(cid >= 0 && cid < Ncore);
+	if (python)	// feb.24
+#if 1
+	{	// Px.lex_lineno++;
+		pushback('\n', cid);
+	}
+#else
+	{	n = nextchar(cid);
+		if (n == ' ' || n == '\t')
+		{	Px.lex_lineno++;
+			pushback(n, cid);
+			pushback('\n', cid); // insert an EOL at the start
+		} else
+		{	pushback(n, cid);
+	}	}
+#endif
+
 	while (n != EOF)
 	{	strcpy(Px.lex_yytext, "");
 		n = nextchar(cid);
 		switch (n) {
 		case '\n':
 			line(cid);
-			if (Px.lex_preprocessing == 2 || eol != 0)
+			if (Px.lex_preprocessing == 2
+			|| eol != 0
+			|| (python > 0 && Px.lex_roundb == 0))	// feb.24
 			{	show2("cpp", "EOL", cid);
-			}
+				if (python > 0)
+				{	whitespace(cid);
+			}	}
 			Px.lex_preprocessing = 0;
 			// fall thru
 		case '\r':
@@ -994,6 +1067,9 @@ c_lex(int cid)	// called in cobra_prep.c
 			return '\\';	// should probably be continue instead
 		case '/':
 			n = nextchar(cid);
+			if (html)
+			{	goto L;
+			}
 			switch (n) {
 			case '*':
 				c_comment(cid);
@@ -1002,7 +1078,7 @@ c_lex(int cid)	// called in cobra_prep.c
 				p_comment("//", cid);
 				break;
 			default:
-				pushback(n, cid);
+			L:	pushback(n, cid);
 				show2("oper", "/", cid);
 				break;
 			}
@@ -1019,6 +1095,10 @@ c_lex(int cid)	// called in cobra_prep.c
 			}
 			break;
 		case '#':
+			if (python > 0)
+			{	p_comment("#", cid);
+				continue;
+			}
 			if (parse_macros) // means nocpp
 			{	dodirective(cid);
 				continue;
@@ -1073,6 +1153,23 @@ c_lex(int cid)	// called in cobra_prep.c
 				memset(Px.lex_cpp, 0, sizeof(Px.lex_cpp));
 				continue;
 			}
+			if (python > 0)
+			{	n = nextchar(cid);
+				if (n != '"')
+				{	pushback(n, cid);
+					n = '"';
+					// and fall through
+				} else
+				{	int m = nextchar(cid);
+					if (m != '"')
+					{	pushback(n, cid);
+						pushback(m, cid);
+						n = '"';
+						// fall thru
+					} else	// triple quoted multi-line string
+					{	triple_quoted(cid);
+						continue;
+			}	}	}
 			// fall thru
 		case '\'':
 			char_or_str(n, cid);

@@ -1,0 +1,17 @@
+m < @tag	# mark opening tags
+n		# move to the tagname
+%{
+	if (.mark)
+	{	Tags[.txt]++;	# count occurrences by name
+	}
+%}
+track start tmp		# divert output
+%{
+	for (i in Tags)
+	{	print Tags[i.txt] "\t" i.txt "\n"; # print counts
+	}
+	Stop;
+%}
+track stop
+!sort -n tmp	# print in sort order
+!rm tmp

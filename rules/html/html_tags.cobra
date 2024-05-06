@@ -1,0 +1,20 @@
+%{
+	j = .jmp;
+	b = .bound;
+	print .lnr ":" .seq " " .txt "\t(" .typ ")\t";
+	if (.typ == "tag")
+	{	j = .prv;
+		while (j.seq > 0 && j.txt != "<")
+		{	j = j.prv;
+	}	}
+	if (j.seq > 0)
+	{	print "j=" j.lnr ":" j.seq ;
+	}
+	if (b.seq > 0)
+	{	print "\tb=" b.lnr ":" b.seq;
+	}
+	if (.mark > 0)
+	{	print "\tm=" .mark;
+	}
+	print "\n";
+%}

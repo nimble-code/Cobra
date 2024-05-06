@@ -1,0 +1,8 @@
+## Python P3: a function should have no more than 6 parameters
+## neither as a function def, or as a fct call to a 
+## fct with a variable number of arguments, e.g.: def @ident ( * @ident)
+## JPL R17
+
+pe P3: @ident ( .* , .* , .* , .* , .* , .* , .* ) [: \;]
+ps caption P3 A function should have no more than six parameters
+dp *
