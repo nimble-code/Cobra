@@ -1,0 +1,51 @@
+
+
+// rule package 0: packages shall not mix usages and definitions on top level
+def rule_p0
+    r; m package; n { 
+    c top @element @ident;
+    ps create rule_p0
+    ps caption rule_p0 A package shall not contain usages and definitions on top level
+end
+
+def rule_p1
+    r
+	m package @ident; n {; c }
+	c & (.curly > 0)
+	%{
+		if (.mark == 0)
+		{	Next;
+		}
+		.mark = 0;
+		nm = .nxt;
+		p = nm.nxt;
+		# search to end of block to see if nm is redeclared
+		while (p.curly >= .curly && p.lnr > 0)
+		{	if (p.txt == nm.txt && p.curly > nm.curly)
+			{	q = p.prv;
+				if (q.typ == "type")
+				{	p.mark = 1;
+			}	}
+			p = p.nxt;
+		}
+	%}
+	ps create R_Pkg_1
+	ps caption R_Pkg_1 Declarations within an inner scope should not hide any declarations in an outer scope
+end
+
+
+
+// rule lib 0: libraries shall not contain usages
+def rule_lib0
+    r; m library ; n {
+    c top @element @ident;
+    ps create rule_lib0
+    ps caption rule_lib0 A librarie shall not contain usages on top level
+end
+
+def rule_elem0
+    // r; m @element < ' '
+    ps create R_Elem_0
+    ps caption R_Elem_0 An element shall have no empty short name
+end
+

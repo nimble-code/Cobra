@@ -160,6 +160,7 @@ extern int	showprog;
 %token	ADD_TOP ADD_BOT POP_TOP POP_BOT TOP BOT
 %token	OBTAIN_EL RELEASE_EL UNLIST LLENGTH GLOBAL
 %token	DISAMBIGUATE
+%token	PART DEF PACKAGE
 
 %right	'='
 %left	OR
@@ -176,6 +177,8 @@ extern int	showprog;
 %right	'@'
 %left	INCR DECR
 %left	'.'
+%left	REDEF
+%left	GUNNY
 
 %%
 all	: c_prog	 { p_tree = $1; return 1; }
@@ -521,6 +524,8 @@ static struct Keywords {
 	{ "unset",	UNSET },
 	{ "verbose",	VERBOSE },
 	{ "while",	WHILE },
+	{ "part", PART},
+	{ "def", DEF },
 	{ 0, 0 }
 };
 
@@ -543,6 +548,8 @@ static struct Keywords ops[] = {	// for tok2txt only
 	{ "@call", CALL },		// internal use
 	{ "skip", SKIP },		// internal use
 	{ "arg", ARG },			// internal use
+	{ ":>", REDEF }, 
+	{ ":>>", GUNNY },
 	{ 0, 0}
 };
 

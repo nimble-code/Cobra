@@ -59,6 +59,7 @@ install:
 	@echo "use one of: install_linux, install_cygwin, or install_mac"
 
 install_linux: linux c.ar man
+	mkdir -p ../bin_linux
 	cp -f cobra ../bin_linux
 	cp -f ../gui/window.tcl ../bin_linux
 	cp -f ../gui/icobra.tcl ../bin_linux/icobra
@@ -94,3 +95,4 @@ clean:
 	rm -f *.o *.exe cobra
 	rm -f cobra_eval.c cobra_prog.[ch] y.output
 	rm -f c.ar $(APP)/c.ar
+	rm -rf ../bin_linux ../bin_cygwin ../bin_mac

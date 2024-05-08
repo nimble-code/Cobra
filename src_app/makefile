@@ -70,6 +70,7 @@ install:
 	@echo "use one of: install_linux, install_cygwin, or install_mac"
 
 install_linux: all
+	mkdir -p ../bin_linux
 	cp cwe scope_check find_taint json_convert ../bin_linux
 
 install_cygwin: all

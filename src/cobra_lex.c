@@ -119,7 +119,7 @@ static const struct {
 	{ "constant",	"key",	ada_t },
 	{ "declare",	"key",	ada_t },
 
-	{ "def",	"key",	python_t },
+	{ "def",	"key",	python_t | sysml2_t },
 	{ "del",	"key",	python_t },
 	{ "except",	"key",	python_t },
 	{ "exec",	"key",	python_t },
@@ -180,7 +180,7 @@ static const struct {
 	{ "new",	"key",	cpp_t | ada_t | java_t },
 	{ "not",	"key",	cpp_t | ada_t | python_t },
 	{ "or",		"key",	cpp_t | ada_t | python_t },
-	{ "package",	"key",  ada_t | java_t },
+	{ "package",	"key",  ada_t | java_t | sysml2_t},
 	{ "private",	"specifier",	cpp_t | ada_t | java_t },
 	{ "protected",	"specifier",	cpp_t | ada_t | java_t },
 	{ "public",	"specifier",  cpp_t | java_t },
@@ -197,13 +197,138 @@ static const struct {
 	{ "finally",	"key",  java_t | python_t },
 	{ "final",	"key",  java_t },
 	{ "implements",	"key",  java_t },
-	{ "import",	"key",  java_t | python_t },
+	{ "import",	"key",  java_t | python_t | sysml2_t},
 	{ "instanceof",	"key",  java_t },
 	{ "native",	"key",  java_t },
 	{ "strictfp",	"key",  java_t },
 	{ "super",	"key",  java_t },
 	{ "throws",	"key",  java_t },
 	{ "transient",	"key",  java_t },
+
+	// sysml2 element model elements
+
+	{ "about", "key", sysml2_t },
+	{ "abstract", "key", sysml2_t },
+	{ "accept", "key", sysml2_t },
+	{ "action", "element", sysml2_t },
+	{ "actor", "element", sysml2_t },
+	{ "after", "key", sysml2_t },
+	{ "alias", "key", sysml2_t },
+	{ "all", "key", sysml2_t },
+	{ "allocate", "key", sysml2_t },
+	{ "allocation", "key", sysml2_t },
+	{ "analysis", "element", sysml2_t },
+	{ "and", "key", sysml2_t },
+	{ "as", "key", sysml2_t },
+	{ "assign", "key", sysml2_t },
+	{ "assert", "key", sysml2_t },
+	{ "assoc", "key", sysml2_t },
+	{ "assume", "key", sysml2_t },
+	{ "at", "key", sysml2_t },
+	{ "attribute", "element", sysml2_t },
+	{ "bind", "key", sysml2_t },
+	{ "binding", "key", sysml2_t },
+	{ "block", "element", sysml2_t },
+	{ "by", "key", sysml2_t },
+	{ "calc", "key", sysml2_t },
+	{ "case", "key", sysml2_t },
+	{ "comment", "element", sysml2_t },
+	{ "concern", "key", sysml2_t },
+	{ "connect", "key", sysml2_t },
+	{ "connection", "element", sysml2_t },
+	{ "constraint", "element", sysml2_t },
+	{ "decide", "key", sysml2_t },
+	{ "def", "key", sysml2_t },
+	{ "default", "key", sysml2_t },
+	{ "defined", "key", sysml2_t },
+	{ "dependency", "key", sysml2_t },
+	{ "derived", "key", sysml2_t },
+	{ "do", "key", sysml2_t },
+	{ "doc", "element", sysml2_t },
+	{ "else", "key", sysml2_t },
+	{ "end", "key", sysml2_t },
+	{ "entry", "key", sysml2_t },
+	{ "enum", "element", sysml2_t },
+	{ "event", "element", sysml2_t },
+	{ "exhibit", "key", sysml2_t },
+	{ "exit", "key", sysml2_t },
+	{ "expose", "key", sysml2_t },
+	{ "filter", "key", sysml2_t },
+	{ "first", "key", sysml2_t },
+	{ "flow", "element", sysml2_t },
+	{ "for", "key", sysml2_t },
+	{ "fork", "key", sysml2_t },
+	{ "frame", "key", sysml2_t },
+	{ "from", "key", sysml2_t },
+	{ "hastype", "key", sysml2_t },
+	{ "if", "key", sysml2_t },
+	{ "implies", "key", sysml2_t },
+	{ "import", "key", sysml2_t },
+	{ "in", "key", sysml2_t },
+	{ "include", "key", sysml2_t },
+	{ "individual", "key", sysml2_t },
+	{ "inout", "key", sysml2_t },
+	{ "interface", "element", sysml2_t },
+	{ "istype", "key", sysml2_t },
+	{ "item", "element", sysml2_t },
+	{ "join", "key", sysml2_t },
+	{ "language", "key", sysml2_t },
+	{ "loop", "key", sysml2_t },
+	{ "merge", "key", sysml2_t },
+	{ "message", "element", sysml2_t },
+	{ "metadata", "element", sysml2_t },
+	{ "nonunique", "key", sysml2_t },
+	{ "not", "key", sysml2_t },
+	{ "objective", "key", sysml2_t },
+	{ "occurrence", "element", sysml2_t },
+	{ "of", "key", sysml2_t },
+	{ "or", "key", sysml2_t },
+	{ "ordered", "key", sysml2_t },
+	{ "out", "key", sysml2_t },
+	{ "package", "element", sysml2_t },
+	{ "parallel", "key", sysml2_t },
+	{ "part", "element", sysml2_t },
+	{ "perform", "key", sysml2_t },
+	{ "port", "element", sysml2_t },
+	{ "private", "key", sysml2_t },
+	{ "protected", "key", sysml2_t },
+	{ "public", "key", sysml2_t },
+	{ "readonly", "key", sysml2_t },
+	{ "redefines", "key", sysml2_t },
+	{ "ref", "key", sysml2_t },
+	{ "references", "key", sysml2_t },
+	{ "render", "key", sysml2_t },
+	{ "rendering", "key", sysml2_t },
+	{ "rep", "key", sysml2_t },
+	{ "require", "key", sysml2_t },
+	{ "requirement", "element", sysml2_t },
+	{ "return", "key", sysml2_t },
+	{ "satisfy", "key", sysml2_t },
+	{ "send", "key", sysml2_t },
+	{ "snapshot", "key", sysml2_t },
+	{ "specializes", "key", sysml2_t },
+	{ "stakeholder", "element", sysml2_t },
+	{ "state", "key", sysml2_t },
+	{ "subject", "key", sysml2_t },
+	{ "subsets", "key", sysml2_t },
+	{ "succession", "key", sysml2_t },
+	{ "then", "key", sysml2_t },
+	{ "timeslice", "key", sysml2_t },
+	{ "to", "key", sysml2_t },
+	{ "transition", "key", sysml2_t },
+	{ "until", "key", sysml2_t },
+	{ "use", "element", sysml2_t },
+	{ "variant", "key", sysml2_t },
+	{ "variation", "key", sysml2_t },
+	{ "verification", "key", sysml2_t },
+	{ "verify", "key", sysml2_t },
+	{ "via", "key", sysml2_t },
+	{ "view", "element", sysml2_t },
+	{ "viewpoint", "element", sysml2_t },
+	{ "when", "key", sysml2_t },
+	{ "while", "key", sysml2_t },
+	{ "xor", "key", sysml2_t },
+
 	{ 0, 0, 0 }
 };
 
@@ -699,17 +824,23 @@ name(int c, int cid)
 		}	
 		return;
 	}
+
+	// todo: with the severly increased number of names in sysml v2 this might become a performance bottleneck
+	//       consider using a hash table for this, or a trie or another matching algorithm, possibly we can also use start and end markers for different languages
+	//       to speed up the search
 	for (n = 0; c_name[n].str; n++)
 	{	if (strcmp(c_name[n].str, Px.lex_yytext) == 0)
-		{	if (cplusplus + java + python + ada == 0
+		{	if (cplusplus + java + python + ada + sysml2 == 0
 			&&  !(c_name[n].lang & c_t))
 			{	break;
 			}
 			if ((!(c_name[n].lang & (c_t | cpp_t)) && cplusplus)
 			||  (!(c_name[n].lang & java_t)   && java)
 			||  (!(c_name[n].lang & python_t) && python)
-			||  (!(c_name[n].lang & ada_t)    && ada))
-			{	break;
+			||  (!(c_name[n].lang & ada_t)    && ada)
+			||  (!(c_name[n].lang & sysml2_t)  && sysml2))
+			{	// break;
+				continue; // in that case we need to search further as the same word might have different meanings in different languages
 			}
 			show2(c_name[n].typ, Px.lex_yytext, cid);
 			return; 
@@ -849,7 +980,20 @@ operator(int c, int cid)
 		break;
 
 	case ':':
-		dst = ifnext(':', "::", ":", cid);
+        n = nextchar(cid);
+        switch (n) {
+            case ':':
+                dst = ifnext('>', "::>", "::", cid);
+                break;
+            case '>':
+                dst = ifnext('>', ":>>", ":>", cid);
+                break;
+            default:
+                pushback(n, cid);
+                dst = ":";
+                break;
+        }
+
 		break;
 
 	case '!':
@@ -1173,7 +1317,11 @@ c_lex(int cid)	// called in cobra_prep.c
 			// fall thru
 		case '\'':
 			char_or_str(n, cid);
-			show2((n=='"')?"str":"chr", Px.lex_yytext, cid);
+			if( !sysml2 ) {
+				show2((n=='"')?"str":"chr", Px.lex_yytext, cid);
+			} else {
+				show2("ident", Px.lex_yytext, cid);
+			}
 			continue;
 		case ' ':
 		case '\t':

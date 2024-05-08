@@ -77,7 +77,8 @@ enum {
 	cpp_t    =  2,
 	ada_t    =  4,
 	java_t   =  8,
-	python_t = 16
+	python_t = 16,
+	sysml2_t = 32
 };
 
 extern Pre	*pre;

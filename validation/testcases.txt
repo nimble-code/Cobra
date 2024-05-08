@@ -1,0 +1,2 @@
+-pat 'for ( x:@ident ) { .* :x = .*}'
+-pat 'while'

@@ -59,6 +59,7 @@ int scrub;
 int showprog;
 int verbose;
 int view;
+int sysml2;
 
 unsigned long MaxMemory = 24000;	// set default max to 24 GB, override with -MaxMem N
 
@@ -1377,7 +1378,7 @@ scope_up(int level, int cid)	// single-core
 }
 
 static void
-typedefs(int cid)
+typedefs_classic(int cid)
 {	Prim *p; // recognizes basic typedefed names
 	Prim *c;
 
@@ -1421,6 +1422,73 @@ typedefs(int cid)
 				}
 				printf("\n");
 	}	}	}
+}
+
+static int
+identification(Prim **cc, int cid)
+{	Prim *c = *cc;
+
+	// parses sysml 2 indentifiers: < shortname > longname
+
+	if( c && strcmp(c->txt, "<") == 0 )
+	{	// printf("template: %s\n", c->txt);
+		c = c->nxt;
+		if( c && strcmp(c->typ, "ident" ) == 0 )
+		{	// printf("record typename: %s\n", c->txt);
+			record_typename(c, cid);
+		}
+		c = c->nxt; // skip the >
+		c = c->nxt;
+	}
+
+	if( c && strcmp(c->typ, "ident" ) == 0 )
+	{	// printf("record typename: %s\n", c->txt);
+		record_typename(c, cid);
+		cc = &c;
+		return 1;
+	}
+	return 0;
+}
+
+static void
+typedefs_sysml2(int cid)
+{	// Prim *p; // recognizes basic typedefed names
+	Prim *c;
+
+	assert(cid >= 0 && cid < Ncore);
+	for (c = Px.lex_prim; c != Px.lex_plst; c = c->nxt)
+	{	
+		if( strcmp(c->txt, "}") == 0 )
+		{
+			scope_up(c->curly, cid);
+			continue;
+		}
+		if( strcmp(c->typ, "ident" ) == 0 && is_typename(c, cid) ) 
+		{ c->typ = "type";
+		}
+		if( strcmp(c->typ, "element" ) == 0 ) 
+		{ 	// printf("element: %s\n", c->txt);
+			c = c->nxt;
+			// todo: complete usage definitions including shortname to be parsed
+			if( c && strcmp(c->txt, "def" ) == 0 ) 
+			{ 	// printf("DEF: %s\n", c->txt);
+				c = c->nxt;
+				identification(&c, cid);
+			} else if( c && strcmp(c->typ, "ident" ) == 0 ) 
+			{	printf("USAGE: %s\n", c->txt);
+				c->typ = "usage";
+				record_typename(c, cid);
+	}	}	}
+}
+
+static void
+typedefs(int cid)
+{	if( sysml2 )
+	{	typedefs_sysml2(cid);
+	}
+	else
+	{	typedefs_classic(cid);
+	}
 }
 
 static void
@@ -1507,6 +1575,7 @@ usage(char *s)
 	fprintf(stderr, "\t-stream N           -- set stdin stream buffer-limit to N  (default %d)\n", stream_lim);
 	fprintf(stderr, "\t-stream_margin N    -- set stdin window margin to N tokens (default %d)\n", stream_margin);
 	fprintf(stderr, "\t-stream_override    -- override warning about a non-streamable script\n");
+	fprintf(stderr, "\t-Sysml2             -- recognize SysML v2 keywords\n");
 	fprintf(stderr, "\t-terse              -- disable output from d, l, and p commands, implies -quiet\n");
 	fprintf(stderr, "\t-text               -- no token types, just text-strings and symbols\n");
 	fprintf(stderr, "\t-tok                -- only tokenize the input\n");
@@ -2418,6 +2487,13 @@ RegEx:			  no_match = 1;		// -e -expr -re or -regex
 			  } else if (strcmp(argv[1], "-stream_override") == 0)
 			  {	stream_override++;
 				break;
+			  }
+			  return usage(argv[1]);
+
+		case 'S': 
+			  if (strcmp(argv[1], "-Sysml2") == 0)
+			  {	sysml2 = no_cpp = 1;
+			  	break;
 			  }
 			  return usage(argv[1]);
 
