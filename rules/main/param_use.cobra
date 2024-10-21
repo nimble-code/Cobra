@@ -1,0 +1,16 @@
+# avoid assigning to parameters of functions, unless its a pointer
+# (a rule in some coding standards)
+
+pe P1: @ident ( .* ^\* x:@ident .* ) { .* ^-> :x [= += -= \*= %= \/= ++ --] .* }
+pe P2: @ident ( .* ^\* x:@ident .* ) { .* [++ --] :x .* }
+ps ParamMods = P1 + P2
+pe ReturnsLocal: @ident ( .* x:@ident .* ) { .* return & :x .* }
+
+ps caption ParamMods avoid assigning to parameters of functions, or returning the address of a parameter
+ps caption ReturnsLocal Do notreturn the address of function parameters
+
+ps delete P1
+ps delete P2
+
+ps list
+dp *

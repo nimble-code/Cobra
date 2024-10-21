@@ -293,6 +293,12 @@ def cwe_416_wrap
 end
 
 def cwe_416_set
-	ps create CWE_416
+	ps create CWE_416a
+	reset
+	# CWE_416b added 10/2024:
+	pe CWE_416b: { .* free ( x:@ident ) ^[return :x]* [strcpy strncpy memcpy sprintf snprintf] ( :x .* ) .* }
+	ps CWE_416 = CWE_416a + CWE_416b
+	ps delete CWE_416a
+	ps delete CWE_416b
 	ps caption CWE_416 Potential heap memory use after free
 end

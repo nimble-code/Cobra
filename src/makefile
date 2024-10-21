@@ -4,16 +4,18 @@
 # see License file in this directory
 #
 # Version 2, 3 and 4:
-# (c) 2017-2023 Gerard Holzmann, Nimble Research
+# (c) 2017-2024 Gerard Holzmann, Nimble Research
 # same licensing
 
 MAN?=/usr/share/man/man1
 APP=../src_app
 
-OS=cobra_prim.o cobra_prep.o cobra_heap.o \
-   cobra_lib.o cobra_eval.o cobra_fcg.o cobra_lex.o \
-   cobra_prog.o cobra_sym.o cobra_cfg.o cobra_te.o \
+OS1=cobra_prim.o cobra_prep.o cobra_heap.o \
+   cobra_lib.o cobra_fcg.o cobra_lex.o \
+   cobra_sym.o cobra_cfg.o cobra_te.o \
    cobra_links.o cobra_array.o cobra_list.o cobra_json.o
+
+OS2=cobra_eval.o cobra_prog.o
 
 AR=cobra_lex.o cobra_prep.o cobra_prim.o \
    cobra_heap.o cobra_links.o cobra_json.o \
@@ -22,13 +24,13 @@ AR=cobra_lex.o cobra_prep.o cobra_prim.o \
 			# gprof: make F="-g -pg"
 			# coverage: make F="-fprofile-arcs -ftest-coverage"
 F?=-O2
-LIB?=-pthread		# linux (and more recent versions of cygwin)
-LIBW?=-lpthread		# cygwin
+LIB?=-pthread		# linux, cygwin
 LIBM?=			# mac
+BINDIR?=/usr/local/bin
 
 CC?=gcc
 CFLAGS=-I. -Wall ${F} -pedantic -Werror -Wshadow -std=c99 -DYY_NO_INPUT -Wformat-truncation=1
-CFLAGSMAC=-I. -Wall ${F} -pedantic -Werror -Wshadow -std=c99 -DYY_NO_INPUT
+CMAC=-I. -Wall ${F} -pedantic -Werror -Wshadow -std=c99 -DYY_NO_INPUT
 
 # adding -DPC uses "dotty" instead of "dot -Tx11" for dot displays
 # adjusts the memory allocator to be more PC friendly
@@ -36,14 +38,11 @@ CFLAGSMAC=-I. -Wall ${F} -pedantic -Werror -Wshadow -std=c99 -DYY_NO_INPUT
 
 .PHONY:	linux cygwin mac install clean man
 
-linux:	$(OS)
-	$(CC) $(CFLAGS) -o cobra $(OS) $(LIB)
+all:	$(OS1) $(OS2)
+	$(CC) $(CFLAGS) -o cobra $(OS1) $(OS2) $(LIB)
 
-cygwin:	$(OS)
-	$(CC) $(CFLAGS) -o cobra $(OS) $(LIBW)
-
-mac:	$(OS)
-	$(CC) $(CFLAGSMAC) -o cobra $(OS) $(LIBM)
+mac:	$(OS1) $(OS2)
+	$(CC) $(CMAC) -o cobra $(OS1) $(OS2) $(LIBM)
 
 app:	c.ar $(APP)/c_api.h
 	cd $(APP); make
@@ -55,34 +54,17 @@ c.ar:	$(AR)
 	ar -r c.ar $(AR)
 	cp c.ar  $(APP)
 
-install:
-	@echo "use one of: install_linux, install_cygwin, or install_mac"
+install: linux c.ar man
+	cp -f cobra $(BINDIR)
+	cp -f ../gui/icobra.tcl $(BINDIR)/icobra
+	cp -f ../gui/window.tcl $(BINDIR)
+	cd $(APP); make clean install
 
-install_linux: linux c.ar man
-	mkdir -p ../bin_linux
-	cp -f cobra ../bin_linux
-	cp -f ../gui/window.tcl ../bin_linux
-	cp -f ../gui/icobra.tcl ../bin_linux/icobra
-	cd $(APP); make clean install_linux
-
-install_cygwin: cygwin c.ar man
-	cp -f cobra.exe ../bin_cygwin
-	cp -f ../gui/window.tcl ../bin_cygwin
-	cp -f ../gui/icobra.tcl ../bin_cygwin/icobra
-	cd $(APP); make clean install_cygwin
-
-install_mac: mac c.ar man
-	cp -f cobra ../bin_mac
-	cp -f ../gui/window.tcl ../bin_mac
-	cp -f ../gui/icobra.tcl ../bin_mac/icobra
-	cd $(APP); make clean install_mac
-
-${OS}:	cobra.h cobra_fe.h
-
+${OS1}:	cobra.h cobra_fe.h
+${OS2}:	cobra.h cobra_fe.h cobra_eval.c cobra_prog.c
 ${AR}:	cobra_pre.h cobra_fe.h
 
-cobra_array.o: cobra_array.c cobra_array.h
-
+cobra_array.o: cobra_array.c cobra_array.h cobra_prog.c
 cobra_list.o:  cobra_list.c cobra_list.h
 
 cobra_eval.c:	cobra_eval.y cobra.h

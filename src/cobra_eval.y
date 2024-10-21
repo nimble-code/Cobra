@@ -26,6 +26,9 @@ extern int	 evaluate(const Prim *, const Lextok *);
 extern int	 yyparse(void);
 %}
 
+// when adding token types:
+// update tok_prog2eval() in cobra_prog.y
+
 %token	SIZE NR NAME EOE REGEX
 
 %left	OR
@@ -333,8 +336,9 @@ dot_derive(const Prim *q, int e)
 	case round_t:	return (q->round   op r->round)?0:1;	\
 	case bracket_t:	return (q->bracket op r->bracket)?0:1;	\
 	case len_t:	return (q->len     op r->len)?0:1;	\
+	case txt_t:	return (atoi(q->txt) op atoi(r->txt))?0:1; \
 	default:	\
-		fprintf(stderr, "error: invalid use of %s in constraint\n", #op);	\
+		fprintf(stderr, "error: invalid use of %s in constraint\n", #op); \
 		break;	\
 	}
 
@@ -434,9 +438,9 @@ field_type(const char *s)
 	return 0;
 }
 
-// dot_match can be called from cobra_te.c to evaluate a
-// constraint in a pattern match if there are either
-// bound variables, names, or regular expressions
+// dot_match can be called indirectly (via evaluate)
+// from cobra_te.c to evaluate a constraint in a pattern
+// if it contains bound variables, names, or regular expressions
 
 #if 0
 static void
@@ -590,6 +594,43 @@ do_bound(const Prim *q, const Lextok *n, const int op)
 	return 0; // no bound vars defined
 }
 
+static int
+bound_reference(char *s)
+{	Prim *r;
+	char *p;
+	int e = -1;
+
+	p = strchr(s, '.'); // eg :x.curly
+	if (p)
+	{	*p = '\0';
+		r = bound_prim(s);
+		p++;
+		if (r)
+		{	e = field_type(p);
+			if (0)
+			printf("%s:%d: '%s' Bound variable reference :%s . %s -- type %d --> %d\n",
+				r->fnm, r->lnr, r->txt, s, p, e, r->curly);
+			p--;
+			*p = '.';	// for next evaluation
+			switch (e) {	// only integer fields
+			case lnr_t:	return r->lnr;
+			case seq_t:	return r->seq;
+			case mark_t:	return r->mark;
+			case round_t:	return r->round;
+			case bracket_t:	return r->bracket;
+			case len_t:	return r->len;
+			case curly_t:	return r->curly;
+			default:	fprintf(stderr,
+						"error: bad field (non-int) of bound var in constraint (%s)\n",
+						s);
+					return -1;
+		}	}
+		p--;
+		*p = '.';	// for next evaluation
+	}
+	return 0;
+}
+
 int	// also called in cobra_te.c
 evaluate(const Prim *q, const Lextok *n)
 {	int rval = 0;
@@ -685,10 +726,17 @@ evaluate(const Prim *q, const Lextok *n)
 		case '.':  rval = lookup(q, n->s); break;
 		case NR:   rval = n->val; break;
 		case SIZE: rval = nr_marks(n->rgt->val); break;
-		case ':':  fprintf(stderr, "%s:%d invalid use of ':', expect int, saw string (%s %s)\n",
-				q->fnm, q->lnr, n->lft?n->lft->s:"", n->rgt?n->rgt->s:"");
-			   // a bound variable reference defaults to a string result
-			   // but we expect an integer value here
+		case ':':
+			   if (n->rgt
+			   &&  n->rgt->s
+			   &&  strchr(n->rgt->s, '.') != NULL)
+			   {	rval = bound_reference(n->rgt->s);
+				// n->rgt can be a bound variable reference, eg :x.curly
+			   	// which should return an integer value and not a string
+			   } else
+			   {	fprintf(stderr, "%s:%d (%s) invalid use of ':', expect int, saw string (%s %s)\n",
+					q->fnm, q->lnr, q->txt, n->lft?n->lft->s:"", n->rgt?n->rgt->s:"");
+			   }
 			   break;
 		default:   fprintf(stderr, "expr: unknown type %d\n", n->typ);
 			   break;

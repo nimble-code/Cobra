@@ -1,0 +1,27 @@
+m wait (
+# 118 matches in linux 6.1.7
+%{
+	if (.mark != 1)
+	{	Next;
+	}
+	.mark = 0;
+	p = .prv;
+	while (p.txt != "{" || p.curly != 0)
+	{	if (p.txt == "fork")
+		{	Next;
+		}
+		p = p.prv;
+	}
+	q = .nxt;
+	while (q.txt != "}" || q.curly != 0)
+	{	q = q.nxt;
+	}
+	if (p.txt == "{" && q.txt == "}")
+	{	add_pattern(Wait, p, q);
+	} else
+	{	print .fnm ":" .lnr ": block not found\n";
+	}
+%}
+# 52 matches in linux 6.1.7
+# meaning that 66 wait() calls are preceded by a fork() in the same fct
+

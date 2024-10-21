@@ -1,0 +1,85 @@
+# CWE-787: Out-of-bounds Write
+
+requires 4.7
+
+quiet on
+
+r
+# example 1 from CWE787
+pe OOB1: '{ .* @type x:@ident [ y:@const ] .* :x [ @const <1> ] .* } @1 (.txt >= :y.txt)'
+ps caption OOB1 CWE787a: out of bound array access, constant index
+
+pe OOB2: '{ .* @type x:@ident [ y:@const ] .* for ( z:@ident .* :z <= @const <1> .* ) { .* :x [ :z ] .* } .* } @1 (.txt >= :y.txt)'
+ps caption OOB2 CWE787b: out of bound array access in for-loop
+
+pe OOB3: '{ .* @type x:@ident [ y:@const ] .* while ( z:@ident <= @const <1> ) { .* :x [ :z ] .* } .* } @1 (.txt >= :y.txt)'
+ps caption OOB3 CWE787c: out of bound array access in while-loop
+
+# example 2 from CWE787
+# calls to memset or memcpy
+m /^mem[cs][ep][ty]$ (
+n
+c and @ident (	# fct call for at least one of the args
+		# could check if it is the 3rd arg
+		# check if that fct return -1
+%{
+	if (.mark > 0)
+	{	Fcts[.txt] = .; # remember these
+		.mark = 0;
+	}
+%}
+fcts		# mark all fcts
+%{
+	if (.mark == 0)
+	{	Next;
+	}
+	.mark = 0;
+	f = Fcts[.txt];
+	if (f.seq > 0)
+	{	# print "match on " .txt "()\n";
+		while (.txt != "{")
+		{	. = .nxt;
+		}
+		.mark = 1; # move mark to body
+	}
+%}
+c return -	# returns negated value
+b )	# back up to end of parameter list
+j	# jup to start of parameter list
+b	# move mark to the matching fct name
+%{
+	if (.mark != 1)
+	{	Next;
+	}
+	# .mark = 0;
+	f = Fcts[.txt];
+	f.mark = 2;	# location of the call, avoid a second report
+	if (verbose)
+	{	print f.fnm ":" f.lnr " CWE787d: using possibly negative value of " .txt "() in memcpy or memset\n";
+	}
+%}
+%{ if (.mark == 2) { .mark = 1; } %}
+ps create OOB4
+ps caption OOB4 CWE787d: passing a possibly negative argument to memcpy or memset
+
+r
+# example 5 from CWE787
+pe OOB6: while ( .* x:@ident [ y:@ident ] .* ) { .* \( \( :y -- \) \| \( -- :y \) \) .* }
+ps caption OOB6 CWE787e: risk of array indexing underflow
+
+# example 7 from CWE787
+pe OOB5: { .* x:@ident = strstr ( y:@ident .* ) .* z:@ident = :x - :y .* strcpy ( & :y [ :z ] .* ) .* }
+ps caption OOB5 CWE787f: array index with a possibly negative value
+ps list
+
+!rm -f _CWE787_.txt
+track start _CWE787_.txt
+	terse on
+	dp *
+	terse off
+track stop
+
+# report
+!if [ -s _CWE787_.txt ] ; then echo "detailed results are in file _CWE787_.txt"; else rm -f _CWE787_.txt; fi
+
+quiet off

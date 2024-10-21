@@ -1289,7 +1289,9 @@ check_contamination(const int a, const int b, const int cid)
 static void
 usage(void)
 {
-	fprintf(stderr, "find_taint %s: unrecognized -- option(s): '%s'\n", tool_version, backend);
+	if (strncmp(backend, "help", strlen("help")) != 0)
+	{ fprintf(stderr, "find_taint: unrecognized argument '%s'\n", backend);
+	}
 	fprintf(stderr, "valid options are:\n");
 	fprintf(stderr, "	--json          generate the basic results in json format (has less detail)\n");
 	fprintf(stderr, "	--json+         like --json, but includes more detail\n");

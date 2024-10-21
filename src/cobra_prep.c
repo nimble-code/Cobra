@@ -1974,16 +1974,26 @@ pattern(char *p)
 			break;
 		}
 	}
+	char *e = q;
+	inrange = 0;
 //	printf("inp: %s\nout: %s\n", q, m);
-
+//
 //	do a final check to see if the number of \( and \)
 //	symbols are properly matched in a pattern expression
 //	1/21/24: note that for pe we added \\, for use as re
 //	so we must check for the matching of unescaped ( and )
+//	8/11/24: but dont count them inside ranges [ ... ]
+
 	q = m;
 	int cnt1 = 0, cnt2 = 0;
 	while (*q != '\0')
-	{	if ((*q == '(' || *q == ')')
+	{	if (*q == '[' && *(q-1) != '\\')
+		{	inrange++;
+		} else if (*q == ']' && *(q-1) != '\\')
+		{	inrange--;
+		}
+		if (!inrange)
+		if ((*q == '(' || *q == ')')
 		&&  (q == m || *(q-1) != '\\'))
 		{	if (*q == '(')
 			{	cnt1++;
@@ -1993,7 +2003,9 @@ pattern(char *p)
 		q++;
 	}
 	if (cnt1 != cnt2)
-	{	fprintf(stderr, "error: the number of \\( and \\) meta-symbols don't match\n");
+	{	fprintf(stderr, "error: the number of \\( (%d) and \\) (%d) meta-symbols don't match\n",
+			cnt1, cnt2);
+		fprintf(stderr, "input: %s\n", e);
 		return NULL;
 	}
 
@@ -2636,7 +2648,7 @@ cwe_mode:	no_match = 1;	// for consistency with -f
 			}
 			if (no_cpp && Ncore == 1)
 			{	fprintf(stderr, "%s: error: streaming input\n", progname);
-				fprintf(stderr, "    requires -expr, -pe or -f\n");
+				fprintf(stderr, "    requires -e, -pe or -f\n");
 			}
 			return 1;
 	}	}

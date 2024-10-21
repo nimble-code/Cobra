@@ -128,7 +128,7 @@ static const struct {
 	{ "lambda",	"key",	python_t },
 	{ "pass",	"key",	python_t },
 	{ "print",	"key",	python_t },
-	{ "elif",	"key",	python_t },
+	{ "elif",	"key",	c_t | python_t },
 
 	{ "delay",	"key",	ada_t },
 	{ "delta",	"key",	ada_t },
@@ -654,22 +654,30 @@ F:				m = append_char(n, m, cid);
 	return s;
 }
 
+static int defer_if[128];	// should be Ncore
+
 static void
 name(int c, int cid)
 {	int n, m;
 
 	assert(cid >= 0 && cid < Ncore);
 	strcpy(Px.lex_yytext, "");
-	m = append_char(c, 0, cid);
-	while ((n = nextchar(cid)) != EOF)
-	{	if (!isalnum((uchar) n) && n != '_')
-		{	pushback(n, cid);
-			break;
+
+	if (defer_if[cid])
+	{	defer_if[cid] = 0;
+		strcpy(Px.lex_yytext, "if");
+	} else
+	{	m = append_char(c, 0, cid);
+		while ((n = nextchar(cid)) != EOF)
+		{	if (!isalnum((uchar) n) && n != '_')
+			{	pushback(n, cid);
+				break;
+			}
+			m = append_char(n, m, cid);
 		}
-		m = append_char(n, m, cid);
+		assert(m < MAXYYTEXT);
+		Px.lex_yytext[m] = '\0';
 	}
-	assert(m < MAXYYTEXT);
-	Px.lex_yytext[m] = '\0';
 
 	if (Px.lex_preprocessing == 1)
 	{	int a = isdirective(cid);
@@ -711,7 +719,14 @@ name(int c, int cid)
 			||  (!(c_name[n].lang & ada_t)    && ada))
 			{	break;
 			}
-			show2(c_name[n].typ, Px.lex_yytext, cid);
+			// new 4.8
+			if (strcmp(c_name[n].str, "elif") == 0)
+			{	show2(c_name[n].typ, "else", cid);
+				assert(cid >= 0 && cid < sizeof(defer_if)/sizeof(int));
+				defer_if[cid]++;
+			} else
+			{	show2(c_name[n].typ, Px.lex_yytext, cid);
+			}
 			return; 
 	}	}
 	show2("ident", Px.lex_yytext, cid);

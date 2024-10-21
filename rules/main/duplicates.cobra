@@ -8,7 +8,7 @@
 # Extend:	0 = do not lengthen matches, 1 = try to find longer matches (default)
 
 # example:
-# cobra -f play/duplicates -var MinLength=80 -var Type=15 -var Detail=1 -var Extend=0 *.c
+# cobra -f duplicates -var MinLength=80 -var Type=15 -var Detail=1 -var Extend=0 *.c
 
 requires 4.5	# for src_ln() and hash()
 

@@ -443,3 +443,58 @@ new in december 30, 2021
                { ... }
              }
  - other small updates and bug fixes
+
+4.8 October 21, 2024
+ - removed reliance on the bin_linux/bin_mac/bin_cygwin directories
+   and instead install tools in /usr/local/bin -- two platform
+   independent tools (icobra, x_make) are now in
+   a new subdirectory bin_tools
+ - simplified the makefile with a new install option
+ - added a new standalone program 'duplicates,' linked to the Cobra
+   front-end, to find duplicate fragments of code, and possible patch
+   sequences. manual page added in the doc directory.
+ - added new keyword 'pattern' as an optional qualifier for the
+   'foreach' statement, in cases where the type of the target cannot be
+   determined at compile time, for instance because it is given as
+   a parameter to a function call. writing 'foreach pattern (i in S) { .. }'
+   removes the ambiguity. the default in cases like these (when the
+   qualifier is not used and the type of the target cannot be determined)
+   is still to assume a token sequence.
+ - added a new builtin function 'list2set' to convert a list of matches
+   extracted with a 'pset' command back into a named pattern set.
+ - added the keyword 'elif' as an abbreviation of 'else if' and adjusted
+   the grammar to not require the { after the else if it is followed by
+   another if statement
+ - added an optional constraint clause to the 'pset' builtin function for
+   inline programs. there are two forms:
+     pset(Set) with (expr)
+   to extract only those matches for which the expression evaluates to true
+   on the first token of a match (e.g., .fnm == "thisfile.c" && .lnr > 100).
+   the second form is:
+     pset(Set) with "string"
+   to extracts only matches that contain the text "string" in at least one
+   of the tokens from the match
+   for instance
+     pset(Set) with "for"
+   for matches containing at least one for-statement, or
+     pset(Set) with "j"
+   for matches containing at least one reference to the variable j.
+ - added the same constraint options also to the ps command, to define
+   subset slices of a given set, as in:
+     : ps B = A with (expr)
+     : ps C = A with "string"
+
+ - removed invalid warnings for unmatched round braces in the re command
+ - fixed the default command, which was no longer working correctly
+ - added a qualifier option ir to the stretch command, to limit the
+   forward search for a match to the current function (.curly>0)
+ - fixed a bug in passing parameters to a def/end script when the
+   actual parameter is longer than the formal parameter text
+ - pre command didn't always underline correctly
+ - extended language to allow dot-chain references like p.jmp.jmp.seq
+ - preventing nested fct definition (grammar allowed it, though this
+   wasn't intended)
+ - preventing gotos into and out of functions (the grammar unintentionally
+   allowed it before)
+ - supporting foreach [pattern token index] (i in X) { ... }
+   making 'for (i in X)' a shorthand for 'foreach index (i in X)'

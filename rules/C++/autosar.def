@@ -141,7 +141,7 @@ def M0_1_10	#  (AI+) Every defined function should be called at least once.
 	%}
 	%{
 		for (i in Fcts)
-		{	q = Fcts[i.txt];
+		{	q = Fcts[i];
 			add_pattern(M0_1_10, q, q);
 		}
 		Stop;
@@ -1637,12 +1637,12 @@ end
 
 def M6_4_6	#  (RI+) The final clause of a switch statement shall be the default-clause.
 	r
-	pe M6_4_5a: switch ( .* ) { .* default .* case .* }	# default not last
-	pe M6_4_5b: switch ( .* ) { ^default* }			# default missing
-	ps M6_4_5 = M6_4_5a + M6_4_5b
-	ps caption M6_4_5 The final clause of a switch statement shall be the default-clause.
-	ps delete M6_4_5a
-	ps delete M6_4_5b
+	pe M6_4_6a: switch ( .* ) { .* default .* case .* }	# default not last
+	pe M6_4_6b: switch ( .* ) { ^default* }			# default missing
+	ps M6_4_6 = M6_4_6a + M6_4_6b
+	ps caption M6_4_6 (Required) The final clause of a switch statement shall be the default-clause.
+	ps delete M6_4_6a
+	ps delete M6_4_6b
 end
 
 def M6_4_7	#  (RI+) The condition of a switch statement shall not have bool type.
@@ -1881,7 +1881,7 @@ end
 def M7_3_1	#  (RI+) The global namespace shall only contain main, namespace declarations and extern "C" declarations.
 	r
 	pe M7_3_1: ^@str @type @ident <1> @1 (.curly == 0 && .round == 0 && .txt != "main")	# extern "C" void foo() is allowed
-	ps caption M7_3_1 The global namespace shall only contain main, namespace declarations and extern C declarations.
+	ps caption M7_3_1 (Required) The global namespace shall only contain main, namespace declarations and extern C declarations.
 end
 
 def M7_3_2	#  (RI+) The identifier main shall not be used for a function other than the global function main.
@@ -2509,7 +2509,7 @@ def A15_3_3	#  (RI+) There shall be at least one exception handler to catch all 
 	%}
 	%{
 		for (i in Fcts)
-		{	q = Fcts[i.txt];
+		{	q = Fcts[i];
 			# print q.lnr " " q.txt "\n";
 			s = q;
 			r = q.jmp;

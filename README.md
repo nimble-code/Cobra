@@ -26,36 +26,25 @@ released under the same license.
    drwxrwxr-x 2 gh gh 4096 May 16 10:03 gui     # optional small tcl/tk script  
    drwxrwxr-x 8 gh gh 4096 May 16 15:55 rules   # cobra checker libraries  
    drwxrwxr-x 1 gh gh 4096 May 16 12:43 src     # cobra source files  
-   drwxrwxr-x 1 gh gh 4096 May 16 12:43 src_app # standalone cobra checkers  
+   drwxrwxr-x 1 gh gh 4096 May 16 12:43 src_app # standalone cobra checkers
+   drwxrwxr-x 1 gh gh 4096 May 16 12:43 bin_tools # platform independent support tools
 
 * you can also download binaries from the last stable release of Cobra
   from the Releases tab -- they are in three .zip files with precompiled
   binaries of cobra and related tools for cygwin, linux, and mac.
 
-* to compile the tool (if you are not using precompiled executables in one
-  of the ./bin_... directories)
+* to compile the tool (if you are not using precompiled executables)
 
    $ cd src
 
-   and depending on your platform, do:
+   and depending on your platform, one of:
 
    	$ sudo make install_linux
-
-     or
-
    	$ make install_cygwin
-
-     or
-
    	$ make install_mac
 
-* add $COBRA/bin_... to your search PATH environment variable, matching
-   the platform you are using.
-   if you use the bash shell, you can add this line at the end
-   of the ~/.bashrc script, where $COBRA is defined as above,
-   for instance:
-
-     export PATH=$PATH:$COBRA/bin_linux
+* if you're using the precompiled executables, copy the right set to
+  your local bin directory, which is /usr/local/bin
 
 * configure the tool so that it knows where to find the rule libraries
   (using the $COBRA directory set at the beginning):
@@ -73,12 +62,12 @@ released under the same license.
    if both a ~/.cobra file exists and the $C_BASE variable is set, the
    latter will be used.
 
-* on older cygwin 32bit platforms you may also have to help cobra
+* on ancient cygwin 32bit platforms you may also have to help cobra
   find where the /tmp directory for temporary files is located, e.g.
-  to make the cobra -view -pat '...' option work with dot or dotty.
-  to do so, add the following environment variable as well, for instance:
+  to make the cobra -view -pe '...' option work with dot or dotty.
+  to do so, add the following environment variable, for instance:
 
      export C_TMP=C:/cygwin
 
-* for basic usage, to get started using Cobra, see doc/BasicUsage.txt
-   and online for more detailed tutorials: [http://spinroot.com/cobra]
+* to get started using Cobra, see doc/BasicUsage.txt
+  for some tutorials see: [http://spinroot.com/cobra]

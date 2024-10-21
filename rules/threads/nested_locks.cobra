@@ -1,0 +1,74 @@
+# a test script to find mutex locks
+# that are not released within the same function
+
+r
+pe Mutex_Locks: { .* x:mutex_lock ^mutex_unlock* :x .* }
+%{
+	function getname(from)
+	{	global str;
+		s = from;
+		e = s.jmp;
+		str = "";
+		s = s.nxt;
+		while (s.seq < e.seq)
+		{	str = str + s.txt;
+			s = s.nxt;
+		}
+		return str;
+	}
+	Stop;
+%}
+%{
+	p = pset(Mutex_Locks);
+	BadFlow = 0;
+	unset Nested;
+	unset xLoc;
+	while (p.seq > 0)
+	{	a = p.p_start;
+		b = p.p_end;
+		x = p.p_bdef;
+		y = p.p_bref;
+
+		x = x.nxt; # (
+		y = y.nxt; # (
+		if (match(x.txt, "(")
+		&&  match(y.txt, "("))
+		{	w = x;
+			# Q: is there a 'return' or a 'goto' in between these two points?
+			while (w.seq < y.seq)
+			{	if (match(w.txt, "goto")
+				||  match(w.txt, "break")
+				||  match(w.txt, "else")
+				||  match(w.txt, "return"))
+				{	BadFlow++;
+					goto done;
+				}
+				w = w.nxt;
+			}
+			s1 = getname(x);
+			s2 = getname(y);
+			if (s1 == s2)
+			{	print x.fnm ":" x.lnr " <-> " y.fnm ":" y.lnr "\n";
+			}
+			Nested[s1, s2]++;
+			xLoc[s1, s2] = x;
+		}
+	done:	p = p.nxt;
+	}
+	Stop;
+%}
+%{
+	for (i in Nested)
+	{	n1 = split(i.txt, ",", AA);
+		assert(n1 == 2);
+		reversed = AA[1] + "," + AA[0];
+		n2 = Nested[reversed];
+		if (n2 > 0)
+		{	print i.txt "\t" Nested[i.txt] " :: " n2 "\n";
+			z = xLoc[i.txt];
+			print "\t" z.fnm ":" z.lnr "\n";
+		}
+	}
+	Stop;
+%}
+ps delete Mutex_Locks

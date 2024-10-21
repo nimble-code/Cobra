@@ -123,13 +123,13 @@ static Commands table[] = {
   { "ft",	findtype,	  "s        find the source text for struct s",		2 },
   { "fcg",	fcg,	  "[s] [t]  print function call graph [from fct s] [to fct t]", 3 },
   { "fcts",	fcts,	  "         print list of all functions defined",               3 },
-  { "?",	help,     "[s]      print this list, or print help on command s", 	1 },
+  { "?",	help,     "[s]      print this list, or type help", 	1 },
   {  0,		0,        "end of list", 0 }
 };
 
 static Qual qual[] = {
   {  "no", &inverse      },	// used in contains
-  {  "ir", &inside_range },	// used in mark and unmark
+  {  "ir", &inside_range },	// used in mark, unmark, and stretch
   { "and", &and_mode     },	// used in mark
   {   "&", &and_mode     },	// used in mark
   { "top", &top_only     },	// used in contains and stretch
@@ -318,8 +318,10 @@ reproduce(const int seq, const char *s)
 
 		cur = (cur)?cur->nxt:0;
 	}
+
 	fprintf(fd, "%s\n", src);
-	if (strchr(tag, totag[0]))
+	if (strchr(tag, totag[0])
+	||  strchr(tag, '.'))
 	{	fprintf(fd, "%s\n", tag);
 	}
 	cur = q;	// undo
@@ -1109,7 +1111,8 @@ check_list(ArgList *lst, char *c, char *s, int len)
 		{	if (strncmp(c, n->nm, strlen(n->nm)) == 0
 			&&  !isalnum((uchar) c[strlen(n->nm)])
 			&&  c[strlen(n->nm)] != '_')
-			{	if (n->s && strlen(n->s) > 0)
+			{
+				if (n->s && strlen(n->s) > 0)
 				{	snprintf(s, len, "%s", n->s);
 					s += strlen(n->s);
 					len -= strlen(n->s);
@@ -1139,6 +1142,10 @@ cnt_delta(ArgList *lst, const char *c, int *len)
 
 	for (n = lst; n; n = n->nxt)	// for each actual param value
 	{	s = c;			// does it appear in the text?
+		// n->s  is the actual parameter
+		// n->nm is the formal parameter
+		// s == c is one line of the input script
+
 		while ((t = strstr(s, n->nm)) != NULL)
 		{	if (!n->s)
 			{	*len += 2 - strlen(n->nm); // missing param
@@ -1158,11 +1165,14 @@ replace_args(char *c, ArgList *a)	// in def-macro
 	int len = strlen(c)+1;
 	int len2 = len;
 
-	if (cnt_delta(cl_var, c, &len) +
+	if (cnt_delta(cl_var, c, &len) +	// cl_var = ArgList, a = actual params
 	    cnt_delta(a,      c, &len2) == 0)	// dont subtract from len twice
 	{	s = (char *) emalloc(len * sizeof(char), 56);
 		strcpy(s, c);
 		return s;
+	}
+	if (len2 > len)
+	{	len = len2;
 	}
 
 	assert(len > 0);
@@ -1220,7 +1230,6 @@ do_script(char *fnd, char *a, char *b)
 		n = ScriptArg[NrArgs];
 	}
 	n = nextarg(n);
-
 	if (NrArgs >= MaxArg && strlen(n) > 0)
 	{	fprintf(stderr, "error: max nr of script args is %d (ignoring: '%s')\n",
 			MaxArg, n);
@@ -1840,7 +1849,7 @@ pre_scan(char *bc)	// non-generic commands
 				break;
 			} else if (strncmp(a, "help", 4) == 0
 				|| strcmp(a, "?") == 0)
-			{	patterns_help();
+			{	ps_help();
 				return 1;
 			} else if (strncmp(a, "caption", 7) == 0)
 			{	patterns_caption(nextarg(a));
@@ -2254,8 +2263,9 @@ one_command(char *bc)
 	static int dfd = 0;
 	static char s[16];
 
-	if (strlen(bc) == 0)
-	{	return 1;
+	if (strlen(bc) == 0
+	&& strlen(dflt) > 0)
+	{	strncpy(bc, dflt, MAXYYTEXT);	// 8/21/24
 	}
 
 	// reset defaults
@@ -2297,10 +2307,6 @@ one_command(char *bc)
 			dfd = 0;
 		}
 		return 1;
-	}
-
-	if (strlen(bc) == 0)
-	{	strncpy(bc, dflt, MAXYYTEXT);
 	}
 
 	switch (pre_scan(bc)) {	// some commands are handled here
@@ -2405,7 +2411,6 @@ one_line(char *buf)
 	{	*r = '\0';
 	}
 	b_cmd = (char *) skipwhite(buf);
-
 	if (!prog_fd)
 	{	if (*b_cmd != '!'
 		&& (r = strchr(b_cmd, '#')) != NULL
@@ -2445,7 +2450,7 @@ one_line(char *buf)
 		}	}	}
 		if (verbose>1)
 		{	printf("one_command: '%s' -- '%s'\n",
-				b_cmd, r);
+				b_cmd, r?r:"");
 		}
 		if (!one_command(b_cmd))
 		{	return 0;
@@ -2858,7 +2863,12 @@ stretch_range(void *arg)
 		{	continue;
 		}
 		for (q = r->nxt; q; q = q->nxt)
-		{	if ((top_up && one_up(r, q, s))
+		{	if (inside_range
+			&&  q->curly == 0)
+			{	q = (Prim *) 0;
+				break;
+			}
+			if ((top_up && one_up(r, q, s))
 			|| (!top_up && (!top_only || same_level(r, q, s))))
 			{	if (r_apply(r, q, s, 0)
 				&&  (!*t || r_apply(r, q->nxt, t, 1)))
@@ -2882,7 +2892,7 @@ stretch_range(void *arg)
 static void
 stretch(char *s, char *t)
 {
-	if (inverse || inside_range || and_mode)
+	if (inverse || and_mode)	// 8/19/24 removed inside_range
 	{	fprintf(stderr, "error: s[tretch]: unsupported qualifier\n");
 		return;
 	}
@@ -3445,7 +3455,7 @@ help(char *s, char *unused)	// 1
 	int j = 0;
 
 	if (strcmp(s, "ps") == 0)
-	{	patterns_help();
+	{	ps_help();
 		return;
 	}
 	if (strcmp(s, "dp") == 0)
@@ -3458,9 +3468,9 @@ help(char *s, char *unused)	// 1
 	}
 
 	printf("Command Summary\n");
-	printf("short-hand / full-text / arguments / explanation\n");
 	printf("q is a qualifier (see below), s, t, and f are strings\n");
 	printf("p and p2 are strings or expressions matching the text of a token\n");
+	printf("short-hand / full-text / arguments / explanation\n");
 
 	for (i = 0; table[i].cmd; i++)
 	{	if (table[i].n > 1)
@@ -3544,7 +3554,7 @@ help(char *s, char *unused)	// 1
 	printf("  n, n1, and n2 are integer numbers, and s is a string\n");
 	printf("  qualifiers [q] can be:\n");
 	printf("    no  -- to find non-matches (supported in: contains and mark)\n");
-	printf("    ir  -- restrict to matching in ranges (supported in: mark)\n");
+	printf("    ir  -- restrict to matching in ranges (supported in: mark, stretch)\n");
 	printf("    &   -- (or 'and') restrict to marks that also match a new pattern (mark)\n");
 	printf("    top -- restrict to matching at same nesting level as mark (contains, stretch)\n");
 	printf("    up  -- restrict to matching one nesting level up as mark (contains, stretch)\n");
@@ -3728,8 +3738,8 @@ noreturn(void)
 void
 cobra_main(void)
 {	int ch, i, n, m;
-	char buf[MAXYYTEXT];
 	History *h_ptr = (History *) 0;
+	char buf[MAXYYTEXT];
 
 	ctokens(1);	// calls set_ranges
 

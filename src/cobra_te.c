@@ -170,6 +170,8 @@ static void	 mk_states(int);
 static void	 mk_trans(int n, int match, char *pat, int dest, int cond);
 static void	 show_state(FILE *, Nd_Stack *);
 
+extern void	dump_tree(Lextok *, int);
+
 static void
 reinit_te(void)
 {	int i;
@@ -1842,7 +1844,7 @@ undo_matches(void)
 }
 
 void
-patterns_help(void)
+ps_help(void)
 {
 	printf("ps caption n message	# add (or replace) a caption to an existing pattern set 'n'\n");
 	printf("ps convert n		# convert a pattern set 'n' into basic token markings\n");
@@ -1851,6 +1853,8 @@ patterns_help(void)
 	printf("ps list [n]		# list a specific or all pattern sets, and their membership\n");
 	printf("ps rename n newname	# renames an existing pattern set n to newname\n");
 	printf("ps n1 = n2 [& + - * m < >] n3	# define n1 as the intersection (&), union (+), difference (-) of n2 and n3\n");
+	printf("ps n1 = n2 with (expr)	# define n1 as the subset of n2 with only matches that comply with the token expression\n");
+	printf("ps n1 = n2 with \"constraint\"	# define n1 as the subset of n2 with only matches that contain the string 'constraint'\n");
 	printf("ps help			# print this message\n");
 }
 
@@ -2490,7 +2494,7 @@ dp_help(void)
 	printf("dp *			# display all results from all current pattern sets\n");
 	printf("dp setname		# display all results of one specific pattern set\n");
 	printf("dp [setname *] n		# display only the n-th match\n");
-	printf("dp [setname *] N M	# display only matches of between N and M lines long (inclusive)\n");
+	printf("dp [setname *] N M	# display only matches from N to M lines long\n");
 	printf("dp [setname *] n N M	# display only the n-th match within the given length range\n");
 	printf("dp filter file.c	# restrict output of dp commands to matches in file.c\n");
 	printf("dp filter off		# remove filter from dp output\n");
@@ -2605,11 +2609,38 @@ patterns_display(const char *te)	// dp [name help *] [n [N [M]]]
 	}
 }
 
+static void
+strip_escapes(char *c)
+{
+	// if an expression is used that
+	// contains +, *, (, ), or | operators
+	// these would inherit an escape
+	// in the preprocessing, but in
+	// this context they will be arithmetic
+	// operators, so we must remove them
+
+	while (*c != '\0')
+	{	if (*c == '\\')
+		{	*c = ' ';
+			if (*(c+1) == '|'
+			&&  *(c+2) == '\\'
+			&&  *(c+3) == '|')	// was \|\|
+			{	*(c+1) = '|';
+				*(c+2) = '|';
+				*(c+3) = ' ';
+		}	}
+		c++;
+	}
+}
+
 static Lextok *
 parse_constraint(char *c)
 {	char *ob = b_cmd;
 	char *oy = yytext;
 	Lextok *rv = NULL;
+
+	strip_escapes(c);
+// printf("=> '%s'\n", c);
 
 	b_cmd = yytext = c;
 	rv = prep_eval();
@@ -3118,11 +3149,48 @@ strip_quotes(char *s)
 }
 
 void
+new_subset(const char *s, Prim *lst)
+{	Prim *nm;
+
+	for (nm = lst; nm; nm = nm->nxt)
+	{	add_pattern(s, "subset", nm->jmp, nm->bound, 0);
+	}
+}
+
+extern void set_string_type(Lextok *, char *);
+extern void slice_set(Named *, Lextok *, int, int);
+static void clone_set(Named *, Lextok *, int);
+
+static void
+set_slice(const char *Target, const char *Source, char *Constraint)
+{	Lextok c, *d;
+	Named *x;
+
+	x = findset(Source, 1, 15);
+	if (!x)
+	{	return;
+	}
+
+	while (*Constraint == ' ' || *Constraint == '\t')
+	{	Constraint++;
+	}
+	if (*Constraint == '(')
+	{	d = parse_constraint(Constraint);
+	} else
+	{	set_string_type(&c, Constraint);
+		d = &c;
+	}
+	clone_set(x, d, 0);
+	slice_set(x, d, 0, 1);	// called from commandline
+	new_subset(Target, x->cloned);
+}
+
+void
 set_operation(char *s)
 {	int nr;
 	char name1[512];
 	char name2[512];
-	char op;
+	char op, *x;
 	Named *ns1, *ns2;
 	Match *m1, *m2;
 
@@ -3130,6 +3198,12 @@ set_operation(char *s)
 	{	printf("no target set name define\n");
 		return;
 	}
+
+	x = strchr(s, '(');
+	if (x != NULL)
+	{	strcpy(name2, x);
+	}
+
 	strip_quotes(SetName);
 	strip_quotes(s);
 	while (isspace((uchar) *s))
@@ -3139,32 +3213,34 @@ set_operation(char *s)
 	{	printf("bad setname '%s'\n", s);
 		return;
 	}
+
+	if (strstr(s, " with ") != NULL)	// new 4.8: ps A = B with "string"
+	{	if (x)
+		{	nr = sscanf(s, "%s with", name1);
+			nr++;	
+		} else
+		{	nr = sscanf(s, "%s with %s", name1, name2);
+		}
+		if (nr != 2)
+		{	printf("error: usage: ps A = B with [\"string\" or (expr)]\n");
+			return;
+		}
+		set_slice(SetName, name1, name2);
+		return;
+	}
+
 	nr = sscanf(s, "%s %c %s", name1, &op, name2);
 	if (nr != 3
 	|| !isalpha((uchar) name1[0])
 	|| !isalpha((uchar) name2[0]))
-	{	printf("undefined set operation '%s'\n", s);
+	{	printf("error: undefined set operation '%s'\n", s);
 		return;
 	}
 	ns1 = findset(name1, 0, 3);
 	ns2 = findset(name2, 0, 4);
 	m1 = ns1?ns1->m:0;
 	m2 = ns2?ns2->m:0;
-#if 0
-	if (!m1 || !m2)
-	{	if ((!json_format && !no_match && !no_display) && verbose)
-		{	fprintf(stderr, "no such set %s %s (check: ps list)\n",
-				m1?"":name1,
-				m2?"":name2);
-		}
-		if (m1)
-		{	copy_set(name1);
-		} else if (m2)
-		{	copy_set(name2);
-		}
-		return;
-	}
-#endif
+
 	switch (op) {
 	case '+':
 	case '|':	// set union
@@ -3247,14 +3323,16 @@ set_operation(char *s)
 }
 
 static void
-clone_set(Named *x, int ix)
+clone_set(Named *x, Lextok *constraint, int ix)
 {	Prim *q = NULL;
 	Match *y;
 	Prim  *r;
 	Bound *b;
 	int n;
 
-	if (x->cloned)
+	if (x->cloned
+	&&  constraint == NULL
+	&&  x->constraint == 0)
 	{	return;
 	}
 
@@ -3288,15 +3366,16 @@ clone_set(Named *x, int ix)
 		q = r;
 	}
 	x->cloned = q;
+	x->constraint = (constraint != NULL);
 }
 
 static Prim *
-clone_all(int ix)		// create a single list of matches from all sets
+clone_all(Lextok *constraint, int ix)		// create a single list of matches from all sets
 {	Named *x;
 	Prim *t, *h = NULL;
 
 	for (x = namedset; x; x = x->nxt)
-	{	clone_set(x, ix);
+	{	clone_set(x, constraint, ix);
 		if (x->cloned)	// concat lists
 		{	if (h)
 			{	t = x->cloned;
@@ -3326,7 +3405,7 @@ is_pset(const char *s)
 }
 
 Prim *
-cp_pset(char *s, int ix)
+cp_pset(char *s, Lextok *constraint, int ix)
 {	Named *x;
 
 	if (!s)
@@ -3337,7 +3416,7 @@ cp_pset(char *s, int ix)
 	}
 
 	if (strcmp(s, "*") == 0)
-	{	return clone_all(ix);
+	{	return clone_all(constraint, ix);
 	}
 
 	x = findset(s, 0, 10);
@@ -3348,7 +3427,8 @@ cp_pset(char *s, int ix)
 		return 0;
 	}
 
-	clone_set(x, ix);
+	clone_set(x, constraint, ix);
+	slice_set(x, constraint, ix, 0); // called from inline prog
 
 	return x->cloned;
 }

@@ -1,0 +1,251 @@
+# check if calls to mutex_lock and mutex_unlock
+# are always paired within a function
+# since this is flow-sensitive, we only check that
+# both calls appear in a function, and record those
+# that don't have both
+# 
+# 40,104 functions have both mutex_lock and mutex_unlock
+#    499 functions miss mutex_unlock after mutex_lock in the same fct
+#  1,817 functions miss a mutex_lock preceding mutex_unlock in the same fct
+# cases are not located in only some models (found in 235 and 465 modules)
+# exclude those modules from further checks?
+# we have the module name in GoodModule and not in BadModule
+# Goods: 1,177 -- of these also in Dad: 431 -- leaves: 746 modules with only 'Good' fcts
+# Bads :   465
+
+r
+%{
+	# preliminaries
+	cnt1 = 0;
+	cnt2 = 0;
+	good = 0;
+	unset LO;
+	unset UO;
+	unset GoodModule;
+	unset BadModule;
+	function getbasename(fl)
+	{	q = strrchr(fl, "/");  # index of last /
+		if (q > 0)
+		{	b = substr(fl, 0, q-1);	# basename
+		} else
+		{	b = "";
+		}
+		return b;
+	}
+	Stop;
+%}
+m mutex_lock (
+%{
+	if (.mark == 0 || .curly == 0)
+	{	Next;
+	}
+	.mark = 0;
+	seen = 0;
+	while (.curly > 0)
+	{	if (.txt == "mutex_unlock")
+		{	seen++;
+		}
+		# continue to end of fct
+		. = .nxt;
+	}
+	b = getbasename(.fnm);
+	if (seen)
+	{	good++;
+		GoodModule[b]++;
+		Next;
+	}
+	cnt1++;
+	LO[b]++;
+	BadModule[b]++;
+	# print cnt1 "\t" .fnm ":" .lnr ": unlock missing\n";
+%}
+r
+m mutex_unlock (
+%{
+	if (.mark == 0 || .curly == 0)
+	{	Next;
+	}
+	.mark = 0;
+	seen = 0;
+	b = getbasename(.fnm);
+	r = .;
+	while (r.curly > 0)
+	{	if (r.txt == "mutex_lock")
+		{	seen++;	# good
+		}
+		# continue to start of fct
+		r = r.prv;
+	}
+	while (.curly > 0)
+	{	. = .nxt; # skip to end of fct
+	}
+	if (seen)
+	{	good++;
+		GoodModule[b]++;
+		Next;
+	}
+	cnt2++;
+	UO[b]++;
+	BadModule[b]++;
+	# print cnt2 "\t" .fnm ":" .lnr ": unlock missing\n";
+%}
+%{
+	print good "\tmutex_lock is followed by mutex_unlock\n";
+	print cnt1 "\tmutex_lock not followed by mutex_unlock\n";
+	print cnt2 "\tmutex_unlock not preceded by mutex_lock\n";
+	Stop;
+%}
+# linux 6.1.7:
+# 22478 matches # mutex_lock (
+# 28527 matches # mutex_unlock (
+# 20,076   mutex_lock is followed by mutex_unlock
+#    499   mutex_lock not followed by mutex_unlock
+#  1,817   mutex_unlock not preceded by mutex_lock
+%{
+#	for (i in LO)
+#	{	print "L: " LO[i.txt] "\t" i.txt "\n";
+#	}
+#	for (i in UO)
+#	{	print "U: " UO[i.txt] "\t" i.txt "\n";
+#	}
+	print "Ls: " size(LO) "\n";	# 238
+	print "Us: " size(UO) "\n";	# 465
+	print "Good: " size(GoodModule) "\n";
+	print "Bad : " size(BadModule) "\n";
+	cnt = 0;
+	unset Accepted;
+	for (i in GoodModule)
+	{	if (BadModule[i.txt] > 0)
+		{	cnt++;
+		} else
+		{	Accepted[i.txt]++;
+	}	}
+	print "Good and Bad: " cnt "\n";
+	print "Accepted: " size(Accepted) "\n";
+	Stop;
+%}
+# for all uses of mutex_lock / mutex_unlock in Modules in Accepted
+# check overlap, which objects are used, etc.
+# problem: flow sensitive
+# find functions where each only appears once....
+r
+%{
+	unset Pairing;
+	unset Gap;
+	unset Types;
+	Stop;
+%}
+ps delete Larger
+ps delete Smaller
+ps delete Equal
+m mutex_lock (
+%{
+	if (.mark == 0 || .curly == 0)
+	{	Next;
+	}
+	b = getbasename(.fnm);
+	if (Accepted[b] == 0)
+	{	. = .nxt;
+		z = .fnm;
+		while (z == .fnm)
+		{	. = .nxt;
+		}
+		Next;
+	}
+
+	# in module with both locks and unlocks always in same fct
+	Lcnt = 1;	# we're pointing to a lock
+	Ucnt = 0;
+	s = .;
+	. = .nxt;
+	while (.curly > 0)	# check rest of fct
+	{	y = .nxt;
+		if (y.txt == "(")
+		{	if (.txt == "mutex_unlock")
+			{	e = .;
+				Ucnt++;
+			} else
+			{	if (.txt == "mutex_lock")
+				{	Lcnt++;
+		}	}	}
+		. = .nxt;
+	}
+	Pairing[Lcnt, Ucnt]++;
+	if (Lcnt > Ucnt)
+	{	add_pattern(Larger, s, e);
+	}
+	if (Lcnt < Ucnt)
+	{	add_pattern(Smaller, s, e);
+	}
+	if (Lcnt == Ucnt)
+	{	add_pattern(Equal, s, e);
+	}
+	if (Lcnt == 1 && Ucnt == 1)
+	{	Gap[e.seq - s.seq]++;
+	}
+%}
+ps list
+#  1: Equal, 6301 patterns	# most are equal
+#  2: Smaller, 1232 patterns
+#  3: Larger, 2 patterns	# one if-then-else and one using gotos
+#
+# rm -f Pairing
+# track start Pairing
+# %{
+#	for (i in Pairing)
+#	{	print Pairing[i.txt] "\t" i.txt "\n";
+#	}
+#	Stop;
+# %}
+# track stop
+# !sort -n Pairing
+# !rm -f Gap.txt
+# track start Gap.txt
+# %{
+# 	for (i in Gap)
+# 	{	print Gap[i.txt] "\t" i.txt "\n";
+# 	}
+# 	Stop;
+# %}
+# track stop
+# !sort -n Gap.txt
+# largest token distance (1x) is 2297
+# only 6x are over 1,000
+# shortest (3x) 8
+# most frequent (206x): 17
+#
+# in the Equal set: are all calls for the same lock?
+# answer: yes
+%{
+	unset Numbers;
+	p = pset(Smaller);
+	while (p.seq > 0)
+	{	x = p.p_start;
+		y = p.p_end;
+		if (x.txt == "mutex_lock")
+		{	x = x.nxt;
+			unset LockName;
+			if (x.txt == "(")
+			{	x = x.nxt;
+				str = "";
+				while (x.txt != ")")
+				{	str = str + x.txt;
+					x = x.nxt;
+				}
+				LockName[str]++;
+		}	}
+		nl = size(LockName);
+		Numbers[nl]++;
+		p = p.nxt;
+	}
+	Stop;
+%}
+%{
+	for (i in Numbers)
+	{	print "NrLocks: " Numbers[i.txt] "\t" i.txt "\n";
+	}
+	Stop;
+%}
+# Equal   -- NrLocks: 6301 1
+# Larger  -- NrLocks:    2 1
+# Smaller -- NrLocks: 1232 1

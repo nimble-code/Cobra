@@ -1,0 +1,38 @@
+
+# create a list of modules sorted by size
+# in two columns:
+#  nr_c_files modulename
+# create a second output file with just the names
+# with ./ escaped for use in regular expression matches
+
+. year7/modules_list.cobra
+
+track start __tmp__
+%{
+	cnt = 0;
+	for (i in Modules)
+	{	print Modules[i] " " i "\n";
+		cnt++;
+	}
+	# print cnt " modules found\n";
+	Stop;
+%}
+track stop
+!sort -n __tmp__ > modules_list.out
+!cat modules_list.out | awk ' { print $2 }' | sed 's;^\.;\\.;' > modules_names
+!rm -f __tmp__
+# !wc -l modules_list.out modules_names
+
+## sample use case:
+## 
+## cobra -f year7/find_modules `cat c_files`
+##
+## for i in `cat modules_names`
+## do
+## 	# echo $i >> tmp
+## 	grep -e "$i/[\.A-Za-z0-9_-]*.c$" c_files > tocheck
+## 	if [ -s tocheck ]
+## 	then    cobra -var Detail=0 -f year7/dup_patch `cat tocheck` >> MOD_patch
+## 	fi
+## 	rm -f tocheck
+## done

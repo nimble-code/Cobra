@@ -7,7 +7,7 @@
 #ifndef COBRA_FE
 #define COBRA_FE
 
-#define tool_version	"Version 4.7 - 6 May 2024"
+#define tool_version	"Version 4.8 - 21 October 2024"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -87,6 +87,7 @@ struct Named {
 	Prim	*cloned;
 	Match	*m;
 	Named	*nxt;
+	int	constraint;
 };
 
 struct Stack {

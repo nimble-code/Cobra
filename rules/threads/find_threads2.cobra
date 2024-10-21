@@ -1,0 +1,62 @@
+
+## run year7/find_threads.cobra first
+
+!rm -f FOO
+track start FOO
+%{
+	global FNames[];
+	unset FNames;
+	function fnames(NM, marker)
+	{
+		n = pset(NM);
+		if (n.seq == 0)
+		{	return;
+		}
+		while (n.seq != 0)
+		{	x = n.p_start;
+			FNames[x.fnm] = FNames[x.fnm] | marker;
+			n = n.nxt;
+		}
+	}
+	fnames("S0", 1);
+	fnames("S1", 2);
+		fnames("S2", 4);
+		fnames("S3", 8);
+		fnames("S4", 16);
+		fnames("S5", 32);
+	fnames("S6", 64);
+	fnames("S7", 128);
+	fnames("S8", 256);
+	fnames("S9", 512);
+	fnames("S10", 1024);
+	fnames("S11", 2048);
+	for (i in FNames)
+	{	n = FNames[i.txt];
+		M = 2048;
+		F = 11;
+		while (M > 0)
+		{	m = n - M;
+			if (m >= 0)
+			{	S[F] = F+1;
+				n = m;
+			}
+			M = M/2;
+			F--;
+		}
+		n = 0;
+		while (n <= 11)
+		{	if (S[n] > 0)
+			{	print S[n] - 1 " ";
+			} else
+			{	print "- ";
+			}
+			n++;
+		}
+		print "\t" i.txt "\n";
+	}
+	Stop;
+%}
+track stop
+!sort -n FOO > Sorted
+!rm -f FOO
+!wc -l Sorted

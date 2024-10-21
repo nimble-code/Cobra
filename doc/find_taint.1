@@ -9,7 +9,9 @@ find__taint \- find vulnerabilities in C code due to potentially tainted externa
 .BI [ options ]
 .BI [ files ]
 .SH DESCRIPTION
-
+Find_taint tracks potentially tainted data that comes from
+external sources through the code, and checks if it can
+reach places where it could do harm.
 .SH OPTIONS
 The program accepts most standard options of the Cobra front-end,
 for instance for setting the number of cores to use or

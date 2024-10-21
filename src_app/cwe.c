@@ -75,7 +75,9 @@ set_default(void)
 static void
 usage(void)
 {
-	fprintf(stderr, "cwe: unrecognized -- option(s): '%s'\n", backend);
+	if (strncmp(backend, "help", strlen("help")) != 0)
+	{ fprintf(stderr, "cwe: unrecognized argument '%s'\n", backend);
+	}
 	fprintf(stderr, "cwe: valid options include:\n");
 	fprintf(stderr, "           --json  produce basic output in JSON format\n");
 	fprintf(stderr, "           --json+ produce more verbose output in JSON format\n");

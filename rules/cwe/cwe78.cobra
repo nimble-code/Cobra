@@ -1,0 +1,16 @@
+# CWE-78: OS Command Injection
+# https://cwe.mitre.org/data/definitions/78.html
+
+requires 4.7
+
+# failing to check the length of a user-provided argument
+
+pe CWE78_C1: { .* char x:@ident [ @const ] .* [strcat strcpy sprintf] ( :x , argv [ @const ] ) .* }
+pe CWE78_C2: main ( .* ) { .* [strcpy strcat sprintf] ( y:@ident .* argv [ @const ] .* ) .* system ( :y ) .* }
+pe CWE78_java: { .* x:@ident = System \. getProperty ( .* ) ^:x* System \. exec ( :x ) .* }
+
+ps CWE78_C = CWE78_C1 + CWE78_C2
+ps delete CWE78_C1
+ps delete CWE78_C2
+ps caption CWE78_C CWE78_C: possible OS command injection error
+ps caption CWE78_java CWE78_java: possible OS command injection error

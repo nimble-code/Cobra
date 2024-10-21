@@ -1,7 +1,7 @@
 # Cobra - interactive static structural code analyzer
 # Sample background checkers, linked to the Cobra
 # front-end in c.ar, using the api defined in c_api.h
-# (c) 2017-2022 Gerard Holzmann, Nimble Research
+# (c) 2017-2024 Gerard Holzmann, Nimble Research
 # See the license file in ../src
 
 CWE=cwe.o cwe_util.o \
@@ -11,11 +11,11 @@ CWE=cwe.o cwe_util.o \
 	cwe_457.o
 
 OTHER=abstract \
-	scope_check \
 	binop \
 	cfg \
 	deref \
 	fct_param_counts \
+	find_stats \
 	flatten \
 	float \
 	ident_check \
@@ -27,20 +27,21 @@ OTHER=abstract \
 	nomacros \
 	nr_cases \
 	rule23_rule31 \
-	switch_default \
-	find_taint \
-	json_convert
+	scope_check \
+	switch_default
 
 .PHONY: all install clean
 LDFLAGS?=c.ar -pthread
 CC?=gcc
 F?=-O2
+BINDIR?=/usr/local/bin
+
 		# on mac: make LDFLAGS=c.ar
 		# gprof: make F="-g -pg"
 CFLAGS=-Wall -pedantic -Werror -Wshadow ${F} -DYY_NO_INPUT -I. -std=c99
 CFLAGSNOPT=-Wall -pedantic -Werror -Wshadow -DYY_NO_INPUT -I. -std=c99
 
-all:	c.ar cwe scope_check find_taint json_convert
+all:	c.ar cwe scope_check find_taint json_convert duplicates
 
 cwe:	cwe.h c.ar c_api.h $(CWE)
 	$(CC) $(CFLAGS) -o $@ $(CWE) $(LDFLAGS)
@@ -61,22 +62,16 @@ json_convert:	json_convert.c
 find_stats:	find_stats.c cwe_util.c
 	$(CC) $(CFLAGS) -o $@ find_stats.c cwe_util.c $(LDFLAGS)
 
+duplicates: duplicates.c
+	$(CC) $(CFLAGS) -o $@ duplicates.c cwe_util.c $(LDFLAGS)
+
 $(OTHER): c_api.h c.ar
 
 test:	read_configs.c
 	cc -DTEST -Wall -pedantic -Werror -Wshadow -o read_configs read_configs.c
 
 install:
-	@echo "use one of: install_linux, install_cygwin, or install_mac"
-
-install_linux: all
-	cp cwe scope_check find_taint json_convert ../bin_linux
-
-install_cygwin: all
-	cp *.exe ../bin_cygwin
-
-install_mac: all
-	cp cwe scope_check find_taint json_convert ../bin_mac
+	cp -f cwe scope_check find_taint json_convert duplicates $(BINDIR)
 
 clean:
-	rm -f *.exe *.o cwe $(OTHER)
+	rm -f *.exe *.o cwe scope_check find_taint json_convert duplicates $(OTHER)

@@ -89,6 +89,7 @@ static Prim	  none;
 static Lextok	 *p_tree;
 static Lextok	 *break_out;
 static Lextok	 *break_nm;
+static Lextok	 *in_fct_def;
 static Var_nm	 *lab_lst;
 Separate	 *sep;		// thread local copies of globals
 
@@ -106,7 +107,7 @@ char	*derive_string(Prim **, Lextok *, const int, const char *);
 
 static Block	*pop_context(int, int);
 static Lextok	*mk_for(Lextok *, Lextok *, Lextok *, Lextok *, Lextok *);
-static Lextok	*mk_foreach(Lextok *, Lextok *, Lextok *, Lextok *);
+static Lextok	*mk_foreach(Lextok *, Lextok *, Lextok *, Lextok *, Lextok *);
 static Lextok	*new_lex(int, Lextok *, Lextok *);
 static Var_nm	*mk_var(const char *, const int, const int);
 static Var_nm	*check_var(const char *, const int);
@@ -125,6 +126,7 @@ static Lextok	*add_return(Lextok *);
 static void	dump_tree(Lextok *, int);
 #endif
 static void	dump_graph(FILE *, Lextok *, char *);
+static void	check_global(Lextok *);
 static void	handle_global(Lextok *);
 static void	add_fct(Lextok *);
 static void	fixstr(Lextok *);
@@ -141,7 +143,7 @@ extern void	new_array(char *, int);	// cobra_array.c
 extern int	setexists(const char *s);
 extern void	show_error(FILE *, int);
 extern int	xxparse(void);
-extern Prim	*cp_pset(char *, int);	// cobra_te.c
+extern Prim	*cp_pset(char *, Lextok *, int);	// cobra_te.c
 static int	yylex(void);
 
 extern int	stream;
@@ -149,7 +151,7 @@ extern int	stream_override;
 extern int	showprog;
 %}
 
-%token	NR STRING NAME IF IF2 ELSE WHILE FOR FOREACH IN PRINT ARG SKIP GOTO
+%token	NR STRING NAME IF IF2 ELSE ELIF WHILE FOR FOREACH IN PRINT ARG SKIP GOTO
 %token	BREAK CONTINUE STOP NEXT_T BEGIN END SIZE RETRIEVE FUNCTION CALL
 %token	ROUND BRACKET CURLY LEN MARK SEQ LNR RANGE FNM FCT ITOSTR
 %token	BOUND MBND_D MBND_R NXT PRV JMP UNSET RETURN RE_MATCH FIRST_T LAST_T
@@ -158,8 +160,8 @@ extern int	showprog;
 %token	FCTS MARKS SAVE RESTORE RESET SRC_LN HASH HASHARRAY
 %token  ADD_PATTERN DEL_PATTERN IS_PATTERN CP_PSET
 %token	ADD_TOP ADD_BOT POP_TOP POP_BOT TOP BOT
-%token	OBTAIN_EL RELEASE_EL UNLIST LLENGTH GLOBAL
-%token	DISAMBIGUATE
+%token	OBTAIN_EL RELEASE_EL UNLIST LLENGTH GLOBAL LIST2SET
+%token	DISAMBIGUATE WITH
 
 %right	'='
 %left	OR
@@ -191,7 +193,7 @@ prog	: stmnt		 { $$ = $1; }
 			   }
 			 }
 	;
-stmnt	: IF '(' expr ')' c_prog optelse {
+cmpnd_stmnt: IF '(' expr ')' c_prog optelse {
 			   $1->lft = $3;	// cond
 			   $1->rgt = new_lex(0, $5, $6);
 			   $1->lnr = p_lnr;
@@ -201,27 +203,30 @@ stmnt	: IF '(' expr ')' c_prog optelse {
 			   $1->rgt = $5;	// body
 			   n_blocks++;
 			   $$ = $1; }
+	;
+stmnt	: cmpnd_stmnt	{ $$ = $1; }
 	| FOR '(' NAME IN NAME ')' c_prog {
 			   n_blocks++; v_cnt++; a_cnt++;
 			   // $5 is assumed to be an array name
 			   // if not, this is a skip
 			   set_break();
 			   $$ = new_lex(';', mk_for($1, $3, $5, $7, break_nm), break_out); }
-	| FOREACH '(' NAME IN NAME ')' c_prog {
+	| FOREACH opt_type '(' NAME IN NAME ')' c_prog {
 			    n_blocks++; v_cnt++;
 			    set_break();
-			    $$ = new_lex(';', mk_foreach($3, $5, $7, break_nm), break_out); }
-	| FUNCTION NAME '(' params ')' c_prog {
+			    $$ = new_lex(';', mk_foreach($2, $4, $6, $8, break_nm), break_out); }
+	| FUNCTION NAME '(' params ')' { check_global($2); } c_prog {
+			   in_fct_def = (Lextok *) 0;
 			   $1->lft = new_lex(0, $2, $4);
 
-			   if ((!$6->rgt || !$6->rgt->typ)
-			   &&   $6->typ != RETURN)
-			   {	$1->rgt = new_lex(';', $6, new_lex(RETURN, 0, 0));
+			   if ((!$7->rgt || !$7->rgt->typ)
+			   &&   $7->typ != RETURN)
+			   {	$1->rgt = new_lex(';', $7, new_lex(RETURN, 0, 0));
 			   } else
-			   {	if ($6->typ != WHILE)
-				{	$1->rgt = add_return($6);
+			   {	if ($7->typ != WHILE)
+				{	$1->rgt = add_return($7);
 				} else // fixed after fix_while in find_fct
-				{	$1->rgt = $6;
+				{	$1->rgt = $7;
 			   }	}
 
 			   add_fct($1);
@@ -231,8 +236,11 @@ stmnt	: IF '(' expr ')' c_prog optelse {
 	| NAME ':' stmnt { v_cnt++; mk_lab($1, $3); $$ = $3; }
 	| b_stmnt ';'
 	;
-b_stmnt	: p_lhs '=' expr { $2->lft = $1; $2->rgt = $3; $$ = $2; }
-	| p_lhs '=' NEWTOK '(' ')' { $2->lft = $1; $2->rgt = $3; $$ = $2; };
+opt_type: /* empty */	{ $$ = 0; }
+	| NAME		{ $$ = $1; }
+	;
+b_stmnt	: p_lhs '=' expr	{ $2->lft = $1; $2->rgt = $3; $$ = $2; }
+	| p_lhs '=' NEWTOK '(' ')' { $2->lft = $1; $2->rgt = $3; $$ = $2; }
 	| ASSERT '(' expr ')'	{ $1->lft = $3; $$ = $1; }
 	| SRC_LN '(' expr ',' expr ',' expr ')'	{
 				$1->lft = new_lex(0, $3, $5);
@@ -240,7 +248,7 @@ b_stmnt	: p_lhs '=' expr { $2->lft = $1; $2->rgt = $3; $$ = $2; }
 				$$ = $1;
 			}
 	| GLOBAL glob_list	{ $$ = $1; handle_global($2); }
-	| GOTO   NAME		{ $1->lft = $2; $$ = $1; }
+	| GOTO NAME		{ $1->lft = $2; $$ = $1; }
 	| PRINT args		{ $1->lft = $2; $$ = $1; }
 	| UNSET NAME '[' e_list ']' {
 			   $1->lft = $2;
@@ -248,6 +256,7 @@ b_stmnt	: p_lhs '=' expr { $2->lft = $1; $2->rgt = $3; $$ = $2; }
 			   $$ = $1;
 			}
 	| UNSET NAME		{ $1->lft = $2; $$ = $1; }
+	| LIST2SET '(' expr ',' STRING ')' { $1->lft = $3; $1->rgt = $5; $$ = $1; }
 	| FCTS '(' ')'		{ $$ = $1; }
 	| RESET '(' ')'		{ $$ = $1; }
 	| SAVE '(' expr ',' expr ')'	{ $1->lft = $3; $1->rgt = $5; $$ = $1; }
@@ -315,6 +324,7 @@ par_list: NAME
 
 optelse	: /* empty */		{ $$ = 0; }
 	| ELSE c_prog		{ $1->rgt = $2; $$ = $1; }
+	| ELSE cmpnd_stmnt	{ $1->rgt = $2; $$ = $1; }
 	;
 
 args	: expr
@@ -349,7 +359,7 @@ expr	:'(' expr ')'		{ $$ = $2; }
 	| '~' expr %prec UMIN	{ $1->rgt = $2; $$ = $1; }
 	| '^' expr %prec UMIN	{ $1->rgt = $2; $$ = $1; }
 	| STRING		{ fixstr($1); $$ = $1; }
-	| CP_PSET '(' s_ref ')'	{ $1->lft = $3; $$ = $1; }
+	| CP_PSET '(' s_ref ')' optcond	{ $1->lft = $3; $1->rgt = $5; $$ = $1; }
 	| HASH '(' expr ')'	{ $1->lft = $3; $$ = $1; }
 	| HASHARRAY '(' expr ',' expr ')' { $1->lft = $3; $$->rgt = $5; $$ = $1; }
 	| IS_PATTERN '(' s_ref ')'	{ $1->lft = $3; $$ = $1; }
@@ -391,6 +401,10 @@ expr	:'(' expr ')'		{ $$ = $2; }
 	| TRUE
 	| FALSE
 	;
+optcond : /* empty */		{ $$ = 0; }
+	| WITH '(' expr ')'	{ $$ = $3; }
+	| WITH STRING		{ $$ = $2; }
+	;
 s_ref	: expr
 	| '*'			{ $$ = new_lex(NAME, 0, 0); $$->s = "*"; }
 	;
@@ -399,11 +413,41 @@ p_ref	: BEGIN
 	| FIRST_T
 	| LAST_T
 	;
-p_lhs	: NAME '.' fld  	{ $2->lft = $1; $2->rgt = $3; $$ = $2; v_cnt++; }
-	| '.' fld %prec UMIN	{ $1->lft =  0; $1->rgt = $2; $$ = $1; }
-	| b_name
-	| '.'
+p_lhs	: b_name opt_dot	{ if ($2 == 0)
+				  {	$$ = $1;
+				  } else
+				  {	if ($2->lft == 0)
+					{	$$ = new_lex('.', $1, $2->rgt);
+					} else
+					{	$$ = new_lex('.', $1, $2);
+				  }	}
+				}
+	| '.'			{ $$ = $1; }
+	| '.' fld opt_dot %prec UMIN {
+				  if ($3 == 0)
+				  {	$1->lft = 0;
+					$1->rgt = $2;
+					$$ = $1;
+				  } else
+				  {	$1->lft = 0;
+					$1->rgt = new_lex('.', $2, $3);
+					$$ = $1;
+				} }
 	;
+
+opt_dot: /* empty */		{ $$ = 0; }
+	| '.' fld opt_dot	{
+				  if ($3 == 0)
+				  {	$1->lft = 0;
+					$1->rgt = $2;
+					$$ = $1;
+				  } else
+				  {	$1->lft = $2;
+					$1->rgt = $3;
+					$$ = $1;
+				} }
+	;
+
 e_list	: expr
 	| e_list ',' expr	{ $$ = $2; $$->lft = $1; $$->rgt = $3; }
 	;
@@ -445,6 +489,7 @@ static struct Keywords {
 	{ "curly",	CURLY },
 	{ "del_pattern", DEL_PATTERN },
 	{ "disambiguate", DISAMBIGUATE },
+	{ "elif",	ELIF },
 	{ "else",	ELSE },
 	{ "End",	END },
 	{ "false",	FALSE },
@@ -466,6 +511,7 @@ static struct Keywords {
 	{ "jmp",	JMP },
 	{ "last_t",	LAST_T },
 	{ "len",	LEN },
+	{ "list2set",	LIST2SET },
 	{ "list_add_top", ADD_TOP },	{ "list_push",    ADD_TOP },
 	{ "list_add_bot", ADD_BOT },	{ "list_append",  ADD_BOT },
 	{ "list_del_top", POP_TOP },	{ "list_pop",     POP_TOP },
@@ -521,6 +567,7 @@ static struct Keywords {
 	{ "unset",	UNSET },
 	{ "verbose",	VERBOSE },
 	{ "while",	WHILE },
+	{ "with",	WITH },
 	{ 0, 0 }
 };
 
@@ -736,27 +783,47 @@ mk_foreach_token_in_pattern(Lextok *nm, Lextok *p, Lextok *body, Lextok *out)
 }
 
 static Lextok *
-mk_foreach(Lextok *nm, Lextok *p, Lextok *body, Lextok *out)
+mk_foreach(Lextok *opt_type, Lextok *nm, Lextok *p, Lextok *body, Lextok *out)
 {	Lextok *whl, *seq, *cond, *asgn, *nxt, *zero, *loop;
 	Lextok *s1, *s2, *gt;
 	static int ln = 0;
 	int is_set;
 
-	// p is either a Set name or a Pattern from a set
-	// check which it is
+	if (opt_type)
+	{	assert(opt_type->typ == NAME);
+		if (strcmp(opt_type->s, "token") == 0)
+		{	opt_type = 0;
+		} else if (strcmp(opt_type->s, "pattern") == 0)
+		{	;	// ok
+		} else if (strcmp(opt_type->s, "index") == 0
+		       ||  strcmp(opt_type->s, "element") == 0)
+		{	if (1)
+			{	return mk_for(0, nm, p, body, out);
+			} else
+			{	fprintf(stderr, "error: foreach %s (...) should be: for (...)\n",
+					opt_type->s);
+				return new_lex(STOP, 0, 0);
+			}
+		} else
+		{	fprintf(stderr, "error: usage: foreach [pattern token index] (...)\n");
+			return new_lex(STOP, 0, 0);
+	}	}
+
 	if (!p || !p->s)
 	{	fprintf(stderr, "foreach: bad format: missing name\n");
 		return new_lex(STOP, 0, 0);
 	}
-	// patten set p->s must exist before the inline program
-	// starts -- i.e., it cannot be created first as part of
-	// the inline program....
 
 	// replace 'break' with 'goto out' and 'continue' with 'skip'
 	replace_break(body, out);
 
+	// p is either a Set name or a Pattern from a set
+	// if a pattern set p->s must exist before the inline program
+	// starts -- i.e., it cannot be created first as part of
+	// the inline program....
+
 	is_set = is_pset(p->s);
-	if (!is_set)
+	if (!is_set && !opt_type) // using foreach 'pattern' bypasses this check
 	{	if (p->typ == NAME)
 		{	return mk_foreach_token_in_pattern(nm, p, body, out);
 		}
@@ -876,10 +943,23 @@ mk_for(Lextok *a, Lextok *nm, Lextok *ar, Lextok *body, Lextok *out)
 }
 
 static void
+check_global(Lextok *nm)
+{	// make sure function definitions are not nested
+	if (nm
+	&&  in_fct_def != NULL)
+	{	fprintf(stderr, "fct def %s is nested in fct def %s\n",
+			nm->s, in_fct_def->s);
+		yyerror("nested function definition");
+	}
+	in_fct_def = nm;
+}
+
+static void
 mk_lab(Lextok *t, Lextok *p)
 {	Var_nm *n;
 
-	// printf("mk_lab '%s' %p\n", t->s, (void *) p);
+	// fprintf(stderr, "mk_lab '%s' ln %d -- fct: %s\n",
+	//	t->s, p?p->lnr:-1, in_fct_def?in_fct_def->s:"global");
 	assert(p);
 	for (n = lab_lst; n; n = n->nxt)
 	{	if (strcmp(n->nm, t->s) == 0)
@@ -900,6 +980,7 @@ mk_lab(Lextok *t, Lextok *p)
 	n = (Var_nm *) emalloc(sizeof(Var_nm), 75);	// mk_lab
 	n->nm = t->s;
 	n->pm = (Prim *) p; // slight abuse of type
+	n->s = in_fct_def?in_fct_def->s:"global";
 	n->cdepth = Cdepth[0];	// during parsing only
 	n->nxt = lab_lst;
 	lab_lst = n;
@@ -908,11 +989,18 @@ mk_lab(Lextok *t, Lextok *p)
 static Lextok *
 find_label(char *s)
 {	Var_nm *n;
+	char *scp = in_fct_def?in_fct_def->s:"global";
+
 	for (n = lab_lst; n; n = n->nxt)
 	{	if (strcmp(n->nm, s) == 0)
-		{	return (Lextok *) n->pm;
+		{	// current scope has to match that of the label
+			assert(n->s != NULL);
+			// fprintf(stderr, "find_lab '%s' scope: %s <-> %s\n", s, n->s, scp);
+			if (strcmp(n->s, scp) == 0)
+			{	return (Lextok *) n->pm;
+			}
 	}	}
-	fprintf(stderr, "error: label '%s' undefined\n", s);
+	fprintf(stderr, "error: label '%s' undefined in current scope (%s)\n", s, scp);
 	return (Lextok *) 0;
 }
 
@@ -1231,7 +1319,7 @@ indent(int level, const char *s)
 	fprintf(stderr, "%s", s);
 }
 
-static void
+void
 dump_tree(Lextok *t, int i)
 {
 	if (!t || (t->visit&16))
@@ -1550,7 +1638,11 @@ find_fct(Lextok *t, int ix)
 
 			if (!f->has_fsm)
 			{	f->has_fsm++;
+				assert(in_fct_def == NULL);
+				in_fct_def = t->lft;
 				mk_fsm(f->body, ix);
+				assert(in_fct_def == t->lft);
+				in_fct_def = (Lextok *) 0;
 			}
 			break;
 	}	}
@@ -1640,6 +1732,11 @@ mk_fsm(Lextok *t, const int ix)
 		break;
 	case GOTO:
 		t->a = find_label(t->lft->s);
+		if (!t->a)
+		{	t->a = new_lex(STOP, 0, 0);
+			sep[ix].T_stop++;
+			show_error(stderr, t->lnr);	
+		}
 		t->b = 0;
 		break;
 	case FUNCTION:
@@ -1858,6 +1955,7 @@ get_var(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)
 
 	if (q)
 	{	assert(ix >= 0 && ix < Ncore);
+
 		if (q->typ == NAME)
 		{	if (q->core)	// qualified name
 			{	eval_prog(ref_p, q->core, &tmp, ix);
@@ -1871,7 +1969,26 @@ get_var(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)
 			}	}
 			rv->rtyp = n->rtyp;
 		} else
-		{	if (q->lft && q->lft->typ == NAME
+		{	if (q->typ == '['	// array
+			&&  q->lft
+			&&  q->lft->typ == NAME) // index is q->rgt
+			{	static Var_nm vtmp;
+				// try to cover a case that fail otherwise
+				// as in: Name[index].mark = 9
+				eval_prog(ref_p, q, rv, ix);
+				if (rv->rtyp == PTR)
+				{	// if succeeds, and a PTR, we have
+					// something that can be returned as
+					// a dummy variable of type PTR, so
+					// that it can be referenced elsewhere
+					memset(&vtmp, 0, sizeof(Var_nm));
+					vtmp.rtyp = PTR;
+					vtmp.pm = rv->ptr;
+					vtmp.nm = "noname";
+					return &vtmp;	// dubious
+			}	}
+
+			if (q->lft && q->lft->typ == NAME
 			&&  q->rgt
 			&&  (q->rgt->typ == JMP || q->rgt->typ == BOUND))
 			{	static Prim notoken;
@@ -2515,9 +2632,9 @@ do_incr_decr(Prim **ref_p, Lextok *q, Rtype *rv, const int ix, Prim *p)
 	memset(&tmp, 0, sizeof(Rtype));
 	assert(ix >= 0 && ix < Ncore);
 	// LHS must store a value, like .mark or q.mark
+
 	if (LHS->typ == '[')
 	{	Assert("++/--", LHS->lft && (LHS->lft->typ == NAME), LHS->lft);
-
 		tmp.s = derive_string(ref_p, LHS->rgt, ix, 0);
 		tmp.rtyp = STR;
 
@@ -2537,7 +2654,10 @@ do_incr_decr(Prim **ref_p, Lextok *q, Rtype *rv, const int ix, Prim *p)
 		return;
 	}
 
-	if (LHS->typ != '.' || !LHS->rgt || LHS->rgt->typ != MARK || RHS)
+	if (LHS->typ != '.'
+	|| !LHS->rgt
+	|| LHS->rgt->typ != MARK
+	|| RHS)
 	{	if (LHS->typ == NAME)
 		{	Var_nm *n;
 			n = get_var(ref_p, LHS, rv, ix);
@@ -2557,7 +2677,7 @@ do_incr_decr(Prim **ref_p, Lextok *q, Rtype *rv, const int ix, Prim *p)
 				n->v = rv->val;
 				return;
 			}
-			fprintf(stderr, "line %d: error: invalid use of ++ or -- with lhs: ",
+			fprintf(stderr, "line %d: error: invalid use of ++ or --, with lhs: ",
 				LHS->lnr);
 			tok2txt(LHS, stdout);
 			fprintf(stderr, "	unexpected type: ");
@@ -2584,9 +2704,9 @@ do_incr_decr(Prim **ref_p, Lextok *q, Rtype *rv, const int ix, Prim *p)
 	} else if (q->typ == DECR)
 	{	rv->val--;
 	}
-
 	if (LHS->lft)	// q.mark++ or q.mark--
-	{	Var_nm *n = get_var(ref_p, LHS->lft, rv, ix);
+	{	int oval = rv->val;	// value to be assigned
+		Var_nm *n = get_var(ref_p, LHS->lft, rv, ix);	// overwrites rv->val
 
 		if (!n)
 		{	rv->rtyp = STP;
@@ -2598,14 +2718,14 @@ do_incr_decr(Prim **ref_p, Lextok *q, Rtype *rv, const int ix, Prim *p)
 		}
 
 		if (rv->rtyp == VAL)	// stores a value
-		{	n->v = rv->val;	// XX was missing before
-			return;		// XX was missing before
+		{	n->v = oval;	// was missing before, 8/12/24 was rv->val
+			return;		// was missing before
 		}
 
 		if (rv->rtyp == PTR)
 		{	Prim *z = n->pm;
 			if (z)
-			{	z->mark = rv->val;
+			{	z->mark = oval;	// 8/12/24 was rv->val
 				return;
 			}
 			fprintf(stderr, "line %d: error: incr/decr of invalid ref '%s.%s'\n",
@@ -2630,6 +2750,8 @@ do_incr_decr(Prim **ref_p, Lextok *q, Rtype *rv, const int ix, Prim *p)
 static void
 do_assignment(Prim **ref_p, Lextok *q, Rtype *rv, const int ix, Prim *p)
 {	Rtype tmp;
+	Prim *pp;
+	Lextok *qq;
 	Var_nm dummy;
 	memset(&tmp, 0, sizeof(Rtype));
 
@@ -2653,6 +2775,7 @@ do_assignment(Prim **ref_p, Lextok *q, Rtype *rv, const int ix, Prim *p)
 	{	Assert("set", LHS->lft && (LHS->lft->typ == NAME), LHS->lft);
 		assert(RHS);
 		eval_prog(ref_p, RHS, rv, ix);
+
 		tmp.s = derive_string(ref_p, LHS->rgt, ix, 0);
 		tmp.rtyp = STR;
 
@@ -2663,6 +2786,7 @@ do_assignment(Prim **ref_p, Lextok *q, Rtype *rv, const int ix, Prim *p)
 			show_error(stderr, q->lnr);
 			return;
 		}
+		// fprintf(stderr, "here %d %s[%s]\n", rv->rtyp, LHS->lft->s, tmp.s);
 
 		// lft->s: basename
 		// tmp: index
@@ -2686,7 +2810,8 @@ do_assignment(Prim **ref_p, Lextok *q, Rtype *rv, const int ix, Prim *p)
 	}
 
 	if (LHS->rgt)	// .mark = ... , q.mark = ..., .txt = ..., q.txt = ...
-	{	if (LHS->rgt->typ == TXT
+	{
+		if (LHS->rgt->typ == TXT
 		||  LHS->rgt->typ == TYP
 		||  LHS->rgt->typ == FNM)
 		{	eval_prog(ref_p, RHS, rv, ix);
@@ -2794,6 +2919,93 @@ do_assignment(Prim **ref_p, Lextok *q, Rtype *rv, const int ix, Prim *p)
 			return;
 		}
 
+		pp = p;
+		qq = LHS->rgt;
+
+		if (LHS->typ == '.'
+		&&  LHS->lft
+		&&  LHS->lft->typ == NAME)	// use the token pointed to by LHS->lft
+		{	Var_nm *vn;
+			vn = get_var(ref_p, LHS->lft, rv, ix);
+			if (!vn || vn->rtyp != PTR)
+			{	goto bad;
+			}
+			pp = (Prim *) vn->pm;
+		}
+
+more:
+		if (qq->typ == '.' && pp)
+		{	if (qq->lft)
+			{	switch (qq->lft->typ) {
+				case JMP:	pp = pp->jmp; break;
+				case BOUND:	pp = pp->bound; break;
+				case NXT:	pp = pp->nxt; break;
+				case PRV:	pp = pp->prv; break;
+				default:
+bad:					fprintf(stderr, "error: bad dot chain on lhs of asgn\n");
+					show_error(stderr, qq->lnr);
+					rv->rtyp = STP;
+					return;
+			}	}
+
+			if (!pp)
+			{	goto bad;
+			}
+
+			if (qq->rgt->typ == '.')
+			{	qq = qq->rgt;
+				goto more;
+			}
+
+			eval_prog(ref_p, RHS, rv, ix);
+
+			switch (qq->rgt->typ) {
+			case FNM: case TYP: case TXT:
+				if (rv->rtyp != STR)
+				{	fprintf(stderr, "error: type of rhs should be string\n");
+					goto bad;
+				}
+				break;
+
+			case LNR:   case SEQ:   case MARK: case LEN:
+			case CURLY: case ROUND: case BRACKET:
+				if (rv->rtyp != VAL)
+				{	fprintf(stderr, "error: type of rhs should be integer\n");
+					goto bad;
+				}
+				break;
+
+			case JMP: case BOUND: case NXT: case PRV:
+				if (rv->rtyp != PTR)
+				{	fprintf(stderr, "error: type of rhs should be token ref\n");
+					goto bad;
+				}
+				break;
+			}
+
+			switch (qq->rgt->typ) {
+			case FNM:	pp->fnm = rv->s; break;
+			case TYP:	pp->typ = rv->s; break;
+			case TXT:	pp->txt = rv->s; break;
+
+			case LNR:	pp->lnr = rv->val; break;
+			case SEQ:	pp->seq = rv->val; break;
+			case MARK:	pp->mark = rv->val; break;
+			case CURLY:	pp->curly = rv->val; break;
+			case ROUND:	pp->round = rv->val; break;
+			case BRACKET:	pp->bracket = rv->val; break;
+			case LEN:	pp->len = rv->val; break;
+
+			case JMP:	pp->jmp = rv->ptr; break;
+			case BOUND:	pp->bound = rv->ptr; break;
+			case NXT:	pp->nxt = rv->ptr; break;
+			case PRV:	pp->prv = rv->ptr; break;
+
+			default:	goto bad;
+			}
+			return;
+		}
+
 		if (LHS->rgt->typ != MARK
 		&&  LHS->rgt->typ != LEN
 		&&  LHS->rgt->typ != ROUND
@@ -2807,8 +3019,8 @@ do_assignment(Prim **ref_p, Lextok *q, Rtype *rv, const int ix, Prim *p)
 			rv->rtyp = STP;
 			return;
 		}
-		eval_prog(ref_p, RHS, rv, ix);
 
+		eval_prog(ref_p, RHS, rv, ix);
 		if (rv->rtyp == STR && isdigit((uchar) rv->s[0]))
 		{	rv->rtyp = VAL;
 			rv->val = atoi(rv->s);
@@ -2817,8 +3029,14 @@ do_assignment(Prim **ref_p, Lextok *q, Rtype *rv, const int ix, Prim *p)
 		}
 		Assert("rhs = (2)", rv->rtyp == VAL, RHS);
 		// rhs is VAL
+
 		if (LHS->lft)	// get the q in q.mark = ...
 		{	Var_nm *n = get_var(ref_p, LHS->lft, &tmp, ix);
+
+			if (!n)
+			{	rv->rtyp = STP;
+				return;
+			}
 			if (!n->rtyp)			// new variable
 			{	n->rtyp = PTR;		// its the q in q.mark
 			}
@@ -2938,6 +3156,48 @@ do_assignment(Prim **ref_p, Lextok *q, Rtype *rv, const int ix, Prim *p)
 #undef LHS
 #undef RHS
 
+void
+get_field(Prim *p, Lextok *q, Rtype *rv, int ix)
+{
+	assert(q != NULL);
+
+	if (q->typ == '.'
+	&&  q->lft == NULL
+	&&  q->rgt != NULL)
+	{	q = q->rgt;
+	}
+
+	switch (q->typ) {
+	case    FNM: rv->rtyp = STR; rv->s   = p?p->fnm:"";  break;
+	case    TYP: rv->rtyp = STR; rv->s   = p?p->typ:"";  break;
+	case    TXT: rv->rtyp = STR; rv->s   = p?p->txt:"";  break;
+
+	case	 LNR: rv->rtyp = VAL; rv->val = p?p->lnr:0; break;
+	case     SEQ: rv->rtyp = VAL; rv->val = p?p->seq:0; break;
+	case    MARK: rv->rtyp = VAL; rv->val = p?p->mark:0; break;
+
+	case   CURLY: rv->rtyp = VAL; rv->val = p?p->curly:0; break;
+	case   ROUND: rv->rtyp = VAL; rv->val = p?p->round:0; break;
+	case BRACKET: rv->rtyp = VAL; rv->val = p?p->bracket:0; break;
+	case     LEN: rv->rtyp = VAL; rv->val = p?p->len:0; break;
+
+	case    FCT: rv->rtyp = STR; rv->s   = fct_which(p); break;
+
+	case    JMP: rv->rtyp = PTR; rv->ptr = p?p->jmp:p;  break;
+	case  BOUND: rv->rtyp = PTR; rv->ptr = p?p->bound:p; break;
+	case MBND_D: rv->rtyp = PTR; rv->ptr = p?p->mbnd[0]:p; break;
+	case MBND_R: rv->rtyp = PTR; rv->ptr = p?p->mbnd[1]:p; break;
+	case    NXT: rv->rtyp = PTR; rv->ptr = p?p->nxt:p;   break;
+	case    PRV: rv->rtyp = PTR; rv->ptr = p?p->prv:p;   break;
+
+	default:
+		     rv->rtyp = STP;
+		     fprintf(stderr, "error: bad dot chain, saw type %d (%p)\n", q->typ, (void *) q->lft);
+		     show_error(stderr, q->lnr);
+		     break;
+	}
+}
+
 static void
 do_dot(Prim **ref_p, Lextok *q, Rtype *rv, const int ix, Prim *p)
 {
@@ -2949,30 +3209,84 @@ do_dot(Prim **ref_p, Lextok *q, Rtype *rv, const int ix, Prim *p)
 	} else // q->lft	e.g.:	q.txt
 	{	Var_nm *n = 0, dummy;
 		assert(ix >= 0 && ix < Ncore);
-		switch (q->lft->typ) {
-		case END:
-		case BEGIN:
-		case FIRST_T:
-		case LAST_T:
-			eval_prog(ref_p, q->lft, rv, ix);
-			Assert("dodot", rv->rtyp == PTR, q->lft);
-			n = &dummy;
-			n->pm = rv->ptr;
-			break;
-		case '.':
-			eval_prog(ref_p, q->lft, rv, ix);
-			if (rv->rtyp == PTR)
-			{	n = &dummy;
-				n->pm = rv->ptr;
+
+		if (q->rgt->typ == '.') // chain
+		{	if (q->lft->typ != NAME)
+			{	fprintf(stderr, "error: bad dot-chain, saw type %d\n", q->lft->typ);
+				rv->rtyp = STP;
+				return;
 			}
-			break;
-		default:
 			n = get_var(ref_p, q->lft, rv, ix);
-			break;
-		}
+			if (n->rtyp != PTR)
+			{	if (0)
+				{	fprintf(stderr, "%s returns non-ptr, type %d\n",
+						q->lft->s, n->rtyp);
+				}
+fallback:			rv->rtyp = VAL;
+				rv->val = 0;
+				return;
+			}
+			p = (Prim *) n->pm;
+
+			// evaluates to a field of p, find which field
+			q = q->rgt;	// the '.'
+			if (!q->rgt)
+			{	fprintf(stderr, "error: cannot happen: no field spec\n");
+				rv->rtyp = STP;
+				return;
+			}
+
+again:			if (q->typ == '.')
+			{	if (!q->lft)
+				{	get_field(p, q->rgt, rv, ix);
+					return;
+				}
+				get_field(p, q->lft, rv, ix);
+				if (rv->rtyp != PTR)
+				{	if (0)
+					{	fprintf(stderr, "%s returns non-ptr (typ %d)\n",
+							q->lft->s, rv->rtyp);
+					}
+					goto fallback;
+				}
+				p = rv->ptr;
+				// check which field of p, given by p->rgt
+				q = q->rgt;
+				if (q->typ != '.')
+				{	get_field(p, q, rv, ix);
+					return;
+				}
+				goto again;
+			}
+			get_field(p, q, rv, ix);
+			return;
+		} else
+		{	switch (q->lft->typ) {
+			case END:
+			case BEGIN:
+			case FIRST_T:
+			case LAST_T:
+				eval_prog(ref_p, q->lft, rv, ix);
+				Assert("dodot", rv->rtyp == PTR, q->lft);
+				n = &dummy;
+				n->pm = rv->ptr;
+				break;
+			case '.':
+				eval_prog(ref_p, q->lft, rv, ix);
+				if (rv->rtyp == PTR)
+				{	n = &dummy;
+					n->pm = rv->ptr;
+				}
+				break;
+			default:
+				n = get_var(ref_p, q->lft, rv, ix);
+				break;
+		}	}
+
 		if (!n)
 		{	return;
 		}
+
 		switch (rv->rtyp) {
 		case VAL:
 			rv->val = n->v;
@@ -3467,7 +3781,8 @@ bad_ref(const Var_nm *n, const Rtype *rv, const Lextok *from)
 	if (!n)
 	{	fprintf(stderr, "error: '%s' not found\n", from->s);
 	} else if (rv->rtyp != PTR)
-	{	fprintf(stderr, "error: '%s' bad token ref\n", from->s);
+	{	fprintf(stderr, "error: '%s' bad token ref, type %d\n",
+			from->s, rv->rtyp);
 	}
 }
 
@@ -3488,9 +3803,6 @@ handle_arg(Prim **ref_p, Lextok *from, Rtype *rv, const int ix)
 		fprintf(stderr, "error: bad add/del_pattern call\n");
 		return NULL;
 	}
-//	if (from->typ == '.')
-//	{	return *ref_p;
-//	}
 
 	if (from->typ != NAME)
 	{	fprintf(stderr, "error: bad add/del_pattern command\n");
@@ -3574,18 +3886,17 @@ name_to_set(Prim **ref_p, Lextok *q, Rtype *rv, int ix)
 {	Var_nm *v;
 	Lextok *n = q->lft;
 
-
 	switch (n->typ) {
 	case STRING:
-		rv->ptr = cp_pset(n->s, ix);
+		rv->ptr = cp_pset(n->s, q->rgt, ix);
 		rv->rtyp = PTR;
 		break;
 	case NAME:
-		rv->ptr = cp_pset(n->s, ix);
+		rv->ptr = cp_pset(n->s, q->rgt, ix);
 		if (rv->ptr == NULL)	// could be a var
 		{	v = get_var(ref_p, n, rv, ix);
 			if (rv->rtyp == STR)
-			{	rv->ptr = cp_pset(v->s, ix);
+			{	rv->ptr = cp_pset(v->s, q->rgt, ix);
 			}
 			if (verbose && !rv->ptr)
 			{	fprintf(stderr, "warning: no such set '%s'\n", (v && v->s)?v->s:n->s);
@@ -3604,12 +3915,187 @@ name_to_set(Prim **ref_p, Lextok *q, Rtype *rv, int ix)
 }
 
 void
+set_string_type(Lextok *c, char *s)
+{
+	if (c)
+	{	c->typ = STRING;
+		c->s = s;
+	}
+}
+
+extern int evaluate(const Prim *, const Lextok *);
+
+enum tok_eval {		// cobra_eval.c
+	eSIZE = 258,
+	eNR = 259,
+	eNAME = 260,
+	eOR = 263,
+	eAND = 264,
+	eEQ = 265,
+	eNE = 266,
+	eGT = 267,
+	eLT = 268,
+	eGE = 269,
+	eLE = 270,
+	eUMIN = 271
+};
+
+int
+tok_prog2eval(int t)
+{
+	switch (t) {
+	case SIZE:	t = eSIZE; break;
+	case NR:	t = eNR; break;
+	case NAME:	t = eNAME; break;
+	case OR:	t = eOR; break;
+	case AND:	t = eAND; break;
+	case EQ:	t = eEQ; break;
+	case NE:	t = eNE; break;
+	case GT:	t = eGT; break;
+	case LT:	t = eLT; break;
+	case GE:	t = eGE; break;
+	case LE:	t = eLE; break;
+	}
+	return t;
+}
+
+static void
+convert_prog2eval(Lextok *p)
+{
+	if (!p)
+	{	return;
+	}
+	p->typ = tok_prog2eval(p->typ);
+	convert_prog2eval(p->lft);
+	convert_prog2eval(p->rgt);
+}
+
+void
+slice_set(Named *x, Lextok *constraint, int ix, int commandline)
+{	Prim *p, *last_p = (Prim *) 0;
+
+	if (!constraint
+	||  !x
+	||  !x->cloned)
+	{	return;
+	}
+
+	for (p = x->cloned; p; p = p->nxt)
+	{	Rtype irv;
+
+		if (constraint->typ == STRING)
+		{	Prim *s = p->jmp;
+			Prim *e = p->bound;
+			irv.rtyp = VAL;
+			irv.val = 0;
+			while (s->seq <= e->seq)
+			{	if (strcmp(s->txt, constraint->s) == 0)
+				{	irv.val = 1;	// keep
+					break;
+				}
+				s = s->nxt;
+			}
+		} else
+		{	if (commandline)
+			{	convert_prog2eval(constraint);		// ps = A with (constraint)
+				irv.val = evaluate(p, constraint);
+				irv.rtyp = VAL;
+			} else	// inline program
+			{	eval_prog(&p, constraint, &irv, ix);	// pset(A) with (constraint)
+		}	}
+
+		if (irv.rtyp == STP
+		||  irv.rtyp != VAL)
+		{	fprintf(stderr, "pset %s: bad constraint\n", x->nm);
+			break;
+		}
+		if (irv.val == 0)	// delete from list
+		{	if (!last_p)
+			{	x->cloned = x->cloned->nxt;
+				if (x->cloned)
+				{	x->cloned->prv = (Prim *) 0;
+				}
+			} else
+			{	last_p->nxt = p->nxt;
+				if (p->nxt)
+				{	p->nxt->prv = last_p;
+			}	}
+			continue; // dont change last_p
+		}
+		last_p = p;
+	}
+}
+
+void
+convert_list2set(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)
+{	Var_nm *lst;
+	Prim *nm;
+
+	if (!q
+	||  !q->lft
+	||  !q->rgt
+	||  q->rgt->typ != STRING
+	||  q->lft->typ != NAME)
+	{	fprintf(stderr, "error: usage list2set listname \"setname\"\n");
+		goto out;
+	}
+
+	lst = get_var(ref_p, q->lft, rv, ix);
+
+	if (!lst
+	||  !lst->pm
+	||  lst->rtyp != PTR)
+	{	fprintf(stderr, "error: no list '%s'\n", q->lft->s);
+out:		if (q)
+		{	show_error(stderr, q->lnr);
+		}
+		rv->rtyp = STOP;
+		return;
+	}
+
+	for (nm = lst->pm; nm; nm = nm->nxt)
+	{	add_pattern(q->rgt->s, "list2set", nm->jmp, nm->bound, ix);
+	}
+}
+
+void
+dot_chain(Prim *p, Lextok *q, Rtype *rv, int ix)
+{	Prim *pp = (Prim *) 0;
+
+	assert(q->typ == '.' && q->rgt);
+
+	if (q->lft)
+	{	switch (q->lft->typ) {	// must be JMP, BOUND, NXT, or PRV
+		case    JMP: pp = p?p->jmp:p;  break;
+		case  BOUND: pp = p?p->bound:p; break;
+		case    NXT: pp = p?p->nxt:p;   break;
+		case    PRV: pp = p?p->prv:p;   break;
+		default:
+			fprintf(stderr, "error: bad dot chain\n");
+			show_error(stderr, q->lnr);
+			unwind_stack(ix);
+			sep[ix].T_stop++; 
+			rv->rtyp = STP;
+			return;
+		}
+	
+		p = pp;
+		if (p && q->rgt->typ == '.')
+		{	dot_chain(p, q->rgt, rv, ix);
+			return;
+		}
+	}
+	get_field(p, q->rgt, rv, ix);
+}
+
+void
 eval_prog(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)
 {	Prim  *p;
 	Rtype tmp;
 
 	memset(&tmp, 0, sizeof(Rtype));
 	assert(ix >= 0 && ix < Ncore);
+	assert(sep != NULL);
 	sep[ix].Nest++;
 next:
 	if (!q || sep[ix].T_stop)
@@ -3702,6 +4188,10 @@ next:
 
 	case SUBSTR:
 		substr(ref_p, q, rv, ix);
+		break;
+
+	case LIST2SET:
+		convert_list2set(ref_p, q, rv, ix);
 		break;
 
 	case SPLIT:
@@ -3806,14 +4296,6 @@ next:
 	case '~': match_anywhere(ref_p, q, rv, ix, p); break;
 	case '^': match_at_start(ref_p, q, rv, ix, p); break;
 
-	case   ROUND: rv->val = p?p->round:0; break;
-	case BRACKET: rv->val = p?p->bracket:0; break;
-	case   CURLY: rv->val = p?p->curly:0; break;
-	case     LEN: rv->val = p?p->len:0; break;
-	case	 LNR: rv->val = p?p->lnr:0; break;
-	case    MARK: rv->val = p?p->mark:0; break;
-	case     SEQ: rv->val = p?p->seq:0; break;
-
 	case	RANGE:
 		  if (p
 		  &&  p->jmp
@@ -3847,6 +4329,10 @@ next:
 	case '.':
 		 if (!q->lft && q->rgt)
 		 {	q = q->rgt;
+			if (q->typ == '.') // chain on the current token p
+			{	dot_chain(p, q, rv, ix); // Prim *p, dotexpr q, sets rv
+				break;
+			}
 			goto next; // avoid recursion
 		 }
 		 do_dot(ref_p, q, rv, ix, p);
@@ -3875,17 +4361,16 @@ next:
 		}
 		break;
 
+	case    FCT: case     FNM: case     TYP:
+	case    TXT: case     JMP: case   BOUND:
+	case MBND_D: case  MBND_R: case     NXT:
+	case    PRV: case   ROUND: case BRACKET:
+	case   CURLY: case    LEN: case     LNR:
+	case    MARK: case    SEQ:
+		get_field(p, q, rv, ix);
+		break;
+
 	case STRING: rv->rtyp = STR; rv->s   = q->s; break;
-	case    FCT: rv->rtyp = STR; rv->s   = fct_which(p); break;
-	case    FNM: rv->rtyp = STR; rv->s   = p?p->fnm:"";  break;
-	case    TYP: rv->rtyp = STR; rv->s   = p?p->typ:"";  break;
-	case    TXT: rv->rtyp = STR; rv->s   = p?p->txt:"";  break;
-	case    JMP: rv->rtyp = PTR; rv->ptr = p?p->jmp:p;  break;
-	case  BOUND: rv->rtyp = PTR; rv->ptr = p?p->bound:p; break;
-	case MBND_D: rv->rtyp = PTR; rv->ptr = p?p->mbnd[0]:p; break;
-	case MBND_R: rv->rtyp = PTR; rv->ptr = p?p->mbnd[1]:p; break;
-	case    NXT: rv->rtyp = PTR; rv->ptr = p?p->nxt:p;   break;
-	case    PRV: rv->rtyp = PTR; rv->ptr = p?p->prv:p;   break;
 
 	case INCR:
 	case DECR: do_incr_decr(ref_p,  q, rv, ix, p); break;
@@ -4258,7 +4743,6 @@ next:
 
 	case GLOBAL:
 		break;
-
 	case FOR:
 	default:
 		printf("line %d: cannot happen: %d (%s) ", q->lnr, q->typ, q->s);
@@ -4284,6 +4768,7 @@ next:
 		case BREAK:
 		case CONTINUE:
 		case GLOBAL:
+		case LIST2SET:
 		case GOTO:
 		case SKIP:
 		case ELSE:
@@ -4376,6 +4861,7 @@ mk_var(const char *s, const int t, const int ix)
 	{	// printf("mk_var: global match %s depth %d\n", g->nm, g->cdepth);
 		return g;	// global match
 	}
+
 	if (v_free[ix])
 	{	n = v_free[ix];
 		n->rtyp = n->v = 0;
@@ -4748,7 +5234,7 @@ prep_prog(FILE *nfd)
 #endif
 	mk_fsm(p_tree, 0);				// visit |= 2
 	opt_fsm(p_tree);				// visit |= 8
-//	dump_tree(p_tree, 0);
+	// dump_tree(p_tree, 0);
 
 	if (stream == 1
 	&& !streamable(p_tree))

@@ -1,0 +1,126 @@
+.ds D Duplicates
+.\" nroff -man duplicates.1
+.\" place in (depending on your system):
+.\"    /usr/local/man/man1
+.\" or /usr/man/man1
+.\" or /usr/share/man/man1
+.TH DUPLICATES 1
+.SH NAME
+duplicates \- a tool for detecting duplicate fragments of code
+.SH SYNOPSIS
+.br
+.B duplicates
+.BI [ options ]
+.BI [ files ]
+.SH DESCRIPTION
+\*D is a tool, built as a standalone backend to the Cobra analyzer, that
+can efficiently detect duplicate code fragments and patched code sequences
+in code archives. It's performance scales linearly with the size of the
+code archive being scanned.
+.SH OPTIONS
+The duplicates tool recognizes all relevant options from the Cobra front-end to
+handle the initial tokenization of the code. The back-end code scans the
+token sequence prepared in this way, using hashing to locate repeated code
+segments. The \--Patches option checks sequences of duplicate code with small
+sequences of changes in between to report likely patched code sequences.
+.br
+Standard Cobra options are preceded by a single dash, like \-F or \-MaxMem, and
+all options intended to be interpreted by the back-end are preceded by a
+double-dash like \--verbose, or \--help.
+.TP
+.B \--Detail
+Provide additional context for all reported duplicate or patched code sequences.
+See also \--ShowOnly.
+.TP
+.B \--GapLimit=25
+Set the maximum length of the number of lexical tokens that can separate
+two fragments of duplicated code, in a scan option \--Patches. It has no
+effect when used without that option. The default value is 25 tokens.
+.TP
+.B \--help
+Print a brief summary of command-line option recognized by the duplicates tool.
+See examples.
+.TP
+.B \--MinLength=100
+Set the minimum number of lexical tokens that must match for a duplicate
+code segment to be flagged. The default value is 100. On average there are
+5 to 10 lexical tokens per source line of C code.
+.TP
+.B \--MultiClones=2
+Report code fragments that are duplicates N or more times
+(0, meaning disabled, by default).
+.TP
+.B \--Patches
+Report likely patched code sequences, which are defined as two exactly
+matching code fragments, with a difference (with a maximum length that
+can be defined with the \--GapLimit parameter) in between those fragments.
+Can be combined with the \--Detail option for more context.
+.TP
+.B \--ShowOnly=N
+Show output with the context details of only the Nth report. By default
+N=0 which leaves this option is disabled. See also \--Detail.
+.TP
+.B \--verbose
+Provide more information about progress in a larger scan, and do some
+additional checking on the accuracy or reports.
+.SH EXAMPLES
+Some checks on the Cobra code itself:
+.RS
+ $ cd Cobra/src_app
+ $ duplicates --MinLength=65 *.c
+ 1 match of 89 tokens cwe_120.c:185-196 <-> cwe_120.c:162-173
+ 2 match of 69 tokens find_taint_cfg.c:88-96 <-> find_taint.c:760-768
+ $ cd ../src
+ $ duplicates --MinLength=65 --ShowOnly=2 *.c
+ 2 match of 69 tokens find_taint_cfg.c:88-96 <-> find_taint.c:760-768
+ <find_taint.c:760 ;
+ <find_taint.c:761 int cnt = 0 ;
+ <find_taint.c:763 do { q = q -> nxt ;
+ <find_taint.c:764 } while ( q && strcmp ( q -> typ , "ident" ) != 0 && q -> seq < r -> seq ) ;
+ <find_taint.c:766 while ( q && q -> seq < r -> seq && ( s = strchr ( s , '%' ) ) != 0 )
+ <find_taint.c:767 { s ++ ;
+ <find_taint.c:768 switch ( *
+---
+ >find_taint_cfg.c:88 ;
+ >find_taint_cfg.c:89 int cnt = 0 ;
+ >find_taint_cfg.c:91 do { q = q -> nxt ;
+ >find_taint_cfg.c:92 } while ( q && strcmp ( q -> typ , "ident" ) != 0 && q -> seq < r -> seq ) ;
+ >find_taint_cfg.c:94 while ( q && q -> seq < r -> seq && ( s = strchr ( s , '%' ) ) != 0 )
+ >find_taint_cfg.c:95 { s ++ ;
+ >find_taint_cfg.c:96 switch ( *
+.RE
+The help option:
+.RS
+ $ duplicates --help *.c
+.RE
+The final \f2*.c\f1 used here avoids the tool from switching
+to streaming mode where input is read from the standard input. The
+argument is interpreted to be an input file.
+.sp
+Using single-dash front-end options:
+.RS
+ $ echo *.c > c_files
+ $ duplicates --Patches --GapLimit=100 -F c_files
+.RE
+Reads the input from a list of files named \f2c_files\f1.
+.sp
+Setting a memory limit with a front-end option:
+.RS
+ $ duplicates -MaxMem 45000 --MinLength=100 --Detail *.[ch]
+.RE
+We use a front-end Cobra option to set the maximum amount of heap
+memory that the tool can use while searching for duplicate code fragments
+of at least 100 lexical tokens, and allow the tool to print the
+context information for each match found.
+.sp
+Scanning for duplicates used multiple times:
+.RS
+ $ duplicates --MinLength=200 --MultiClones=10 *.[ch]
+.RE
+Find code sequence of 100 tokens or more that are duplicated
+at least ten times.
+.SH AUTHOR
+Gerard Holzmann, gholzmann@acm.org
+.sp
+.SH SEE ALSO
+\fBcobra\f1, \fBcwe\f1, \fBfind_taint\f1, \fBjson_convert\f1
