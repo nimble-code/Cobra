@@ -70,7 +70,7 @@ $(OTHER): c_api.h c.ar
 test:	read_configs.c
 	cc -DTEST -Wall -pedantic -Werror -Wshadow -o read_configs read_configs.c
 
-install:
+install: all
 	cp -f cwe scope_check find_taint json_convert duplicates $(BINDIR)
 
 clean:
