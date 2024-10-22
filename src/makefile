@@ -54,7 +54,7 @@ c.ar:	$(AR)
 	ar -r c.ar $(AR)
 	cp c.ar  $(APP)
 
-install: linux c.ar man
+install: c.ar man
 	cp -f cobra $(BINDIR)
 	cp -f ../gui/icobra.tcl $(BINDIR)/icobra
 	cp -f ../gui/window.tcl $(BINDIR)
