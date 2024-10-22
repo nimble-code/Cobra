@@ -39,9 +39,9 @@ released under the same license.
 
    and depending on your platform, one of:
 
-   	$ sudo make install_linux
-   	$ make install_cygwin
-   	$ make install_mac
+   	$ sudo make all install	# linux
+   	$ make all install	# cygwin
+   	$ make mac install	# mac
 
 * if you're using the precompiled executables, copy the right set to
   your local bin directory, which is /usr/local/bin
