@@ -27,6 +27,7 @@ released under the same license.
    drwxrwxr-x 8 gh gh 4096 May 16 15:55 rules   # cobra checker libraries  
    drwxrwxr-x 1 gh gh 4096 May 16 12:43 src     # cobra source files  
    drwxrwxr-x 1 gh gh 4096 May 16 12:43 src_app # standalone cobra checkers
+
    drwxrwxr-x 1 gh gh 4096 May 16 12:43 bin_tools # platform independent support tools
 
 * you can also download binaries from the last stable release of Cobra
