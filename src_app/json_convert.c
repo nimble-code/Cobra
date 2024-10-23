@@ -178,7 +178,7 @@ reformat(const int mode)
 		printf("    \"tool\": {\n");
 		printf("      \"driver\": {\n");
 		printf("        \"name\": \"Cobra\",\n");
-		printf("        \"version\": \"4.2\",\n");	// should come from input file...
+		printf("        \"version\": \"4.8\",\n");	// should come from input file...
 		printf("        \"informationUri\": \"https://github.com/nimble-code/Cobra\",\n");
 		printf("        \"rules\": [\n");
 			sarif_rules();
