@@ -1,3 +1,4 @@
+// clang-format off
 /*
  * This file is part of the public release of Cobra. It is subject to the
  * terms in the License file that is included in this source directory.
@@ -138,29 +139,37 @@ fhash(const char *v)
 }
 
 void
-dogrep(const char *s)
+dogrep(const char *search_str)
 {	Files *f;
 	int n;
 	char cmd[MAXYYTEXT];
 
-	for (n = 0; n < NHASH; n++)
-	for (f = files[n]; f; f = f->nxt)
-	{	if (strlen(s)
-		+   strlen(f->s)
-		+   strlen("grep -n -e -q \"\"")
-		+   1 >= sizeof(cmd))
-		{	printf("search pattern too long\n");
-			return;
+	const char* pattern = "grep -n -e -q ";
+	const char* pattern_noline = "grep -e -q ";
+
+	int search_str_len = strlen(search_str);
+	int pattern_len = strlen(pattern);
+
+	for (n = 0; n < NHASH; n++) {
+		for (f = files[n]; f; f = f->nxt) {
+			// Accounts for the size of the quotes around the search pattern (2)
+			int cmd_size = search_str_len + pattern_len + strlen(f->s) + 2 + 1;
+			if (cmd_size > sizeof(cmd)) {
+				printf("search pattern too long\n");
+				return;
+			}
+
+			snprintf(cmd, sizeof(cmd), "%s\"%s\" %s", pattern, search_str, f->s);
+			if (system(cmd) == 0)	{ // dogrep
+				printf("%s:\n", f->s);
+			}
+
+			snprintf(cmd, sizeof(cmd), "%s\"%s\" %s", pattern_noline, search_str, f->s);
+			if (system(cmd) < 0) { // dogrep
+				printf("cmd '%s' failed\n", cmd);
+			}	
 		}
-		snprintf(cmd, sizeof(cmd), "grep -q -n -e  \"%s\" %s",
-			s, f->s);
-		if (system(cmd) == 0)	// dogrep
-		{	printf("%s:\n", f->s);
-		}
-		cmd[5] = cmd[6] = ' ';
-		if (system(cmd) < 0)	// dogrep
-		{	printf("cmd '%s' failed\n", cmd);
-	}	}
+	}
 }
 
 char *
