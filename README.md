@@ -12,12 +12,19 @@ for public release in April 2016. The current version (4.6)
 is a significantly extended version of the tool,
 released under the same license.
 
+Note 11/05/2024: Looking for reviews on a comprehensive
+new User Guide to Cobra (pdf, 175 pgs), checking for typos,
+missing information, mistakes, etc. in return for your
+name in the acknowledgments. Send an email to gholzmann
+(atsign) acm (dot) org to get the latest draft.
+
 ## Installation
 
 * choose a directory to install the tool,
    below this is referred to as directory $COBRA
 
    $ git clone https://github.com/nimble-code/Cobra
+   $ export COBRA=`pwd`
 
    which gives you a directory with a set of
    sub-directories like this:
