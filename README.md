@@ -12,7 +12,7 @@ for public release in April 2016. The current version (4.6)
 is a significantly extended version of the tool,
 released under the same license.
 
-Note 11/05/2024: Looking for reviews on a comprehensive
+Note 11/05/2024: Looking for reviewers on a comprehensive
 new User Guide to Cobra (pdf, 175 pgs), checking for typos,
 missing information, mistakes, etc. in return for your
 name in the acknowledgments. Send an email to gholzmann
