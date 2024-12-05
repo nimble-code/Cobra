@@ -1,3 +1,4 @@
+// clang-format off
 /*
  * This file is part of the public release of Cobra. It is subject to the
  * terms in the License file that is included in this source directory.
@@ -145,15 +146,11 @@ dogrep(const char *s)
 
 	for (n = 0; n < NHASH; n++)
 	for (f = files[n]; f; f = f->nxt)
-	{	if (strlen(s)
-		+   strlen(f->s)
-		+   strlen("grep -n -e -q \"\"")
-		+   1 >= sizeof(cmd))
-		{	printf("search pattern too long\n");
-			return;
+	{ if (snprintf(cmd, sizeof(cmd), "grep -q -n -e  \"%s\" %s",
+			s, f->s) >= sizeof(cmd)) {
+				printf("search pattern too long\n");
+				return;
 		}
-		snprintf(cmd, sizeof(cmd), "grep -q -n -e  \"%s\" %s",
-			s, f->s);
 		if (system(cmd) == 0)	// dogrep
 		{	printf("%s:\n", f->s);
 		}

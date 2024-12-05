@@ -1,3 +1,4 @@
+// clang-format off
 /*
  * This file is part of the public release of Cobra. It is subject to the
  * terms in the License file that is included in this source directory.
@@ -1081,8 +1082,12 @@ add_file(char *f, int cid, int slno)
 			    + 8;	// some margin
 
 		buf = (char *) hmalloc(n, cid, 124);
-		snprintf(buf, n, "%s %s -w -E -x %s %s > %s",
-			    CPP, Preproc[cid], lang, f, fnm);
+		if (snprintf(buf, n, "%s %s -w -E -x %s %s > %s",
+			    CPP, Preproc[cid], lang, f, fnm) >= n) {
+			fprintf(stderr, "argument list is too long\n");
+			unlink(fnm);
+			return 0;
+		}
 
 		if (verbose == 1)
 		{	printf("%s\n", buf);
