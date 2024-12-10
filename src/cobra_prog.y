@@ -162,6 +162,7 @@ extern int	showprog;
 %token	ADD_TOP ADD_BOT POP_TOP POP_BOT TOP BOT
 %token	OBTAIN_EL RELEASE_EL UNLIST LLENGTH GLOBAL LIST2SET
 %token	DISAMBIGUATE WITH
+%token	OPEN CLOSE GETS PUTS
 
 %right	'='
 %left	OR
@@ -368,6 +369,12 @@ expr	:'(' expr ')'		{ $$ = $2; }
 				  $1->rgt = new_lex(0, $5, $7);
 				  $$ = $1;
 				}
+
+	| OPEN STRING NAME	{ $1->rgt = $2; $1->lft = $3; $$ = $1; }
+	| PUTS NAME STRING	{ $1->rgt = $2; $1->lft = $3; $$ = $1; }
+	| GETS NAME NAME	{ $1->rgt = $2; $1->lft = $3; $$ = $1; }
+	| CLOSE NAME		{ $1->rgt = $2; $$ = $1; }
+
 	| SPLIT '(' expr ',' NAME ')'            { $1->lft = $3; $1->rgt = $5; $1->s = ",";   $$ = $1; }
 	| SPLIT '(' expr ',' STRING ',' NAME ')' { $1->lft = $3; $1->rgt = $7; $1->s = $5->s; $$ = $1; }
 	| STRCHR '(' expr ',' STRING ')'	 { $1->lft = $3; $1->rgt =  0; $1->s = $5->s; $$ = $1;  }
@@ -476,6 +483,12 @@ static FILE *pfd;
 static struct Keywords {
 	char *s; int t;
 } key[] = {
+
+	{ "open", 	OPEN },
+	{ "gets", 	GETS },
+	{ "puts", 	PUTS },
+	{ "close", 	CLOSE },
+
 	{ "a_unify",	A_UNIFY },
 	{ "add_pattern", ADD_PATTERN },
 	{ "assert",	ASSERT },
@@ -1637,11 +1650,13 @@ find_fct(Lextok *t, int ix)
 			}
 
 			if (!f->has_fsm)
-			{	f->has_fsm++;
-				assert(in_fct_def == NULL);
+			{	Lextok *prev_fct = in_fct_def;
+				f->has_fsm++;
+			//	assert(in_fct_def == NULL);
 				in_fct_def = t->lft;
 				mk_fsm(f->body, ix);
-				assert(in_fct_def == t->lft);
+				in_fct_def = prev_fct; // added 12/24
+			//	assert(in_fct_def == t->lft);
 				in_fct_def = (Lextok *) 0;
 			}
 			break;
@@ -4213,6 +4228,74 @@ next:
 		rv->val  = strlen(rv->s);
 		break;
 
+	case OPEN:	// fp = open "fnm" [rwa]
+		if (!q->lft)
+		{	fprintf(stderr, "error: missing arg to open\n");
+			goto error_case;
+		}
+		if (q->rgt->typ != STRING)
+		{	fprintf(stderr, "error: the first arg to 'open' should be a string\n");
+			goto error_case;
+		}
+		if (q->lft->typ != NAME
+		|| (strcmp(q->lft->s, "r") != 0
+		&&  strcmp(q->lft->s, "w") != 0
+		&&  strcmp(q->lft->s, "a") != 0))
+		{	fprintf(stderr, "error: the second arg to 'open' should be r, w, or a\n");
+			goto error_case;
+		}
+		rv->rtyp = PTR;
+		rv->ptr = (Prim *) fopen((const char *) q->rgt->s, (const char *) q->lft->s);
+		break;
+
+	case CLOSE:
+		if (!q->rgt
+		||   q->rgt->typ != NAME)
+		{	fprintf(stderr, "error: arg to 'close' must be a varname\n");
+			goto error_case;
+		}
+		{ Var_nm *vn = get_var(ref_p, q->rgt, rv, ix);
+		  Assert("close", vn != NULL, q->rgt);
+		  rv->rtyp = VAL;
+		  rv->val = fclose((FILE *) vn->pm);
+		}
+		break;
+
+	case PUTS:
+		if (!q->rgt
+		||  !q->lft
+		||   q->rgt->typ != NAME
+		||   q->lft->typ != STRING)
+		{	fprintf(stderr, "error: bad syntax 'puts' command\n");
+			goto error_case;
+		}
+		{ Var_nm *vn = get_var(ref_p, q->rgt, rv, ix);
+		  Assert("puts", vn != NULL, q->rgt);
+		  rv->rtyp = VAL;
+		  rv->val = fprintf((FILE *) vn->pm, q->lft->s);
+		}
+		break;
+
+	case GETS:
+		if (!q->rgt
+		||  !q->lft
+		||   q->rgt->typ != NAME
+		||   q->lft->typ != NAME)
+		{	fprintf(stderr, "error: bad syntax 'gets' command\n");
+			goto error_case;
+		}
+		{ Var_nm *vn1 = get_var(ref_p, q->rgt, rv, ix);
+		  Assert("gets", vn1 != NULL, q->rgt);
+		  Var_nm *vn2 = get_var(ref_p, q->lft, rv, ix);
+		  Assert("gets", vn2 != NULL, q->lft);
+		  if (strlen(vn2->s) < 512)
+		  {	vn2->s = (char *) hmalloc(512, ix, 144);
+		  }
+		  rv->rtyp = STR;
+		  rv->s = fgets(vn2->s, 512, (FILE *) vn1->pm);
+		}
+		break;
+
 	case FCTS:
 		fcts_int(ix);
 		rv->rtyp = VAL;
@@ -4764,6 +4847,10 @@ next:
 		case ASSERT:
 		case INCR:
 		case DECR:
+		case OPEN:
+		case CLOSE:
+		case GETS:
+		case PUTS:
 		case PRINT:
 		case BREAK:
 		case CONTINUE:
