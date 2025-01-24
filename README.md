@@ -12,8 +12,8 @@ for public release in April 2016. The current version (4.6)
 is a significantly extended version of the tool,
 released under the same license.
 
-(A comprehensive user guide to  the Cobra tool (approx 200 pgs)
-will be published as a book this year (2025).)
+A comprehensive user guide to  the Cobra tool
+will be published as a book this year (2025).
 
 ## Installation
 
