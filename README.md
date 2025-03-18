@@ -21,7 +21,7 @@ will be published as a book this year (2025).
    below this is referred to as directory $COBRA
 ```
    $ git clone https://github.com/nimble-code/Cobra
-   $ export COBRA=\`pwd\`
+   $ export COBRA=`pwd`
 ```
    which gives you a directory with a set of
    sub-directories like this:
