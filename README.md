@@ -71,7 +71,7 @@ will be published as a book this year (2025).
   to make the cobra -view -pe '...' option work with dot or dotty.
   to do so, add the following environment variable, for instance:
 ```
-     export C_TMP=C:/cygwin
+     export C_TMP=C:/cygwin64
 ```
 * to get started using Cobra, see doc/BasicUsage.txt
   for some tutorials see: [http://spinroot.com/cobra]
