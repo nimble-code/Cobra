@@ -43,9 +43,9 @@ will be published as a book this year (2025).
 ```
    and depending on your platform, one of:
 ```
-   	$ sudo make all install	# linux
-   	$ make all install	# cygwin
-   	$ make mac install	# mac
+   $ sudo make all install	# linux
+   $ make all install	# cygwin
+   $ make mac install	# mac
 ```
 * if you're using the precompiled executables, copy the right set to
   your local bin directory, which is /usr/local/bin
