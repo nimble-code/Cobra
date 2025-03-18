@@ -1,0 +1,19 @@
+## parallel count of number if identifiers per file
+
+requires 5.0
+
+%{
+	if (@ident)
+	{	idents_per_file[.fnm]++;
+	}
+%}
+
+%{
+	if (cpu == 0)
+	{	a_unify(0);
+		foreach index (i in idents_per_file)
+		{	print cpu " :: " i "\t" idents_per_file[i] "\n";
+		}
+	}
+	Stop;
+%}

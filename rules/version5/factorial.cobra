@@ -1,0 +1,23 @@
+## example of standalone program
+##  cobra -solo version5/factorial.cobra
+
+requires 5.0
+
+def Factorial(N)
+%{
+	function factorial(n)
+	{
+	   if (n < 0)
+	   {  print "error: negative number\n";
+			Stop;
+	   }
+	   if (n <= 1)
+	   {  return 1;
+	   }
+	   return n * factorial(n-1);
+	}
+	print N "! = " factorial(N) "\n";
+	Stop;
+%}
+end
+Factorial(10)

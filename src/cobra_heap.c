@@ -31,11 +31,13 @@ void report_memory_use(void);
 
 typedef long unsigned int	ulong;
 
-static sem_t	  *sem;
-static sem_t	  *psem;
+static sem_t	  *sem;		// lock_print
+static sem_t	  *psem;	// do_lock / add_pattern / stop_timer
+static sem_t	  *qsem;
 
 static char	  sem_name1[16];
 static char	  sem_name2[16];
+static char	  sem_name3[16];
 static int	  sem_created;	// parse time only
 static int	  lock_held = -1;
 
@@ -70,6 +72,8 @@ extern char *progname;
 
 extern void lock_print(int);
 extern void unlock_print(int);
+extern void lock_other(int);
+extern void unlock_other(int);
 
 #if defined(__APPLE__) || defined(__linux__) || defined(NO_SBRK)
 	#include <stdlib.h>
@@ -203,14 +207,14 @@ hmalloc(size_t size, const int ix, const int caller)	// size in bytes
 
 	if (!heap[ix] || heapsz[ix] <= size)	// words
 	{
-		lock_print(ix);
+		lock_other(ix);
 		if (HeapSz < size * sizeof(size_t))
 		{
 			HeapSz = (int) size * sizeof(size_t);
 		}
 		heap[ix]   = (size_t *) emalloc(HeapSz * sizeof(char), caller);
 		heapsz[ix] = HeapSz / sizeof(size_t);	// words
-		unlock_print(ix);
+		unlock_other(ix);
 	}
 
 	m = heap[ix];
@@ -232,6 +236,7 @@ zap_sem(void)
 	if (sem_created)
 	{	sem_unlink(sem_name1);
 		sem_unlink(sem_name2);
+		sem_unlink(sem_name3);
 	}
 }
 
@@ -247,8 +252,12 @@ ini_lock(void)
 		sprintf(sem_name2, "/C2_%d", (unsigned char) rand());
 		sem_unlink(sem_name2);
 
+		sprintf(sem_name3, "/C3_%d", (unsigned char) rand());
+		sem_unlink(sem_name3);
+
 		sem  = sem_open(sem_name1, O_CREAT, 0666, 1);	// omitted O_EXCL
-		psem = sem_open(sem_name2, O_CREAT, 0666, 1);	// omitted O_EXCL
+		psem = sem_open(sem_name2, O_CREAT, 0666, 1);
+		qsem = sem_open(sem_name3, O_CREAT, 0666, 1);
 
 		if (sem == SEM_FAILED
 		|| psem == SEM_FAILED)
@@ -287,7 +296,7 @@ do_unlock(const int ix)
 }
 
 void
-lock_print(int who)
+lock_print(int who)	// internal use
 {
 	if (Ncore <= 1)
 	{	return;
@@ -304,6 +313,28 @@ unlock_print(int who)
 	{	return;
 	}
 	if (sem_post(sem) != 0)
+	{	perror("sem_post");
+	}
+}
+
+void
+lock_other(int who)	// internal use
+{
+	if (Ncore <= 1)
+	{	return;
+	}
+	if (sem_wait(qsem) != 0)
+	{	perror("sem_wait");
+	}
+}
+
+void
+unlock_other(int who)
+{
+	if (Ncore <= 1)
+	{	return;
+	}
+	if (sem_post(qsem) != 0)
 	{	perror("sem_post");
 	}
 }
@@ -348,7 +379,7 @@ stop_timer(int cid, int always, const char *s)
 {
 	if (runtimes)
 	{	assert(cid >= 0 && cid < 2*(Ncore+1));
-		do_lock(cid);
+		do_lock(cid);	// stop_timer
 		gettimeofday(&(stop_time[cid]), NULL);
 		delta_time[cid] =  (double) (stop_time[cid].tv_sec  - start_time[cid].tv_sec);		// seconds
 		delta_time[cid] += ((double) (stop_time[cid].tv_usec - start_time[cid].tv_usec))/1000000.0; // microseconds

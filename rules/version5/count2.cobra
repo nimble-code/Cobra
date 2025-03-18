@@ -1,0 +1,16 @@
+## parallel count
+
+requires 5.0
+
+%{
+   if (#n)
+   {    Count[.fnm]++;
+   }
+%}
+
+%{
+   for (n in Count)
+   {	print Count[n] "\\t" n "\n";
+   }
+   Stop;
+%}

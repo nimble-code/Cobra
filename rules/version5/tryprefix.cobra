@@ -1,0 +1,19 @@
+## example of using #, ~, and @ prefixes
+## with or without negations
+
+requires 5.0
+
+%{
+	if (#ajay)
+	{	print "1: " .txt "\n";
+	}
+	if (#ajay || #sunil)
+	{	print "2: " .txt "\n";
+	}
+	if (!#sunil && !@const)
+	{	print "3: " .txt "\n";
+	}
+	if (!~i && !@const)
+	{	print "4: " .txt "\n";
+	}
+%}

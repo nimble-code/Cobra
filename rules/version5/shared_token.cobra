@@ -1,0 +1,22 @@
+## illustrate parallel marking of tokens
+
+requires 5.0
+
+%{
+	assert(ncore > 1);
+	.txt = "I am cpu " + itostr(cpu);
+	.mark = 10 * (cpu+1);
+	Stop;
+%}
+
+%{
+	if (cpu != 0)
+	{	Stop;
+	}
+	q = first_t;
+	while (q != last_t)
+	{	print q.seq " " q.txt " " q.mark "\n";
+		q = q.nxt;
+	}
+	Stop;
+%}

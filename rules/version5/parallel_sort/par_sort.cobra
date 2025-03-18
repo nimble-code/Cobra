@@ -1,0 +1,81 @@
+requires 5.0
+
+%{
+	.mark = atoi(.txt);
+%}
+
+%{
+	function do_sort(from, upto)
+	{
+		left = from;
+		while (left.seq < pivot.seq)
+		{	if (left.mark > pivot.mark)
+			{	walk = pivot.nxt;
+				while (walk.seq <= upto.seq)
+				{	if (walk.mark < pivot.mark)
+					{	tmp = left.mark;
+						left.mark = walk.mark;
+						walk.mark = tmp;
+						break;
+					}
+					walk = walk.nxt;
+				}
+				if (walk.seq >= upto.seq)
+				{	# move pivot
+					q = pivot.prv;
+					while (pivot.seq > from.seq
+					&& pivot.mark >= q.mark)
+					{	pivot = q;
+						pivot = pivot.prv;
+					}
+				
+					# now we should have pivot right of a higher number
+					# move it to the right and swap it with the left nr
+	
+					if (pivot.seq > from.seq)
+					{	tmp = pivot.mark;
+						pivot.mark = pivot.prv.mark;
+						pivot.prv.mark = tmp;
+						pivot = pivot.prv;
+						tmp = left.mark;
+						left.mark = pivot.nxt.mark;
+						pivot.nxt.mark = tmp;
+					} else
+					{	break;
+				}	}
+			}
+			left = left.nxt;
+		}
+	}
+	Stop;
+%}
+
+%{
+#	assert(ncore > 1);
+#	assert(Begin.seq + ncore <= End.seq);
+
+	pivot = Begin;
+	n = (End.seq - Begin.seq)/2;
+	while (n >= 0)
+	{	pivot = pivot.nxt;
+		n--;
+	}
+	print cpu ": " Begin.mark " :: " pivot.mark " :: " End.mark "\n";
+
+	do_sort(Begin, End.prv);
+	Stop;
+%}
+
+%{
+	if (.seq == pivot.seq)
+	{	print "\n" .mark "\n";
+	} else
+	{	if (.txt != "EOF")
+		{	print .mark " ";
+	}	}
+%}
+
+%{
+	print "\n";
+	Stop;
+%}

@@ -1,0 +1,37 @@
+## parallel word count
+
+requires 5.0
+
+%{
+	# parallel word count (token based)
+	# counts lines, tokens, and chars not counting white space
+	# (so the counts differ from the standard unix wc)
+
+	chars[.fnm] = chars[.fnm] + .len;
+	if (@const)
+	{	numbers[.fnm]++;
+	} else
+	{	words[.fnm]++;
+	}
+	if (. != first_t
+	&& (. == last_t || .lnr != .prv.lnr))
+	{	lines[.fnm]++;
+	}
+%}
+
+%{
+	if (cpu != 0)
+	{	Stop;
+	}
+	a_unify(cpu);
+	print "lines\twords\tnrs\tchars\n";
+	for (f in chars)
+	{	print lines[f] "\t" words[f] "\t" numbers[f] "\t" chars[f] "\t" f "\n";
+		L = L + lines[f];
+		W = W + words[f];
+		N = N + numbers[f];
+		C = C + chars[f];
+	}
+	print L "\t" W "\t" N "\t" C "\ttotal\n";
+	Stop;
+%}

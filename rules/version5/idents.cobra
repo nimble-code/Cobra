@@ -1,0 +1,18 @@
+## use locks to combine lines of output
+
+requires 5.0
+
+%{
+	if (@ident)
+	{	idents_per_file[.fnm]++;
+	}
+%}
+
+%{
+	lock();
+	foreach index (i in idents_per_file)
+	{	print cpu " :: " i "\t" idents_per_file[i] "\n";
+	}
+	unlock();
+	Stop;
+%}

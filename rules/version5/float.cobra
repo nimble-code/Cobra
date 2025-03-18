@@ -1,0 +1,20 @@
+## find where floating point vars are declared
+
+requires 5.0
+
+%{
+   if (#float)
+   {   . = .nxt;
+       if (@ident)
+       {   Store[.txt] = .;   # store location
+           print .fnm ":" .lnr ": declares " .txt "\n";
+       }
+       Next;
+   }
+   if (@ident)
+   {   q = Store[.txt];
+       if (q.lnr != 0)
+       {   print .fnm ":" .lnr ": uses " .txt " ";
+           print "declared at " q.fnm ":" q.lnr "\n";
+   }   }
+%}

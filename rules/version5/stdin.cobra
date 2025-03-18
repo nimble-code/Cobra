@@ -1,0 +1,34 @@
+## example of using file access in version 5.0
+##
+## copy the file pp2.cobra into a new file foo.bar
+## prefixed with line numbers
+## with right aligned number field
+##
+## fp = open "file.txt" [rwa]
+## puts fp "..args.."
+## gets fp varname
+## close fp
+
+requires 5.0
+
+%{
+	fp = open "pp2.cobra" "r";
+	fw = open "foo.bar"   "w";
+	n=1;
+	while (true)
+	{	gets fp line;
+		if (line == "EOF")
+		{	break;
+		}
+		m = n;
+		while (m < 1000)
+		{	puts fw " ";
+			m = m * 10;
+		}
+		puts fw n " " line "\n";
+		n++;
+	}
+	close fp;
+	close fw;
+	Stop;
+%}

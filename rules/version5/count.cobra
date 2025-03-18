@@ -1,0 +1,21 @@
+## parallel count
+
+requires 5.0
+
+%{
+	if (@ident)
+	{	cnt++;
+	}
+%}
+
+%{
+	print "nr identifiers: " cnt "\n";
+	Stop;
+%}
+
+%{
+	if (cpu == 0)
+	{	print "nr identifiers: " sum(cnt) "\n";
+	}
+	Stop;
+%}

@@ -1,0 +1,38 @@
+## simple method to find primes, using parallelism
+
+requires 5.0
+
+%{
+	# find primes among the first N numbers
+	# using parallelism
+
+	function is_prime(num)
+	{	if (num < 2)
+		{	return false;
+		}
+		i = 2;
+		while (i <= num/2)
+		{	if (num%i == 0)
+			{	return false;
+			}
+			i++;
+		}
+		return true;
+	}
+	function first_n_primes(from, upto)
+	{	num = from;
+		cnt = 0;
+		while (num <= upto)
+		{	if (is_prime(num))
+			{	print num "\n";
+				cnt++;
+			}
+			num++;
+		}
+	}
+	MAX = 200;	# first MAX numbers
+	n = MAX/ncore;	# eg: 10 cores: each tests 100 nrs
+
+	first_n_primes(2+cpu*n, 1+(cpu+1)*n);
+	Stop;
+%}

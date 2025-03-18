@@ -13,6 +13,8 @@
 # Goods: 1,177 -- of these also in Dad: 431 -- leaves: 746 modules with only 'Good' fcts
 # Bads :   465
 
+requires 5.0
+
 r
 %{
 	# preliminaries
@@ -24,7 +26,7 @@ r
 	unset GoodModule;
 	unset BadModule;
 	function getbasename(fl)
-	{	q = strrchr(fl, "/");  # index of last /
+	{	q = strrstr(fl, "/");  # index of last /
 		if (q > 0)
 		{	b = substr(fl, 0, q-1);	# basename
 		} else

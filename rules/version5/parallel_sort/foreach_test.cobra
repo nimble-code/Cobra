@@ -1,0 +1,145 @@
+requires 5.0
+
+%{
+	.mark = atoi(.txt);
+%}
+
+%{
+	function show_vals(indent, pr, a, b)
+	{
+		print "\n";
+		while (indent > 0)
+		{	print "\t";
+			indent--;
+		}
+		print pr;
+		walk = a;
+		while (walk.seq <= b.seq)
+		{	# print walk.seq ":";
+			print walk.mark " ";
+			walk = walk.nxt;
+			if (walk.seq == walk.nxt.seq)
+			{	break;
+			}
+		}
+		print "\n";
+	}
+
+	function merge_sort()
+	{
+		if (cpu != 0)
+		{	return;
+		}
+
+		a_unify(0);
+		count = 0;
+		last_value = 0;
+		while (count < last_t.seq)
+		{	# pick valid ref value
+			n = 0;
+			while (n < ncore)
+			{	if (From[n].seq <= Upto[n].seq)
+				{	lowest = n;
+					break;
+				}
+				n++;
+			}
+			if (n >= ncore)
+			{	print "\nno reference\n";
+				break;
+			}
+
+			while (n < ncore)
+			{	if ((count == 0 || From[n].mark >= last_value)
+				&&  From[n].seq <= Upto[n].seq
+				&&  From[n].mark < From[lowest].mark)
+				{	lowest = n;
+				}
+				n++;
+			}
+
+			last_value = From[lowest].mark;
+		#	print count ":";
+		#	print From[lowest].seq ":" ;
+			print From[lowest].mark " ";
+
+			From[lowest] = From[lowest].nxt;
+			count++;
+		}
+	}
+
+	function place_values(val, q, from, upto)
+	{	r = from;
+		while (r.seq <= upto.seq)
+		{	if (r.curly == val)
+			{	q.round = r.mark;
+				q = q.nxt;
+			}
+			r = r.nxt;
+		}
+		return q;
+	}
+
+	function move_values(from, upto)
+	{	r = from;
+		while (r.seq <= upto.seq)
+		{	r.mark = r.round;
+			r.curly = 0;
+			r.round = 0;
+			r = r.nxt;
+		}
+	}
+
+	function qsort(from, upto, nest)
+	{	global maxnest;
+
+		if (nest > maxnest)	# N > 10  causes a segmentation fault
+		{	maxnest = nest;
+		}
+
+		pivot = upto; 
+		p_val = pivot.mark;
+		q = from;
+		while (q.seq < pivot.seq)
+		{	if (q.mark <= p_val)
+			{	q.curly = 10;	# smaller
+			} else
+			{	q.curly = 20;	# larger
+			}
+			q = q.nxt;
+		}
+		pivot = place_values(10, from, from, upto);
+		pivot.round = p_val;
+		place_values(20, pivot.nxt, from, upto);
+		move_values(from, upto);
+
+		if (from.seq < pivot.prv.seq)
+		{	qsort(from, pivot.prv, nest+1);
+		}
+		if (pivot.nxt.seq < upto.seq)
+		{	qsort(pivot.nxt, upto, nest+1);
+		}
+	}
+
+	if (End.txt == "EOF")
+	{	last = End.prv;
+	} else
+	{	last = End;
+	}
+
+	qsort(Begin, last, 1);	# End == EOF
+
+	From[cpu] = Begin;
+	Upto[cpu] = last;
+	Stop;
+%}
+
+%{
+	if (ncore == 1)
+	{	show_vals(0, "", first_t, last_t.prv);
+	} else
+	{	merge_sort();
+	}
+	# print "maxnest: " maxnest "\n";
+	Stop;
+%}

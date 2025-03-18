@@ -1,0 +1,58 @@
+
+requires 5.0
+
+%{
+	.mark = atoi(.txt);
+%}
+
+%{
+	function swap(w, a, b)
+	{
+		print w " " a.mark "\t" b.mark "\n";
+		t = a.mark;
+		a.mark = b.mark;
+		b.mark = t;
+	}
+
+	function partition(low, high)
+	{
+		pivot = high;
+		i = low; # low - 1 ?
+
+		j = low;
+		while (j.seq < high.seq)
+		{
+			if (j.mark <= pivot.mark)
+			{ 	if (i.seq != low.seq)
+				{	i = i.nxt;
+				}
+				swap("I", i, j);
+			}
+			j = j.nxt;
+		}
+		swap("A", i, high);
+		if (i.seq != low.seq)
+		{	i = i.nxt;
+		}
+		return i;
+	}
+
+	function qsort(low, high)
+	{	if (low.seq < high.seq)
+		{	pi = partition(low, high);
+			# print "pivot: " pi.seq "\n";
+			if (pi.seq > Begin.seq)
+			{	qsort(low, pi.prv);
+			}
+			if (pi.seq < End.seq)
+			{	qsort(pi.nxt, high);
+		}	}
+	}
+	Stop;
+%}
+
+%{
+	# print Begin.seq ":" Begin.mark ":" Begin.txt " B " End.seq ":" End.mark ":" End.txt " E\n";
+	qsort(Begin, End.prv);
+	Stop;
+%}

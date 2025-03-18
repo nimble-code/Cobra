@@ -1,0 +1,9 @@
+*.o
+*.exe
+gui/userdefined.icobra
+src/cobra_prog.c
+src/cobra_prog.h
+src/cobra_eval.c
+bin_linux/
+bin_cygwin/
+bin_mac/

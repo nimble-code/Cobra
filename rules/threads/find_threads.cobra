@@ -1,3 +1,6 @@
+
+requires 5.0
+
 pe S0: pthread \. h
 pe S1: [pthread_create pthread_join] ( .* )
 	pe S2: omp \. h
@@ -63,7 +66,7 @@ ps list
 
 %{
 	function getbasename(f)
-	{	q = strrchr(f, "/");  # index of last /
+	{	q = strrstr(f, "/");  # index of last /
 		if (q > 0)
 		{	b = substr(f, 0, q-1);	# basename
 		} else

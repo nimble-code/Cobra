@@ -96,6 +96,7 @@ find_array(const char *nm, const int ix, const int mk)	// find or create
  #endif
 	}
 	a = bm;	// best match
+//fprintf(stderr, "%d Find %s: %p (mk=%d)\n", ix, nm, (void *) a, mk);
 
 	if (!a && mk)	// add
 	{	len = strlen(nm);
@@ -423,43 +424,75 @@ find_array_index(const char *nm, const int n, const int ix)
 
 static void
 array_unify_name(const char *nm, const int ix)
-{	Arr_var *a, *g;
+{	Arr_var *a, *b;
 	Arr_el  *e, *f;
+	Rtype rv;
 	int n, j;
-
-	// make sure all associative arrays acros cores
-	// have the same indices, though not necessarily
-	// the same stored values
 
 	if (Ncore == 1 || !nm)
 	{	return;
 	}
-	a = find_array(nm, ix, 1);
-	for (n = 0; a && n < Ncore; n++)
-	{	if (n == ix)
-		{	continue;
+
+	if (0)
+	{	fprintf(stderr, "Before:\n");
+		for (n = 0; n < Ncore; n++)			// check each cores
+		{	a = find_array(nm, n, 1);		// array handle for core n
+			fprintf(stderr, "core %d ", n);
+			for (j = 0; a && j <= a->h_mask; j++)	// get elements present on ix
+			{	for (e = a->ht[j]; e; e = e->nxt)
+				{	f = get_array_element(a, e->a_index, 1, n);
+					fprintf(stderr, "[%s : %d : %d] ", e->a_index, f->val, j);
+				}
+			}
+			fprintf(stderr, "\n");
+	}	}
+
+	// make sure cpu 0 has all array indices
+	a = find_array(nm, 0, 1);
+	for (n = 1; n < Ncore; n++)
+	{	b = find_array(nm, n, 0);
+		if (b && a->typ != b->typ)
+		{	fprintf(stderr, "warning: a_unify, array %s has a different type on cpu %d and %d\n",
+				nm, 0, n);
 		}
-		g = find_array(nm, n, 0);
-		if (!g)
-		{	continue;
-		}
-		if (a->typ == 0)	// newly created
-		{	a->typ = g->typ;
-		} else if (a->typ != g->typ)
-		{	printf("type conflict on %s, cores %d and %d, types: %s <-> %s\n",
-				a->name, ix, n, looktyp(a->typ), looktyp(g->typ));
-			// resolve this automically?
-		} else
-		{	// types match, all good
-		}
-		for (j = 0; j <= a->h_mask; j++)
-		{	for (e = g->ht[j]; e; e = e->nxt)
-			{	f = get_array_element(a, e->a_index, 1, ix);	// unify
-				f->val += e->val;
-				f->s   = e->s;	// may overwrite version in a
-				f->len = e->len;
-				f->p   = e->p;
+		for (j = 0; b && j < b->h_mask; j++)
+		{	for (e = b->ht[j]; e; e = e->nxt)
+			{	(void) get_array_element(a, e->a_index, 1, 0);
 	}	}	}
+
+	for (j = 0; a && j <= a->h_mask; j++)	// unify entries
+	{	for (e = a->ht[j]; e; e = e->nxt)
+		{	memset(&rv, 0, sizeof(Rtype));
+			rv.rtyp = a->typ;
+			for (n = 0; n < Ncore; n++)
+			{	b = find_array(nm, n, 1);
+				f = get_array_element(b, e->a_index, 1, n);
+				rv.val += f->val;	// sum values
+				if (f->s && !rv.s)
+				{	rv.s = f->s;
+				}
+				if (f->p && !rv.ptr)
+				{	rv.ptr = f->p;
+			}	}
+			for (n = 0; n < Ncore; n++)
+			{	b = find_array(nm, n, 1);
+				set_array_element(b, e->a_index, &rv, n);
+			}
+	}	}
+
+	if (0)
+	{	fprintf(stderr, "After:\n");
+		for (n = 0; n < Ncore; n++)			// check each cores
+		{	a = find_array(nm, n, 1);		// array handle for core n
+			fprintf(stderr, "core %d ", n);
+			for (j = 0; a && j <= a->h_mask; j++)	// get elements present on ix
+			{	for (e = a->ht[j]; e; e = e->nxt)
+				{	f = get_array_element(a, e->a_index, 1, n);
+					fprintf(stderr, "[%s : %d : %d] ", e->a_index, f->val, j);
+				}
+			}
+			fprintf(stderr, "\n");
+	}	}
 }
 
 static void
@@ -586,6 +619,7 @@ array_unify(Lextok *qin, const int ix)	// make array qin->rgt->s in core q->val 
 	if (q->typ != CPU)
 	{	which = q->val;
 	}
+
 	if (b)
 	{	array_unify_name(b->s, which);
 	} else

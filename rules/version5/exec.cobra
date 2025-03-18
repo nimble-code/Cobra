@@ -1,0 +1,20 @@
+## example of file access in inline programs
+
+requires 5.0
+
+%{
+	A[.lnr]++;
+%}
+
+%{
+	if (cpu == 0)
+	{	fd = open "tmpfile" "w";
+		foreach index (i in A)
+		{	puts fd i "\t" sum(A[i]) "\n";
+		}
+		close fd;
+		exec "sort -n tmpfile";
+		unlink "tmpfile";
+	}
+	Stop;
+%}

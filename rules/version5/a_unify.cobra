@@ -1,0 +1,36 @@
+## parallel search for longest identifier
+## to illustrate new version of a_unify
+
+requires 5.0
+
+%{
+	## collection phase
+	if (@ident && .len > q.len)
+	{	q = .;
+	}
+%}
+
+%{
+	## record the longest identifier
+	## found by each core
+	L[cpu] = q;
+	Stop;
+	# all cpu's now have set their copy of L
+%}
+
+%{
+	if (cpu != 0)
+	{	Stop;
+	}
+	a_unify(0);	# unify all copies
+
+	foreach index (i in L)
+	{	# print "> " i " " L[i].fnm ":" L[i].lnr ": ";
+		# print L[i].txt " (" L[i].len " chars)\n";
+		if (L[i].len > max.len)
+		{	max = L[i];
+		}
+	}
+	print max.fnm ":" max.lnr ": " max.txt " (" max.len " chars)\n";
+	Stop;
+%}

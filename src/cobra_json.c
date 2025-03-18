@@ -269,7 +269,7 @@ add_pattern(const char *s, const char *msg, Prim *from, Prim *upto, int cid)
 {	Named *x;
 	Match *om;
 
-	do_lock(cid);		// could be a lock on just s
+	do_lock(cid);		// add_pattern
 
 	om = matches;		// save old value
 
@@ -307,7 +307,7 @@ del_pattern(const char *s, Prim *from, Prim *upto, int cid)
 {	Named *x;
 	Match *m, *om;
 
-	do_lock(cid);
+	do_lock(cid);	// del_pattern
 
 	x = findset(s, 0, 8);
 	if (!x)
@@ -869,6 +869,8 @@ json(const char *te)
 	fprintf(fd, "\n]\n");
 }
 
+int unnumbered;	// cobra_prog.y
+
 void
 show_line(FILE *fdo, const char *fnm, int n, int from, int upto, int tag)
 {	FILE *fdi;
@@ -910,12 +912,12 @@ show_line(FILE *fdo, const char *fnm, int n, int from, int upto, int tag)
 			}
 			if (gui)
 			{	fprintf(fdo, "%c%s:%05d:  ",
-					(ln == tag && upto > from)?'>':' ',
-					fnm, ln);
+					(ln == tag && upto > from)?'>':' ', fnm, ln);
 			} else if (tag >= 0)
-			{	fprintf(fdo, "%c%5d  ",
-					(ln == tag && upto > from)?'>':' ',
-					ln);
+			{	if (!unnumbered)
+				{	fprintf(fdo, "%c%5d  ",
+						(ln == tag && upto > from)?'>':' ', ln);
+				}				
 			} else	// tag < 0 -> json output
 			{	char *q, *p = buf;
 				while (*p == ' ' || *p == '\t')

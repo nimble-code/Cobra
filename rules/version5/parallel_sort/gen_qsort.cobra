@@ -1,0 +1,157 @@
+## sorts numbers numerically and strings alphabetically
+## insenstive to white space: can sort the words in a sentence
+
+requires 5.0
+
+%{
+	.mark = atoi(.txt);
+%}
+
+%{
+	function show_vals(a, b)
+	{
+		walk = a;
+		while (walk.seq <= b.seq)
+		{	# print walk.seq ":";
+			if (walk.typ == "const_int")
+			{	print walk.mark " ";
+			} else
+			{	print walk.txt " ";
+			}
+			walk = walk.nxt;
+		}
+		print "\n";
+	}
+
+	function merge_sort()
+	{
+		if (cpu != 0)
+		{	return;
+		}
+
+		a_unify(0);
+		count = 0;
+		last_value = 0;
+		while (count < last_t.seq)
+		{	# pick valid ref value
+			n = 0;
+			while (n < ncore)
+			{	if (From[n].seq <= Upto[n].seq)
+				{	lowest = n;
+					break;
+				}
+				n++;
+			}
+			if (n >= ncore)
+			{	print "\nno reference\n";
+				break;
+			}
+
+			while (n < ncore)
+			{	if ((count == 0 || From[n].mark >= last_value)
+				&&  From[n].seq <= Upto[n].seq)
+				{	nrs = (q.typ == "const_int" && pivot.typ == "const_int");
+					if (nrs)
+					{	cmp = (From[n].mark <= From[lowest].mark);
+					} else
+					{	cmp = (strcmp(From[n].txt, From[lowest].txt) <= 0);
+					}
+					if (cmp <= 0)
+					{	lowest = n;
+					}
+				}
+				n++;
+			}
+
+			last_value = From[lowest].mark;
+			if (From[lowest].typ == "const_int")
+			{	print From[lowest].mark " ";
+			} else
+			{	print From[lowest].txt " ";
+			}
+
+			From[lowest] = From[lowest].nxt;
+			count++;
+		}
+	}
+
+	function copy_values(from, upto)
+	{	r = from;
+		while (r.seq <= upto.seq)
+		{	r.mark = r.round;
+			r.txt  = r.fnm;
+			if (r.bracket)
+			{	r.typ = "const_int";
+			} else
+			{	r.typ = "";
+			}
+			r.curly = 0;
+			r.round = 0;
+			r = r.nxt;
+		}
+	}
+
+	function qsort(from, upto)
+	{
+		pivot = upto; 
+		p_val = pivot.mark;
+
+		smaller = from;
+		larger  = upto;
+
+		q = from;
+		while (q.seq < pivot.seq)
+		{	nrs = (q.typ == "const_int" && pivot.typ == "const_int");
+			if (nrs)
+			{	cmp = (q.mark <= p_val);
+			} else
+			{	cmp = (strcmp(q.txt, pivot.txt) <= 0);
+			}
+			if (cmp)
+			{	smaller.round = q.mark;
+				smaller.fnm = q.txt;
+				smaller.bracket = nrs;
+				smaller = smaller.nxt;
+			} else
+			{	larger.round = q.mark;
+				larger.fnm = q.txt;
+				larger.bracket = nrs;
+				larger = larger.prv;
+			}
+			q = q.nxt;
+		}
+		smaller.round = pivot.mark;
+		smaller.fnm = pivot.txt;
+		pivot = smaller;
+
+		copy_values(from, upto);
+
+		if (from.seq < pivot.prv.seq)
+		{	qsort(from, pivot.prv);
+		}
+		if (pivot.nxt.seq < upto.seq)
+		{	qsort(pivot.nxt, upto);
+		}
+	}
+
+	if (End.txt == "EOF")
+	{	last = End.prv;
+	} else
+	{	last = End;
+	}
+
+	qsort(Begin, last);	# End == EOF
+
+	From[cpu] = Begin;
+	Upto[cpu] = last;
+	Stop;
+%}
+
+%{
+	if (ncore == 1)
+	{	show_vals(first_t, last_t.prv);
+	} else
+	{	merge_sort();
+	}
+	Stop;
+%}

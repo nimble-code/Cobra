@@ -1,0 +1,9 @@
+## example of using gsub builtin function
+
+requires 5.0
+
+%{
+	s = gsub("", "x", "appelbaum");
+	print s "\n";
+	Stop;
+%}

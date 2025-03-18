@@ -1,0 +1,67 @@
+## sieve of Erathosthenes
+
+requires 5.0
+
+ncore 25	# to find the first 24 primes
+
+%{
+	MAX = 200;	# anything larger than the ncore'th prime
+	ochan = "c" + itostr(cpu+1);	# create channels (files)
+	fo = open ochan "w";		# cpu 0 creates c1 -- should be pipe?
+	Stop;	# not needed in -solo mode
+%}
+
+%{
+	function sieve()
+	{
+		print n " is prime, cpu " cpu "\n";
+		prime = atoi(n);
+		while (true)
+		{	gets fi n;	# test subsequent numbers
+			if (n == "EOF")
+			{	continue;
+			}
+			if (n == "eof")
+			{	puts fo n "\n";
+				break;
+			}
+			m = atoi(n);
+			if (m%prime > 0)	# not divisible
+			{	puts fo n "\n";
+		}	}
+		close fi;
+		unlink ichan;
+	}
+	Stop;
+%}
+
+%{
+	if (cpu == 0)	# iterates numbers and sends to sieves
+	{	n = 2;
+		while (n <= MAX)     # feed loop
+		{	puts fo n "\n";
+			n++;
+		}
+		puts fo "eof\n";
+		ochan = "c" + itostr(ncore);
+		unlink ochan;
+	} else
+	{	### sieve
+		ichan = "c" + itostr(cpu);
+wait:		fi = open ichan "r";
+		gets fi n;	# wait for first number
+		if (n == "EOF")
+		{	close fi;
+			goto wait;
+		}
+		if (n == "eof")
+		{	close fi;
+			unlink ichan;
+			goto done;
+		}
+		sieve();
+	}
+done:
+	close fo;
+	Stop;	# not needed in -solo mode
+%}

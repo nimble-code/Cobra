@@ -1,0 +1,113 @@
+## example of instrumentation for pointcuts
+## work in progress
+##
+## "after fct"
+## step 1: find all calls of fct()
+## step 2: find the closing ), which could be in a fct call itself
+## step 3: insert ", event(PC_1)"
+
+requires 5.0
+
+%{
+	global Before[];
+	global After[];
+	function place(file, where, fctnm, eventnr)
+	{
+		. = Begin;
+		while (.txt != "EOF")
+		{	if ((file != "" || file == .fnm)
+			&& .txt == fctnm
+			&&  .nxt.txt == "("
+			&&  .curly > 0)
+			{	j = .nxt.jmp;
+				if (j.txt == ")")
+				{	e = newtok();
+					e.fnm = j.fnm;
+					e.lnr = j.lnr;
+					e.mark = eventnr;
+					if (where == "before")
+					{	Before[.seq] = e;
+					} else
+					{	After[j.seq] = e;
+			}	}	}
+			. = .nxt;
+		}
+	}
+	function has_pointcut(tok)
+	{	s = tok;
+		while (s.lnr == tok.lnr)
+		{	b = Before[s.seq];
+			a = After[s.seq];
+			if (b.mark != 0
+			||  a.mark != 0)
+			{	return 1;
+			}
+			s = s.nxt;
+		}
+		return 0;
+	}
+	function getline(fn, nr)
+	{	fd = open fn "r";
+		n = 1;
+		while (true)
+		{	gets fd line;
+			if (n == nr)
+			{	close fd;
+				return line;
+			}
+			n++;
+		}
+		close fd;
+		return "";
+	}
+	function instrument(file)
+	{	. = Begin;
+		# n = strrstr(file, ".");
+		# if (n > 0)
+		# {	s = substr(file, 0, n-1);
+		#	t = substr(file, n, 100);
+		#	nf = s + "_ins." + t;
+		# } else
+		# {	nf = file + "_ins";
+		# }
+		# fd = open nf "w";
+		while (. != End)
+		{	if (.fnm != file)
+			{	. = .nxt;
+				continue;
+			}
+			q = .;
+			if (has_pointcut(.) == 0)
+			{	newline = getline(.fnm, .lnr);
+				while (q.lnr == .lnr)
+				{	q = q.nxt;
+				}
+			} else
+			{	newline = "";
+				while (q.lnr == .lnr)
+				{  b = Before[q.seq];
+				   a = After[q.seq];
+				   if (b.mark != 0)
+				   {	newline = newline + " event(" + b.mark + "), ";
+				   }
+				   newline = newline + q.txt + " ";
+				   if (a.mark != 0)
+				   {	newline = newline + ", event(" + a.mark + ") ";
+				   }
+				   q = q.nxt;
+			}	}
+		  	print "\t" newline "\n";	# can redirect to fd
+			. = q.prv;
+			. = .nxt;
+		}
+		# close fd;
+	}
+	Stop;
+%}
+
+%{
+	place("parallel_sort/qsort.c", "before", "printf", 123);
+	place("parallel_sort/qsort.c", "after", "quickSort", 321);
+	instrument("parallel_sort/qsort.c");
+	Stop;
+%}

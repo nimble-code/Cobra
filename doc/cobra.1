@@ -28,26 +28,36 @@ other types of input not related to programming, by defining
 maps of the types of tokens that must be recognized.
 The query command-, pattern matching, and scripting languages
 are documented in online reference manuals.
+.\" .br
+.\" [starting with version 4.9 this is only enabled when the
+.\" sources are compiled with -DAUTORUN ]
+.\" If a file named ".cobra_run" is found in the directory where
+.\" \*C starts, it is assumed to be a command-file that will be
+.\" executed immediately after all source-files have been read,
+.\" after which Cobra stops.
+.\" (Note: In versions of Cobra earlier than 4.9 this file was
+.\" named ".cobra" instead, which could cause a conflict with the
+.\" configuration file "~/.cobra" which is created during tool
+.\" installation.)
 .br
-If a file named ".cobra" is found in the directory where
-\*C starts, it is assumed to be a command-file that will be
-executed immediately after all source-files have been read.
-The effect is similar to the first query command executed
-being ". .cobra" (meaning: read and execute the file).
 Syntax errors will result if the file does not contain valid
-query commands.
+commands.
 .SH OPTIONS
+
 .TP
 .B \-Ada
 Recognize Ada keywords.
+
 .TP
 .B \-allheaderfiles
 Process all headerfiles, including system header files
 starting with prefix \f3/usr/\f1. Assumes that \f3\-cpp\f1 is used.
 See also \f3\-noheaderfiles\f1.
+
 .TP
 .B \-C++
 Recognize C++ keywords.
+
 .TP
 .BI "\-c \f2'query commands'\f1"
 Execute the \f2query commands\f1, and then stop.
@@ -78,24 +88,31 @@ Run the C preprocessor over the input files before scanning them.
 This can later be undone with the inline command \f2cpp off\f1.
 If preprocessing was not enabled at startup (the default), it can
 also be enabled interactively with command \f2cpp on\f1, which then
-triggers a rescan of all source files.
+triggers a rescan of all source files. Optionally specify the
+C preprocessor to be used, eg. as in \-cpp=clang
+
 .TP
 .B \-d
 Reserved for debugging support.
 Different behavior when preceded with \f3\-v\f1.
 Implies \f3\-preserve\f1.
+
 .TP
 .B \-Dstr
 Pass directive to the C preprocessor.
 See also \f3\-cpp\f1, \f3\-U\f1 and \f3\-I\f1.
 
 .TP
-.B \-eol
-Treat newlines as explicit EOL tokens. (By default all white space is otherwise ignored.)
+.B \-echo
+Echo script command names when called during the session (eg from query libraries).
 
 .TP
 .B \-eof
-Treat the end of each input file as an explicit EOF token.
+Omit the EOF tokens that are by default placed at the end of each input file.
+
+.TP
+.B \-eol
+Add EOL tokens at the end of each input line.
 
 .TP
 .BI "\-e \f2'token_expression'\f1
@@ -157,9 +174,9 @@ The compiler directives must be -I, -D, or -U directives only.
 Lines in the \f2file_list\f1 textfile that start with a pound sign (#)
 are treated as comments and skipped.
 
-.\" .TP
-.\" .B \-g
-.\" Reserved for future gui support.
+.TP
+.B \-global
+Allow pattern matches (pe) to cross file boundaries.
 
 .TP
 .B \-help
@@ -195,6 +212,10 @@ of the source code pattern that is matched.
 List all prefefined \*C query sets that can be invoked by name
 with the \f3\-f\f1 option, without or without the filename suffix \f2.cobra\f1.
 This option can be abbreviated to \f3\-l\f1.
+
+.TP
+.B \-MaxMem N
+Set the maximum amount of memory to be used to N MB (default value: 24000)
 
 .TP
 .B \-macros
@@ -292,7 +313,7 @@ Use \f2n\f1 parallel threads to process queries.
 
 .TP
 .BI "\-pattern \f2'token-pattern'\f1
-(Alternatively \f3-pat\f1) Behaves like \f3-expr\f1 but with a
+(Alternatively \f3-pat\f1 or \f3-pe\f1) Behaves like \f3-expr\f1 but with a
 spimlified format that requires fewer escape symbols.
 In a token pattern the characters '(', '|', ')', '+', and '?' are
 interpreted as regular characters and not as meta-symbols.
@@ -331,6 +352,10 @@ the contents of \f2/tmp\f1 from time to time and remove
 accumulated files named \f2/tmp/cobra_*\f1 and \f2/tmp/_f_*\f1.
 
 .TP
+.B \-prune
+After reading in files, remove code between #if 0 and #endif directives
+
+.TP
 .B \-Python
 or
 .B \-python
@@ -343,7 +368,7 @@ Quiet mode.
 Produces no intermediate output on matches and run-times.
 
 .TP
-.B \-recursive 'pattern'
+.B \-recursive "pattern"
 Recursively collect files with names matching 'pattern,' to process.
 This uses the \f2find\f1 tool to perform the collection, which is
 assumed installed.
@@ -359,8 +384,16 @@ Same as \f3\-e\f1.
 Report the runtime of all commands executed, if it exceeds one second.
 
 .TP
+.B \-solo
+Rub a cobra inline program without input files.
+
+.TP
 .B \-scrub
 Produce output in the format expected by the \f2scrub\f1 tool.
+
+.TP
+.B \-seed file
+Read JSON formatted output from file to seed initial pattern sets.
 
 .TP
 .B \-showprog
@@ -368,19 +401,19 @@ Generate a dot graph (graphviz) visualization for the first inline program.
 
 .TP
 .B \-stream N
-Set the stdin stream buffer size to N bytes (default is 8192).
+Set the stdin stream buffer size to N bytes (default is 100000).
 This is only relevant when the input files are read from stdin.
 See also \f3\-stream_margin\f1.
 
 .TP
 .B \-stream_margin N
-Set the stdin windon margin to N tokens (default is 1000).
+Set the stdin windon margin to N tokens (default is 100).
 This is the number of tokens before the current token being processed
 that is retained in the sliding input window.
 
 .TP
 .B \-stream_override
-Override warning about non-streamable script.
+Override warning about non-streamable scripts.
 
 .TP
 .B \-terse
@@ -404,8 +437,7 @@ See also \f3\-cpp\f1, \f3\-D\f1 and \f3\-I\f1.
 
 .TP
 .B \-V
-Print current \*C version number and stop.
-Same as \f3\-version\f1.
+Print current \*C version number and stop. Same as \f3\-version\f1.
 
 .TP
 .B \-v
@@ -413,12 +445,11 @@ Verbose mode. Multiple uses of \f2-v\f1 increase the verbosity.
 
 .TP
 .B \-version
-Print the Cobra version number and exit.
-Same as \f3\-V\f1.
+Print the Cobra version number and exit. Same as \f3\-V\f1.
 
 .TP
 .B \-view
-Must be followed by one of \f3\-expr\f1, \f3\-pattern\f1, or \f3\-f\f1.
+Must be followed by one of \f3\-e\f1, \f3\-pe\f1, or \f3\-f\f1.
 .br
 When combined with \f3\-e\f1 or \f3\-pe\f1 (or equivalents),
 displays a dot-graph of the NDFA of the token expression.
@@ -437,7 +468,8 @@ in verbose mode (\f2-v\f1) to see state changes on each new token scanned.
 Set \f2name\f1 to \f2value\f1 in user-defined parameterized scripts.
 .PP
 Arguments starting with a double hyphen are passed to
-the standalone backend processor, if one was defined, e.g. \f2find_taint --help\f1.
+the standalone backend processor, if one was defined,
+e.g. \f2find_taint --help\f1 or \f2--debug\f1.
 If no backend is used (i.e., the Cobra default engine is used
 and the command name is \f2cobra\f1),
 these arguments are silently ignored.
@@ -511,9 +543,9 @@ This can be written more compactly with the \f3\-pattern\f1 option:
 .RS
   $ cobra \-pattern '{ FILE * x:@ident .* :x = fopen ^fclose* }' *.c
 .RE
-or also
+or equivalently
 .RS
-  $ cobra \-pat '{ FILE * x:@ident .* :x = fopen ^fclose* }' *.c
+  $ cobra \-pe '{ FILE * x:@ident .* :x = fopen ^fclose* }' *.c
 .RE
 Pattern commands are usable for most simple pattern queries,
 and easier to type as well,
@@ -521,43 +553,43 @@ so we'll use them for most of the examples.
 .PP
 Find memory that is allocated but not freed within the same block:
 .RS
-  $ cobra \-pat '{ .* malloc ^free* }' *.c
+  $ cobra \-pe '{ .* malloc ^free* }' *.c
 .RE
 .PP
 Find switch statements that do not contain a default clause
 with a token expression, though possibly matching defaults in nested statements
 (see above for a more precise command sequence using -c):
 .RS
-  $ cobra \-pat 'switch ( .* ) { ^default* }' *.c
+  $ cobra \-pe 'switch ( .* ) { ^default* }' *.c
 .RE
 .PP
 Find cases where a loop-control variable is used inside the body of a for-loop
 (easy to adapt to suffix with an assignment operator or pre- or post-increment
 or decrement operators, to check if the variable is modified as well):
 .RS
-  $ cobra \-pat 'for ( x:@ident .* ) { .* :x .* }' *.c
+  $ cobra \-pe 'for ( x:@ident .* ) { .* :x .* }' *.c
 .RE
 .PP
 Find if statements not followed by compound statement:
 .RS
-  $ cobra \-pat 'if ( .* ) ^{' *.c
+  $ cobra \-pe 'if ( .* ) ^{' *.c
 .RE
 .PP
 Be careful with the dot meta-symbol when it is used in combination
 with negations in the same expression. In the above expression,
 for instance, it is sometimes better to write:
 .RS
-  $ cobra \-pat 'if ( ^)* ) ^{' *.c
+  $ cobra \-pe 'if ( ^)* ) ^{' *.c
 .RE
 .PP
 Find else keywords that are not followed by compound statement or another if:
 .RS
-  $ cobra \-pat 'else ^[{ if]' *.c
+  $ cobra \-pe 'else ^[{ if]' *.c
 .RE
 .PP
 Find empty if statements:
 .RS
-  $ cobra \-pat 'if ( .* ) ;' *.c
+  $ cobra \-pe 'if ( .* ) ;' *.c
 .RE
 .PP
 Note that in this pattern expression the semi-colon symbol
@@ -566,33 +598,33 @@ it would be if the \f3\-c\f1 syntax was used.
 .PP
 Find empty else clauses:
 .RS
-  $ cobra \-pat 'else ;' *.c
+  $ cobra \-pe 'else ;' *.c
 .RE
 .PP
 Find expressions with missing braces around (selected) binary operators:
 .RS
-  $ cobra \-pat '( ^(* [| &] ^(* & .* )' *.c
+  $ cobra \-pe '( ^(* [| &] ^(* & .* )' *.c
 .RE
 .PP
 Find the definition of the C function \f2main\f1:
 .RS
-  $ cobra \-pat 'main ( .* ) { .* }' *.c
+  $ cobra \-pe 'main ( .* ) { .* }' *.c
 .RE
 .PP
 Find blocks that contain no semi-colons or commas, after standard
 preprocessing with macro-substitution, file inclusion, etc:
 .RS
-  $ cobra \-cpp \-pat '{ ^[, ;]* }' *.c
+  $ cobra \-cpp \-pe '{ ^[, ;]* }' *.c
 .RE
 .PP
 Find calls to sprintf that potentially use the destination argument as a source:
 .RS
-  $ cobra \-pat 'sprintf ( x:@ident .* :x .* )' *.c
+  $ cobra \-pe 'sprintf ( x:@ident .* :x .* )' *.c
 .RE
 .PP
 Also highlight the matching bound variable references:
 .RS
-  $ cobra \-v \-pat 'sprintf ( x:@ident .* :x .* )' *.c
+  $ cobra \-v \-pe 'sprintf ( x:@ident .* :x .* )' *.c
 .RE
 .SH FILES
 A directory with predefined query libraries is created in
@@ -643,7 +675,7 @@ files are not automatically removed when \*C exits.
 Gerard Holzmann, gholzmann@acm.org
 .sp
 .SH SEE ALSO
-\fBcwe\f1, \fBfind_taint\f1, \fBjson_convert\f1, \fBx_make\f1.
+\fBcwe\f1, \fBfind_taint\f1, \fBduplicates\f1, \fBjson_convert\f1, \fBx_make\f1.
 .sp
 Online manual pages and tutorials with more detail,
 reference materials, and examples:

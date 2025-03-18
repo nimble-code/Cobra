@@ -464,7 +464,7 @@ new in december 30, 2021
    extracted with a 'pset' command back into a named pattern set.
  - added the keyword 'elif' as an abbreviation of 'else if' and adjusted
    the grammar to not require the { after the else if it is followed by
-   another if statement
+   another if statement (note: not correctly implemented in 4.8, fixed in 5.0)
  - added an optional constraint clause to the 'pset' builtin function for
    inline programs. there are two forms:
      pset(Set) with (expr)
@@ -498,3 +498,59 @@ new in december 30, 2021
    allowed it before)
  - supporting foreach [pattern token index] (i in X) { ... }
    making 'for (i in X)' a shorthand for 'foreach index (i in X)'
+
+5.0 March 17, 2025
+ - in this new version there is greater support for using the cobra
+   inline programming language for writing general parallel programs
+   by adding the -solo commandline argument and extensions to the
+   language itself (with a larger set of standard builtin functions)
+
+ - added alternative name for the dot ('.') command as 'import'
+   the dot command itself will continue working for backward compatibility
+
+ - a_unify can now take an expression to specify the acting cpu:
+   a_unify(nm, expr) or a_unify(expr)
+
+ - a_unify unification now updates the values on all cpus, not just on the
+   calling cpu (note a_unify should not be called more than once,
+   also not by different cpus)
+
+ - added command-line option -solo to run cobra without inputs
+   (for instance just to run a cobra inline program standalone)
+   it provides one dummy token per core to allow scripts to run
+
+ - added new builtin functions to inline programming language to facilitate
+   writing standalone scripts in -solo mode:
+	atoi (type conversion from string to integer)
+	open, gets, puts, close, unlink (file handling)
+	exec (system function)
+	gsub, strchr, strrchr, strcmp (string functions)
+	src_nm (numbered version of src_ln)
+   the additions are documented in the online manual pages
+
+ - corrected the implementation of the new elif keyword
+
+ - corrected the working of break statements in nested while loops
+
+ - corrected the detection of incorrect parameter counts in function calls
+
+ - corrected implementation of print function to ignore \n and \t escape
+   sequences that appear inside strings
+
+ - regular expression matching in multicore mode is now done under lock
+
+ - print and puts inline calls are now executed under lock
+
+ - renamed the optional default autorun script ./.cobra to ./.cobra_run
+   to prevent confusion with the main configuration file ~/.cobra,
+   the option is now only enabled when the sources are compiled with -DAUTORUN
+   (the reason for de-emphasizing this option is that it is generally much
+   simpler to call cobra with the desired script, using the -f option)
+
+ - in -text mode cobra now preserve the EOF marker at the end of each file.
+   it can be suppressed with -eof
+
+ - fixed a silent problem in multicore mode that could have lead to
+   seemingly inexplicable failures
+
+ - general code cleanup and improved error reporting somewhat

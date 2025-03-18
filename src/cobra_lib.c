@@ -32,6 +32,7 @@ extern int	echo;
 extern int	runtimes;
 extern int	read_stdin;
 extern int	showprog;
+extern int	solo;
 extern char	*pattern(char *);
 extern char	*unquoted(char *);
 extern char	*progname;
@@ -1613,8 +1614,32 @@ set_ncore(int n)
 	{	ctokens(0);
 		return;
 	}
+	if (solo)
+	{	int w = 1;
+		// need same nr of tokens as n
+		cur = prim;
+		while (cur->nxt && w < n)
+		{	w++;
+			cur = cur->nxt;
+		}
+		if (cur->nxt)	// Ncore decreased
+		{	cur->nxt = NULL; // drop the extras
+		} else		// Ncore increased
+		{	while (cur != NULL && w < n)
+			{	cur->nxt = (Prim *) hmalloc(sizeof(Prim), 0, 0);
+				cur->nxt->txt = cur->typ = cur->fnm = "";
+				cur->nxt->seq = w;
+				cur->nxt->prv = cur;
+				cur = cur->nxt;
+				w++;
+		}	}
+		plst = cur;
+		cur = prim;
+		count = n;
+	}
+
 	Nthreads_set(n);
-	ctokens(0); // calls set_ranges
+	ctokens(1); // calls set_ranges
 	ini_lock();
 	ini_heap();
 	ini_timers();
@@ -1646,6 +1671,15 @@ pre_scan(char *bc)	// non-generic commands
 	}
 
 	switch (*bc) {
+	case 'i':
+		if (strncmp(bc, "import", strlen("import")) == 0)
+		{	bc += strlen("import") - 1;
+			// printf("import: '%s'\n", nextarg(bc));
+			bc--;
+			// fall through
+		} else
+		{	break;
+		}
 	case '.':
 		addscriptfile(++bc);
 		return 1;
@@ -2695,6 +2729,11 @@ nr_marks_range(void *arg)
 	from = tokrange[*i]->from;
 	upto = tokrange[*i]->upto;
 
+	if (from == NULL
+	||  upto == NULL)
+	{	return NULL;
+	}
+
 	if (n == 0)
 	{	for (r = from; r && r->seq <= upto->seq; r = r->nxt)
 		{	if (r->mark)
@@ -3265,6 +3304,7 @@ prog_range(void *arg)
 
 //	start_timer(Ncore + *i);
 
+	if (upto)
 	for (r = from; r && r->seq <= upto->seq; r = r->nxt)
 	{	j = exec_prog(&r, *i);
 		if (stream == 1)
@@ -3499,7 +3539,8 @@ help(char *s, char *unused)	// 1
 	printf("  %8s  %c %s\n", "<&n", ' ', "        or <*n, keep only marks and ranges also in set n (intersect)");
 	printf("  %8s  %c %s\n", "<^n", ' ', "        or <-n, keep only marks and ranges not in set n (subtract)");
 	printf("  %8s  %c %s\n", ": s", ' ', "        execute the script named s (cf cmdline arg -f)");
-	printf("  %8s  %c %s\n", ". f", ' ', "        load and execute commands from file f (cf cmdline arg -f)");
+	printf("  %8s  %c %s\n", ". f", ' ', "        same as 'import f'");
+	printf("  %8s  %c %s\n", "import f", ' ', "        load and execute commands from file f (cf cmdline arg -f)");
 	printf("  %8s  %c %s\n", "! c", ' ', "        execute command(s) c in a background shell");
 	printf("  %8s  %c %s\n", "%{  ...  %}", ' ', "     execute an inline Cobra program");
 	printf("  %8s  %c %s\n", "def ... end", ' ', "     define a named script");
@@ -3647,9 +3688,9 @@ cleanup(int unused)
 // externally visible functions:
 
 int
-check_config(void)
+check_run(void)
 {
-	return try_read(".cobra");
+	return try_read(".cobra_run");
 }
 
 void

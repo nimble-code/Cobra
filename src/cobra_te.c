@@ -2014,7 +2014,7 @@ patterns_list(char *s)
 	if (strlen(s) > 0)
 	{	patterns_show(findset(s, 1, 13), -1);
 	} else
-	{	patterns_reversed(namedset, 1);
+	{	(void) patterns_reversed(namedset, 1);
 	}
 }
 

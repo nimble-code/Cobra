@@ -1,0 +1,69 @@
+## parallel unix-style word count
+
+requires 5.0
+
+%{
+	filenames[.fnm]++;
+%}
+
+%{
+	if (cpu == 0)
+	{	a_unify(filenames, 0);
+		i = 0;
+		foreach index (f in filenames)
+		{	myfile[f] = i%ncore;
+			i++;
+		}
+		a_unify(myfile, 0);
+	}
+	Stop;
+%}
+
+%{
+	function do_count(file)
+	{
+		fd = open file "r";
+		ln = 0;
+		ch = 0;
+		wd = 0;
+		while (true)
+		{	gets fd line;
+			if (line == "EOF")
+			{	break;
+			}
+			ln++;
+
+			m = strlen(line);
+			ch = ch + m;
+
+			x = 0;
+			white = 1;
+			while (x < m)
+			{	y = substr(line, x, 1);
+				if (y == " " || y == "	")
+				{	white = 1;
+				} else
+				{	if (white)
+					{	wd++;
+						white = 0;
+				}	}
+				x++;
+			}
+		}
+		close fd;
+		print file "\t" ln "\t" wd "\t" ch+ln "\n";
+	}
+	Stop;
+%}
+!rm -f _tmp_
+track start _tmp_
+%{
+	foreach index (f in myfile)
+	{	if (myfile[f] == cpu)
+		{	do_count(f);
+	}	}
+	Stop;
+%}
+track stop
+!sort _tmp_
+!rm -f _tmp_

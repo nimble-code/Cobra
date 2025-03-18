@@ -190,7 +190,7 @@ store_var(TrackVar **lst, Prim *v, int tag, int cid)
 
 	assert(lst && v);
 
-	do_lock(cid);
+	do_lock(cid);	// store_var : set gotolinks
 	for (p = *lst; p; prv = p, p = p->nxt)
 	{	if (!p->t || !p->t->txt)
 		{	continue;	// likely multicore bug

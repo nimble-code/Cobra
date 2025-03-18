@@ -50,6 +50,7 @@ int preserve;
 int pruneifzero;
 int python;
 int read_stdin;
+int solo;
 int stream_lim = 100000;
 int stream_margin = 100;
 int stream_margin_set;
@@ -108,6 +109,9 @@ process(int cid)
 
 	if (textmode)
 	{	t_lex(cid);	// returns on EOF
+		if (eof != 0)
+		{	add_eof(cid);	// version 5.0
+		}
 	} else
 	{	while (c_lex(cid) > 0)
 		{	;
@@ -718,8 +722,8 @@ handle_html(void)
 	and vice versa (they point to each other)
 	if the closing tag can be found; it remains 0 if not found or if self-closing
 
-	year7/show_tags.cobra shows links (cobra -html -f year7/prog.cobra ...)
-	year7/html_check performs basic checks on html tag
+	html/html_tags.cobra shows links (cobra -html -f html/html_tags.cobra ...)
+	html/html_check performs basic checks on html tag
 #endif
 	// new: first tag lists and table, doctype and comments
 	clear_stack();
@@ -1136,15 +1140,16 @@ set_ranges(Prim *a, Prim *b, int who)
 		return;
 	}
 
-	// printf("set_ranges %d -> %d count %d span %d\n", a->seq, b->seq, count, span);
-	if (verbose == 1 && count == 0)
-	{	fprintf(stderr, "cobra: no input?\n");
-	}
-
-	if (verbose > 1 && !cobra_texpr)
-	{	printf("span %d mult %d < %d\n",
-			span, span*Ncore, count);
-	}
+	if (verbose)
+	{	printf("cobra: set_ranges %d -> %d count %d span %d\n",
+			a->seq, b->seq, count, span);
+		if (count == 0)
+		{	fprintf(stderr, "cobra: set_ranges, no input?\n");
+		}
+		if (!cobra_texpr)
+		{	printf("span %d mult %d < %d\n",
+				span, span*Ncore, count);
+	}	}
 
 	ini_par();
 
@@ -1178,13 +1183,18 @@ set_ranges(Prim *a, Prim *b, int who)
 
 	if (Ncore > 1)
 	{	for (i = 0; verbose == 1 && i < Ncore; i++)
-		{	printf("set %d: %d-%d <%d> (%s:%d - %s:%d) -- %p -> %p\n",
+		{	if (tokrange[i]->from == 0
+			||  tokrange[i]->upto == 0)
+			{	printf("error: tokrange[%d] from (%p) or upto (%p) not set\n",
+					i, (void *) tokrange[i]->from, (void *) tokrange[i]->upto);
+			} else
+			{  printf("set %d: %d-%d <%d> (%s:%d - %s:%d) -- %p -> %p\n",
 				i, tokrange[i]->from->seq, tokrange[i]->upto->seq,
 				(int)(tokrange[i]->upto->seq - tokrange[i]->from->seq),
 				tokrange[i]->from->fnm, tokrange[i]->from->lnr,
 				tokrange[i]->upto->fnm, tokrange[i]->upto->lnr,
 				(void *) tokrange[i]->from, (void *) tokrange[i]->upto);
-	}	}
+	}	}	}
 }
 
 int
@@ -1501,6 +1511,7 @@ usage(char *s)
 	fprintf(stderr, "\t                        eg -recursive '*.[ch]' or -recursive '*.java'\n");
 	fprintf(stderr, "\t-regex \"expr\"       -- see -e\n");
 	fprintf(stderr, "\t-runtimes           -- report runtimes of commands executed, if >1s\n");
+	fprintf(stderr, "\t-solo               -- run a cobra inline program without input files\n");
 	fprintf(stderr, "\t-scrub              -- produce output in scrub-format\n");
 	fprintf(stderr, "\t-seed file          -- read JSON formatted output from file to seed initial pattern sets\n");
 	fprintf(stderr, "\t-showprog           -- show a dot graph of the code generated for the first inline program\n");
@@ -1540,7 +1551,7 @@ static char *
 get_work(int cid)
 {	char *s;
 
-	do_lock(cid);
+	do_lock(cid);	// get_work (cobra_prep)
 	s = get_file(cid);
 	do_unlock(cid);
 	return s;
@@ -2298,7 +2309,7 @@ RegEx:			  no_match = 1;		// -e -expr -re or -regex
 			  if (set_base())
 			  {	list_checkers();
 			  } else
-			  {	fprintf(stderr, "error: check tool installation\n");
+			  {	fprintf(stderr, "error: check tool configuration\n");
 			  }
 			  return 0;
 
@@ -2430,6 +2441,9 @@ RegEx:			  no_match = 1;		// -e -expr -re or -regex
 			  } else if (strcmp(argv[1], "-stream_override") == 0)
 			  {	stream_override++;
 				break;
+			  } else if (strcmp(argv[1], "-solo") == 0)
+			  {	solo = 1;
+				break;
 			  }
 			  return usage(argv[1]);
 
@@ -2515,7 +2529,7 @@ RegEx:			  no_match = 1;		// -e -expr -re or -regex
 	}
 
 	if (!set_base())
-	{	fprintf(stderr, "error: cannot open ~/.cobra : check tool installation\n");
+	{	fprintf(stderr, "error: cannot open ~/.cobra : check tool configuration\n");
 	}
 
 	if (strstr(progname, "taint") != NULL) // shouldn't be hardcoded
@@ -2534,15 +2548,17 @@ cwe_mode:	no_match = 1;	// for consistency with -f
 		while (argc > 1
 		&&     strchr(argv[1], '.') == NULL)	// not a filename arg
 		{	int n = strlen(argv[1]) + 2; // plus space and null byte
-			char *foo = cwe_args;
+			char *foo = cwe_args, *goo;
 			// keep a space at the end of each arg
 			if (!cwe_args)
 			{	cwe_args = (char *) emalloc(n*sizeof(char), 35);
 				snprintf(cwe_args, n, "%s ", argv[1]);
 			} else
 			{	n += strlen(cwe_args) + 1;
-				cwe_args = (char *) emalloc(n*sizeof(char), 36);
-				snprintf(cwe_args, n, "%s%s ", foo, argv[1]);
+				// a little dance to defeat a false gcc warning
+				goo = (char *) emalloc(n*sizeof(char), 36);
+				snprintf(goo, n, "%s%s ", foo, argv[1]);
+				cwe_args = goo;
 			}
 			argc--; argv++;
 	}	}
@@ -2578,6 +2594,27 @@ cwe_mode:	no_match = 1;	// for consistency with -f
 	prep_pre();
 	ini_timers();
 	ini_lock();
+
+	if (solo)
+	{	extern Prim *cur, *prim, *plst;
+		int w = 1;
+
+		// use Ncore dummy tokens
+		cur = prim = plst = (Prim *) hmalloc(sizeof(Prim), 0, 0);
+		cur->txt = cur->typ = cur->fnm = "";
+		cur->seq = 0;
+		while (w++ < Ncore)
+		{	cur->nxt = (Prim *) hmalloc(sizeof(Prim), 0, 0);
+			cur->nxt->txt = cur->typ = cur->fnm = "";
+			cur->nxt->seq = w-1;
+			cur->nxt->prv = cur;
+			cur = cur->nxt;
+		}
+		plst = cur;
+		cur = prim;
+		count = Ncore;
+		goto skip_files;
+	}
 
 	if (recursive)
 	{	int dfd;
@@ -2670,11 +2707,14 @@ cwe_mode:	no_match = 1;	// for consistency with -f
 				progname);
 			return 1;
 	}	}
+
 	if (Ctok)
 	{	return 0;
 	}
 	post_process(1);		// collect info from cores
 	strip_comments_and_renumber(1);	// set cmnt_head/cmnt_tail
+
+skip_files:
 	if (html)
 	{	handle_html();
 	} else if (python)
@@ -2687,12 +2727,17 @@ cwe_mode:	no_match = 1;	// for consistency with -f
 	if (seedfile)
 	{	json_import(seedfile, 0);
 	}
-
+#ifdef AUTORUN
+	// equivalent to starting with -f ./cobra_run
+	// but when enabled, this version cannot be
+	// bypassed, where the -f option can
 	if (strstr(progname, "cobra") == NULL
-	|| !check_config())	// no ./.cobra file
+	|| !check_run())	// check for .cobra_run file
 	{	cobra_main();
 	}
-
+#else
+	cobra_main();
+#endif
 	return 0;
 }
 

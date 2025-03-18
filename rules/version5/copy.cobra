@@ -1,0 +1,29 @@
+## example of a standalone program
+##  cobra -solo version5/copy.cobra
+
+requires 5.0
+
+def Copy(A, B)
+%{
+	fp = open "A" "r";
+	fw = open "B" "w";
+	n=1;
+	while (true)
+	{	gets fp line;
+		if (line == "EOF")
+		{	break;
+		}
+		m = n;
+		while (m < 1000)
+		{	puts fw " ";
+			m = m * 10;
+		}
+		puts fw n " " line "\n";
+		n++;
+	}
+	close fp;
+	close fw;
+	Stop;
+%}
+end
+Copy(foo, goo)

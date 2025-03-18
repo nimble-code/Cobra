@@ -1,0 +1,107 @@
+## some examples to show how Cobra can handle awk text processing queries
+##
+## https://www.geeksforgeeks.org/awk-command-unixlinux-examples/
+## command-line:
+##	cobra -eol -f version5/awk.cobra awk_data.txt
+
+requires 5.0
+
+%{
+	function getline()
+	{	global field[];
+		global nf, nr;
+		field[0] = "";
+		nf = 0;
+		while (.txt != "EOL" && .txt != "EOF")
+		{	nf++;
+			field[nf] = .txt;
+			field[0] = field[0] + .txt + " ";
+			. = .nxt;
+		}
+		if (.txt == "EOF")
+		{	Stop;
+		}
+		nr++;
+	}
+	nr = 0;
+	Stop;
+%}
+
+%{ print "1 --- awk '{print}' awk_data.txt\n"; Stop; %}
+%{
+	getline();
+	print field[0] "\n";
+%}
+
+%{ print "2 --- awk '/manager/' { print }' awk_data.txt\n"; Stop; %}
+%{
+	getline();
+	if (match(field[0], "/manager"))
+	{	print field[0] "\n";
+	}
+%}
+
+%{ print "3 --- awk '{ print $1, $4 }' awk_data.txt\n"; Stop; %}
+%{
+	getline();
+	print field[1] " " field[4] "\n";
+%}
+
+%{ print "4 --- awk '{ print NR, $0 }' awk_data.txt\n"; nr = 0; Stop; %}
+%{
+	getline();
+	print nr " " field[0] "\n";
+%}
+
+%{ print "5 --- awk '{ print $1, $NF }' awk_data.txt\n"; Stop; %}
+%{
+	getline();
+	print field[1] " " field[nf] "\n";
+%}
+
+%{ print "6 --- awk 'NR==3, NR==6 { print NR, $0 }' awk_data.txt\n"; nr = 0; Stop; %}
+%{
+	getline();
+	if (nr >= 3 && nr <= 6)
+	{	print nr " " field[0] "\n";
+	}
+%}
+
+%{ print "7 --- awk '{ if (length($0) > max) max = length($0) } END { print max }' awk_data.txt\n"; nr = 0; Stop; %}
+%{
+	getline();
+	if (strlen(field[0]) > max)
+	{	max = strlen(field[0]);
+	}
+%}
+%{
+	print max "\n";
+	Stop;
+%}
+
+%{ print "8 --- awk 'END { print NR }' awk_data.txt\n"; nr = 0; Stop; %}
+%{
+	getline();
+%}
+%{
+	print nr "\n";
+	Stop;
+%}
+
+%{ print "9 --- awk 'length($0) > 10' awk_data.txt\n"; nr = 0; Stop; %}
+%{
+	getline();
+	if (strlen(field[0]) > 10)
+	{	print field[0] "\n";
+	}
+%}
+
+%{ print "10 --- awk 'BEGIN { for (i=1;i<=6;i++) print 'square of', i, 'is', i*i; }'\n"; Stop; %}
+%{
+	i = 1;
+	while (i <= 6)
+	{	print "square of " i " is " i*i "\n";
+		i++;
+	}
+	Stop;
+%}

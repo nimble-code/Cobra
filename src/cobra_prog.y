@@ -7,6 +7,7 @@
 %{
 #include "cobra.h"
 #include <regex.h>
+#include <string.h>
 #include "cobra_array.h"
 #include "cobra_list.h"
 
@@ -92,8 +93,10 @@ static Lextok	 *break_nm;
 static Lextok	 *in_fct_def;
 static Var_nm	 *lab_lst;
 Separate	 *sep;		// thread local copies of globals
+Lextok		 **my_tree;	// thread local copies of p_tree
 
 int	*Cdepth;
+int	*has_lock;
 
 static int	 nest;
 static int	 p_lnr = 1;
@@ -113,12 +116,9 @@ static Var_nm	*mk_var(const char *, const int, const int);
 static Var_nm	*check_var(const char *, const int);
 static void	 set_break(void);
 
-// to reduce the number of cache-misses in multicore mode:
-#define DUP_TREES
-
-#ifdef DUP_TREES
- static void	 clear_dup(void);
- static Lextok	*dup_tree(Lextok *);
+// to reduce the number of cache-misses in multicore mode
+#ifndef NO_DUP
+ #define DUP_TREES
 #endif
 
 static Lextok	*add_return(Lextok *);
@@ -144,8 +144,11 @@ extern int	setexists(const char *s);
 extern void	show_error(FILE *, int);
 extern int	xxparse(void);
 extern Prim	*cp_pset(char *, Lextok *, int);	// cobra_te.c
+
+static char	*strrstr(const char *, const char *);
 static int	yylex(void);
 
+extern int	solo;
 extern int	stream;
 extern int	stream_override;
 extern int	showprog;
@@ -153,16 +156,17 @@ extern int	showprog;
 
 %token	NR STRING NAME IF IF2 ELSE ELIF WHILE FOR FOREACH IN PRINT ARG SKIP GOTO
 %token	BREAK CONTINUE STOP NEXT_T BEGIN END SIZE RETRIEVE FUNCTION CALL
-%token	ROUND BRACKET CURLY LEN MARK SEQ LNR RANGE FNM FCT ITOSTR
+%token	ROUND BRACKET CURLY LEN MARK SEQ LNR RANGE FNM FCT ITOSTR ATOI
 %token	BOUND MBND_D MBND_R NXT PRV JMP UNSET RETURN RE_MATCH FIRST_T LAST_T
-%token	TXT TYP NEWTOK SUBSTR SPLIT STRLEN STRCHR STRRCHR SET_RANGES CPU N_CORE SUM
+%token	TXT TYP NEWTOK SUBSTR GSUB SPLIT SET_RANGES CPU N_CORE SUM
+%token	STRLEN STRCMP STRSTR STRRSTR
 %token	A_UNIFY LOCK UNLOCK ASSERT TERSE TRUE FALSE VERBOSE
-%token	FCTS MARKS SAVE RESTORE RESET SRC_LN HASH HASHARRAY
+%token	FCTS MARKS SAVE RESTORE RESET SRC_LN SRC_NM HASH HASHARRAY
 %token  ADD_PATTERN DEL_PATTERN IS_PATTERN CP_PSET
 %token	ADD_TOP ADD_BOT POP_TOP POP_BOT TOP BOT
 %token	OBTAIN_EL RELEASE_EL UNLIST LLENGTH GLOBAL LIST2SET
 %token	DISAMBIGUATE WITH
-%token	OPEN CLOSE GETS PUTS
+%token	OPEN CLOSE GETS PUTS UNLINK EXEC
 
 %right	'='
 %left	OR
@@ -243,7 +247,7 @@ opt_type: /* empty */	{ $$ = 0; }
 b_stmnt	: p_lhs '=' expr	{ $2->lft = $1; $2->rgt = $3; $$ = $2; }
 	| p_lhs '=' NEWTOK '(' ')' { $2->lft = $1; $2->rgt = $3; $$ = $2; }
 	| ASSERT '(' expr ')'	{ $1->lft = $3; $$ = $1; }
-	| SRC_LN '(' expr ',' expr ',' expr ')'	{
+	| src_ln '(' expr ',' expr ',' expr ')'	{
 				$1->lft = new_lex(0, $3, $5);
 				$1->rgt = $7;
 				$$ = $1;
@@ -268,8 +272,8 @@ b_stmnt	: p_lhs '=' expr	{ $2->lft = $1; $2->rgt = $3; $$ = $2; }
 	| p_lhs INCR	{ $2->lft = $1; $$ = $2; }
 	| p_lhs DECR	{ $2->lft = $1; $$ = $2; }
 	| SET_RANGES '(' expr ',' expr ')' { $1->lft = $3; $1->rgt = $5; $$ = $1; }
-	| A_UNIFY '(' NAME ',' nr_or_cpu ')' { $1->lft = $5; $1->rgt = $3; $$ = $1; }
-	| A_UNIFY '(' nr_or_cpu ')'	{ $1->lft = $3; $1->rgt = 0; $$ = $1; }
+	| A_UNIFY '(' NAME ',' expr ')' { $1->lft = $5; $1->rgt = $3; $$ = $1; }
+	| A_UNIFY '(' expr ')'	{ $1->lft = $3; $1->rgt = 0; $$ = $1; }
 
 	| ADD_PATTERN '(' s_ref ',' t_ref ',' t_ref ')'	{
 				$1->lft = $3;
@@ -289,6 +293,12 @@ b_stmnt	: p_lhs '=' expr	{ $2->lft = $1; $2->rgt = $3; $$ = $2; }
 	| ADD_TOP '(' NAME ',' expr ')'	{ $1->lft = $3; $1->rgt = $5; $$ = $1; }
 	| ADD_BOT '(' NAME ',' expr ')'	{ $1->lft = $3; $1->rgt = $5; $$ = $1; }
 
+	| PUTS NAME args	{ $1->rgt = $2; $1->lft = $3; $$ = $1; }
+	| GETS NAME NAME	{ $1->rgt = $2; $1->lft = $3; $$ = $1; }
+	| CLOSE NAME		{ $1->rgt = $2; $$ = $1; }
+	| UNLINK expr		{ $1->lft = $2; $$ = $1; }
+	| EXEC expr		{ $1->lft = $2; $$ = $1; }
+
 	| RETURN expr	{ $1->lft = $2; $$ = $1; }
 	| RETURN
 	| BREAK
@@ -296,14 +306,14 @@ b_stmnt	: p_lhs '=' expr	{ $2->lft = $1; $2->rgt = $3; $$ = $2; }
 	| NEXT_T
 	| STOP
 	;
+src_ln	: SRC_LN
+	| SRC_NM
+	;
 t_ref	: p_ref
 	| NAME  '.' fld		{ $2->lft = $1; $2->rgt = $3; $$ = $2; }
 	| NAME
 	| '.' fld %prec UMIN	{ $1->lft =  0; $1->rgt = $2; $$ = $1; }
 	| '.'
-	;
-nr_or_cpu: NR
-	| CPU
 	;
 params	: /* empty */		{ $$ =  0; }
 	| par_list
@@ -370,15 +380,14 @@ expr	:'(' expr ')'		{ $$ = $2; }
 				  $$ = $1;
 				}
 
-	| OPEN STRING NAME	{ $1->rgt = $2; $1->lft = $3; $$ = $1; }
-	| PUTS NAME STRING	{ $1->rgt = $2; $1->lft = $3; $$ = $1; }
-	| GETS NAME NAME	{ $1->rgt = $2; $1->lft = $3; $$ = $1; }
-	| CLOSE NAME		{ $1->rgt = $2; $$ = $1; }
+	| OPEN expr n_or_s	{ $1->rgt = $2; $1->lft = $3; $$ = $1; }
 
 	| SPLIT '(' expr ',' NAME ')'            { $1->lft = $3; $1->rgt = $5; $1->s = ",";   $$ = $1; }
 	| SPLIT '(' expr ',' STRING ',' NAME ')' { $1->lft = $3; $1->rgt = $7; $1->s = $5->s; $$ = $1; }
-	| STRCHR '(' expr ',' STRING ')'	 { $1->lft = $3; $1->rgt =  0; $1->s = $5->s; $$ = $1;  }
-	| STRRCHR '(' expr ',' STRING ')'	 { $1->lft = $3; $1->rgt =  0; $1->s = $5->s; $$ = $1;  }
+	| GSUB  '(' expr ',' expr ',' expr ')'	 { $1->lft = new_lex(0, $3, $5); $1->rgt = $7; $$ = $1; }
+	| STRSTR '(' expr ',' STRING ')'	 { $1->lft = $3; $1->rgt =  0; $1->s = $5->s; $$ = $1;  }
+	| STRCMP '(' expr ',' expr ')'		 { $1->lft = $3; $1->rgt = $5; $$ = $1;  }
+	| STRRSTR '(' expr ',' STRING ')'	 { $1->lft = $3; $1->rgt =  0; $1->s = $5->s; $$ = $1;  }
 	| LLENGTH '(' NAME ')'	{ $1->lft = $3; $$ = $1;}
 	| TOP '(' NAME ')'	{ $1->lft = $3; $$ = $1; }
 	| BOT '(' NAME ')'	{ $1->lft = $3; $$ = $1; }
@@ -391,6 +400,7 @@ expr	:'(' expr ')'		{ $$ = $2; }
 	| RE_MATCH '(' p_lhs ',' STRING ')' { $1->lft = $3; $1->rgt = $5; $$ = $1; }
 	| RE_MATCH '(' STRING ')' { $1->lft = 0; $1->rgt = $3; $$ = $1; }
 	| ITOSTR '(' expr ')'	{ $1->lft = $3; $$ = $1; }
+	| ATOI '(' expr ')'	{ $1->lft = $3; $$ = $1; }
 	| DISAMBIGUATE '(' NAME ')' { $1->rgt = $3; $$ = $1; }
 	| NAME '(' actuals ')'  { $$ = new_lex(CALL, $1, $3); }
 	| '@' NAME		{ $1->rgt = $2; $$ = $1; }
@@ -407,6 +417,9 @@ expr	:'(' expr ')'		{ $$ = $2; }
 	| NR
 	| TRUE
 	| FALSE
+	;
+n_or_s	: NAME
+	| STRING
 	;
 optcond : /* empty */		{ $$ = 0; }
 	| WITH '(' expr ')'	{ $$ = $3; }
@@ -488,10 +501,12 @@ static struct Keywords {
 	{ "gets", 	GETS },
 	{ "puts", 	PUTS },
 	{ "close", 	CLOSE },
+	{ "unlink",	UNLINK },
 
 	{ "a_unify",	A_UNIFY },
 	{ "add_pattern", ADD_PATTERN },
 	{ "assert",	ASSERT },
+	{ "atoi",	ATOI },
 	{ "Begin",	BEGIN },
 	{ "bound",	BOUND },
 	{ "bracket",	BRACKET },
@@ -505,6 +520,7 @@ static struct Keywords {
 	{ "elif",	ELIF },
 	{ "else",	ELSE },
 	{ "End",	END },
+	{ "exec",	EXEC },
 	{ "false",	FALSE },
 	{ "fct",	FCT },
 	{ "fcts",	FCTS },
@@ -515,6 +531,7 @@ static struct Keywords {
 	{ "function",	FUNCTION },
 	{ "global",	GLOBAL },
 	{ "goto",	GOTO },
+	{ "gsub",	GSUB },
 	{ "hash",	HASH },
 	{ "hasharray",	HASHARRAY },
 	{ "if",		IF },
@@ -565,9 +582,13 @@ static struct Keywords {
 	{ "size",	SIZE },
 	{ "split",	SPLIT },
 	{ "src_ln",	SRC_LN },
+	{ "src_nm",	SRC_NM },
 	{ "Stop",	STOP },
-	{ "strchr",	STRCHR },
-	{ "strrchr",	STRRCHR },
+	{ "strchr",	STRSTR },	// for backward compatibility
+	{ "strstr",	STRSTR },
+	{ "strcmp",	STRCMP },
+	{ "strrchr",	STRRSTR },	// for backward compatibility
+	{ "strrstr",	STRRSTR },
 	{ "strlen",	STRLEN },
 	{ "substr",	SUBSTR },
 	{ "sum",	SUM },
@@ -712,6 +733,9 @@ new_lex(int tp, Lextok *lft, Lextok *rgt)
 static void
 replace_break(Lextok *b, Lextok *out)
 {
+	// replace break with jump to out
+	// but not in enclosed statements
+
 	if (!b)
 	{	return;
 	}
@@ -720,7 +744,9 @@ replace_break(Lextok *b, Lextok *out)
 		b->lft = out;
 	}
 	replace_break(b->lft, out);
-	replace_break(b->rgt, out);
+	if (b->typ != WHILE)
+	{	replace_break(b->rgt, out);
+	}
 }
 
 static void
@@ -810,7 +836,8 @@ mk_foreach(Lextok *opt_type, Lextok *nm, Lextok *p, Lextok *body, Lextok *out)
 		{	;	// ok
 		} else if (strcmp(opt_type->s, "index") == 0
 		       ||  strcmp(opt_type->s, "element") == 0)
-		{	if (1)
+		{
+			if (1)
 			{	return mk_for(0, nm, p, body, out);
 			} else
 			{	fprintf(stderr, "error: foreach %s (...) should be: for (...)\n",
@@ -1077,10 +1104,19 @@ fixstr(Lextok *t)
 static int
 prog_lex(void)
 {	int n, i;
+	static int deferred_if = 0;
 
 	yylval = (Lextok *) emalloc(sizeof(Lextok), 77);
 	yylval->lnr = p_lnr;
 	yytext[0] = '\0';
+
+	if (deferred_if)
+	{	yylval->s = emalloc(strlen("if")+1, 78);
+		strcpy(yylval->s, "if");
+		yylval->typ = IF;
+		deferred_if = 0;
+	} else
+
 	for (;;)
 	{	n = fgetc(pfd);
 		if (n == '\n')
@@ -1106,6 +1142,12 @@ prog_lex(void)
 			}
 			ungetc(n, pfd);
 			yytext[i] = '\0';
+
+			if (strcmp(yytext, "elif") == 0)	// version 5.0
+			{	strcpy(yytext, "else");
+				deferred_if++;
+			}
+
 			yylval->s = emalloc(strlen(yytext)+1, 78);
 			strcpy(yylval->s, yytext);
 			yylval->typ = NAME;
@@ -1332,7 +1374,7 @@ indent(int level, const char *s)
 	fprintf(stderr, "%s", s);
 }
 
-void
+static void
 dump_tree(Lextok *t, int i)
 {
 	if (!t || (t->visit&16))
@@ -1623,9 +1665,21 @@ set_actuals(Prim **ref_p, const char *fnm, Lextok *formal, Lextok *actual, const
 	if (formal->rgt)
 	{	if (actual->rgt)
 		{	map_var(ref_p, fnm, formal->rgt, actual->rgt, ix);
+		} else
+		{	fprintf(stderr, "error: actual parameter for %s() missing\n", fnm);
+			show_error(stderr, formal->rgt->lnr);
+			sep[ix].T_stop++;
 		}
 	} else // if (!actual->rgt)
-	{	map_var(ref_p, fnm, formal, actual, ix);
+	{
+	//	if (!actual->rgt || actual->typ == '.')
+		{	map_var(ref_p, fnm, formal, actual, ix);
+		}
+	//	else
+	//	{	fprintf(stderr, "error: too many parameters for %s() -- %d\n", fnm, actual->typ);
+	//		show_error(stderr, actual->rgt->lnr);
+	//		sep[ix].T_stop++;
+	//	}
 	}
 }
 
@@ -2000,17 +2054,27 @@ get_var(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)
 					vtmp.rtyp = PTR;
 					vtmp.pm = rv->ptr;
 					vtmp.nm = "noname";
-					return &vtmp;	// dubious
-			}	}
+					return &vtmp;	// dubious but static
+				} else
+				{	static Prim notoken;
+					memset(&notoken, 0, sizeof(Prim));
+					vtmp.rtyp = PTR;
+					vtmp.pm = &notoken;
+					vtmp.nm = "nothing";
+					return &vtmp;		
+				}
+			}
 
-			if (q->lft && q->lft->typ == NAME
+			if (q->lft
+			&&  q->lft->typ == NAME
 			&&  q->rgt
 			&&  (q->rgt->typ == JMP || q->rgt->typ == BOUND))
-			{	static Prim notoken;
-				memset(&notoken, 0, sizeof(Prim));
+			{	// static Prim notoken;
+				// memset(&notoken, 0, sizeof(Prim));
 				// refers to an aatribute of a non-token name
 				return get_var(ref_p, q->lft, rv, ix);	// new 2024/3/14
 			}
+
 			if (Ncore > 1) fprintf(stderr, "(%d) ", ix);
 			fprintf(stderr, "line %d: unexpected variable type %d, in ", q->lnr, q->typ);
 			tok2txt(q, stderr);
@@ -2062,14 +2126,81 @@ split(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)
 }
 
 static void
+gsub(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)
+{	// q->lft->lft: text to be replaced
+	// q->lft->rgt: replacement text
+	// q->rgt: target string
+	Rtype a, b, c;
+	int cnt = 0;
+	char *p, *r;
+
+	assert(q->lft && q->lft->lft && q->lft->rgt && q->rgt);
+	eval_prog(ref_p, q->lft->lft, &a, ix);
+	if (a.rtyp != STR || strlen(a.s) == 0)
+	{	fprintf(stderr, "error: 1st arg of gsub is not a string, or empty\n");
+		rv->rtyp = STP;
+		return;
+	}
+	eval_prog(ref_p, q->lft->rgt, &b, ix);
+	if (b.rtyp != STR)
+	{	fprintf(stderr, "error: 2nd arg of gsub is not a string\n");
+		rv->rtyp = STP;
+		return;
+	}
+	eval_prog(ref_p, q->rgt, &c, ix);
+	if (b.rtyp != STR || strlen(c.s) == 0)
+	{	fprintf(stderr, "error: 3rd arg of gsub is not a string\n");
+		rv->rtyp = STP;
+		return;
+	}
+	rv->rtyp = STR;
+
+	p = c.s;
+	while (strstr(p, a.s) != NULL)
+	{	cnt++;
+		p += strlen(a.s);
+	}
+	if (cnt == 0)
+	{	rv->s = c.s;
+		return;
+	}
+
+	rv->s = (char *) hmalloc(strlen(c.s) + cnt * (strlen(b.s) - strlen(a.s))  + 1, ix, 140);
+
+	p = c.s;
+	while (strlen(p) > 0 && (r = strstr(p, a.s)) != NULL)
+	{	int d = *r;
+		*r = '\0';
+		strcat(rv->s, p);
+		strcat(rv->s, b.s);
+		*r = d;
+		p = r + strlen(a.s);
+	}
+	if (strlen(p) > 0)
+	{	strcat(rv->s, p);
+	}
+}
+
+static char *
+strrstr(const char *haystack, const char *needle)
+{	char *p = NULL, *q;
+
+	do {	q = p;
+		p = strstr(haystack, needle);
+	} while (p);
+
+	return q;
+}
+
+static void
 do_common(Prim **ref_p, Lextok *q, Rtype *rv, int which, const int ix)
 {	Rtype a;
 	char *ptr;
 	// q->s == string to find
 
-	if (q->s == 0 || strlen(q->s) != 1)
-	{	fprintf(stderr, "error: %s argument '%s' is not a single character\n",
-			(which == STRCHR)?"strchr":"strrchr", q->s);
+	if (q->s == 0 || strlen(q->s) == 0)
+	{	fprintf(stderr, "error: %s bad argument '%s'\n",
+			(which == STRSTR)?"strstr":"strrstr", q->s);
 		rv->rtyp = STP;
 		return;
 	}
@@ -2078,14 +2209,14 @@ do_common(Prim **ref_p, Lextok *q, Rtype *rv, int which, const int ix)
 	eval_prog(ref_p, q->lft, &a, ix);
 
 	if (a.rtyp != STR)
-	{	fprintf(stderr, "error: 1st arg of split is not a string\n");
+	{	fprintf(stderr, "error: 1st arg of str[r]chr is not a string\n");
 		rv->rtyp = STP;
 		return;
 	}
-	if (which == STRCHR)
-	{	ptr = strchr(a.s, (int) *(q->s));
+	if (which == STRSTR)
+	{	ptr = strstr(a.s, q->s);
 	} else
-	{	ptr = strrchr(a.s, (int) *(q->s));
+	{	ptr = strrstr(a.s, q->s);
 	}
 
 	if (!ptr)
@@ -2097,15 +2228,40 @@ do_common(Prim **ref_p, Lextok *q, Rtype *rv, int which, const int ix)
 }
 
 static void
-do_strchr(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)	// index of q->s in q->lft
+do_strstr(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)	// index of q->s in q->lft
 {
-	do_common(ref_p, q, rv, STRCHR, ix);
+	do_common(ref_p, q, rv, STRSTR, ix);
 }
 
 static void
-do_strrchr(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)
+do_strrstr(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)
 {
-	do_common(ref_p, q, rv, STRRCHR, ix);
+	do_common(ref_p, q, rv, STRRSTR, ix);
+}
+
+static void
+do_strcmp(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)
+{	Rtype a, b;
+
+	assert(q->lft && q->rgt);
+	eval_prog(ref_p, q->lft, &a, ix);
+	if (a.rtyp != STR)
+	{	fprintf(stderr, "error: 1st arg of strcmp is not a string\n");
+		show_error(stderr, q->lnr);
+		sep[ix].T_stop++;
+		rv->rtyp = STP;
+		return;
+	}
+	eval_prog(ref_p, q->rgt, &b, ix);
+	if (b.rtyp != STR)
+	{	fprintf(stderr, "error: 2nd arg of strcmp is not a string\n");
+		show_error(stderr, q->lnr);
+		sep[ix].T_stop++;
+		rv->rtyp = STP;
+		return;
+	}
+	rv->rtyp = VAL;
+	rv->val  = strcmp(a.s, b.s);
 }
 
 static void
@@ -2245,12 +2401,20 @@ print_args(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)
 		split(ref_p, q, rv, ix);
 		fprintf(tfd, "%s", rv->s);	// tab separated fields
 		return;
-	case STRCHR:
-		do_strchr(ref_p, q, rv, ix);
+	case GSUB:
+		gsub(ref_p, q, rv, ix);
+		fprintf(tfd, "%s", rv->s);
+		return;
+	case STRSTR:
+		do_strstr(ref_p, q, rv, ix);
 		fprintf(tfd, "%d", rv->val);
 		return;
-	case STRRCHR:
-		do_strrchr(ref_p, q, rv, ix);
+	case STRRSTR:
+		do_strrstr(ref_p, q, rv, ix);
+		fprintf(tfd, "%d", rv->val);
+		return;
+	case STRCMP:
+		do_strcmp(ref_p, q, rv, ix);
 		fprintf(tfd, "%d", rv->val);
 		return;
 	case STRLEN:
@@ -2285,10 +2449,23 @@ print_args(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)
 		  if (rv->s[1] == '\0')	// a single backslash character
 		  {	fprintf(tfd, "\\");
 		  } else
-		  for (s = rv->s; *s != '\0'; s++)
-		  {	if (*s != '\\' || *(s+1) == '\\')
-			{	fprintf(tfd, "%c", *s);
-		  }	}
+		  {	int in_single = 0;
+			int in_double = 0;
+			// print \\ as is, but drop the \ in front of
+			// other characters like \n or \t
+			// unless enclosed in quotes
+			for (s = rv->s; *s != '\0'; s++)
+		  	{	if (*s == '"')
+				{	in_double = 1 - in_double;
+				} else if (*s == '\'')
+				{	in_single = 1 - in_single;
+				}
+				if (in_single
+				||  in_double
+				||  *s != '\\'
+				||  *(s+1) == '\\')
+				{	fprintf(tfd, "%c", *s);
+		  }	}	}
 		} else
 		{ fprintf(tfd, "%s", rv->s);
 		}
@@ -2650,6 +2827,7 @@ do_incr_decr(Prim **ref_p, Lextok *q, Rtype *rv, const int ix, Prim *p)
 
 	if (LHS->typ == '[')
 	{	Assert("++/--", LHS->lft && (LHS->lft->typ == NAME), LHS->lft);
+
 		tmp.s = derive_string(ref_p, LHS->rgt, ix, 0);
 		tmp.rtyp = STR;
 
@@ -2790,7 +2968,6 @@ do_assignment(Prim **ref_p, Lextok *q, Rtype *rv, const int ix, Prim *p)
 	{	Assert("set", LHS->lft && (LHS->lft->typ == NAME), LHS->lft);
 		assert(RHS);
 		eval_prog(ref_p, RHS, rv, ix);
-
 		tmp.s = derive_string(ref_p, LHS->rgt, ix, 0);
 		tmp.rtyp = STR;
 
@@ -2801,7 +2978,11 @@ do_assignment(Prim **ref_p, Lextok *q, Rtype *rv, const int ix, Prim *p)
 			show_error(stderr, q->lnr);
 			return;
 		}
-		// fprintf(stderr, "here %d %s[%s]\n", rv->rtyp, LHS->lft->s, tmp.s);
+
+		if (0)
+		{	fprintf(stderr, "type %d val %d %s[%s]\n",
+				rv->rtyp, rv->val, LHS->lft->s, tmp.s);
+		}
 
 		// lft->s: basename
 		// tmp: index
@@ -2942,8 +3123,14 @@ do_assignment(Prim **ref_p, Lextok *q, Rtype *rv, const int ix, Prim *p)
 		&&  LHS->lft->typ == NAME)	// use the token pointed to by LHS->lft
 		{	Var_nm *vn;
 			vn = get_var(ref_p, LHS->lft, rv, ix);
-			if (!vn || vn->rtyp != PTR)
-			{	goto bad;
+			if (!vn)
+			{	fprintf(stderr, "error: no such variable\n");
+				goto bad;
+			}
+			if (vn->rtyp != PTR)
+			{	fprintf(stderr, "error: wrong variable type of %s (saw %d, expecting token ref %d)\n",
+					vn->nm, vn->rtyp, PTR);
+				goto bad;
 			}
 			pp = (Prim *) vn->pm;
 		}
@@ -2964,7 +3151,8 @@ bad:					fprintf(stderr, "error: bad dot chain on lhs of asgn\n");
 			}	}
 
 			if (!pp)
-			{	goto bad;
+			{	fprintf(stderr, "error: pp\n");
+				goto bad;
 			}
 
 			if (qq->rgt->typ == '.')
@@ -3016,7 +3204,8 @@ bad:					fprintf(stderr, "error: bad dot chain on lhs of asgn\n");
 			case NXT:	pp->nxt = rv->ptr; break;
 			case PRV:	pp->prv = rv->ptr; break;
 
-			default:	goto bad;
+			default:	fprintf(stderr, "error: unexpected type %d\n", qq->rgt->typ);
+					goto bad;
 			}
 			return;
 		}
@@ -3401,6 +3590,49 @@ derive_string(Prim **ref_p, Lextok *q, const int ix, const char *usethis) // q: 
 	return r;
 }
 
+static int ncommas;
+
+static void
+count_commas(Lextok *p)
+{
+	if (!p)
+	{	return;
+	}
+	if (p->typ == ',')
+	{	ncommas++;
+	}
+	count_commas(p->rgt);
+	count_commas(p->lft);
+}
+
+static int
+bad_param_counts(const char *s, Lextok *f, Lextok *a, int ix)
+{	int nf, na;
+
+	lock_print(ix);
+	 ncommas = 0;
+	 count_commas(f);
+	 nf = ncommas;
+	 ncommas = 0;
+	 count_commas(a);
+	 na = ncommas;
+	unlock_print(ix);
+
+	if (na != nf)
+	{	fprintf(stderr, "error: too %s parameters in fct call of %s()\n",
+			(na>nf)?"many":"few", s);
+		show_error(stderr, a->lnr);
+#ifdef DEBUG
+		fprintf(stderr, "%d---f\n", nf);
+		dump_tree(f, 0); // -DDEBUG
+		fprintf(stderr, "%d---a\n", na);
+		dump_tree(a, 0);
+		exit(0);
+#endif
+	}
+	return (na != nf);
+}
+
 static void
 cpush(Prim **ref_p, const char *s, Lextok *formals, Lextok *actuals, Lextok *ra, const int ix)
 {	Cstack *cframe;
@@ -3418,7 +3650,7 @@ cpush(Prim **ref_p, const char *s, Lextok *formals, Lextok *actuals, Lextok *ra,
 	}	}
 	if (Cdepth[ix] >= MAX_STACK)	// protect against infinite recursion
 	{	fprintf(stderr, "error: max stackdepth of %d exceeded\n", MAX_STACK);
-		sep[ix].T_stop++;
+giveup:		sep[ix].T_stop++;
 		return;
 	}
 
@@ -3428,6 +3660,11 @@ cpush(Prim **ref_p, const char *s, Lextok *formals, Lextok *actuals, Lextok *ra,
 	} else
 	{	cframe = (Cstack *) hmalloc(sizeof(Cstack), ix, 139);
 	}
+
+	if (bad_param_counts(s, formals, actuals, ix))
+	{	goto giveup;
+	}
+
 	cframe->nm = s;
 	cframe->ra = ra;
 	cframe->formals = formals;
@@ -3593,7 +3830,7 @@ re_matches(Prim **ref_p, Lextok *t, int cid)
 		istxt = 0;
 	}
 
-	do_lock(cid);
+	do_lock(cid);	// re_matches (cobra_prog.y)
 
 	v = set_pre(ref_p, t, cid, istxt);
 	if (isre)
@@ -4133,12 +4370,12 @@ next:
 	p_lnr    = q->lnr;
 
 	if (sep[ix].Verbose > 2)
-	{	lock_print(ix);
-		printf("%d: [seq %d ln %d] EVAL_PROG typ %3d ",
+	{	lock_other(ix);
+		fprintf(stderr, "%d: [seq %d ln %d] EVAL_PROG typ %3d ",
 			ix, p->seq, p->lnr, q->typ);
 		tok2txt(q, stdout);
 		fflush(stdout);
-		unlock_print(ix);
+		unlock_other(ix);
 	}
 	if (sep[ix].P_debug == 2)
 	{	doindent();
@@ -4213,12 +4450,20 @@ next:
 		split(ref_p, q, rv, ix);
 		break;
 
-	case STRCHR:
-		do_strchr(ref_p, q, rv, ix);
+	case GSUB:
+		gsub(ref_p, q, rv, ix);
 		break;
 
-	case STRRCHR:
-		do_strrchr(ref_p, q, rv, ix);
+	case STRSTR:
+		do_strstr(ref_p, q, rv, ix);
+		break;
+
+	case STRRSTR:
+		do_strrstr(ref_p, q, rv, ix);
+		break;
+
+	case STRCMP:
+		do_strcmp(ref_p, q, rv, ix);
 		break;
 
 	case STRLEN:
@@ -4229,23 +4474,36 @@ next:
 		break;
 
 	case OPEN:	// fp = open "fnm" [rwa]
-		if (!q->lft)
-		{	fprintf(stderr, "error: missing arg to open\n");
+		{ char *str;
+		  if (!q->lft || !q->rgt)
+		  {	fprintf(stderr, "error: missing arg to open\n");
 			goto error_case;
-		}
-		if (q->rgt->typ != STRING)
-		{	fprintf(stderr, "error: the first arg to 'open' should be a string\n");
+		  }
+		  if (q->rgt->typ != STRING)
+		  {	eval_prog(ref_p, q->rgt, rv, ix);
+			if (rv->rtyp != STR)
+			{	fprintf(stderr, "error: args to 'open' should be strings\n");
+				goto error_case;
+			}
+			str = rv->s;
+		  } else
+		  {	str = q->rgt->s;
+		  }
+		  if ((q->lft->typ != NAME
+		  &&  q->lft->typ != STRING)
+		  || (strcmp(q->lft->s, "r") != 0
+		  &&  strcmp(q->lft->s, "w") != 0
+		  &&  strcmp(q->lft->s, "a") != 0))
+		  {	fprintf(stderr, "error: the second arg to 'open' should be r, w, or a\n");
 			goto error_case;
-		}
-		if (q->lft->typ != NAME
-		|| (strcmp(q->lft->s, "r") != 0
-		&&  strcmp(q->lft->s, "w") != 0
-		&&  strcmp(q->lft->s, "a") != 0))
-		{	fprintf(stderr, "error: the second arg to 'open' should be r, w, or a\n");
+		  }
+		  rv->rtyp = PTR;
+		  rv->ptr = (Prim *) fopen((const char *) str, (const char *) q->lft->s);
+		  if (rv->ptr == NULL)
+		  {	fprintf(stderr, "error: 'open %s %s' failed\n", str, q->lft->s);
 			goto error_case;
+		  }
 		}
-		rv->rtyp = PTR;
-		rv->ptr = (Prim *) fopen((const char *) q->rgt->s, (const char *) q->lft->s);
 		break;
 
 	case CLOSE:
@@ -4258,21 +4516,67 @@ next:
 		  Assert("close", vn != NULL, q->rgt);
 		  rv->rtyp = VAL;
 		  rv->val = fclose((FILE *) vn->pm);
+		  if (rv->val != 0)
+		  {	fprintf(stderr, "error: close %s failed\n", q->rgt->s);
+			goto error_case;
+		}
+		}
+		break;
+
+	case UNLINK:
+		if (!q->lft)
+		{	fprintf(stderr, "error: arg to 'unlink' missing\n");
+			goto error_case;
+		}
+		eval_prog(ref_p, q->lft, rv, ix);
+		if (rv->rtyp != STR)
+		{	fprintf(stderr, "error: arg to 'unlink' must be a string\n");
+			goto error_case;
+		}
+		rv->rtyp = VAL;
+		rv->val = unlink((const char *) rv->s);
+		break;
+
+	case EXEC:
+		if (!q->lft)
+		{	fprintf(stderr, "error: arg to 'exec' missing\n");
+			goto error_case;
+		}
+		eval_prog(ref_p, q->lft, rv, ix);
+		if (rv->rtyp != STR)
+		{	fprintf(stderr, "error: arg to 'exec' must be a string\n");
+			goto error_case;
+		}
+		rv->rtyp = VAL;
+		rv->val = system((const char *) rv->s);
+		if (rv->val < 0)
+		{	fprintf(stderr, "error: exec '%s' failed\n", rv->s);
+			goto error_case;
 		}
 		break;
 
 	case PUTS:
 		if (!q->rgt
 		||  !q->lft
-		||   q->rgt->typ != NAME
-		||   q->lft->typ != STRING)
+		||   q->rgt->typ != NAME)
 		{	fprintf(stderr, "error: bad syntax 'puts' command\n");
 			goto error_case;
 		}
 		{ Var_nm *vn = get_var(ref_p, q->rgt, rv, ix);
-		  Assert("puts", vn != NULL, q->rgt);
-		  rv->rtyp = VAL;
-		  rv->val = fprintf((FILE *) vn->pm, q->lft->s);
+		  if (vn == NULL || vn->rtyp != PTR)
+		  {	fprintf(stderr, "error: puts bad file descriptor\n");
+			goto error_case;
+		  }
+		  Assert("puts", has_lock[ix] == 0, q);
+		  lock_print(ix);
+		  has_lock[ix] = PUTS;
+		   FILE *ofd;
+		   ofd = track_fd;
+		   track_fd = (FILE *) vn->pm;
+		   print_args(ref_p, q->lft, rv, ix);
+		   track_fd = ofd;
+		  has_lock[ix] = 0;
+		  unlock_print(ix);
 		}
 		break;
 
@@ -4291,8 +4595,18 @@ next:
 		  if (strlen(vn2->s) < 512)
 		  {	vn2->s = (char *) hmalloc(512, ix, 144);
 		  }
-		  rv->rtyp = STR;
-		  rv->s = fgets(vn2->s, 512, (FILE *) vn1->pm);
+		  vn2->rtyp = STR;
+		  char *tptr = fgets(vn2->s, 512, (FILE *) vn1->pm);
+		  if (tptr == NULL)
+		  {	strcpy(vn2->s, "EOF");		
+		  } else
+		  {	int nlen = strlen(vn2->s);
+		  	if (vn2->s[nlen-1] == '\n'
+			||  vn2->s[nlen-1] == '\r')
+			{	vn2->s[nlen-1] = '\0';
+		  }	}
+		  rv->rtyp = VAL;
+		  rv->val = 0;
 		}
 		break;
 
@@ -4339,6 +4653,15 @@ next:
 
 	case ITOSTR:
 		convert2string(ref_p, q->lft, rv, ix);
+		break;
+
+	case ATOI:
+		eval_prog(ref_p, q->lft, rv, ix);
+		if (rv->rtyp != VAL)
+		{	Assert("atoi", rv->rtyp == STR, q->lft);
+			rv->rtyp = VAL;
+			rv->val = atoi(rv->s);
+		}
 		break;
 
 	case '[':
@@ -4422,8 +4745,17 @@ next:
 		 break;
 
 	case PRINT:
+		Assert("puts", has_lock[ix] != PRINT, q);
+		if (has_lock[ix] != PUTS) // we dont already own the lock w puts
+		{	lock_print(ix);	  // dont call lock twice in same proc
+			has_lock[ix] = PRINT;
+		}	// puts calls print_args, but print_args doesnt call puts
 		print_args(ref_p, q->lft, rv, ix);
 		fflush(stdout);
+		if (has_lock[ix] != PUTS)
+		{	has_lock[ix] = 0;
+			unlock_print(ix);
+		}
 		break;
 
 	case NAME:
@@ -4656,9 +4988,11 @@ next:
 		}
 		break;
 
+	case SRC_NM:
 	case SRC_LN:	// V 4.5
 		{	int from_nr, upto_nr;
 			char *from_fnm;
+			extern int unnumbered; // cobra_json.c
 
 			Assert("src_ln0", q->lft && q->lft->lft && q->lft->rgt && q->rgt, q);
 
@@ -4674,8 +5008,13 @@ next:
 			eval_prog(ref_p, q->lft->lft, rv, ix);	// fnm
 			Assert("src_ln1", rv->rtyp == STR, q->lft->lft);
 			from_fnm = rv->s;
-
-			show_line(stdout, from_fnm, -1, from_nr, upto_nr, 0);
+			if (q->typ == SRC_NM) // numbered
+			{	show_line(stdout, from_fnm, -1, from_nr, upto_nr, 0);
+			} else
+			{	unnumbered = 1;
+				show_line(stdout, from_fnm, -1, from_nr, upto_nr, 0);
+				unnumbered = 0;
+			}
 		}
 		break;
 
@@ -4713,8 +5052,12 @@ next:
 		{	rv->rtyp = STP;
 		} else
 		{	cpush(ref_p, q->f->nm->s, q->f->formal, q->rgt, q->c, ix);
-			eval_prog(ref_p, q->a, rv, ix);
-		}
+			if (sep[ix].T_stop != 0)
+			{	rv->rtyp = STP;
+			} else
+			{	q = q->a;
+				goto next;
+		}	}
 		q = 0;
 		break;
 
@@ -4734,14 +5077,22 @@ next:
 		break;
 
 	case LOCK:
-		do_lock(ix);
+		do_lock(ix);	// lock()
 		break;
 	case UNLOCK:
 		do_unlock(ix);
 		break;
 
 	case A_UNIFY:
-		array_unify(q, ix);
+		{ Lextok zz, yy;
+		  eval_prog(ref_p, q->lft, rv, ix);
+		  Assert("a_unify", rv->rtyp == VAL, q->lft);
+		  zz.lft = &yy;
+		  zz.rgt = q->rgt;
+		  yy.val = rv->val;
+		  yy.typ = NR;
+		  array_unify(&zz, ix);
+		}
 		break;
 
 	case NEWTOK:
@@ -4851,6 +5202,8 @@ next:
 		case CLOSE:
 		case GETS:
 		case PUTS:
+		case UNLINK:
+		case EXEC:
 		case PRINT:
 		case BREAK:
 		case CONTINUE:
@@ -4869,6 +5222,7 @@ next:
 		case SAVE:
 		case RESET:
 		case SRC_LN:
+		case SRC_NM:
 
 		case TOP:
 		case BOT:
@@ -5012,6 +5366,7 @@ rm_var(const char *s, int one, const int ix)
 static void
 ini_vars(void)
 {	static int vmax = 0;
+	static int nmax = 0;
 	int i;
 
 	if (Ncore > vmax)
@@ -5035,12 +5390,17 @@ ini_vars(void)
 	if (!Cdepth)
 	{	Cdepth = (int *) emalloc(NCORE * sizeof(int), 84);
 	}
+	if (!has_lock)
+	{	has_lock = (int *) emalloc(NCORE * sizeof(int), 84);
+	}
 
 	if (!t_stop)
 	{	t_stop = (int *) emalloc(NCORE * sizeof(int), 84);
 	}
-	if (!sep)
-	{	sep = (Separate *) emalloc(NCORE * sizeof(Separate), 84);
+	if (!sep || nmax < NCORE)
+	{	nmax = NCORE;
+		my_tree = (Lextok **) emalloc(NCORE * sizeof(Lextok *), 84);
+		sep = (Separate *) emalloc(NCORE * sizeof(Separate), 84);
 		for (i = 0; i < NCORE; i++)
 		{	sep[i].Nest    = nest;
 			sep[i].T_stop  = t_stop[i];
@@ -5110,18 +5470,12 @@ ini_blocks(void)
 }
 
 #ifdef DUP_TREES
-static unsigned long loc_copy;	// avoid sharing access to parse tree between cores
-
-static void
-clear_dup(void)	// when p_tree changes
-{
-	loc_copy = 0;
-}
-
 static Lextok *
-dup_tree(Lextok *p)
+dup_tree(Lextok *p, int ix)
 {	Lextok *n;
 
+	// tbd: doesnt work, suspect jumps
+	// arent correctly preserved
 	if (!p)
 	{	return NULL;
 	}
@@ -5130,26 +5484,27 @@ dup_tree(Lextok *p)
 	}
 	p->visit |= 32;
 
-	n = (Lextok *) emalloc(sizeof(Lextok), 88);
+	n = (Lextok *) hmalloc(sizeof(Lextok), ix, 88);
 	memcpy(n, p, sizeof(Lextok));
 
 	if (p->s)
-	{	n->s = (char *) emalloc(strlen(p->s)+1, 89);
+	{	n->s = (char *) hmalloc(strlen(p->s)+1, ix, 89);
 		strcpy(n->s, p->s);
 	}
 
-	n->a = dup_tree(p->a);
-	n->b = dup_tree(p->b);
-	n->c = dup_tree(p->c);
-	n->core = dup_tree(p->core);
+	n->a = dup_tree(p->a, ix);
+	n->b = dup_tree(p->b, ix);
+	n->c = dup_tree(p->c, ix);
+	n->core = dup_tree(p->core, ix);
 
 	// leave n->f as is
 
-	n->lft = dup_tree(p->lft);
-	n->rgt = dup_tree(p->rgt);
+	n->lft = dup_tree(p->lft, ix);
+	n->rgt = dup_tree(p->rgt, ix);
 
 	return n;
 }
+#endif
 
 static void
 clr_marks(Lextok *p)
@@ -5165,7 +5520,6 @@ clr_marks(Lextok *p)
 	clr_marks(p->lft);
 	clr_marks(p->rgt);
 }
-#endif
 
 // externally visible functions:
 
@@ -5176,20 +5530,6 @@ exec_prog(Prim **q, int ix)
 	assert(ix >= 0 && ix < Ncore);
 	sep[ix].T_stop = 0;
 	memset(&rv, 0, sizeof(Rtype));
-
-#ifdef DUP_TREES
-	// reduce cache misses
-	if (Ncore > 1 && ix > 0 && !(loc_copy & (1<<ix)))
-	{	Lextok *tmp;
-		do_lock(ix);
-		tmp = dup_tree(p_tree);
-		clr_marks(p_tree);
-		p_tree = tmp;
-		loc_copy |= (1<<ix);
-	//	printf("%d Dups\n", ix);
-		do_unlock(ix);
-	}
-#endif
 
 	if (showprog == 1 && ix == 0)
 	{	FILE *fd = fopen(CobraDot, "a");
@@ -5211,7 +5551,7 @@ exec_prog(Prim **q, int ix)
 			if (system(ShowDot) < 0)
 			{	perror(ShowDot);
 			}
- #if 1
+ #if 0
 			sleep(1); // before the dot file is removed
  #else
 			exit(0);
@@ -5223,7 +5563,8 @@ exec_prog(Prim **q, int ix)
  #endif
 	}
 
-	eval_prog(q, p_tree, &rv, ix);
+	assert(my_tree != NULL && my_tree[ix] != NULL);
+	eval_prog(q, my_tree[ix], &rv, ix);
 
 	if (sep[ix].P_debug == 2)
 	{	printf("===%d\n", rv.rtyp);
@@ -5277,6 +5618,7 @@ streamable(Lextok *t)
 int
 prep_prog(FILE *nfd)
 {	static int uniq = 0;	// parse time only
+	int ix;
 
 	pfd = nfd;		// prog_fd
 	n_blocks = 1;
@@ -5316,12 +5658,25 @@ prep_prog(FILE *nfd)
 	}	}
 
 	p_tree = fix_while(p_tree);			// visit |= 1
-#ifdef DUP_TREES
-	clear_dup();
-#endif
+
 	mk_fsm(p_tree, 0);				// visit |= 2
 	opt_fsm(p_tree);				// visit |= 8
+
 	// dump_tree(p_tree, 0);
+#ifdef DUP_TREES
+	// reduce cache misses
+	my_tree[0] = p_tree;
+
+	for (ix = 1; ix < Ncore; ix++)
+	{	my_tree[ix] = dup_tree(p_tree, ix);
+		clr_marks(p_tree);
+	}
+#else
+	for (ix = 0; ix < Ncore; ix++)
+	{	my_tree[ix] = p_tree;
+	}
+
+#endif
 
 	if (stream == 1
 	&& !streamable(p_tree))
@@ -5343,7 +5698,8 @@ prep_prog(FILE *nfd)
 			if (p_debug == 4 && system(ShowFsm) < 0)
 			{	perror("ShowFsm");
 			}
-			sleep(1); // in case there's more than one
+			sleep(1);	// in case there's more than one
+			exit(0);	// version 5.0
 	}	}
 
 	return 1;

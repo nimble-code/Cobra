@@ -654,7 +654,7 @@ F:				m = append_char(n, m, cid);
 	return s;
 }
 
-static int defer_if[128];	// should be Ncore
+// static int defer_if[128];	// should be Ncore
 
 static void
 name(int c, int cid)
@@ -663,10 +663,12 @@ name(int c, int cid)
 	assert(cid >= 0 && cid < Ncore);
 	strcpy(Px.lex_yytext, "");
 
+#if 0
 	if (defer_if[cid])
 	{	defer_if[cid] = 0;
 		strcpy(Px.lex_yytext, "if");
 	} else
+#endif
 	{	m = append_char(c, 0, cid);
 		while ((n = nextchar(cid)) != EOF)
 		{	if (!isalnum((uchar) n) && n != '_')
@@ -692,7 +694,7 @@ name(int c, int cid)
 				break;
 			case 2:
 			case 3:
-				top_triple(cid, 1);
+				(void) top_triple(cid, 1);
 				break;
 			case 7:
 			case 8:
@@ -719,12 +721,14 @@ name(int c, int cid)
 			||  (!(c_name[n].lang & ada_t)    && ada))
 			{	break;
 			}
+#if 0
 			// new 4.8
 			if (strcmp(c_name[n].str, "elif") == 0)
 			{	show2(c_name[n].typ, "else", cid);
 				assert(cid >= 0 && cid < sizeof(defer_if)/sizeof(int));
 				defer_if[cid]++;
 			} else
+#endif
 			{	show2(c_name[n].typ, Px.lex_yytext, cid);
 			}
 			return; 

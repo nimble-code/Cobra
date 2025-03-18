@@ -1,0 +1,15 @@
+## find longest identifier
+
+requires 5.0
+
+%{
+     if (@ident && q.len < .len)
+     {	 q = .;
+     }
+%}
+
+%{
+     print "the longest identifier is:\n";
+     print q.fnm ":" .lnr ": " q.txt " (" q.len " chars)\n";
+     Stop;
+%}

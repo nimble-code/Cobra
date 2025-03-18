@@ -1,6 +1,6 @@
 int
-check_config(void)
-{	// .cobra file is not used
+check_run(void)
+{	// .cobra file cannot be used
 	// for background checkers
 	return 0;
 }

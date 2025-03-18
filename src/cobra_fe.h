@@ -7,7 +7,7 @@
 #ifndef COBRA_FE
 #define COBRA_FE
 
-#define tool_version	"Version 4.8 - 10 December 2024"
+#define tool_version	"Version 5.0 - 17 March 2025"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -162,7 +162,7 @@ extern Named	*findset(const char *, int, int);
 extern Files	*findfile(const char *);
 
 extern int	add_file(char *, int, int);
-extern int	check_config(void);
+extern int	check_run(void);
 extern int	c_lex(int);
 extern int	do_markups(const char *);
 extern int	is_pset(const char *);
@@ -191,6 +191,7 @@ extern void	ini_par(void);
 extern void	ini_pre(int);
 extern void	ini_timers(void);
 extern void	json_import(const char *, int);
+extern void	lock_other(int);
 extern void	lock_print(int);
 extern void	memusage(void);
 extern void	post_process(int);
@@ -202,6 +203,7 @@ extern void	start_timer(int);
 extern void	stop_timer(int, int, const char *);
 extern void	strip_comments_and_renumber(int);
 extern void	t_lex(int);	// text only mode
+extern void	unlock_other(int);
 extern void	unlock_print(int);
 
 #define free		efree
