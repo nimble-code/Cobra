@@ -13,7 +13,8 @@ is a significantly extended version of the tool,
 released under the same license.
 
 A comprehensive user guide to  the Cobra tool
-will be published as a book this year (2025).
+will be published as a book this year (2025),
+see [https://codescrub.com/cobra].
 
 ## Installation
 
@@ -74,4 +75,4 @@ will be published as a book this year (2025).
      export C_TMP=C:/cygwin64
 ```
 * to get started using Cobra, see doc/BasicUsage.txt
-  for some tutorials see: [http://spinroot.com/cobra]
+  for some tutorials see: [https://codescrub.com/cobra]
