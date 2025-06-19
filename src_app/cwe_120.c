@@ -26,7 +26,7 @@ static Results120 **results;
 static int at_least_one;
 static int first_e = 1;
 
-extern TokRange **tokrange;	// cwe_util.c
+extern TokRange **tokrange;	// c_util.c
 
 void
 cwe120_init(void)

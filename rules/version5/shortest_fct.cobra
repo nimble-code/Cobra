@@ -1,0 +1,20 @@
+# find the shortest fct with a
+# body longer than 5 lines
+
+requires 5.0
+
+fcts
+n {
+%{
+	if (.mark > 0
+	&& .range > 5
+	&& (small_fct.range == 0 || .range < small_fct.range))
+	{	small_fct = .;
+	}
+%}
+%{
+	e = small_fct.jmp;		# } end of fct
+	s = small_fct.prv.jmp.prv.prv;	# fct type
+	src_ln(s.fnm, s.lnr, e.lnr);
+	Stop;
+%}

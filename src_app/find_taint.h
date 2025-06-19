@@ -55,16 +55,16 @@ typedef struct ConfigMap {
 } ConfigMap;
 
 extern ConfigDefs *configged[NONE];
-extern TokRange **tokrange;			// cwe_util.c
+extern TokRange **tokrange;			// c_util.c
 extern char *C_BASE;	// cobra_prep.c, rules directory
 extern char *Cfg;	// optional user-defined configuration file
 extern int ngets, warnings;
 
-extern void mark_fcts(void);			// cwe_util.c
+extern void mark_fcts(void);			// c_util.c
 extern void param_is_tainted(Prim *p, const int pos, Prim *nm, const int cid);
 extern void reset_tables(void);
 extern void search_returns(Prim *mycur, const int cid);
-extern void set_multi(void);			// cwe_util.c
+extern void set_multi(void);			// c_util.c
 extern void show_bindings(const char *s, const Prim *a, const Prim *b, int cid);
 extern void taint_init(void);
 
@@ -74,7 +74,7 @@ extern int  handle_taintsources(Prim *);
 extern int  is_param_tainted(Prim *mycur, const int setlimit, const int cid);
 extern int  is_propagator(const char *);
 extern int  is_return_tainted(const char *s, int cid);
-extern int  run_threads(void *(*f)(void*));	// cwe_util.c
+extern int  run_threads(void *(*f)(void*));	// c_util.c
 extern int  taint_configs(void);
 
 extern Prim *next_arg(Prim *, const Prim *);

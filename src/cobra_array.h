@@ -1,7 +1,7 @@
 /*
  * This file is part of the public release of Cobra. It is subject to the
  * terms in the License file that is included in this source directory.
- * Tool documentation is available at http://spinroot.com/cobra
+ * Tool documentation is available at http://codescrub.com/cobra
  */
 
 // related to associative arrays
@@ -17,6 +17,15 @@
 
 #define SZ_STATS	512
 
+#ifndef NOFLOAT
+	#define C_FLOAT	// Version 5.1
+#endif
+#ifdef C_FLOAT
+	#define C_TYP	float
+#else
+	#define C_TYP	int
+#endif
+
 enum Renum { UNDEF = 0, VAL = 1, STR, PTR, STP, PRCD };
 
 typedef enum	Renum	Renum;
@@ -25,7 +34,7 @@ typedef struct  Separate Separate;
 
 struct Rtype {
 	Renum	rtyp;
-	int	val;	// VAL
+	C_TYP	val;	// VAL
 	char	*s;	// STR
 	Prim	*ptr;	// PTR
 };

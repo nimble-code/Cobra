@@ -1,7 +1,7 @@
 /*
  * This file is part of the public release of Cobra. It is subject to the
  * terms in the License file that is included in this source directory.
- * Tool documentation is available at http://spinroot.com/cobra
+ * Tool documentation is available at http://codescrub.com/cobra
  */
 
 #ifndef COBRA_H

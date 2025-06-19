@@ -18,7 +18,7 @@ struct ThreadLocal457 {
 static ThreadLocal457 *thr;
 static int first_e = 1;
 
-extern TokRange **tokrange;	// cwe_util.c
+extern TokRange **tokrange;	// c_util.c
 
 void
 cwe457_init(void)

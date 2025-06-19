@@ -1,13 +1,14 @@
 /*
  * This file is part of the public release of Cobra. It is subject to the
  * terms in the License file that is included in this source directory.
- * Tool documentation is available at http://spinroot.com/cobra
+ * Tool documentation is available at http://codescrub.com/cobra
  */
 
 %{
 #include "cobra.h"
 #include <regex.h>
 #include <string.h>
+#include <math.h>
 #include "cobra_array.h"
 #include "cobra_list.h"
 
@@ -59,7 +60,7 @@ struct Var_nm {
 	const char *nm;
 		Prim	*pm;	// PTR
 		char	*s;	// STR
-		int	v;	// VAL
+		C_TYP	v;	// VAL
 	int	cdepth;		// fct call depth where defined
 	Var_nm	*nxt;
 };
@@ -158,7 +159,7 @@ extern int	showprog;
 %token	BREAK CONTINUE STOP NEXT_T BEGIN END SIZE RETRIEVE FUNCTION CALL
 %token	ROUND BRACKET CURLY LEN MARK SEQ LNR RANGE FNM FCT ITOSTR ATOI
 %token	BOUND MBND_D MBND_R NXT PRV JMP UNSET RETURN RE_MATCH FIRST_T LAST_T
-%token	TXT TYP NEWTOK SUBSTR GSUB SPLIT SET_RANGES CPU N_CORE SUM
+%token	TXT TYP NEWTOK SUBSTR GSUB INT FLOAT SPLIT SET_RANGES CPU N_CORE SUM
 %token	STRLEN STRCMP STRSTR STRRSTR
 %token	A_UNIFY LOCK UNLOCK ASSERT TERSE TRUE FALSE VERBOSE
 %token	FCTS MARKS SAVE RESTORE RESET SRC_LN SRC_NM HASH HASHARRAY
@@ -176,6 +177,7 @@ extern int	showprog;
 %left	EQ NE
 %left	GT LT GE LE
 %left	LSH RSH
+%left	EXP
 %left	'+' '-'
 %left	'*' '/' '%'
 %right	'~' '!' '^'
@@ -362,6 +364,7 @@ expr	:'(' expr ')'		{ $$ = $2; }
 	| expr '%' expr		{ $2->lft = $1; $2->rgt = $3; $$ = $2; }
 	| expr B_OR expr	{ $2->lft = $1; $2->rgt = $3; $$ = $2; }
 	| expr B_AND expr	{ $2->lft = $1; $2->rgt = $3; $$ = $2; }
+	| expr EXP expr		{ $2->lft = $1; $2->rgt = $3; $$ = $2; }
 	| expr '^' expr		{ $2->lft = $1; $2->rgt = $3; $2->typ = B_XOR; $$ = $2; }
 	| expr LSH expr		{ $2->lft = $1; $2->rgt = $3; $$ = $2; }
 	| expr RSH expr		{ $2->lft = $1; $2->rgt = $3; $$ = $2; }
@@ -388,6 +391,8 @@ expr	:'(' expr ')'		{ $$ = $2; }
 	| STRSTR '(' expr ',' STRING ')'	 { $1->lft = $3; $1->rgt =  0; $1->s = $5->s; $$ = $1;  }
 	| STRCMP '(' expr ',' expr ')'		 { $1->lft = $3; $1->rgt = $5; $$ = $1;  }
 	| STRRSTR '(' expr ',' STRING ')'	 { $1->lft = $3; $1->rgt =  0; $1->s = $5->s; $$ = $1;  }
+	| INT '(' expr ')'			 { $1->lft = $3; $$ = $1; }
+	| FLOAT '(' expr ')'			 { $1->lft = $3; $$ = $1; }
 	| LLENGTH '(' NAME ')'	{ $1->lft = $3; $$ = $1;}
 	| TOP '(' NAME ')'	{ $1->lft = $3; $$ = $1; }
 	| BOT '(' NAME ')'	{ $1->lft = $3; $$ = $1; }
@@ -593,6 +598,9 @@ static struct Keywords {
 	{ "substr",	SUBSTR },
 	{ "sum",	SUM },
 	{ "terse",	TERSE },
+	{ "tofloat",	FLOAT },
+	{ "toint",	INT },
+	{ "tostr",	ITOSTR },
 	{ "true",	TRUE },
 	{ "txt",	TXT },
 	{ "type",	TYP },
@@ -614,6 +622,7 @@ static struct Keywords ops[] = {	// for tok2txt only
 	{ "<",  LT },
 	{ "!=", NE },
 	{ "||", OR },
+	{ "**", EXP },
 	{ "|",  B_OR },
 	{ "&",  B_AND },
 	{ "^",  B_XOR },
@@ -1127,14 +1136,27 @@ prog_lex(void)
 		{	continue;
 		}
 		if (isdigit((uchar) n))
-		{	for (i = 0; isdigit((uchar) n); i++)
+		{
+#ifdef C_FLOAT
+			for (i = 0; isdigit((uchar) n) || n == '.'; i++)
+#else
+			for (i = 0; isdigit((uchar) n); i++)
+#endif
 			{	yytext[i] = (char) n;
 				n = fgetc(pfd);
 			}
 			ungetc(n, pfd);
 			yytext[i] = '\0';
-			yylval->val = atoi(yytext);
-			yylval->typ = NR;
+#ifdef C_FLOAT
+			if (strchr(yytext, '.') != NULL)
+			{	yylval->s = emalloc(strlen(yytext)+1, 78);
+				strcpy(yylval->s, yytext);
+				yylval->typ = STRING;
+			} else
+#endif
+			{	yylval->val = atoi(yytext);
+				yylval->typ = NR;
+			}
 		} else if (isalpha((uchar) n))
 		{	for (i = 0; isalnum((uchar) n) || n == '_'; i++)
 			{	yytext[i] = (char) n;
@@ -1198,6 +1220,7 @@ prog_lex(void)
 				  break;
 			case '=': expect('=',  EQ,  n); break;
 			case '!': expect('=',  NE,  n); break;
+			case '*': expect('*', EXP,  n); break;
 			case '|': expect('|',  OR,  B_OR); break;
 			case '&': expect('&', AND, B_AND); break;
 			case '+': expect('+', INCR, n); break;
@@ -1611,7 +1634,12 @@ map_var(Prim **ref_p, const char *fnm, Lextok *name, Lextok *expr, const int ix)
 	case VAL:
 		n->v  = tmp.val;
 		if (sep[ix].Verbose>1)
-		{	printf("%d\n", tmp.val);
+		{
+#ifdef C_FLOAT
+			printf("%f\n", tmp.val); // verbose>1
+#else
+			printf("%d\n", tmp.val);
+#endif
 		}
 		break;
 	case STR:
@@ -1871,13 +1899,21 @@ eval_eq(int eq, Rtype *a, Rtype *rv)	// eq=1: EQ, eq=0: NE
 		&&  rv->s
 		&&  isdigit((uchar) rv->s[0]))
 		{	rv->rtyp = VAL;
+#ifdef C_FLOAT
+			rv->val = atof(rv->s);
+#else
 			rv->val = atoi(rv->s);
+#endif
 		} else if (rv->rtyp == VAL
 		&& a->rtyp == STR
 		&& a->s
 		&& isdigit((uchar) a->s[0]))
 		{	a->rtyp = VAL;
+#ifdef C_FLOAT
+			a->val = atof(a->s);
+#else
 			a->val = atoi(a->s);
+#endif
 		} else
 		{	rv->rtyp = VAL;
 			rv->val  = eq?0:1;
@@ -1984,7 +2020,7 @@ set_var(Lextok *q, Rtype *rv, const int ix)
 		}
 		n->rtyp = rv->rtyp;
 	}
-		
+
 	if (rv->rtyp == n->rtyp)
 	{	switch (n->rtyp) {
 		case STR:
@@ -2156,15 +2192,14 @@ gsub(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)
 	rv->rtyp = STR;
 
 	p = c.s;
-	while (strstr(p, a.s) != NULL)
+	while ((r = strstr(p, a.s)) != NULL)
 	{	cnt++;
-		p += strlen(a.s);
+		p = r + strlen(a.s);
 	}
 	if (cnt == 0)
 	{	rv->s = c.s;
 		return;
 	}
-
 	rv->s = (char *) hmalloc(strlen(c.s) + cnt * (strlen(b.s) - strlen(a.s))  + 1, ix, 140);
 
 	p = c.s;
@@ -2299,7 +2334,7 @@ substr(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)
 		return;
 	}
 	rv->s = (char *) hmalloc((c.val+1) * sizeof(char), ix, 132);		// substr
-	strncpy(rv->s, &a.s[b.val], c.val);
+	strncpy(rv->s, &a.s[(int) b.val], c.val);
 	return;
 }
 
@@ -2368,6 +2403,9 @@ print_args(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)
 {	FILE *tfd = (track_fd) ? track_fd : stdout;
 
 	assert(ix >= 0 && ix < Ncore);
+	if (!q)
+	{	return;
+	}
 	switch (q->typ) {
 	case ARG:
 		print_args(ref_p, q->lft, rv, ix);
@@ -2376,9 +2414,30 @@ print_args(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)
 	case MARKS:
 		eval_prog(ref_p, q->lft, rv, ix);
 		Assert("marks", rv->rtyp == VAL, q->lft);
-		rv->val = nr_marks_int(rv->val, ix);
-		fprintf(tfd, "%d", rv->val);
+		rv->val = nr_marks_int((int) rv->val, ix);
+		fprintf(tfd, "%d", (int) rv->val);
 		return;
+	case INT:
+		eval_prog(ref_p, q->lft, rv, ix);
+		Assert("toint", rv->rtyp == STR, q->lft);
+#ifdef C_FLOAT
+		rv->val = (C_TYP) round(atof(rv->s));
+#else
+		rv->val = (C_TYP) atoi(rv->s);
+#endif
+		fprintf(tfd, "%d", (int) rv->val);
+		return;
+	case FLOAT:
+#ifdef C_FLOAT
+		eval_prog(ref_p, q->lft, rv, ix);
+		Assert("tofloat", rv->rtyp == STR, q->lft);
+		rv->val = (C_TYP) atof(rv->s);
+		fprintf(tfd, "%f", rv->val);
+		return;
+#else
+		fprintf(stderr, "error: cobra was compiled with NOFLOAT\n");
+		goto error_case;
+#endif
 	case SIZE:
 		fprintf(tfd, "%d", q->rgt?array_sz(q->rgt->s, ix):0);
 		return;
@@ -2391,7 +2450,7 @@ print_args(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)
 	case RETRIEVE:
 		eval_prog(ref_p, q->lft, rv, ix);
 		Assert("retrieve", rv->rtyp == VAL, q->lft);
-		fprintf(tfd, "%s", array_ix(q->rgt->s, rv->val, ix));
+		fprintf(tfd, "%s", array_ix(q->rgt->s, (int) rv->val, ix));
 		return;
 	case SUBSTR:
 		substr(ref_p, q, rv, ix);
@@ -2407,15 +2466,15 @@ print_args(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)
 		return;
 	case STRSTR:
 		do_strstr(ref_p, q, rv, ix);
-		fprintf(tfd, "%d", rv->val);
+		fprintf(tfd, "%d", (int) rv->val);
 		return;
 	case STRRSTR:
 		do_strrstr(ref_p, q, rv, ix);
-		fprintf(tfd, "%d", rv->val);
+		fprintf(tfd, "%d", (int) rv->val);
 		return;
 	case STRCMP:
 		do_strcmp(ref_p, q, rv, ix);
-		fprintf(tfd, "%d", rv->val);
+		fprintf(tfd, "%d", (int) rv->val);
 		return;
 	case STRLEN:
 		eval_prog(ref_p, q->lft, rv, ix);
@@ -2423,7 +2482,6 @@ print_args(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)
 		rv->rtyp = VAL;
 		rv->val = (int) strlen(rv->s);
 		break;
-
 	case NAME:
 		if (q->rgt)	// q.? on q->rgt
 		{	eval_prog(ref_p, q->rgt, rv, ix);
@@ -2438,7 +2496,15 @@ print_args(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)
 
 	switch (rv->rtyp) {
 	case VAL:
+#ifdef C_FLOAT
+		if (((int) rv->val) == rv->val)
+		{	fprintf(tfd, "%d", (int) rv->val);
+		} else
+		{	fprintf(tfd, "%.2f", rv->val);	// adjust precision
+		}
+#else
 		fprintf(tfd, "%d", rv->val);
+#endif
 		break;
 	case PTR:
 		fprintf(tfd, "%p", (void *) rv->ptr);
@@ -2455,16 +2521,21 @@ print_args(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)
 			// other characters like \n or \t
 			// unless enclosed in quotes
 			for (s = rv->s; *s != '\0'; s++)
-		  	{	if (*s == '"')
-				{	in_double = 1 - in_double;
-				} else if (*s == '\'')
-				{	in_single = 1 - in_single;
-				}
+		  	{	if (s == rv->s
+				||  *(s-1) != '\\')
+				{	if (*s == '"')
+					{	in_double = 1 - in_double;
+					} else if (*s == '\'')
+					{	in_single = 1 - in_single;
+				}	}
 				if (in_single
 				||  in_double
 				||  *s != '\\'
 				||  *(s+1) == '\\')
 				{	fprintf(tfd, "%c", *s);
+					if (*s == '\\')
+					{	s++;
+					}
 		  }	}	}
 		} else
 		{ fprintf(tfd, "%s", rv->s);
@@ -2472,6 +2543,165 @@ print_args(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)
 		break;
 	default:
 		break; // cannot happen
+	}
+}
+
+static int
+format_string(Lextok *q)
+{	char *s;
+
+	while (q && q->typ == ARG)
+	{	q = q->lft;
+	}
+
+	if (q
+	&&  q->typ == STRING)
+	for (s = q->s; *s != '\0'; s++)
+	{	if (*s == '%')
+		{	s++;
+			while (isdigit((int) *s)
+			   ||  *s == '.')
+			{	s++;
+			}
+			if (*s == 'd'
+			||  *s == 's'
+			||  *s == 'f')
+			{	return 1;
+	}	}	}
+
+	return 0;
+}
+
+typedef struct ArgLst ArgLst;
+struct ArgLst {
+	Lextok *e;
+	ArgLst *nxt;
+};
+static ArgLst *argfrst;
+static ArgLst *arglast;
+static int argcnt;
+
+static void
+addargs(Lextok *q)
+{	ArgLst *n;
+
+	if (q->typ == ARG)
+	{	addargs(q->lft);
+		addargs(q->rgt);
+	} else
+	{	argcnt++;
+		n = (ArgLst *) emalloc(sizeof(ArgLst), 150);
+		n->e = q;
+		if (arglast)
+		{	arglast->nxt = n;
+			arglast = n;
+		} else
+		{	argfrst = arglast = n;
+	}	}
+}
+static void convert2string(Prim **, Lextok *, Rtype *, const int);
+
+static void
+print_format(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)
+{	FILE *tfd = (track_fd) ? track_fd : stdout;
+	ArgLst *w;
+	char *s;
+	int minwidth = 0;
+	int precision = 0;
+	char fms[64];
+
+	arglast = argfrst = (ArgLst *) 0;
+	argcnt = 0;
+	addargs(q);
+
+	assert(argcnt > 1 && argfrst->e && argfrst->e->typ == STRING);
+
+	// if there are fewer arguments than format specifiers:
+	//   the extra format specifiers are printed as is
+	// formats recognized:
+	//	%d, %s, %f
+	//	%4d %4s %4f		minwidth of 4, padded on left with spaces
+	//	%.4d %.4s %.4f		maxwidth of 4, for %f nr of decimals
+	//	%5.4d %5.4s %5.4f	both
+
+	s = argfrst->e->s;	// the format string
+	w = argfrst->nxt;	// the first argument
+	for ( ; *s != '\0'; s++)
+	{	if (*s == '%' && w != NULL)
+		{	minwidth = 0;
+			precision = 0;
+			 if (isdigit((int) *(s+1)))
+			{	minwidth = atoi(s+1);
+				while (isdigit((int) *(s+1)))
+				{	s++;
+			}	}
+			if (*(s+1) == '.')
+			{	s++;
+				if (!isdigit((int) *(s+1)))
+				{	fprintf(stderr, "error: format, unexpected '.'\n");
+					show_error(stderr, q->lnr);
+					return;
+				}
+				precision = atoi(s+1);
+				while (isdigit((int) *(s+1)))
+				{	s++;
+			}	}
+			if (minwidth)
+			{	if (precision)
+				{	sprintf(fms, "%%%d.%d", minwidth, precision);
+				} else
+				{	sprintf(fms, "%%%d", minwidth);
+				}
+			} else if (precision)
+			{	sprintf(fms, "%%.%d", precision);
+			} else
+			{	strcpy(fms, "%");
+			}
+			switch (*(s+1)) {
+			case 'd':
+				strcat(fms, "d");
+				eval_prog(ref_p, w->e, rv, ix);
+				switch (rv->rtyp) {
+				case VAL: fprintf(tfd, fms, (int) rv->val); break;
+				case STR: fprintf(tfd, fms, (int) atoi(rv->s)); break;
+				case PTR: fprintf(tfd, fms, (long) rv->ptr); break;
+				default:  fprintf(tfd, fms, 0); break;
+				}
+				s++;
+				w = w->nxt;
+				argcnt--;
+				continue;
+			case 's':
+				strcat(fms, "s");
+				convert2string(ref_p, w->e, rv, ix);
+				fprintf(tfd, fms, rv->s);
+				s++;
+				w = w->nxt;
+				argcnt--;
+				continue;
+			case 'f':
+				strcat(fms, "f");
+				eval_prog(ref_p, w->e, rv, ix);
+				switch (rv->rtyp) {
+				case VAL: fprintf(tfd, fms, (float) rv->val); break;
+				case STR: fprintf(tfd, fms, (float) atof(rv->s)); break;
+				case PTR: fprintf(tfd, fms, (long) rv->ptr); break;
+				default:  fprintf(tfd, fms, 0); break;
+				}
+				s++;
+				w = w->nxt;
+				argcnt--;
+				continue;
+			default:
+				break;
+		}	}
+		if (*s != '\0')
+		{	fprintf(tfd, "%c", *s);
+		}
+	}
+	if (w)
+	{	fprintf(stderr, "error: %d too many arguments for format\n", argcnt-1);
+		show_error(stderr, q->lnr);
 	}
 }
 
@@ -2547,7 +2777,11 @@ str2val(Rtype *rv)
 	if (rv->rtyp == STR
 	&&  isdigit((uchar) rv->s[0]))
 	{	rv->rtyp = VAL;
+#ifdef C_FLOAT
+		rv->val = atof(rv->s);
+#else
 		rv->val = atoi(rv->s);
+#endif
 	} else if (!rv->rtyp)
 	{	rv->rtyp = VAL;
 		rv->val  = 0;
@@ -2560,7 +2794,10 @@ val2str(Rtype *rv, const int ix)
 
 	if (rv->rtyp == VAL)
 	{	if (rv->val >= 0 && rv->val <= 9)
-		{       rv->s = nr_tbl[rv->val];
+#ifdef C_FLOAT
+		if (((int) rv->val) == rv->val)
+#endif
+		{       rv->s = nr_tbl[(int) rv->val];
 			rv->rtyp = STR;
                         return;
                 }
@@ -2570,8 +2807,20 @@ val2str(Rtype *rv, const int ix)
                         } else if (rv->val < 10000000)
                         {       aw = 8;
                 }       }
+#ifdef C_FLOAT
+		// was: if (has_lock[ix] == PRINT)
+		if (((int) rv->val) == rv->val)
+		{	rv->s = (char *) hmalloc(aw, ix, 135); // val2str
+			snprintf(rv->s, aw, "%d", (int) rv->val);
+		} else
+		{	aw += 8;
+			rv->s = (char *) hmalloc(aw, ix, 135);	// val2str
+			snprintf(rv->s, aw, "%f", rv->val);
+		}
+#else
                 rv->s = (char *) hmalloc(aw, ix, 135);  // val2str
                 snprintf(rv->s, aw, "%d", rv->val);     // val2str
+#endif
 	} else if (!rv->rtyp)
 	{	rv->s = "";
 	}
@@ -2641,6 +2890,7 @@ plus(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)	// strings or values
 	&&  rv->rtyp == VAL)
 	{	val2str(rv, ix);
 	}
+
 	Assert("plus1", tmp.rtyp == rv->rtyp, q->lft);
 	Assert("plus2", tmp.rtyp == VAL || tmp.rtyp == STR, q->rgt);
 
@@ -2679,6 +2929,45 @@ plus(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)	// strings or values
 	}
 }
 
+static void
+Binexp(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)
+{	Rtype tmp;
+				
+	eval_prog(ref_p, q->lft, &tmp, ix);
+	if (tmp.rtyp == STP) { return; }
+	str2val(&tmp);
+	if (tmp.rtyp != VAL)
+	{	printf("%d Binexp='	lft: ", q->lnr);
+		tok2txt(q->lft, stdout);
+		printf(" 	'**'	rgt: ");
+		tok2txt(q->rgt, stdout);
+	}
+	Assert("Binexp", tmp.rtyp == VAL, q->lft);
+	eval_prog(ref_p, q->rgt, rv, ix);
+	if (rv->rtyp == STP) { return; }
+	str2val(rv);
+	Assert("Binexp", rv->rtyp == VAL, q->rgt);
+	rv->val = (C_TYP) pow( (double) tmp.val, (double) rv->val);
+}
+
+// for | & << >> ^
+#define fbinop(op)				\
+	eval_prog(ref_p, q->lft, &tmp, ix);	\
+	if (tmp.rtyp == STP) { break; }		\
+	str2val(&tmp); 				\
+	if (tmp.rtyp != VAL) { \
+		printf("%d binop='	lft: ", q->lnr); \
+		tok2txt(q->lft, stdout); \
+		printf(" 	'%s'	rgt: ", #op); \
+		tok2txt(q->rgt, stdout); \
+	} \
+	Assert("binop1", tmp.rtyp == VAL, q->lft);	\
+	eval_prog(ref_p, q->rgt, rv, ix);	\
+	if (rv->rtyp == STP) { break; }		\
+	str2val(rv); 				\
+	Assert("binop2", rv->rtyp == VAL, q->rgt);	\
+	rv->val = ((int)tmp.val) op ((int)rv->val)
+
 #define binop(op)				\
 	eval_prog(ref_p, q->lft, &tmp, ix);	\
 	if (tmp.rtyp == STP) { break; }		\
@@ -2695,6 +2984,17 @@ plus(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)	// strings or values
 	str2val(rv); 				\
 	Assert("binop2", rv->rtyp == VAL, q->rgt);	\
 	rv->val = tmp.val op rv->val
+
+// for %
+#define rfbinop(op)				\
+	eval_prog(ref_p, q->lft, &tmp, ix);	\
+	if (tmp.rtyp == STP) { break; }		\
+	if (tmp.rtyp != VAL) { printf("rbinop='%s'\t", #op); } \
+	Assert("rbinop1", tmp.rtyp == VAL, q->lft);	\
+	eval_prog(ref_p, q->rgt, rv, ix);	\
+	if (rv->rtyp == STP) { break; }		\
+	Assert("rbinop2", rv->rtyp == VAL && rv->val != 0, q->rgt); \
+	rv->val = ((int)tmp.val) op ((int)rv->val)
 
 #define rbinop(op)				\
 	eval_prog(ref_p, q->lft, &tmp, ix);	\
@@ -2737,7 +3037,7 @@ match_anywhere(Prim **ref_p, Lextok *q, Rtype *rv, const int ix, Prim *p)
 		}
 		break;
 	case VAL:
-		rv->val = ~(rv->val);
+		rv->val = ~((int)(rv->val));
 		break;
 	default:
 		assert(ix >= 0 && ix < Ncore);
@@ -2859,7 +3159,11 @@ do_incr_decr(Prim **ref_p, Lextok *q, Rtype *rv, const int ix, Prim *p)
 			}
 			if (n->rtyp == STR && isdigit((uchar) n->s[0]))
 			{	n->rtyp = VAL;
+#ifdef C_FLOAT
+				n->v = atof(n->s);
+#else
 				n->v = atoi(n->s);
+#endif
 			}
 			if (n->rtyp == VAL)
 			{	if (q->typ == INCR)
@@ -2979,9 +3283,15 @@ do_assignment(Prim **ref_p, Lextok *q, Rtype *rv, const int ix, Prim *p)
 			return;
 		}
 
-		if (0)
-		{	fprintf(stderr, "type %d val %d %s[%s]\n",
+		if (sep[ix].Verbose>2)
+		{
+#ifdef C_FLOAT
+			fprintf(stderr, "type %d val %f %s[%s]\n",
 				rv->rtyp, rv->val, LHS->lft->s, tmp.s);
+#else
+			fprintf(stderr, "type %d val %d %s[%s]\n",
+				rv->rtyp, rv->val, LHS->lft->s, tmp.s);
+#endif
 		}
 
 		// lft->s: basename
@@ -3006,8 +3316,7 @@ do_assignment(Prim **ref_p, Lextok *q, Rtype *rv, const int ix, Prim *p)
 	}
 
 	if (LHS->rgt)	// .mark = ... , q.mark = ..., .txt = ..., q.txt = ...
-	{
-		if (LHS->rgt->typ == TXT
+	{	if (LHS->rgt->typ == TXT
 		||  LHS->rgt->typ == TYP
 		||  LHS->rgt->typ == FNM)
 		{	eval_prog(ref_p, RHS, rv, ix);
@@ -3227,7 +3536,11 @@ bad:					fprintf(stderr, "error: bad dot chain on lhs of asgn\n");
 		eval_prog(ref_p, RHS, rv, ix);
 		if (rv->rtyp == STR && isdigit((uchar) rv->s[0]))
 		{	rv->rtyp = VAL;
+#ifdef C_FLOAT
+			rv->val = atof(rv->s);
+#else
 			rv->val = atoi(rv->s);
+#endif
 		} else if (rv->rtyp != VAL)
 		{	printf("token: '%s'\n", rv->s);
 		}
@@ -3523,10 +3836,8 @@ doindent(void)
 
 static void
 convert2string(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)
-{	int aw = 64;
-
+{
 	assert(q->typ != ',');
-
 	eval_prog(ref_p, q, rv, ix);
 
 	switch (rv->rtyp) {
@@ -3534,22 +3845,15 @@ convert2string(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)
 		return;
 	case PTR:
 		rv->val = rv->ptr->seq;	// was ->mark before
+		rv->rtyp = VAL;
 		// fall thru
 	case VAL:
-		if (rv->val >= 0 && rv->val <= 9)
-		{	rv->s = nr_tbl[rv->val];
-			break;
-		}
-		if (rv->val >= 0)
-		{	if (rv->val < 1000)
-			{	aw = 4;
-			} else if (rv->val < 10000000)
-			{	aw = 8;
-		}	}
-		rv->s = (char *) hmalloc(aw, ix, 136);	// convert2string
-		snprintf(rv->s, aw, "%d", rv->val);	// convert2string
-		break;
-	default:	// STP or PRCD
+		val2str(rv, ix);
+		return;
+
+	case STP:
+	case PRCD:
+	default:
 		fprintf(stderr, "line %d: error: unexpected type of index (%d)\n",
 			q->lnr, rv->rtyp);
 		assert(ix >= 0 && ix < Ncore);
@@ -3870,7 +4174,12 @@ sum_var(const char *s)
 					break;
 				case STR:
 					if (isdigit((uchar) n->s[0]))
-					{	j = atoi(n->s);
+					{
+#ifdef C_FLOAT
+						j = atof(n->s);
+#else
+						j = atoi(n->s);
+#endif
 					} else if (strlen(n->s) > 0)
 					{	j = 1;
 					}
@@ -4085,7 +4394,7 @@ get_cumulative(Prim **ref_p, Lextok *q, Rtype *rv, int with_start, const int ix)
 	if (with_start)
 	{	eval_prog(ref_p, q->rgt, rv, ix);
 		if (rv->rtyp == STR && isdigit((int) (rv->s[0])))
-		{	rv->val = atoi(rv->s);
+		{	rv->val = atoi(rv->s); // must be int
 		} else if (rv->rtyp != VAL)
 		{	return 2;	// not start value given
 		}
@@ -4099,7 +4408,7 @@ get_cumulative(Prim **ref_p, Lextok *q, Rtype *rv, int with_start, const int ix)
 #else
 		for (cntr = 0, nb = na-1; cntr < na; cntr++, nb--)
 		{	rv->s = array_ix(q->lft->s, nb, ix);
-			if (atoi(rv->s) == sv)
+			if (atoi(rv->s) == sv)	// must be int
 			{	break;	// found
 		}	}
 		if (cntr == na)	// not found
@@ -4404,8 +4713,21 @@ next:
 	case MARKS:
 		eval_prog(ref_p, q->lft, rv, ix);
 		Assert("marks", rv->rtyp == VAL, q->lft);
-		rv->val = nr_marks_int(rv->val, ix);
+		rv->val = nr_marks_int((int) rv->val, ix);
 		break;
+
+	case INT:
+		eval_prog(ref_p, q->lft, rv, ix);	
+		Assert("int", rv->rtyp == STR, q->lft);
+		sprintf(rv->s, "%d", (int) round(atof(rv->s)));
+		break;
+#ifdef C_FLOAT
+	case FLOAT:
+		eval_prog(ref_p, q->lft, rv, ix);	
+		Assert("tofloat", rv->rtyp == STR, q->lft);
+		sprintf(rv->s, "%f", atof(rv->s));
+		break;
+#endif
 
 	case  SIZE:
 		Assert("size", q->rgt && q->rgt->typ == NAME, q->rgt);
@@ -4421,7 +4743,7 @@ next:
 		eval_prog(ref_p, q->lft, rv, ix);
 		Assert("index2", rv->rtyp == VAL, q->lft);
 		rv->rtyp = STR;
-		rv->s = array_ix(q->rgt->s, rv->val, ix);
+		rv->s = array_ix(q->rgt->s, (int) rv->val, ix);
 		break;
 
 	case SET_RANGES:
@@ -4573,7 +4895,11 @@ next:
 		   FILE *ofd;
 		   ofd = track_fd;
 		   track_fd = (FILE *) vn->pm;
-		   print_args(ref_p, q->lft, rv, ix);
+		   if (format_string(q->lft))
+		   {	print_format(ref_p, q->lft, rv, ix);
+		   } else
+		   {	print_args(ref_p, q->lft, rv, ix);
+		   }
 		   track_fd = ofd;
 		  has_lock[ix] = 0;
 		  unlock_print(ix);
@@ -4660,7 +4986,11 @@ next:
 		if (rv->rtyp != VAL)
 		{	Assert("atoi", rv->rtyp == STR, q->lft);
 			rv->rtyp = VAL;
+#ifdef C_FLOAT
+			rv->val = atof(rv->s);
+#else
 			rv->val = atoi(rv->s);
+#endif
 		}
 		break;
 
@@ -4678,14 +5008,22 @@ next:
 
 	case  OR: do_or( ref_p, q, rv, ix); break;
 	case AND: do_and(ref_p, q, rv, ix); break;
+#ifdef C_FLOAT
+ #define Binop		fbinop
+ #define rBinop		rfbinop
+#else
+ #define Binop		binop
+ #define rBinop		rbinop
+#endif
+	case  B_OR: Binop(|); break;
+	case B_AND: Binop(&); break;
 
-	case  B_OR: binop(|); break;
-	case B_AND: binop(&); break;
+	case EXP: Binexp(ref_p, q, rv, ix); break;
 
-	case LSH: binop(<<); break;
-	case RSH: binop(>>); break;
+	case LSH: Binop(<<); break;
+	case RSH: Binop(>>); break;
 
-	case B_XOR: binop(^); break;
+	case B_XOR: Binop(^); break;
 
 	case  GT: binop(>);  break;
 	case  LT: binop(<);  break;
@@ -4695,7 +5033,7 @@ next:
 	case '-': binop(-); break;
 	case '*': binop(*);  break;
 	case '/': rbinop(/);  break;
-	case '%': rbinop(%);  break;
+	case '%': rBinop(%);  break;
 	case UMIN: unop(-);  break;
 	case '!':  unop(!);  break;
 
@@ -4750,7 +5088,12 @@ next:
 		{	lock_print(ix);	  // dont call lock twice in same proc
 			has_lock[ix] = PRINT;
 		}	// puts calls print_args, but print_args doesnt call puts
-		print_args(ref_p, q->lft, rv, ix);
+
+		if (format_string(q->lft))
+		{	print_format(ref_p, q->lft, rv, ix);
+		} else
+		{	print_args(ref_p, q->lft, rv, ix);
+		}
 		fflush(stdout);
 		if (has_lock[ix] != PUTS)
 		{	has_lock[ix] = 0;
@@ -5249,8 +5592,13 @@ next:
 	{	doindent();
 		printf("--end eval_prog rv: '");
 		what_type(stdout, rv->rtyp);
+#ifdef C_FLOAT
+		printf("' val %f --> str: %s\n",
+			rv->val, (rv->rtyp == STR)?rv->s:"");
+#else
 		printf("' val %d --> str: %s\n",
 			rv->val, (rv->rtyp == STR)?rv->s:"");
+#endif
 	}
 	goto next;
 }

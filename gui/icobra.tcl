@@ -3729,6 +3729,8 @@ proc put_result {s} {
 proc put_files {s} {
 	global r_log f_log frh
 
+	$f_log configure -state normal
+
 	incr frh
 	$f_log insert end "$s\n"
 	$f_log yview -pickplace end	
@@ -3737,6 +3739,8 @@ proc put_files {s} {
 	$f_log tag bind fls$frh <Any-Enter> "reverse $f_log fls$frh"
 	$f_log tag bind fls$frh <Any-Leave> "normal $f_log fls$frh"
 	$f_log tag bind fls$frh <ButtonPress-1> "show_source $s"
+
+	$f_log configure -state disabled
 }
 
 proc put_hist {s} {

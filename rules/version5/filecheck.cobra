@@ -1,0 +1,55 @@
+## check function calls made in a file
+## with 'val' as (part of) a parameter
+## where the function is not defined
+## within the same file
+
+# cobra -f filecheck.cobra *.c | grep -e "cobra_prog.c -" | sort -u
+
+requires 5.1
+
+fcts
+%{
+	if (.mark)
+	{	FDef[.txt] = .;
+	}
+%}
+%{
+	function contains(z, v)
+	{	assert(z.txt == "(" && z.jmp.seq > 0);
+		q = z.jmp;
+		while (z.seq < q.seq)
+		{	if (z.txt == v)
+			{	return 1;
+			}
+			z = z.nxt;
+		}
+		return 0;
+	}
+	Stop;
+%}
+%{
+	foreach index (i in FDef)
+	{	print "## " i.txt " defined in " FDef[i].fnm "\n";
+		. = FDef[i];
+		while (.txt != "{")
+		{	. = .nxt;
+		}
+		print "	from line " .lnr " to " .jmp.lnr "\n";
+		e = .jmp;
+		s = .;
+		while (s.seq < e.seq)
+		{	if (s.typ == "ident"
+			&&  s.nxt.txt == "(")
+			{	p = s.nxt;
+				if (contains(p, "val")
+				&&  FDef[s.txt].seq > 0
+				&&  FDef[s.txt].fnm != s.fnm)
+				{	print "\t" s.txt "\t" s.fnm " -> " FDef[s.txt].fnm "\n";
+				}
+			}
+			s = s.nxt;
+		}
+	}
+	Stop;
+%}
+

@@ -46,7 +46,7 @@ struct MyRange {
 } **myrange;
 
 extern TokRange	**tokrange;	// for cobra_prep.c
-extern void set_multi(void);	// cwe_util.c
+extern void set_multi(void);	// c_util.c
 FILE *track_fd;
 
 int
@@ -323,7 +323,7 @@ cobra_main(void)
 	{	cobra_commands = "Rule";
 	}
 
-	set_multi();		// cwe_util.c, multi-threading in cobra_links.c
+	set_multi();		// c_util.c, multi-threading in cobra_links.c
 	track_fd = stdout;	// cobra_links.c
 
 	start_time = times(&start_tm);

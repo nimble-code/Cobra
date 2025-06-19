@@ -17,7 +17,7 @@ struct ThreadLocal119 {
 static ThreadLocal119 *thr;
 static int first_e = 1;
 
-extern TokRange **tokrange;	// cwe_util.c
+extern TokRange **tokrange;	// c_util.c
 
 static void cwe119_check_1(int);
 static void cwe119_check_2(int);

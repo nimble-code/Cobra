@@ -35,6 +35,8 @@ cobra_main(void)
 			} else
 			{	printf("ident ");
 			}
+		} else if (strcmp(cobra_txt(), "EOL") == 0)
+		{	printf("\n");
 		} else
 		{	printf("%s ", cobra_txt());
 		}

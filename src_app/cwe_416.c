@@ -14,7 +14,7 @@ struct ThreadLocal416 {
 static ThreadLocal416 *thr;
 static int first_e = 1;
 
-extern TokRange **tokrange;	// cwe_util.c
+extern TokRange **tokrange;	// c_util.c
 
 static void
 cwe416_init(void)

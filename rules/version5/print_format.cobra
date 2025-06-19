@@ -1,0 +1,10 @@
+%{
+#	print "%2d %s %7.3f %.2f\n" .lnr+5 ":--:" .mark + 3 .nxt;
+	Stop;
+%}
+%{
+	x = 12.67576;
+	print "value: " x "\n";
+	print "%8s %.2f\n" "appel" x;
+	Stop;
+%}

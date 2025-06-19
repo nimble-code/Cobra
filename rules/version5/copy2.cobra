@@ -1,19 +1,19 @@
 def Copy(A, B)
-	track start B
 	%{
 		fp = open "A" "r";
+		fw = open "B" "w";
 		n=1;
 		while (true)
 		{	gets fp line;
 			if (line == "EOF")
 			{	break;
 			}
-			print "%4d %s\n" n line;
+			puts fw "%4d %s\n" n line;
 			n++;
 		}
 		close fp;
+		close fw;
 		Stop;
 	%}
-	track stop
 end
 Copy(foo, goo)

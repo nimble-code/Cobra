@@ -4,7 +4,7 @@
 
 // finding exact duplicates of code fragments
 // and patch sequences and multiclones
-// cc -o duplicates duplicates.c c.ar cwe_util.c -pthread
+// cc -o duplicates duplicates.c c.ar c_util.c -pthread
 
 #ifndef ulong
 #define ulong	unsigned long int

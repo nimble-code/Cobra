@@ -554,3 +554,60 @@ new in december 30, 2021
    seemingly inexplicable failures
 
  - general code cleanup and improved error reporting somewhat
+
+5.1 June 19, 2025
+
+ - the features supported in this version are assumed in the
+   new book that will appear later this year
+
+ - the main website with manuals and tutorials is now https://codescrub.com/
+   (changed from https://spinroot.com/cobra)
+
+ - updated the license text to clarify that it applies without change to all
+   releases since the initial Version 1.
+
+ - changed the internal representation of values used in inline
+   programs to floating point. this can be disabled by recompiling the
+   Cobra sources with directive -DNOFLOAT
+
+ - values are printed with the print function with 2 decimal places by default,
+   unless the value has no decimal fraction, in which case it is printed as an integer.
+
+ - added optional format strings for print and puts commands to allow different
+   formats for floating point and integer values
+   (inline programming language), for example:
+    print "sample %d more text %4.2f string %s" x y z
+   example added to rules/version5/copy.cobra
+   the only conversion characters recognized are %s, %d, and %f with optional
+   numeric specifiers embedded, as in the example above
+
+ - pattern sets that are not explicitly named in the pattern expression
+   are now assigned a default name, so that all patterns sets are named
+
+ - added a new binary operator for inline programs ** for exponentiation
+
+ - added a command-line option -noecho to suppress the printing of typed
+   characters -- this is useful when you run cobra in a script, using
+   a 'here document' for the input
+
+ - src_app/cwe_util.c was renamed into src_app/c_util.c since it's used
+   in multiple backend programs, not just cwe
+
+ - added new examples in the rules/version5 directly to illustrate
+   concepts supported in version 5.1 (and used in the new book)
+
+ - added toint(), tofloat(), and tostr() as predefined functions
+
+ - small update to icobra.tck to prevent the filelist from being edited
+   accidentily
+
+ - small updates to the makefile
+
+ - now allows two spellings: -Python and -python for different language modes
+   including -Java and -java, -Ada and -ada, -C++ and -c++, and -HTML and -html
+
+ - bug fix in implementation of inline function gsbub
+
+ - code cleanup, and other small bug fixes, eg for handling escape characters in strings
+
+ - small update to src_app/abstract.c to suppress printing EOL tokens

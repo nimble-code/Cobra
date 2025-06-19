@@ -1,7 +1,7 @@
 /*
  * This file is part of the public release of Cobra. It is subject to the
  * terms in the License file that is included in this source directory.
- * Tool documentation is available at http://spinroot.com/cobra
+ * Tool documentation is available at http://codescrub.com/cobra
  */
 
 #include "cobra.h"
@@ -1852,7 +1852,16 @@ ps_help(void)
 	printf("ps delete n		# delete pattern set 'n'\n");
 	printf("ps list [n]		# list a specific or all pattern sets, and their membership\n");
 	printf("ps rename n newname	# renames an existing pattern set n to newname\n");
-	printf("ps n1 = n2 [& + - * m < >] n3	# define n1 as the intersection (&), union (+), difference (-) of n2 and n3\n");
+	printf("ps json	n		# show matches from set n in json format\n");
+
+	printf("ps n1 = n2 & n3         # define n1 as the intersection of n2 and n3\n");
+	printf("ps n1 = n2 + n3         # define n1 as the union of n2 and n3\n");
+	printf("ps n1 = n2 - n3         # define n1 as the difference of n2 and n3\n");
+	printf("ps n1 = n2 * n3         # matches in n2 that contain at least one match in n3\n");
+	printf("ps n1 = n2 m n3         # matches where the start of n3 meets the end of n2\n");
+	printf("ps n1 = n2 < n3         # matches in n2 that precede those in n3\n");
+	printf("ps n1 = n2 > n3         # matches in n2 that follow those in n3\n");
+
 	printf("ps n1 = n2 with (expr)	# define n1 as the subset of n2 with only matches that comply with the token expression\n");
 	printf("ps n1 = n2 with \"constraint\"	# define n1 as the subset of n2 with only matches that contain the string 'constraint'\n");
 	printf("ps help			# print this message\n");
@@ -2336,7 +2345,7 @@ pattern_matched(Named *curset, int which, int N, int M)
 					show_line(fd, m->upto->fnm, 0, b-2, b, 0);
 				} else
 				{	show_line(fd, m->from->fnm, 0, a, a+1, 0);
-					fprintf(fd, " ...");
+					fprintf(fd, " ...\n");
 					if (notsamefile)
 					{	char *bnm = strrchr(m->upto->fnm, '/');
 						fprintf(fd, "%s", bnm?bnm:m->upto->fnm);
@@ -3654,7 +3663,7 @@ cobra_te(char *te, int and, int inv)	// fct is too long...
 	}	}
 
 	if (p_debug)
-	{	printf("in: \"%s\"\n", te);
+	{	// printf("in: \"%s\"\n", te);
 		show_fsm();
 		stop_timer(0, 0, "te");
 		return;

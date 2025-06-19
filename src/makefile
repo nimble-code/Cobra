@@ -3,8 +3,8 @@
 # (c) 2015-2016 California Institute of Technology NASA/JPL
 # see License file in this directory
 #
-# Version 2, 3 and 4:
-# (c) 2017-2024 Gerard Holzmann, Nimble Research
+# Versions 2, 3, 4, 5:
+# (c) 2017-2025 Gerard Holzmann, Nimble Research
 # same licensing
 
 MAN?=/usr/share/man/man1
@@ -18,7 +18,7 @@ OS1=cobra_prim.o cobra_prep.o cobra_heap.o \
 OS2=cobra_eval.o cobra_prog.o
 
 AR=cobra_lex.o cobra_prep.o cobra_prim.o \
-   cobra_heap.o cobra_links.o cobra_json.o \
+   cobra_heap.o ../src_app/c_util.o cobra_links.o cobra_json.o \
    cobra_stub.o
 
 			# gprof: make F="-g -pg"
@@ -39,7 +39,7 @@ CMAC=-I. -Wall ${F} -pedantic -Werror -Wshadow -std=c99 -DYY_NO_INPUT
 .PHONY:	linux cygwin mac install clean man
 
 all:	$(OS1) $(OS2)
-	$(CC) $(CFLAGS) -o cobra $(OS1) $(OS2) $(LIB)
+	$(CC) $(CFLAGS) -o cobra $(OS1) $(OS2) $(LIB) -lm
 
 mac:	$(OS1) $(OS2)
 	$(CC) $(CMAC) -o cobra $(OS1) $(OS2) $(LIBM)

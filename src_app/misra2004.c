@@ -24,9 +24,8 @@ void
 cobra_main(void)
 {	char *s;
 
-	if (!with_comments
-	||  !no_cpp)
-	{	fprintf(stderr, "usage: ./misra -n file.c*\n");
+	if (!no_cpp)
+	{	fprintf(stderr, "usage: ./misra file.c*\n");
 		exit(1);
 	}
 

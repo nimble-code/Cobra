@@ -1407,7 +1407,7 @@ phase_zero(void)
 	{	printf("[\n");
 	}
 
-	set_multi();		// cwe_util.c
+	set_multi();		// c_util.c
 	ini_timers();		// front-end
 
 	if (!taint_configs())	// read user-defined configs, if any

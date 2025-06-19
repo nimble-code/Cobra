@@ -6,7 +6,7 @@
 // pattern: adding a constant to an identifier, in a parenthesized expression,
 // which is cast to a pointer of some type
 
-extern TokRange **tokrange;	// cwe_util.c
+extern TokRange **tokrange;	// c_util.c
 
 static int first_e = 1;
 

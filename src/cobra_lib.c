@@ -1,7 +1,7 @@
 /*
  * This file is part of the public release of Cobra. It is subject to the
  * terms in the License file that is included in this source directory.
- * Tool documentation is available at http://spinroot.com/cobra
+ * Tool documentation is available at http://codescrub.com/cobra
  */
 
 #include "cobra.h"
@@ -29,6 +29,7 @@ extern TokRange	**tokrange;
 
 extern char	*C_TMP;
 extern int	echo;
+extern int	no_echo;
 extern int	runtimes;
 extern int	read_stdin;
 extern int	showprog;
@@ -305,7 +306,6 @@ reproduce(const int seq, const char *s)
 		if (strlen(src) + strlen(cobra_txt()) + 1 < sizeof(src))
 		{	strcat(src, cobra_txt());
 			strcat(src, " ");
-	
 			for (i = 0; i < strlen(cobra_txt()); i++)
 			{	if (cur->mark)
 				{	strcat(tag, ".");
@@ -867,7 +867,6 @@ run_bup_threads(void *(*f)(void*))
 		if (verbose>1)
 		{	printf("prog\n");
 	}	}
-
 	run_threads(f, 4);
 	regstop();
 
@@ -1523,6 +1522,8 @@ starts_with_qualifier(const char *s)
 static char *
 check_for_setname(char *s)
 {	char *t = s;
+	static int NN = 1;
+	static char NM[16];
 
 	// there's no leading whitespace
 	// check if the first item is a name followed by a colon
@@ -1536,11 +1537,16 @@ check_for_setname(char *s)
 			{	*t++ = '\0';
 				setname(s);
 				return t;
-			}
-			return s;
+			} // else likely a bound variable
+		//	return s;
 	}	}
 
-	setname("");
+	if (!cobra_commands) // interactive
+	{	sprintf(NM, "SN%d", NN++);
+		setname(NM);	// assign a name V5.1
+	} else
+	{	setname("");
+	}
 	return s;
 }
 		
@@ -1589,6 +1595,7 @@ static void
 popup_window(const char *fnm, const int lnr)
 {	char buf[1024];
 	static int warned = 0;
+	// bin_tools/window.tcl
 
 	if ((strlen("window.tcl")
 	   + strlen(fnm) + 8 + 6) < sizeof(buf))
@@ -1599,7 +1606,7 @@ popup_window(const char *fnm, const int lnr)
 			warned++;
 		}
 	} else
-	{	printf("filename '%s' too long\n", fnm);
+	{	fprintf(stderr, "error: filename '%s' too long\n", fnm);
 	}
 }
 
@@ -1844,16 +1851,12 @@ pre_scan(char *bc)	// non-generic commands
 		if (strncmp(bc, "pat ", 4) == 0)
 		{	// printf("pattern expression: '%s'\n", bc+3);
 			a = check_qualifiers(bc+3);
-			if (a)
-			{	regstop();
-				cobra_te(pattern(a), and_mode, inverse);
-			}
-			return 1;
+			goto same;
 		}
 		if (strncmp(bc, "pe ",  3) == 0)
 		{	// printf("pattern expression: '%s'\n", bc+2);
 			a = check_qualifiers(bc+2);
-			if (a)
+same:			if (a)
 			{	regstop();
 				cobra_te(pattern(a), and_mode, inverse);
 			}
@@ -1921,7 +1924,7 @@ pre_scan(char *bc)	// non-generic commands
 					set_operation(nextarg(b));
 					setname("");
 				} else
-				{	printf("usage: ps name = name [& + -] name\n");
+				{	printf("usage: ps name = name [& + - * m < >] name\n");
 				}
 				return 1;
 			}
@@ -3310,6 +3313,7 @@ prog_range(void *arg)
 		if (stream == 1)
 		{	if (r->seq + 100 > upto->seq)	// getting too close to the end
 			{	Prim *place = r;
+
 				if (add_stream(r))	// can free up to cur
 				{	r = place;
 					upto = plst;
@@ -3327,6 +3331,7 @@ prog_range(void *arg)
 		}
 		local_cnt += j;
 	}
+
 #ifdef DEBUG_MEM
 	extern void report_memory_use(void);
 	report_memory_use();
@@ -3346,7 +3351,6 @@ prog_range(void *arg)
 	extern void list_stats(void);
 	list_stats();
 #endif
-
 	return NULL;
 }
 
@@ -3376,6 +3380,7 @@ prog(FILE *fd)
 		}	}
 
 		run_bup_threads(prog_range);
+
 		if (verbose>1)
 		{	printf("\n");
 		}
@@ -3555,10 +3560,9 @@ help(char *s, char *unused)	// 1
 //	printf("  %8s  %c %s\n", "eval", ' ',		"(expr)    same as: m & (expr) and also same as: w[ith] (expr)");
 	printf("  %8s  %c %s\n", "fcts", ' ',		"          mark all fct definitions");
 	printf("  %8s  %c %s\n", "fcg", ' ',            "[f|*] [g] show fct call graph [from fct f] [to fct g]");
-	printf("  %8s  %c %s\n", "ff", ' ',		"fct         find function fct");
-	printf("  %8s  %c %s\n", "ft", ' ',		"t         mark the defintion of structure type t");
+	printf("  %8s  %c %s\n", "ff", ' ',		"fct         find and display function fct");
+	printf("  %8s  %c %s\n", "ft", ' ',		"t         mark the definition of structure type t");
 	printf("  %8s  %c %s\n", "json", ' ',		"[msg]     print results of a pattern search (pe) in json format");
-	printf("  %8s  %c %s\n", "m2p",  ' ',           "name      store the current marks as a pattern set named 'name'");
 	printf("  %8s  %c %s\n", "ncore", ' ',		"n         set the number of cores to use to n");
 	printf("  %8s  %c %s\n", "quiet", ' ',		"on|off    more/less verbose in script executions");
 	printf("  %8s  %c %s\n", "save", ' ',		"n         alternative syntax for: >n");
@@ -3857,12 +3861,11 @@ cobra_main(void)
 		   {	break;
 		   }
 		} else
-		{  if (!prog_fd)
+		{  if (!prog_fd && !no_echo)	// V5.1 added !no_echo
 		   {	printf("%c: ", 13);
 		   }
 		   n = 0;
 		   memset(buf, 0, sizeof(buf));
-
 		   do {
 			m = 0;
 			signal(SIGINT, SIG_IGN); // without this fgetc segfaults on control-c
@@ -3944,7 +3947,9 @@ erase:				if (n > 0)
 			case EOF:
 				goto out;
 			default:
-				putchar(ch);
+				if (!no_echo)	// V5.1 added
+				{	putchar(ch);
+				}
 				goto Y; // V4.4 no reprint of line needed
 				break;
 			}

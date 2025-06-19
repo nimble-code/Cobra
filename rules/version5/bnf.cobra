@@ -1,0 +1,21 @@
+%{
+	.mark = ingram;
+	if (.txt == "%" && .prv.txt == "%")
+	{	ingram = 1 - ingram;
+		Next;
+	}
+%}
+%{
+	if (.mark > 0 && .curly == 0 && .txt != "{" && .txt != "}")
+	{	if (.lnr > lastln)
+		{	print "\n";
+			lastln = .lnr;
+		}
+		if (.txt != ";" || .nxt.txt == "'")
+		{	print .txt " ";
+	}	}
+%}
+%{
+	print "\n";
+	Stop;
+%}

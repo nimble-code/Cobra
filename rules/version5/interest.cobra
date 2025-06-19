@@ -1,0 +1,22 @@
+## based on an example from the awk book, p. 15
+## compute compound interest
+## to override the defaults of 12% and 5 years:
+## cobra -solo -var rate=6 -var years=10 -f interest.cobra
+
+requires 5.1
+
+def compound(amount, rate, years)
+ %{
+	# inline programs recognize floats, but
+	# query commands do not, so we pass in
+	# the interest rate as an integer
+
+	assert(amount > 0 && years > 0 && rate > 0);
+	i = 1;
+	while (i <= years)
+	{	print "\t" amount * ((1 + (rate/100)) ** i) "\n";
+		i++;
+	}
+ %}
+end
+compound(1000, 12, 5)

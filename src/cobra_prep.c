@@ -1,7 +1,7 @@
 /*
  * This file is part of the public release of Cobra. It is subject to the
  * terms in the License file that is included in this source directory.
- * Tool documentation is available at http://spinroot.com/cobra
+ * Tool documentation is available at http://codescrub.com/cobra
  */
 
 #include <sys/types.h>
@@ -41,6 +41,7 @@ int Ncore = 1;
 int Nfiles;
 int no_cpp = 1;
 int no_cpp_sticks;
+int no_echo;
 int no_display;
 int no_headers;
 int no_match;
@@ -1489,8 +1490,9 @@ usage(char *s)
 	fprintf(stderr, "\t-json+              -- generate more detailed json output for -pattern/-pe matches\n");
 	fprintf(stderr, "\t-l or -lib          -- list available predefined cobra -f checks\n");
 	fprintf(stderr, "\t-MaxMem N           -- set the maximum memory use to N MB (default: 24000)\n");
-	fprintf(stderr, "\t-m or -macros       -- parse text of macros (implies -nocpp)\n");
-	fprintf(stderr, "\t-n or -nocpp        -- do not do any C preprocessing%s\n", !no_cpp?"":" (default)");
+	fprintf(stderr, "\t-m or -macros       -- parse text of macros (requires no -cpp)\n");
+	fprintf(stderr, "\t-n or -nocpp        -- disable all cpp preprocessing%s\n", !no_cpp?"":" (default)");
+	fprintf(stderr, "\t-noecho             -- do not echo typed characters\n");
 	fprintf(stderr, "\t-noqualifiers       -- do not tag qualifiers\n");
 	fprintf(stderr, "\t-noheaderfiles      -- do not process header files\n");
 	fprintf(stderr, "\t-nostream           -- do not enable default input streaming when reading from stdin\n");
@@ -2167,13 +2169,12 @@ main(int argc, char *argv[])
 	while (argc > 1 && argv[1][0] == '-')
 	{	switch (argv[1][1]) {
 		case 'A':
-			  if (strcmp(argv[1], "-Ada") == 0)
+		case 'a':
+			  if (strcmp(argv[1], "-ada") == 0
+			  ||  strcmp(argv[1], "-Ada") == 0)
 			  {	ada = no_cpp = 1;
 				break;
 			  }
-			  return usage(argv[1]);
-
-		case 'a':
 			  if (strcmp(argv[1], "-allheaderfiles") == 0)
 			  {	all_headers = 1;
 			  	no_cpp = 0;
@@ -2182,15 +2183,14 @@ main(int argc, char *argv[])
 			  return usage(argv[1]);
 
 		case 'C':
-			  if (strcmp(argv[1], "-C++") == 0)
+		case 'c': if (strcmp(argv[1], "-c++") == 0
+			  ||  strcmp(argv[1], "-C++") == 0)
 			  {	cplusplus = 1;
 				CPP = "g++";
 				lang = "c++";
 				break;
 			  }
-			  return usage(argv[1]);
-
-		case 'c': if (strncmp(argv[1], "-cpp", 4) == 0)
+			  if (strncmp(argv[1], "-cpp", 4) == 0)
 			  {	no_cpp = 0;
 				if (argv[1][4] == '='
 				&&  strlen(argv[1]) > 6)
@@ -2201,7 +2201,7 @@ main(int argc, char *argv[])
 			  }
 			  if (strcmp(argv[1], "-comments") == 0)
 			  {	if (verbose)
-				{	fprintf(stderr, "warning: -comments is decprecated\n");
+				{	fprintf(stderr, "warning: -comments is decprecated (ignored)\n");
 				}
 				break;
 			  }
@@ -2277,7 +2277,9 @@ RegEx:			  no_match = 1;		// -e -expr -re or -regex
 			  }
 			  break;
 
-		case 'h': if (strcmp(argv[1], "-html") == 0)
+		case 'H':
+		case 'h': if (strcmp(argv[1], "-html") == 0
+			  ||  strcmp(argv[1], "-HTML") == 0)
 			  {	html = 1;
 			  	handle_typedefs = 0;
 			  	break;
@@ -2287,20 +2289,19 @@ RegEx:			  no_match = 1;		// -e -expr -re or -regex
 		case 'I': add_preproc(argv[1]);
 			  break;
 
+		case 'J':
 		case 'j':
+			  if (strcmp(argv[1], "-java") == 0
+			  ||  strcmp(argv[1], "-Java") == 0)
+			  {	java = 1;
+				break;
+			  }
 			  if (strcmp(argv[1], "-json") == 0)
 			  {	json_format = 1;
 				break;
 			  }
 			  if (strcmp(argv[1], "-json+") == 0)
 			  {	json_format = json_plus = 1;
-				break;
-			  }
-			  return usage(argv[1]);
-
-		case 'J':
-			  if (strcmp(argv[1], "-Java") == 0)
-			  {	java = 1;
 				break;
 			  }
 			  return usage(argv[1]);
@@ -2344,6 +2345,10 @@ RegEx:			  no_match = 1;		// -e -expr -re or -regex
 			  {	handle_typedefs = 0;
 			  	break;
 			  }
+			  if (strcmp(argv[1], "-noecho") == 0)
+			  {	no_echo = 1;
+			  	break;
+			  }
 			  // -nocpp
 			  no_cpp = no_cpp_sticks = 1;
 			  break;
@@ -2351,6 +2356,7 @@ RegEx:			  no_match = 1;		// -e -expr -re or -regex
 		case 'N': Nthreads(&argv[1][2]);
 			  break;
 
+		case 'P':
 		case 'p': if (strncmp(argv[1], "-pre", 4) == 0)	// preserve temp files
 			  {	preserve = 1;
 				break;
@@ -2359,7 +2365,8 @@ RegEx:			  no_match = 1;		// -e -expr -re or -regex
 			  {	pruneifzero = 1;
 				break;
 			  }
-			  if (strncmp(argv[1], "-python", 7) == 0)
+			  if (strncmp(argv[1], "-python", 7) == 0
+			  ||  strncmp(argv[1], "-Python", 7) == 0)
 			  {	python = no_cpp = 1;
 				break;
 			  }
@@ -2376,12 +2383,6 @@ RegEx:			  no_match = 1;		// -e -expr -re or -regex
 				{	p_debug = 5;
 					(void) set_base();
 				}
-				break;
-			  }
-			  return usage(argv[1]);
-
-		case 'P': if (strcmp(argv[1], "-Python") == 0)
-			  {	python = no_cpp = 1;
 				break;
 			  }
 			  return usage(argv[1]);

@@ -1,0 +1,11 @@
+requires 5.1
+%{
+	.mark = 7/22;			# mark attributes are integers
+	print .mark "\t" 7/22 "\n";	# default precision 2 decimal places
+	print itostr(7/22) "\n";	# full precision: 6 decimal places
+	Stop;
+%}
+# cobra -solo -f version5/demo_5_1.cobra
+# output:
+# 0.00	0.32
+# 0.318182
