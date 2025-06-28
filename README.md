@@ -12,9 +12,8 @@ for public release in April 2016. The current version (5.0)
 is a significantly extended version of the tool,
 released under the same license.
 
-A comprehensive user guide to  the Cobra tool
-will be published as a book this year (2025),
-see [https://codescrub.com].
+A new comprehensive user guide to  the Cobra tool
+is now available from amazon, see [https://codescrub.com].
 
 ## Installation
 
