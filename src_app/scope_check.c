@@ -294,6 +294,7 @@ cobra_main(void)
 	Prim *q;
 	int fct_only = 0, file_only = 0;
 	int i, is_static = 0, first_entry = 1;
+	int in_macro_def = 0;
 	clock_t start_time, stop_time;
 	struct tms start_tm, stop_tm;
 	double delta_time;
@@ -404,14 +405,33 @@ cobra_main(void)
 	{	printf(" globals used in one scope only: %3d\n", fct_only);
 	}
 	if (!no_display)
-	{	for (cur = prim; cur; NEXT)
+	{	in_macro_def = 0;
+
+		// no scope reports for macros
+		for (cur = prim; cur; NEXT)
+		{	if (strcmp(cur->txt, "main") == 0)
+			{	cur->mark = 0;
+			}
+			if (in_macro_def > 0)
+			{	if (cur->lnr > in_macro_def)
+				{	in_macro_def = 0;
+				} else
+				{	cur->mark = 0;
+				}
+			} else
+			{	if (strcmp(cur->typ, "cpp") == 0)
+				{	in_macro_def = cur->lnr;
+					cur->mark = 0;
+		}	}	}
+
+		for (cur = prim; cur; NEXT)
 		{	if (cur->mark == 1)
 			{	if (json_format)
 				{	sprintf(json_msg,"%s is used in only one %s (%s)",
 						cur->txt,
 						cur->curly==0?"scope":"function",
 						cur->typ);
-					json_match("scope_check", cobra_commands, json_msg, cur, cur, first_entry);
+					json_match(cobra_commands, "scope_check", json_msg, cur, cur, first_entry);
 					first_entry = 0;
 				} else
 				{	printf("\t%s\tused in only one %s (%s)\n",
@@ -428,7 +448,7 @@ cobra_main(void)
 			{	if (json_format)
 				{	sprintf(json_msg, "%s is used only in file %s",
 						cur->txt, cur->fnm);
-					json_match("scope_check", cobra_commands, json_msg, cur, cur, first_entry);
+					json_match(cobra_commands, "scope_check", json_msg, cur, cur, first_entry);
 					first_entry = 0;
 				} else
 				{	printf("\t%s\tused in only file %s\n",

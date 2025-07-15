@@ -488,11 +488,12 @@ end
 
 def jpl_rule24
 	r
-	m \;
-	st \;
-	m & (.round == 0 && .range == 0)
-	ps create R24
-	ps caption R24 Do not define macros within a function or a block
+#	m \;
+#	st \;
+#	m & (.round == 0 && .range == 0)
+#	ps create R24
+	pe R24: x:\; .* \; <1> @1(:x.lnr == .lnr && .round == 0 && .range == 0)
+	ps caption R24 Do not place more than one statement or declaration per line
 end
 
 def jpl_rule25a
