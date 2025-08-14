@@ -5,7 +5,7 @@ r
 
 %{
 	if (q.lnr != .lnr)
-	{	q = .;
+	{	q = .; z = q;
 		z.mark = 0;
 		while (. != End && .lnr == q.lnr)
 		{	if (.txt == ";")
