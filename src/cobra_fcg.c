@@ -6,7 +6,10 @@
 
 #include "cobra.h"
 
-FList **flist;
+#define s_hash	hasher
+extern uint hasher(const char *);
+
+FHtab **flist;
 extern int no_caller_info;
 
 static int path = 1;	// testing
@@ -15,7 +18,9 @@ static FList *last_fct;
 
 static void
 add_def(const Prim *c, const Prim *r, const int ix)
-{	FList *n, *prev_n = 0;
+{	FHtab *n;
+	FList *q, *prev_n = 0;
+	int m;
 	const Prim *x;
 	char *s = r->txt;	// fct name
 	char *y = (char *) 0;	// ns namespace
@@ -34,41 +39,44 @@ add_def(const Prim *c, const Prim *r, const int ix)
 	}	}	}
 
 	// note that the same static fct nm can appear in different files
-	for (n = flist[ix]; n; prev_n = n, n = n->nxt)
-	{	int cmp = strcmp(n->nm, s);
+	m = s_hash(s) & (NAHASH - 1);
+	n = flist[ix];
+	if (n)
+	for (q = n->fht[m]; q; prev_n = q, q = q->nxt)
+	{	int cmp = strcmp(q->nm, s);
 		if (cmp > 0)
 		{	break;	// build sorted list
 		}
 		if (cmp == 0
-		&&  strcmp(n->p->fnm, r->fnm) == 0
+		&&  strcmp(q->p->fnm, r->fnm) == 0
 		&&  (!cplusplus
 		||   !y
-		||   !n->ns
-		||   strcmp(n->ns, y) == 0))
+		||   !q->ns
+		||   strcmp(q->ns, y) == 0))
 		{	return;	// already there
 	}	}
 
-	n     = (FList *) hmalloc(sizeof(FList), ix, 115);
-	n->nm = (char *)  hmalloc(strlen(s)+1, ix, 115);
-	strcpy(n->nm, s);
+	q     = (FList *) hmalloc(sizeof(FList), ix, 115);
+	q->nm = (char *)  hmalloc(strlen(s)+1, ix, 115);
+	strcpy(q->nm, s);
 
-	n->p = (Prim *) r;	// fct name
-	n->q = c;		// location of curly (start of body)
+	q->p = (Prim *) r;	// fct name
+	q->q = c;		// location of curly (start of body)
 
 	if (cplusplus && y)
-	{	n->ns = (char *) hmalloc(strlen(y)+1, ix, 116);
-		strcpy(n->ns, y);
+	{	q->ns = (char *) hmalloc(strlen(y)+1, ix, 116);
+		strcpy(q->ns, y);
 	}
 
 	// insert after prev_n
 	if (!prev_n)
-	{	n->nxt = flist[ix];
-		flist[ix] = n;
+	{	q->nxt = flist[ix]->fht[m];
+		flist[ix]->fht[m] = q;
 	} else
-	{	n->nxt = prev_n->nxt;
-		prev_n->nxt = n;
+	{	q->nxt = prev_n->nxt;
+		prev_n->nxt = q;
 	}
-	last_fct = n;
+	last_fct = q;
 }
 
 static void
@@ -115,12 +123,27 @@ fct_defs_range(void *arg)
 	Prim *r, *from, *upto;
 	int *i = (int *) arg;
 	int preansi = 0;
+	int Cnt = 0;
+	char *ofnm = "";
 
 	from = tokrange[*i]->from;
 	upto = tokrange[*i]->upto;
 
+
 	for (r = from; r && r->seq <= upto->seq; r = r->nxt)
-	{	if (strcmp(r->typ, "cpp") == 0 && !parse_macros)
+	{
+More:		if (Ncore == 1
+		&&  !no_match && !no_display
+		&&  Nfiles > 10000
+		&&  strcmp(r->fnm, ofnm) != 0)
+		{	ofnm = r->fnm;
+			Cnt++;
+			if ((Cnt%(Nfiles/10)) == 0)
+			{	printf("%d of %d files (%.2f%%)\n",
+					Cnt, Nfiles, ((100.0*(float)Cnt)/(float)Nfiles));
+		}	}
+  
+		if (strcmp(r->typ, "cpp") == 0 && !parse_macros)
 		{	while (r && r->nxt && r != r->nxt
 			&&    strcmp(r->txt, "EOL") != 0
 			&&    strcmp(r->txt, "EOF") != 0)
@@ -242,11 +265,18 @@ fct_defs_range(void *arg)
 		||   strcmp(z->txt, "struct") == 0
 		||   strcmp(z->txt, "register") == 0))
 		{	while (z && z != z->nxt && strcmp(z->txt, "{") != 0)
-			{	z = z->nxt;
+			{	if (z->txt[0] == '(')
+				{	r = r->nxt; // not preansi param list
+					if (r && r->seq <= upto->seq)
+					{	goto More;
+					}
+					return NULL;
+				}
+				z = z->nxt;
 		}	}
 
 		// z points to first token after param list
-		if (z && strcmp(z->txt, "{") == 0)
+		if (z && strcmp(z->txt, "{") == 0 && (cplusplus || z->curly == 0))
 		{	add_def(z, ptr, *i);
 //			printf("%s	def\n", ptr->txt);
 		} else if (r->curly > 0 && !no_caller_info)
@@ -266,7 +296,7 @@ print_marked(const int val)
 	FList *f, *g, *h;
 	int nodes = 0;
 	int edges = 0;
-	int ix;
+	int n, ix;
 
 	if (!cobra_target
 	&& (fd = fopen(CobraDot, "a")) == NULL)
@@ -279,7 +309,8 @@ print_marked(const int val)
 	}
 
 	for (ix = 0; ix < Ncore; ix++)
-	for (f = flist[ix]; f; f = f->nxt)
+	for (n = 0; n < NAHASH; n++)
+	for (f = flist[ix]->fht[n]; f; f = f->nxt)
 	{	if (f->marked == val && f->calls)
 		{	nodes++;
 			f->p->mark = 1;
@@ -314,10 +345,11 @@ print_marked(const int val)
 static void
 call_graph(void)
 {	FList *f, *g;
-	int ix;
+	int n, ix;
 
 	for (ix = 0; ix < Ncore; ix++)
-	for (f = flist[ix]; f; f = f->nxt)
+	for (n = 0; n < NAHASH; n++)
+	for (f = flist[ix]->fht[n]; f; f = f->nxt)
 	{	f->marked = 1;
 		for (g = f->calls; g; g = g->nxt)
 		{	g->marked = 1;
@@ -385,26 +417,27 @@ find_path(FList *fr, FList *to)
 static void
 to_dest(FList *t)
 {	FList *f, *g, *h;
-	int ix;
+	int n, ix;
 
 	// does f call t
 
 	for (ix = 0; ix < Ncore; ix++)
-	for (f = flist[ix]; f; f = f->nxt)
-	{	for (g = f->calls; g; g = g->nxt)
-		{	if ((h = find_match(g)) == NULL)
-			{	continue;
-			}
-			if (strcmp(h->nm, t->nm) == 0
-			&&  (!t->ns
-			||   !f->ns
-			||   strcmp(t->ns, f->ns) == 0)
-			&& (!(f->marked&2) || !(h->marked&2)))
-			{	f->marked |= 2;
-				h->marked |= 2;
-				to_dest(f);
-				break;
-	}	}	}
+	for (n = 0; n < NAHASH; n++)
+	for (f = flist[ix]->fht[n]; f; f = f->nxt)
+	for (g = f->calls; g; g = g->nxt)
+	{	if ((h = find_match(g)) == NULL)
+		{	continue;
+		}
+		if (strcmp(h->nm, t->nm) == 0
+		&&  (!t->ns
+		||   !f->ns
+		||   strcmp(t->ns, f->ns) == 0)
+		&& (!(f->marked&2) || !(h->marked&2)))
+		{	f->marked |= 2;
+			h->marked |= 2;
+			to_dest(f);
+			break;
+	}	}
 }
 
 static void
@@ -423,10 +456,11 @@ from_src_to_dest(FList *s, FList *t)
 static void
 clear_flist(void)
 {	FList *f, *g;
-	int ix;
+	int n, ix;
 
 	for (ix = 0; ix < Ncore; ix++)
-	for (f = flist[ix]; f; f = f->nxt)
+	for (n = 0; n < NAHASH; n++)
+	for (f = flist[ix]->fht[n]; f; f = f->nxt)
 	{	f->visited = f->marked = 0;
 		for (g = f->calls; g; g = g->nxt)
 		{	g->visited = g->marked = 0;
@@ -446,7 +480,7 @@ find_match(FList *z)
 static void
 merge_lists(void)
 {	FList *f, *nf;
-	int ix;
+	int n, ix;
 
 	if (!flist)
 	{	return;
@@ -456,10 +490,11 @@ merge_lists(void)
 	// the number of cores changes later
 
 	for (ix = 1; ix < Ncore; ix++)
-	for (f = flist[ix]; f; f = nf)
+	for (n = 0; n < NAHASH; n++)
+	for (f = flist[ix]->fht[n]; f; f = nf)
 	{	nf = f->nxt;
-		f->nxt = flist[0];
-		flist[0] = f;	// no longer in sort-order
+		f->nxt = flist[0]->fht[n];
+		flist[0]->fht[n] = f;	// no longer in sort-order
 	}
 }
 			
@@ -469,9 +504,14 @@ void
 fct_defs(void)
 {	static int maxn = 0;
 	Prim *o_cur = cur;
+	int i;
 
 	if (!flist || Ncore > maxn)
-	{	flist = (FList **) emalloc(Ncore * sizeof(FList *), 108);
+	{	flist = (FHtab **) emalloc(Ncore * sizeof(FHtab *), 108);
+		for (i = 0; i < Ncore; i++)
+		{	flist[i] = (FHtab *) emalloc(sizeof(FHtab), 108);
+			flist[i]->fht = (FList **) emalloc(NAHASH * sizeof(FList *), 108);
+		}
 		if (Ncore > maxn)
 		{	maxn = Ncore;
 		}
@@ -486,14 +526,15 @@ fct_defs(void)
 char *
 fct_which(const Prim *p)
 {	FList *f;
-	int ix;
+	int n, ix;
 
 	if (!flist)
 	{	fct_defs();
 	}
 
 	for (ix = 0; ix < Ncore; ix++)
-	for (f = flist[ix]; f; f = f->nxt)
+	for (n = 0; n < NAHASH; n++)
+	for (f = flist[ix]->fht[n]; f; f = f->nxt)
 	{	if (f->p && f->q && f->q->jmp
 		&&  p->lnr >= f->p->lnr
 		&&  p->lnr <= f->q->jmp->lnr
@@ -509,7 +550,7 @@ find_match_str(char *s)
 	char *ns = (char *) 0;
 	char *os = (char *) 0;
 	int cnt = 0;
-	int ix;
+	int n, ix;
 
 	if ((os = strstr(s, "::")) != NULL)
 	{	*os = '\0';
@@ -517,8 +558,9 @@ find_match_str(char *s)
 		  s = os+strlen("::");
 	}
 
+	n = s_hash(s) & (NAHASH-1);
 	for (ix = 0; ix < Ncore; ix++)
-	for (f = flist[ix]; f; f = f->nxt)
+	for (f = flist[ix]->fht[n]; f; f = f->nxt)
 	{	if (strcmp(f->nm, s) == 0)
 		{	if (!cplusplus
 			||  !ns
@@ -534,7 +576,7 @@ find_match_str(char *s)
 				cnt, ns?ns:"", ns?"::":"", s);
 			cnt = 1;
 			for (ix = 0; ix < Ncore; ix++)
-			for (f = flist[ix]; f; f = f->nxt)
+			for (f = flist[ix]->fht[n]; f; f = f->nxt)
 			{	if (strcmp(f->nm, s) != 0)
 				{	continue;
 				}
@@ -632,7 +674,7 @@ void
 context(char *s, char *unused)
 {	FList *f, *g;
 	FILE *fd;
-	int ix;
+	int n, ix;
 
 	if (!flist)
 	{	fct_defs();
@@ -671,8 +713,10 @@ context(char *s, char *unused)
 				f->nm, g->nm);
 	}	}
 	printf("is called by:\n");
+
+	n = s_hash(s) & (NAHASH-1);
 	for (ix = 0; ix < Ncore; ix++)
-	for (f = flist[ix]; f; f = f->nxt)
+	for (f = flist[ix]->fht[n]; f; f = f->nxt)
 	{	for (g = f->calls; g; g = g->nxt)
 		{	if (strcmp(g->nm, s) == 0)
 			{	printf("\t%s:%d: %s()",
@@ -704,7 +748,7 @@ context(char *s, char *unused)
 	if (0)	// debug
 	{	printf("Dump:\n");
 		for (ix = 0; ix < Ncore; ix++)
-		for (f = flist[ix]; f; f = f->nxt)
+		for (f = flist[ix]->fht[n]; f; f = f->nxt)
 		for (g = f->calls; g; g = g->nxt)
 		{	if (strcmp(g->nm, "check_args") == 0
 			||  strcmp(f->nm, "check_args") == 0)

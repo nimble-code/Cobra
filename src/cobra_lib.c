@@ -56,7 +56,7 @@ static char	*prefix;
 static char	*suffix;
 static char	 specialcase[MAXYYTEXT];
 
-static FList **flst[2];
+static FHtab **flst[2];
 static History	*h_last;
 
 static int	cnt;
@@ -886,7 +886,9 @@ findtype(char *s, char *t)
 void
 fcts(char *used1, char *unused2)
 {	FList *f;
+	FHtab *g;
 	Prim *z;
+	int n;
 	static int o_caller_info = 0;
 
 	assert(no_cpp == 0 || no_cpp == 1);
@@ -908,7 +910,9 @@ fcts(char *used1, char *unused2)
 	}
 
 	// the lists were merged at this point
-	for (f = flist[0]; f; f = f->nxt)
+	g = flist[0];
+	for (n = 0; n < NAHASH; n++)
+	for (f = g->fht[n]; f; f = f->nxt)
 	{	cnt++;
 		if (verbose > 1)
 		{	printf("%3d %s:%d-%d: %s\n",
@@ -2777,7 +2781,7 @@ contains_range(void *arg)
 		}
 		stop = (r->bound && r->bound->seq > r->seq)?r->bound:r->jmp;
 		if (!stop)
-		{	break;
+		{	continue;	// aug. 2025, was break
 		}
 		found = 0;
 		for (q = r->nxt; q && q->seq < stop->seq; q = q->nxt)
@@ -2807,7 +2811,7 @@ contains_range(void *arg)
 	}	}	}
 	tokrange[*i]->param = local_cnt;
 
-	// now safet to flip temporary marks to positive
+	// now safe to flip temporary marks to positive
 	if (and_mode && !inverse && local_cnt > 0)
 	{	for (r = from; r && r->seq <= upto->seq; r = r->nxt)
 		{	if (r->mark < 0)
@@ -3245,7 +3249,6 @@ back_range(void *arg)
 				local_cnt++;
 	}	}	}
 	tokrange[*i]->param = local_cnt;
-
 	return NULL;
 }
 
@@ -3256,6 +3259,7 @@ back(char *s, char *t)
 	{	fprintf(stderr, "error: b[ack] does not support qualifiers\n");
 		return;
 	}
+
 	global_s = preamble(s, 0);
 	global_t = preamble(t, 1);
 

@@ -100,6 +100,7 @@ clr_matches(int which)
 			}
 			b->bdef = (Prim *) 0;
 			b->ref  = (Prim *) 0;
+			b->aref = (Prim *) 0;
 			b->nxt  = free_bound;
 			free_bound = b;
 	}	}
@@ -184,6 +185,7 @@ add_match(Prim *f, Prim *t, Store *bd)
 		}
 		n->bdef = b->bdef;
 		n->ref  = b->ref;
+		n->aref = b->aref;
 		n->nxt  = m->bind;
 		m->bind = n;
 	}
@@ -691,7 +693,7 @@ do_markups(const char *setname)
 			}
 			for (b = m->bind; b; b = b->nxt)
 			{	w++;	// nr of bound vars
-				if (strlen(setname) == 0)	// needed?
+			//	if (strlen(setname) == 0)	// removed July 31, 2025
 				{	if (b->ref)
 					{	b->ref->mark |= 4;	// match of bound variable
 					} else	// eg ref of bound var in constraint

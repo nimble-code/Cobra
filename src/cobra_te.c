@@ -65,6 +65,8 @@ struct Op_Stack {
 	Op_Stack *lst;
 };
 
+// #define TRACKED
+
 struct Nd_Stack {	// CNODE
 	int	  seq;
 	int	  visited;
@@ -74,7 +76,13 @@ struct Nd_Stack {	// CNODE
 	Nd_Stack *rgt;	// CNODE
 	Nd_Stack *nxt;	// stack
 	Nd_Stack *pend;	// processing
+#ifdef TRACKED
+	Nd_Stack *track;
+#endif
 };
+#ifdef TRACKED
+ Nd_Stack *tracked;
+#endif
 
 struct Range {
 	char	*pat;
@@ -657,7 +665,8 @@ static void
 reverse_polish(char *s)
 {
 	for ( ; *s != '\0'; s++)
-	{	switch (*s) {
+	{
+		switch (*s) {
 		case '(':
 		case '|':
 			new_operator(*s);
@@ -709,9 +718,35 @@ mk_el(Node *n, char *caller)
 			t->n?t->n->type:0,
 			caller);
 	}
+#ifdef TRACKED
+	t->track = tracked;
+	tracked = t;
+#endif
 	return t;
-
 }
+
+#ifdef TRACKED
+static int
+dump_tracked(int which)	
+{
+	Nd_Stack *t = tracked;
+	while (t)
+	{	printf("%d: seq %d L %d R %d N %d P %d -- node '%s' -- node->succ %d\n",
+			which,
+			t->seq,
+			t->lft?t->lft->seq:0,
+			t->rgt?t->rgt->seq:0,
+			t->nxt?t->nxt->seq:0,
+			t->pend?t->pend->seq:0,
+			t->n?t->n->tok:"nill",
+			(t->n && t->n->succ)?t->n->succ->seq:-1);
+		t = t->track;
+	}
+	return which;
+}
+#else
+#define dump_tracked(x) 
+#endif
 
 static void
 push(Nd_Stack *t)
@@ -803,8 +838,8 @@ loop_back(Nd_Stack *a, Nd_Stack *t, int caller)
 	assert(a != NULL);
 
 	if (verbose>1)
-	{	printf("---connect %d (succ %d) -> %d (succ %d) <caller %d>\n",
-			a->seq,
+	{	printf("---connect %d '%s' (succ %d) -> %d (succ %d) <caller %d>\n",
+			a->seq, a->n?a->n->tok:"",
 			a->n && a->n->succ?a->n->succ->seq:0,
 			t?t->seq:0,
 			t->n && t->n->succ?t->n->succ->seq:0,
@@ -831,35 +866,34 @@ loop_back(Nd_Stack *a, Nd_Stack *t, int caller)
 			{	printf(">\t%d has successor %d, find tail\n",
 					z, a->n->succ->seq);
 			}
-			while (a && a->n && a->n->succ)
-			{	a = a->n->succ;
-				if (a->seq == z)
+			int cntr = 0;
+			// printf("Start: %d - - -> %d\n", a?a->seq:-1, t->seq);
+			while (a && (a->rgt || a->n) && cntr++ < 100)
+			{	if (a->rgt)
+				{	// printf("Right: %d -> %d\n", a->seq, a->rgt->seq);
+					a = a->rgt;
+				} else if (a->n && a->n->succ)
+				{	// printf("Succ: %d -> %d\n", a->seq, a->n->succ->seq);
+					a = a->n->succ;
+				} else if (a->n)
+				{	// printf("Done: %d -> %d\n", a->seq, t->seq);
+					if (a->seq != t->seq)
+					{	a->n->succ = t;
+						dump_tracked(6);
+					}
+					return;			// expected return
+				} else if (a->seq == z)
 				{	fprintf(stderr, "error: loopback cycle on S%d\n", z);
 					return;
 			}	}
-			if (!a || !a->n)	// Cnode
-			{	if (a && !a->rgt)
-				{	a->rgt = t;
-					if (verbose>1)
-					{	printf("Cnode	-- %d attached to rgt of %d\n",
-							t?t->seq:-1, a->seq);
-					}
-				} else if (verbose>1)
-				{	printf("\tCnode (%p) S%d should connect to S%d (l %p, r %p)\n",
-						(void *) a, a?a->seq:-1, t->seq,
-						(void *) a->lft, (void *) a->rgt);
-				}
-				goto L;
-			}
-			a->n->succ = t;
-			if (verbose>1)
-			{	printf("=\t%d successor is now %d\n",
-					a->seq, t->seq);
-				printf("<\n");
+			dump_tracked(7);
+			if (!a || cntr >= 100)
+			{	fprintf(stderr, "error: cannot find end of chain, fsm incomplete (%d)\n", cntr);
+				return;
 		}	}
 	} else	// CNODE
 	{
-L:		assert(a->lft != NULL);
+		assert(a->lft != NULL);
 		if (verbose>1)
 		{	printf("Cnode -- loopback lft\n");
 		}
@@ -882,10 +916,17 @@ L:		assert(a->lft != NULL);
 				return;
 			}
 			if (verbose>1)
-			{	printf("Cnode	-- %d rgt already set to %d, loopback rgt\n",
-					a->seq, a->rgt->seq);
+			{	printf("Cnode -- loopback rgt\n");
 			}
+			if (verbose>1)
+			{	printf("Cnode	-- %d rgt already set to %d, loopback rgt (wanted %d %p)\n",
+					a->seq, a->rgt->seq, t->seq, (void *) a->rgt->pend);
+			}
+
 			loop_back(a->rgt, t, 3);
+			if (verbose>1)
+			{	printf("Cnode -- return from loopback rgt\n");
+			}
 			if (verbose>1)
 			{	printf("\tCnode -- return from loopback rgt\n");
 	}	}	}
@@ -916,9 +957,10 @@ epsilon(void)
 }
 
 static void
-prep_transitions(Nd_Stack *t, int src)
+prep_transitions(Nd_Stack *t, int src, int special)
 {	char *s;
 	int dst, match = 1;
+
 #ifdef PROTECT
 	static int t_depth=0;
 	if (t_depth++ > 25000)	// to prevent stack overflow
@@ -949,15 +991,26 @@ again:	if (t->n)	// NNODE
 		{	s++;
 		}
 		dst = t->n->succ?t->n->succ->seq:Seq+1;
+		if (special)	// Cnode with Cnode on lft branch
+		{	// printf("mk_trans %d -> %d (special %d)\n", src, dst, special);
+			dst = special;
+		}
 		if (strcmp(s, ".") == 0)
 		{	mk_trans(src, 1, 0, dst, t->cond);
 		} else
 		{	mk_trans(src, match, s, dst, t->cond);
 		}
-
 		to_expand(t->n->succ);
 	} else		// CNODE
-	{	prep_transitions(t->lft, src);
+	{	if (t->lft && t->lft->lft)
+		{	if (verbose>1)
+			{	printf("Cnode Pair S%d S%d\n",
+					t->seq, t->lft->seq);
+			}
+			special = src;
+		}
+		prep_transitions(t->lft, src, special);
+		special = 0;
 		if (t->rgt)
 		{	t = t->rgt;	// remove tail-recursion
 			goto again;	// was: prep_transitions(t->rgt, src);
@@ -978,7 +1031,7 @@ prep_state(Nd_Stack *t)
 	}
 	t->visited |= 4;
 
-	prep_transitions(t, t->seq);
+	prep_transitions(t, t->seq, 0);
 }
 
 static void
@@ -1052,7 +1105,6 @@ thompson(char *s)
 	{	show_re();
 		return;
 	}
-
 	for (re = rev_pol; re; re = re_nxt)
 	{	re_nxt = re->nxt;
 		re->nxt = NULL;
@@ -1099,7 +1151,6 @@ thompson(char *s)
 			b = pop();
 			clear_visit(b);
 			loop_back(b, a, 6);
-
 			push(b);
 			break;
 		default:	// operands
@@ -1111,14 +1162,30 @@ thompson(char *s)
 static void
 mk_fsa(void)
 {	Nd_Stack *p;
+	int cnt = 0;
 
 	mk_states(Seq+1);
-
+	dump_tracked(100);
 	to_expand(nd_stack);
 	while (expand_q)
 	{	p = expand_q;
+
+		if (p->pend
+		&&  p->seq == p->pend->seq
+		&&  p->pend->visited == 4)
+		{	expand_q = (Nd_Stack *) 0;
+			if (verbose)
+			{	printf("===>glitch in the matrix S%d\n", p->seq);
+				// result may not be accurate
+			}
+			p->pend->visited &= ~4;
+			prep_state(p->pend);
+			break;
+		}
 		expand_q = p->pend;
 		prep_state(p);
+		cnt++;
+		assert(cnt < 10000);
 	}
 
 	if (nd_stack->n)
@@ -1275,6 +1342,7 @@ get_store(Store *n)
 		free_stored = free_stored->nxt;
 		b->bdef = (Prim *) 0;
 		b->ref  = (Prim *) 0;
+		b->aref = (Prim *) 0;
 	} else
 	{	b = (Store *) emalloc(sizeof(Store), 102);
 	}
@@ -1284,6 +1352,7 @@ get_store(Store *n)
 		b->text = n->text;
 		b->bdef = n->bdef;
 		b->ref  = n->ref;
+		b->aref = n->aref;
 	}
 	return b;
 }
@@ -1535,6 +1604,8 @@ recall(State *s, Trans *t, char *text)
 		{	if (strcmp(b->name, name) == 0
 			&&  strcmp(b->text, text) == 0)
 			{	b->ref = q_now;
+				q_now->bound = b->aref; // new 5.2, remember all bound var matches
+				b->aref = q_now;	// new 5.2
 				if (verbose)
 				{	printf(">> matching var %s : %s\n", name, text);
 					printf(">> other bindings:\t");
@@ -1542,7 +1613,7 @@ recall(State *s, Trans *t, char *text)
 					{	if (c != b)
 						{	printf("%s :: %s ", c->name, c->text);
 					}	}
-					printf("\n");
+					printf("<<\n");
 				}
 #if 0
 				b->nxt = 0;
@@ -1770,10 +1841,21 @@ check_level(void)
 }
 
 static void
+clear_bounds(Prim *b)
+{
+	if (b)
+	{	clear_bounds(b->bound);
+		b->bound = (Prim *) 0;
+	}
+}
+
+static void
 free_bind(Bound *b, int who, Match *m)
 {
 	b->bdef = (Prim *) 0;
 	b->ref  = (Prim *) 0;
+	clear_bounds(b->aref);
+	b->aref = (Prim *) 0;
 	b->nxt  = free_bound;
 	free_bound = b;
 }
@@ -2307,14 +2389,24 @@ pattern_matched(Named *curset, int which, int N, int M)
 
 				ttag = 0;
 				if (m->bind->bdef
-				&&  m->bind->ref)
+				/* &&  m->bind->ref */)			// new 5.2
 				{	heading++;
 					fprintf(fd, "\tbound variable matches:");
 					fprintf(fd, " %s: (ln %d)",
 						m->bind->bdef->txt, m->bind->bdef->lnr);
-					fprintf(fd, " :%s (ln %d)",
+					if (m->bind->ref)		// new 5.2
+					{
+					  fprintf(fd, " :%s (ln %d)",
 						m->bind->ref->txt, m->bind->ref->lnr);
-					ttag = m->bind->ref->lnr;
+					  ttag = m->bind->ref->lnr;
+					  if (m->bind->aref->bound)	// new 5.2
+					  {	Prim *g;
+						fprintf(fd, " [also: ");
+						for (g = m->bind->aref->bound; g; g = g->bound)
+						{	fprintf(fd, "ln %d%s", g->lnr, g->bound?", ":"");
+						}
+						fprintf(fd, "]");
+					} }
 				}
 				for (q = m->bind->nxt; q; q = q->nxt)
 				{	if (q->nxt == q)	// internal error
@@ -2526,15 +2618,11 @@ static void
 dp_all(int a, int b, int c)
 {	Match *pm = matches;
 	Named *x;
-//	FILE *fd = track_fd?track_fd:stdout;
 
 	for (x = namedset; x; x = x->nxt)	// dp *
 	{	matches = x->m;
 		if (matches)
-		{	// if (!json_format)
-			// {	fprintf(fd, "%s:\n", x->msg?x->msg:"Matches");
-			// }
-			pattern_matched(x, a, b, c); // checks named sets
+		{	pattern_matched(x, a, b, c); // checks named sets
 	}	}
 
 	matches = pm; // restore
@@ -2649,7 +2737,6 @@ parse_constraint(char *c)
 	Lextok *rv = NULL;
 
 	strip_escapes(c);
-// printf("=> '%s'\n", c);
 
 	b_cmd = yytext = c;
 	rv = prep_eval();
@@ -2821,6 +2908,7 @@ clone_bound(Bound *b)
 		}
 		n->bdef = r->bdef;
 		n->ref  = r->ref;
+		n->aref = r->aref;
 		n->nxt = cloned;
 		cloned = n;
 	}	// reverses order
@@ -3521,6 +3609,7 @@ ps_update(int whatchanged)
 		for (b = m->bind; b; b = b->nxt)
 		{	b->bdef = ps_fix(b->bdef, 0, whatchanged);
 			b->ref  = ps_fix(b->ref, 1, whatchanged);
+			b->aref = ps_fix(b->aref, 1, whatchanged); // untested, code not used
 			if (b == b->nxt)	// internal error
 			{	b->nxt = 0;
 				fprintf(stderr, "internal error: ps_update\n");
@@ -3630,6 +3719,7 @@ cobra_te(char *te, int and, int inv)	// fct is too long...
 	if (verbose)
 	{	printf("IN: '%s'\n", te);
 	}
+
 	thompson(te);
 
 	if (!nd_stack || nerrors > 0)
@@ -4180,6 +4270,9 @@ cobra_te(char *te, int and, int inv)	// fct is too long...
 				{	json(te);	// te reporting, interactive
 				}
 				clear_matches();
+			} else if (!no_display && !no_match)
+			{	printf("%d pattern%s matched\n",
+					p_matched, p_matched==1?"":"s");
 		}	}
 		rx = 0;
 	} else if (stream <= 0)	// not streaming

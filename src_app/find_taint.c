@@ -1088,7 +1088,7 @@ find_taints(void)		// completes Step 1 from taint_track.cobra script
 								||  r->txt[0] == '[')
 								{	strcat(nbuf, "... ");
 								}
-								// XXX additional detail for json_plus (multi-line)
+								// additional detail for json_plus (multi-line)
 								if (json_plus)
 								{	FILE *fd;
 									fd = tmpfile();
@@ -1111,7 +1111,7 @@ find_taints(void)		// completes Step 1 from taint_track.cobra script
 								||  r->txt[0] == '[')
 								{	printf("..."); // n
 								}
-								cur->mset[1] |= UseOfTaint; // for add_details XXX
+								cur->mset[1] |= UseOfTaint; // for add_details
 								cur->mbnd[1] = cur->bound;
 								add_details(stdout, cur, 1, cur, 3);
 							}
@@ -1218,7 +1218,7 @@ issue_warning(Prim *q, const int a, const int b, const int cid)
 	if (json_format)
 	{	sprintf(json_msg, "potentially dangerous asgn in call to '%s'", cur->txt);
 		if (json_plus)
-		{	// XXX additional detail for json_plus (multi-line)
+		{	// additional detail for json_plus (multi-line)
 			fd = tmpfile();
 			if (fd)
 			{	add_markings(fd, q, a, b);

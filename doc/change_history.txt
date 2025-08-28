@@ -611,3 +611,17 @@ new in december 30, 2021
  - code cleanup, and other small bug fixes, eg for handling escape characters in strings
 
  - small update to src_app/abstract.c to suppress printing EOL tokens
+
+5.2 August 28, 2025
+
+ - extended code to allow all bound variables to be accessed in inline programs
+   for patterns matched starting at the first one in the x.p_bref reference
+   variable by following the .bound refs: x.p_bref.bound, x.p_bref.bound.bound etc.
+
+ - faster execution of 'fcts' command for large code archives (using hashtable lookups)
+
+ - fixed bug in 'fcts' command that prevented a complete set of functions from being marked
+
+ - fixed bug in 'contains' command when used with an & (and) qualifier
+
+ - improved ndfa generating for pattern expressions, improved results reporting

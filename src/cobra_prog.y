@@ -4263,16 +4263,16 @@ restore_int(int a, char *b, Rtype *rv, const int ix)
 
 void
 fcts_int(const int ix)
-{	FList *f;
-	Prim *z;
+{	Prim *z;
+	int n;
 
 	if (!flist)
-	{	flist = (FList **) emalloc(Ncore * sizeof(FList *), 83);
+	{	flist = (FHtab **) emalloc(Ncore * sizeof(FHtab *), 83);
 		fct_defs_range((void *) &ix);
 	}
 
-	for (f = flist[ix]; f; f = f->nxt)
-	{	z = f->p;	// fct name
+	for (n = 0; n < NAHASH; n++)
+	{	z = flist[ix]->fht[n]->p;	// fct name
 		if (z->jmp)
 		{	z = z->jmp;
 			if (z->prv)

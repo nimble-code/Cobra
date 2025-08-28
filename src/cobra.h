@@ -12,6 +12,7 @@
 typedef struct Cmd	Cmd;
 typedef struct Commands	Commands;
 typedef struct FList	FList;
+typedef struct FHtab	FHtab;
 typedef struct Function	Function;
 typedef struct History	History;
 typedef struct Lextok	Lextok;
@@ -47,6 +48,10 @@ struct FList {
 	FList *matched;
 	FList *calls;
 	FList *nxt;
+};
+
+struct FHtab {
+	FList **fht;	// size: [NAHASH];
 };
 
 struct History {
@@ -194,7 +199,7 @@ extern Prim *cur;
 extern Prim *plst;
 extern Prim *prim;
 
-extern FList	**flist;
+extern FHtab	**flist;
 extern TokRange	**tokrange;
 
 typedef unsigned int		uint;

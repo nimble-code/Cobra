@@ -7,7 +7,7 @@
 #ifndef COBRA_FE
 #define COBRA_FE
 
-#define tool_version	"Version 5.1 - 19 June 2025"
+#define tool_version	"Version 5.2 - 28 August 2025"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -61,6 +61,7 @@ struct ArgList {
 struct Bound {
 	Prim	*bdef;		// where binding was set
 	Prim	*ref;		// where match was found
+	Prim	*aref;		// all possible matches seen
 	Bound	*nxt;
 };
 
@@ -102,6 +103,7 @@ struct Store {
 	char	*text;
 	Prim	*bdef;		// where binding was set
 	Prim	*ref;		// last place where bound var was seen
+	Prim	*aref;		// all places where the bound var was seen (v5.2)
 	Store	*nxt;
 };
 
