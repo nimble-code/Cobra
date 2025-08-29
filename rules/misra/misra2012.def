@@ -546,7 +546,7 @@ def m12_rule16_7
 	r; m switch; n {; c top no case
 	>1
 	r; m switch; n {; c case
-	n case; n; s top }; c no case	# partial check
+	n case; n; s up }; c no case	# 5.2 replaced s top with s up
 	<|1
 	ps create M12_R16_7
 	ps caption M12_R16_7 (Required) A switch expression shall not represent a value that is effectively Boolean
