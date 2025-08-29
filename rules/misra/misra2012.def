@@ -499,7 +499,7 @@ def m12_rule16_2
 		{	Next;
 		}
 		q = .;
-		while (q.txt != "{")
+		while (q.txt != "{" || q.curly >= .curly)
 		{	q = q.prv;
 		}
 		q = q.prv;	# switch ( .* ) { ... case
