@@ -717,7 +717,7 @@ def m97_rule71
 	fcts
 	ps create FD						# fct declarations
 	r
-	pe FP: @type <1> \** @ident ( .* ) \; @1 (.curly == 0)	# fct prototype definitions
+	pe FP: [@type @ident] <1> \** @ident ( .* ) \; @1 (.curly == 0)	# fct prototype definitions
 	%{
 		unset x;
 		unset y;
@@ -725,7 +725,7 @@ def m97_rule71
 		x = pset(FD);		# fct definitions
 		y = pset(FP);		# fct prototypes
 		while (x.seq > 0)
-		{	a = x.p_start;
+		{	a = x.p_start.nxt;
 			if (a.typ == "ident")	# should match, named of defined fct
 			{	# fct name
 				# check if its in at least one element of FP

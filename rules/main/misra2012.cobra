@@ -3,6 +3,7 @@
 requires 3.9
 
 quiet on
+
 . misra/misra2012.def
 
 m12_rule1_2
