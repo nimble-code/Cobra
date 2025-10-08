@@ -592,6 +592,10 @@ def m12_rule17_8
 	m ir @ident
 	st $$
 	n $$
+	b
+	unmark .
+	unmark ->
+	n
 	e ++
 	>1
 	u
