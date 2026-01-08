@@ -1,3 +1,4 @@
+// clang-format off
 /*
  * This file is part of the public release of Cobra. It is subject to the
  * terms in the License file that is included in this source directory.
@@ -338,7 +339,10 @@ static void
 show1(char *type, int cid)		// item (stands for itself)
 {
 	assert(cid >= 0 && cid < Ncore);
-	snprintf(Px.lex_out, sizeof(Px.lex_out), "%s", type);
+	if (snprintf(Px.lex_out, sizeof(Px.lex_out), "%s", type) >= sizeof(Px.lex_out)) {
+		printf("error: name of type was longer than the lexer's output");
+		return;
+	}
 	process_line(Px.lex_out, cid);
 }
 
@@ -346,8 +350,11 @@ static void
 show2(const char *type, const char *raw, int cid)	// item, count, raw text
 {
 	assert(cid >= 0 && cid < Ncore);
-	snprintf(Px.lex_out, sizeof(Px.lex_out), "%s\t%d\t%s",
-		type, (int) strlen(raw), raw);
+	if (snprintf(Px.lex_out, sizeof(Px.lex_out), "%s\t%d\t%s",
+		type, (int) strlen(raw), raw) >= sizeof(Px.lex_out)) {
+		printf("error: name of type was longer than the lexer's output");
+		return;
+	};
 	process_line(Px.lex_out, cid);
 }
 
@@ -683,7 +690,11 @@ name(int c, int cid)
 	{	int a = isdirective(cid);
 		if (a)
 		{	char buf[MAXYYTEXT+64];
-			snprintf(buf, sizeof(buf), "#%s", Px.lex_yytext);
+			if (snprintf(buf, sizeof(buf), "#%s", Px.lex_yytext) >= sizeof(buf)) {
+				printf("error: the directives \"%s\" were too long, max: %d\n", 
+					 Px.lex_yytext, (int) sizeof(buf));
+				return;
+			}
 			show2("cpp", buf, cid);
 			Px.lex_preprocessing = 2; // need EOP token
 			switch (a) {
@@ -964,8 +975,12 @@ void
 line(int cid)	// called also in cobra_prep.c
 {
 	assert(cid >= 0 && cid < Ncore);
-	snprintf(Px.lex_out, sizeof(Px.lex_out), "line\t%d\t%s",
-		Px.lex_lineno, Px.lex_fname);
+	if (snprintf(Px.lex_out, sizeof(Px.lex_out), "line\t%d\t%s",
+		Px.lex_lineno, Px.lex_fname) >= sizeof(Px.lex_out)) {
+		printf("error: line format directive was too long, max: %d\n",
+				 (int) sizeof(Px.lex_out));
+		return;
+	}
 	process_line(Px.lex_out, cid);	// where the data structure is build
 }
 
@@ -1174,7 +1189,12 @@ c_lex(int cid)	// called in cobra_prep.c
 			if (Px.lex_preprocessing == 1)
 			{	char buf[NOUT+64];
 				char_or_str(n, cid);
-				snprintf(buf, sizeof(buf), "# %d %s", Px.lex_lineno, Px.lex_yytext);
+				if (snprintf(buf, sizeof(buf), "# %d %s", Px.lex_lineno, Px.lex_yytext) 
+						>= sizeof(buf)) {
+						printf("error: preprocessing format is too long, max: %d\n",
+						 (int) sizeof(buf));
+						return 1;
+				}
 				memset(Px.lex_cpp, 0, sizeof(Px.lex_cpp));
 				if (no_cpp)
 				{	do {

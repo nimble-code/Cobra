@@ -1,3 +1,4 @@
+// clang-format off
 /*
  * This file is part of the public release of Cobra. It is subject to the
  * terms in the License file that is included in this source directory.
@@ -66,7 +67,11 @@ check_bvar(Prim *c)
 	if (c->mark & 4)	// matched
 	{	sprintf(buf, "->%d", c->lnr);
 	} else 			// defined
-	{	snprintf(buf, sizeof(buf), "%s %d", c->txt, c->lnr);
+	{	
+		if (snprintf(buf, sizeof(buf), "%s %d", c->txt, c->lnr) >= sizeof(buf)) {
+			printf("error: formatting variable too long, max: %d\n", (int) sizeof(buf));
+			return;
+		}
 	}
 	if (strstr(bvars, buf))
 	{	return;

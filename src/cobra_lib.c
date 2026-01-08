@@ -1,3 +1,4 @@
+// clang-format off
 /*
  * This file is part of the public release of Cobra. It is subject to the
  * terms in the License file that is included in this source directory.
@@ -324,9 +325,13 @@ reproduce(const int seq, const char *s)
 				snprintf(tag, sizeof(tag), " ");
 			} else
 			{	if (scrub)
-				{	snprintf(src, sizeof(src), "%s:%d: %.2s  ",
+				{	
+					if (snprintf(src, sizeof(src), "%s:%d: %.2s  ",
 					  cobra_fnm(), cobra_lnr(),
-					  (q->lnr == cur->lnr && n > 1)?"> ":"  ");
+					  (q->lnr == cur->lnr && n > 1)?"> ":"  ") >= sizeof(src)) {
+						fprintf(stderr, "error: cannot print tag, function name too long\n");
+						return;
+					}
 					memset(tag, ' ', strlen(src));
 					tag[strlen(src)] = '\0';
 				} else if (unnumbered)
