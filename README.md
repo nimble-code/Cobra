@@ -8,7 +8,7 @@ though a lot of query and rule libraries have been
 developed, and are included in the distribution, that target
 C or C-like languages. The original version of the tool
 (version 1.0) was developed at NASA/JPL and cleared
-for public release in April 2016. The current version (5.0)
+for public release in April 2016. The current version (5.3)
 is a significantly extended version of the tool,
 released under the same license.
 
