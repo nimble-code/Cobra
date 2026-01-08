@@ -1,7 +1,7 @@
 /*
  * This file is part of the public release of Cobra. It is subject to the
  * terms in the License file that is included in this source directory.
- * Tool documentation is available at http://codescrub.com/cobra
+ * Tool documentation is available at https://codescrub.com/cobra
  */
 
 #include <stdio.h>
@@ -10,9 +10,6 @@
 #include <ctype.h>
 #include <assert.h>
 #include "cobra_pre.h"
-
-extern int eol;
-extern int html;
 
 static const struct {
 	char	*str;
@@ -517,11 +514,12 @@ p_comment(const char *s, int cid)
 	strncat(Px.lex_yytext, buf, MAXYYTEXT-1); // was MAXYYTEXT-3, gcc complained
 	Px.lex_yytext[MAXYYTEXT-1] = '\0';
 
-	show2("cmnt", Px.lex_yytext, cid);
-
 	if (no_cpp)
 	{	Px.lex_lineno++;
 	}
+
+	show2("cmnt", Px.lex_yytext, cid);
+
 	line(cid);
 }
 
@@ -981,7 +979,7 @@ void
 t_lex(int cid)
 {	int m, n = 0;
 
-	n = nextchar(cid);
+A:	n = nextchar(cid);
 	while (n != EOF)
 	{	if (isspace(n))
 		{	n = nextchar(cid);
@@ -999,7 +997,37 @@ t_lex(int cid)
 				m = append_char(n, m, cid);
 			}
 		} else
-		{	m = append_char(n, 0, cid);
+		{
+	#ifndef NO_E_FNM
+		  // interpret embedded filenames @fname
+		  // eg after cat `cat c_files` > single_file
+		  if (n == '@')
+		  {	n = nextchar(cid);
+			if (n != '>')
+			{ pushback(n, cid);
+			  n = '@';
+			  m = append_char(n, 0, cid);
+			} else
+			{ strcpy(Px.lex_yytext, "");
+			  m = 0;
+			  n = nextchar(cid);
+			  while (n != '\n' && n != EOF)
+			  {	m = append_char(n, m, cid);
+				n = nextchar(cid);
+			  }
+			  Px.lex_yytext[m] = '\0';
+			  if (m > 0)
+			  {	Px.lex_fname = (char *) hmalloc(m+1, cid, 118);
+				strcpy(Px.lex_fname, Px.lex_yytext);
+				Px.lex_lineno = 1;
+			  }
+			  goto A;
+			}
+		  } else
+	#endif
+		  {
+			m = append_char(n, 0, cid);
+		  }
 		}
 
 		assert(m < MAXYYTEXT);
@@ -1228,6 +1256,33 @@ N:			t = number(n, cid);
 			}
 			continue;
 		}
+#ifndef NO_E_FNM
+		// interpret embedded filenames @fname
+		// eg after cat `cat c_files` > single_file
+		if (n == '@')
+		{	n = nextchar(cid);
+			if (n != '>')
+			{	pushback(n, cid);
+				n = '@';
+				token(n, cid);
+				continue;
+			}
+			strcpy(Px.lex_yytext, "");
+			int m = 0;
+			n = nextchar(cid);
+			while (n != '\n' && n != EOF)
+			{	m = append_char(n, m, cid);
+				n = nextchar(cid);
+			}
+			Px.lex_yytext[m] = '\0';
+			if (m > 0)
+			{	Px.lex_fname = (char *) hmalloc(m+1, cid, 118);
+				strcpy(Px.lex_fname, Px.lex_yytext);
+				Px.lex_lineno = 1;
+			}
+			continue;
+		}
+#endif
 
 		if (isalpha((uchar) n) || n == '_')
 		{	name(n, cid);

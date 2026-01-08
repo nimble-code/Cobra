@@ -1,7 +1,7 @@
 /*
  * This file is part of the public release of Cobra. It is subject to the
  * terms in the License file that is included in this source directory.
- * Tool documentation is available at http://codescrub.com/cobra
+ * Tool documentation is available at https://codescrub.com/cobra
  */
 
 %{
@@ -23,15 +23,8 @@
 
 typedef struct	Block	Block;
 typedef struct	Cstack	Cstack;	// function call stack
-typedef struct	Lexlst	Lexlst;
 typedef struct	Var_nm	Var_nm;	// variables: int, str, ptr
 typedef struct	REX	REX;
-
-struct Lexlst {
-	Lextok	*t;
-	Lextok	*dst;
-	Lexlst	*nxt;
-};
 
 struct Block {
 	int	btyp;	// non-zero only for while-blocks
@@ -86,19 +79,17 @@ static Cstack	**c_free;	// freelist for cstack
 static Var_nm	**v_names;
 static Var_nm	**v_free;	// freelist for v_names
 
-static Function	 *functions;
-static Prim	  none;
-static Lextok	 *p_tree;
-static Lextok	 *break_out;
-static Lextok	 *break_nm;
-static Lextok	 *in_fct_def;
-static Var_nm	 *lab_lst;
-Separate	 *sep;		// thread local copies of globals
-Lextok		 **my_tree;	// thread local copies of p_tree
+static Function	*functions;
+static Prim	none;
+static Lextok	*p_tree;
+static Lextok	*break_out;
+static Lextok	*break_nm;
+static Lextok	*in_fct_def;
+static Lextok	**my_tree;	// thread local copies of p_tree
+static Separate	*sep;		// thread local copies of globals
+static Var_nm	*lab_lst;
 
-int	*Cdepth;
-int	*has_lock;
-
+static int	*has_lock;
 static int	 nest;
 static int	 p_lnr = 1;
 static int	 p_seq = 1;
@@ -107,10 +98,8 @@ static int	 a_cnt;		// conservative cnt of nr of arrays
 static int	 v_cnt;		// conservative cnt of nr of vars
 static int	*t_stop;
 
-char	*derive_string(Prim **, Lextok *, const int, const char *);
-
 static Block	*pop_context(int, int);
-static Lextok	*mk_for(Lextok *, Lextok *, Lextok *, Lextok *, Lextok *);
+static Lextok	*mk_for(Lextok *, Lextok *, Lextok *, Lextok *);
 static Lextok	*mk_foreach(Lextok *, Lextok *, Lextok *, Lextok *, Lextok *);
 static Lextok	*new_lex(int, Lextok *, Lextok *);
 static Var_nm	*mk_var(const char *, const int, const int);
@@ -126,33 +115,21 @@ static Lextok	*add_return(Lextok *);
 #ifdef DEBUG
 static void	dump_tree(Lextok *, int);
 #endif
-static void	dump_graph(FILE *, Lextok *, char *);
-static void	check_global(Lextok *);
-static void	handle_global(Lextok *);
+
+static char	*strrstr(const char *, const char *);
+static int	yylex(void);
 static void	add_fct(Lextok *);
+static void	check_global(Lextok *);
+static void	dump_graph(FILE *, Lextok *, char *);
 static void	fixstr(Lextok *);
+static void	handle_global(Lextok *);
 static void	mk_fsm(Lextok *, const int);
 static void	mk_lab(Lextok *, Lextok *);
 static void	push_context(Lextok *, Lextok *, int, int);
 static void	tok2txt(Lextok *, FILE *);
-       void	what_type(FILE *, Renum);
 static void	yyerror(const char *);
 
-void	eval_prog(Prim **, Lextok *, Rtype *, const int);
-
-extern void	new_array(char *, int);	// cobra_array.c
-extern int	setexists(const char *s);
-extern void	show_error(FILE *, int);
-extern int	xxparse(void);
-extern Prim	*cp_pset(char *, Lextok *, int);	// cobra_te.c
-
-static char	*strrstr(const char *, const char *);
-static int	yylex(void);
-
-extern int	solo;
-extern int	stream;
-extern int	stream_override;
-extern int	showprog;
+int		*Cdepth; // shared with cobra_array.c
 %}
 
 %token	NR STRING NAME IF IF2 ELSE ELIF WHILE FOR FOREACH IN PRINT ARG SKIP GOTO
@@ -217,7 +194,7 @@ stmnt	: cmpnd_stmnt	{ $$ = $1; }
 			   // $5 is assumed to be an array name
 			   // if not, this is a skip
 			   set_break();
-			   $$ = new_lex(';', mk_for($1, $3, $5, $7, break_nm), break_out); }
+			   $$ = new_lex(';', mk_for($3, $5, $7, break_nm), break_out); }
 	| FOREACH opt_type '(' NAME IN NAME ')' c_prog {
 			    n_blocks++; v_cnt++;
 			    set_break();
@@ -274,8 +251,10 @@ b_stmnt	: p_lhs '=' expr	{ $2->lft = $1; $2->rgt = $3; $$ = $2; }
 	| p_lhs INCR	{ $2->lft = $1; $$ = $2; }
 	| p_lhs DECR	{ $2->lft = $1; $$ = $2; }
 	| SET_RANGES '(' expr ',' expr ')' { $1->lft = $3; $1->rgt = $5; $$ = $1; }
-	| A_UNIFY '(' NAME ',' expr ')' { $1->lft = $5; $1->rgt = $3; $$ = $1; }
-	| A_UNIFY '(' expr ')'	{ $1->lft = $3; $1->rgt = 0; $$ = $1; }
+	| A_UNIFY '(' NAME ',' expr ')' { $1->lft = $5; $1->rgt = $3; $$ = $1; } // pre 5.3
+	| A_UNIFY '(' NAME ')'	{ $1->lft = 0; $1->rgt = $3; $$ = $1; }		// Version 5.3
+	| A_UNIFY '(' expr ')'	{ $1->lft = $3; $1->rgt = 0; $$ = $1; }		// pre 5.3
+	| A_UNIFY '(' ')'	{ $1->lft = 0; $1->rgt = 0; $$ = $1; }		// Version 5.3
 
 	| ADD_PATTERN '(' s_ref ',' t_ref ',' t_ref ')'	{
 				$1->lft = $3;
@@ -402,7 +381,7 @@ expr	:'(' expr ')'		{ $$ = $2; }
 	| SIZE '(' NAME ')'	{ $1->rgt = $3; $$ = $1; }
 	| SUM '(' p_lhs ')'	{ $1->rgt = $3; $$ = $1; }
 	| RETRIEVE '(' NAME ',' expr ')' { $1->rgt = $3; $1->lft = $5; $$ = $1; }
-	| RE_MATCH '(' p_lhs ',' STRING ')' { $1->lft = $3; $1->rgt = $5; $$ = $1; }
+	| RE_MATCH '(' p_lhs ',' expr ')' { $1->lft = $3; $1->rgt = $5; $$ = $1; }
 	| RE_MATCH '(' STRING ')' { $1->lft = 0; $1->rgt = $3; $$ = $1; }
 	| ITOSTR '(' expr ')'	{ $1->lft = $3; $$ = $1; }
 	| ATOI '(' expr ')'	{ $1->lft = $3; $$ = $1; }
@@ -636,7 +615,7 @@ static struct Keywords ops[] = {	// for tok2txt only
 	{ 0, 0}
 };
 
-ulong
+static ulong
 hash2_cum(const char *s, const int seq)	// cumulative
 {	static uint64_t h = 0;
 	static char t = 0;
@@ -653,7 +632,7 @@ hash2_cum(const char *s, const int seq)	// cumulative
 	return ((h << 7) ^ (h >> (57))) ^ t;
 }
 
-ulong
+static ulong
 hash3(const char *s)	// debugging version of hash2
 {
 	if (sizeof(ulong) == 8)
@@ -675,7 +654,7 @@ hash3(const char *s)	// debugging version of hash2
 	}
 }
 
-ulong
+static ulong
 hash2(const char *s)
 {
 	if (sizeof(ulong) == 8)
@@ -847,7 +826,7 @@ mk_foreach(Lextok *opt_type, Lextok *nm, Lextok *p, Lextok *body, Lextok *out)
 		       ||  strcmp(opt_type->s, "element") == 0)
 		{
 			if (1)
-			{	return mk_for(0, nm, p, body, out);
+			{	return mk_for(nm, p, body, out);
 			} else
 			{	fprintf(stderr, "error: foreach %s (...) should be: for (...)\n",
 					opt_type->s);
@@ -923,7 +902,7 @@ mk_foreach(Lextok *opt_type, Lextok *nm, Lextok *p, Lextok *body, Lextok *out)
 }
 
 static Lextok *
-mk_for(Lextok *a, Lextok *nm, Lextok *ar, Lextok *body, Lextok *out)
+mk_for(Lextok *nm, Lextok *ar, Lextok *body, Lextok *out)
 {	Lextok *mrk, *seq, *asgn1, *asgn2, *loop;
 	Lextok *cond, *whl, *txt;
 	Lextok *setv, *one, *incr, *zero;
@@ -1596,7 +1575,7 @@ add_fct(Lextok *t)
 }
 
 static void
-map_var(Prim **ref_p, const char *fnm, Lextok *name, Lextok *expr, const int ix)
+map_var(Prim **ref_p, Lextok *name, Lextok *expr, const int ix)
 {	Var_nm *n;
 	Rtype tmp;
 
@@ -1692,7 +1671,7 @@ set_actuals(Prim **ref_p, const char *fnm, Lextok *formal, Lextok *actual, const
 
 	if (formal->rgt)
 	{	if (actual->rgt)
-		{	map_var(ref_p, fnm, formal->rgt, actual->rgt, ix);
+		{	map_var(ref_p, formal->rgt, actual->rgt, ix);
 		} else
 		{	fprintf(stderr, "error: actual parameter for %s() missing\n", fnm);
 			show_error(stderr, formal->rgt->lnr);
@@ -1701,7 +1680,7 @@ set_actuals(Prim **ref_p, const char *fnm, Lextok *formal, Lextok *actual, const
 	} else // if (!actual->rgt)
 	{
 	//	if (!actual->rgt || actual->typ == '.')
-		{	map_var(ref_p, fnm, formal, actual, ix);
+		{	map_var(ref_p, formal, actual, ix);
 		}
 	//	else
 	//	{	fprintf(stderr, "error: too many parameters for %s() -- %d\n", fnm, actual->typ);
@@ -2119,13 +2098,13 @@ get_var(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)
 			sep[ix].T_stop++;
 		}
 	}
-	if (0 && n)
+#if 0
+	if (n)
 	{	printf("get_var %s, depth %d\n", n->nm, n->cdepth);
 	}
+#endif
 	return n;
 }
-
-extern int do_split(char *, const char *, const char *, Rtype *, const int);	// cobra_array.c
 
 static void
 split(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)
@@ -2836,8 +2815,8 @@ struct R_S {
 #define MAXSTR	4096
 #define MINSTR	  16
 
-R_S *r_str[MAXSTR];
-R_S *r_free;
+static R_S *r_str[MAXSTR];
+static R_S *r_free;
 
 #ifdef RECYCLE_STR
 static void
@@ -3139,7 +3118,7 @@ do_incr_decr(Prim **ref_p, Lextok *q, Rtype *rv, const int ix, Prim *p)
 			return;
 		}
 
-		if (!incr_aname_el(ref_p, LHS->lft, &tmp, q->typ, rv, ix))	// do_incr LHS->lft->s: array name
+		if (!incr_aname_el(LHS->lft, &tmp, q->typ, rv, ix))	// do_incr LHS->lft->s: array name
 		{	fprintf(stderr, "error: unexpected array type: expected value\n");
 			show_error(stderr, q->lnr);
 			rv->rtyp = STP;
@@ -3297,7 +3276,7 @@ do_assignment(Prim **ref_p, Lextok *q, Rtype *rv, const int ix, Prim *p)
 		// lft->s: basename
 		// tmp: index
 		// rv: value, string, or ptr to store
-		set_aname(ref_p, LHS->lft, &tmp, rv, ix);
+		set_aname(LHS->lft, &tmp, rv, ix);
 		return;
 	}
 
@@ -3673,8 +3652,8 @@ bad:					fprintf(stderr, "error: bad dot chain on lhs of asgn\n");
 #undef LHS
 #undef RHS
 
-void
-get_field(Prim *p, Lextok *q, Rtype *rv, int ix)
+static void
+get_field(Prim *p, Lextok *q, Rtype *rv)
 {
 	assert(q != NULL);
 
@@ -3755,10 +3734,10 @@ fallback:			rv->rtyp = VAL;
 
 again:			if (q->typ == '.')
 			{	if (!q->lft)
-				{	get_field(p, q->rgt, rv, ix);
+				{	get_field(p, q->rgt, rv);
 					return;
 				}
-				get_field(p, q->lft, rv, ix);
+				get_field(p, q->lft, rv);
 				if (rv->rtyp != PTR)
 				{	if (0)
 					{	fprintf(stderr, "%s returns non-ptr (typ %d)\n",
@@ -3770,12 +3749,12 @@ again:			if (q->typ == '.')
 				// check which field of p, given by p->rgt
 				q = q->rgt;
 				if (q->typ != '.')
-				{	get_field(p, q, rv, ix);
+				{	get_field(p, q, rv);
 					return;
 				}
 				goto again;
 			}
-			get_field(p, q, rv, ix);
+			get_field(p, q, rv);
 			return;
 		} else
 		{	switch (q->lft->typ) {
@@ -3806,6 +3785,7 @@ again:			if (q->typ == '.')
 
 		switch (rv->rtyp) {
 		case VAL:
+			assert(n != NULL);
 			rv->val = n->v;
 			break;
 		case STR:
@@ -4117,12 +4097,27 @@ set_pre(Prim **ref_p, Lextok *t, int ix, int txt)
 
 static int
 re_matches(Prim **ref_p, Lextok *t, int cid)
-{	char *v;
-	char *s = t->rgt->s;
+{	Rtype rr;
+	char *v;
+	char *s;
 	int isre = 0;
 	int istxt = 1;
 	int rv;
 
+	if (t->rgt->typ != STRING)
+	{	static Lextok nt, tt;
+		eval_prog(ref_p, t->rgt, &rr, cid);
+		if (rr.rtyp != STR)
+		{	fprintf(stderr, "match: 2nd arg must be a string\n");
+			return 0;
+		}
+		tt.lft = t->lft;
+		tt.rgt = &nt;
+		nt.typ = STRING;
+		nt.s = rr.s;
+		t = &tt;
+	}
+	s = t->rgt->s;
 
 	if (*s == '\\')
 	{	s++;
@@ -4134,7 +4129,7 @@ re_matches(Prim **ref_p, Lextok *t, int cid)
 		istxt = 0;
 	}
 
-	do_lock(cid);	// re_matches (cobra_prog.y)
+	do_lock(cid, 7);	// re_matches (cobra_prog.y)
 
 	v = set_pre(ref_p, t, cid, istxt);
 	if (isre)
@@ -4147,7 +4142,7 @@ re_matches(Prim **ref_p, Lextok *t, int cid)
 		{	rv = (strcmp(v, s) == 0);
 	}	}
 
-	do_unlock(cid);
+	do_unlock(cid, 7);
 
 	return rv;
 }
@@ -4261,7 +4256,7 @@ restore_int(int a, char *b, Rtype *rv, const int ix)
 	return 0;
 }
 
-void
+static void
 fcts_int(const int ix)
 {	Prim *z;
 	int n;
@@ -4449,7 +4444,7 @@ name_to_set(Prim **ref_p, Lextok *q, Rtype *rv, int ix)
 
 	switch (n->typ) {
 	case STRING:
-		rv->ptr = cp_pset(n->s, q->rgt, ix);
+		rv->ptr = cp_pset(n->s, q->rgt, ix);;
 		rv->rtyp = PTR;
 		break;
 	case NAME:
@@ -4484,8 +4479,6 @@ set_string_type(Lextok *c, char *s)
 	}
 }
 
-extern int evaluate(const Prim *, const Lextok *);
-
 enum tok_eval {		// cobra_eval.c
 	eSIZE = 258,
 	eNR = 259,
@@ -4501,7 +4494,7 @@ enum tok_eval {		// cobra_eval.c
 	eUMIN = 271
 };
 
-int
+static int
 tok_prog2eval(int t)
 {
 	switch (t) {
@@ -4532,7 +4525,7 @@ convert_prog2eval(Lextok *p)
 }
 
 void
-slice_set(Named *x, Lextok *constraint, int ix, int commandline)
+slice_set(Named *x, Lextok *constraint, int commandline)
 {	Prim *p, *last_p = (Prim *) 0;
 
 	if (!constraint
@@ -4543,30 +4536,44 @@ slice_set(Named *x, Lextok *constraint, int ix, int commandline)
 
 	for (p = x->cloned; p; p = p->nxt)
 	{	Rtype irv;
+		irv.val = 0;
+		irv.rtyp = VAL;
 
-		if (constraint->typ == STRING)
-		{	Prim *s = p->jmp;
-			Prim *e = p->bound;
-			irv.rtyp = VAL;
-			irv.val = 0;
+		if (constraint->typ == STRING)				// ps = A with "string"
+		{	Prim *s = p->jmp;	// p_start
+			Prim *e = p->bound;	// p_end
 			while (s->seq <= e->seq)
 			{	if (strcmp(s->txt, constraint->s) == 0)
-				{	irv.val = 1;	// keep
-					break;
+				{	irv.val = 1;
+					break;		// keep
 				}
 				s = s->nxt;
 			}
 		} else
-		{	if (commandline)
-			{	convert_prog2eval(constraint);		// ps = A with (constraint)
-				irv.val = evaluate(p, constraint);
-				irv.rtyp = VAL;
-			} else	// inline program
-			{	eval_prog(&p, constraint, &irv, ix);	// pset(A) with (constraint)
-		}	}
+		{	if (commandline)				// ps command
+			{	Prim *s = p->jmp;
+				Prim *e = p->bound;
+				convert_prog2eval(constraint);		// ps = A with (constraint)
+				while (s->seq <= e->seq)
+				{	irv.val = evaluate(s, constraint, 0, 0);
+					if (irv.val != 0)
+					{	break;	// keep
+					}
+					s = s->nxt;
+				}
+			} else						// inline program
+			{	Prim *s = p->jmp;
+				Prim *e = p->bound;
 
-		if (irv.rtyp == STP
-		||  irv.rtyp != VAL)
+				while (s->seq <= e->seq)
+				{	eval_prog(&s, constraint, &irv, 0);	// pset(A) with (constraint)
+					if (irv.val > 0)
+					{	break;	// keep
+					}
+					s = s->nxt;
+		}	}	}
+
+		if (irv.rtyp != VAL)
 		{	fprintf(stderr, "pset %s: bad constraint\n", x->nm);
 			break;
 		}
@@ -4587,7 +4594,7 @@ slice_set(Named *x, Lextok *constraint, int ix, int commandline)
 	}
 }
 
-void
+static void
 convert_list2set(Prim **ref_p, Lextok *q, Rtype *rv, const int ix)
 {	Var_nm *lst;
 	Prim *nm;
@@ -4619,7 +4626,7 @@ out:		if (q)
 	}
 }
 
-void
+static void
 dot_chain(Prim *p, Lextok *q, Rtype *rv, int ix)
 {	Prim *pp = (Prim *) 0;
 
@@ -4646,7 +4653,7 @@ dot_chain(Prim *p, Lextok *q, Rtype *rv, int ix)
 			return;
 		}
 	}
-	get_field(p, q->rgt, rv, ix);
+	get_field(p, q->rgt, rv);
 }
 
 void
@@ -5125,7 +5132,7 @@ next:
 	case    PRV: case   ROUND: case BRACKET:
 	case   CURLY: case    LEN: case     LNR:
 	case    MARK: case    SEQ:
-		get_field(p, q, rv, ix);
+		get_field(p, q, rv);
 		break;
 
 	case STRING: rv->rtyp = STR; rv->s   = q->s; break;
@@ -5335,7 +5342,6 @@ next:
 	case SRC_LN:	// V 4.5
 		{	int from_nr, upto_nr;
 			char *from_fnm;
-			extern int unnumbered; // cobra_json.c
 
 			Assert("src_ln0", q->lft && q->lft->lft && q->lft->rgt && q->rgt, q);
 
@@ -5354,9 +5360,9 @@ next:
 			if (q->typ == SRC_NM) // numbered
 			{	show_line(stdout, from_fnm, -1, from_nr, upto_nr, 0);
 			} else
-			{	unnumbered = 1;
+			{	unnumbered++;	// could already be 1
 				show_line(stdout, from_fnm, -1, from_nr, upto_nr, 0);
-				unnumbered = 0;
+				unnumbered--;
 			}
 		}
 		break;
@@ -5420,16 +5426,21 @@ next:
 		break;
 
 	case LOCK:
-		do_lock(ix);	// lock()
+		do_lock(ix, 6);	// lock()
 		break;
 	case UNLOCK:
-		do_unlock(ix);
+		do_unlock(ix, 6);
 		break;
 
 	case A_UNIFY:
 		{ Lextok zz, yy;
-		  eval_prog(ref_p, q->lft, rv, ix);
-		  Assert("a_unify", rv->rtyp == VAL, q->lft);
+		  if (q->lft)
+		  {	eval_prog(ref_p, q->lft, rv, ix);
+			Assert("a_unify", rv->rtyp == VAL, q->lft);
+		  } else
+		  {	rv->rtyp = VAL;
+			rv->val = 0;
+		  }
 		  zz.lft = &yy;
 		  zz.rgt = q->rgt;
 		  yy.val = rv->val;
@@ -6062,7 +6073,7 @@ stop_threads(void)
 	}
 }
 
-int
+static int
 has_stop_cmd(Lextok *p)
 {
 	if (!p || (p->visit & 128))

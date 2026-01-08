@@ -1,7 +1,7 @@
 /*
  * This file is part of the public release of Cobra. It is subject to the
  * terms in the License file that is included in this source directory.
- * Tool documentation is available at http://codescrub.com/cobra
+ * Tool documentation is available at https://codescrub.com/cobra
  */
 
 %{
@@ -14,15 +14,13 @@
 #define YYSTYPE	Lexptr
 #define YYDEBUG 0
 
-static Lextok	*p_tree;
+static Lextok	*e_tree;
 static int	 last_tok;
 static void	 yyerror(const char *);
 static int	 yylex(void);
 static int	 parse_error;
 
 extern YYSTYPE	 yylval;
-extern char	*b_cmd;
-extern int	 evaluate(const Prim *, const Lextok *);
 extern int	 yyparse(void);
 %}
 
@@ -41,7 +39,7 @@ extern int	 yyparse(void);
 %right	':'
 
 %%
-form	: expr EOE	{ p_tree = $1; return 1; }
+form	: expr EOE	{ e_tree = $1; return 1; }
 	;
 expr    : '(' expr ')'	{ $$ = $2; }
 	| expr '+' expr	{ $2->lft = $1; $2->rgt = $3; $$ = $2; }
@@ -236,6 +234,7 @@ yyerror(const char *s)
 static int
 lookup(const Prim *q, const char *s)
 {	// .txt and .fnm handled elsewhere
+
 	assert(q && s);
 	if (strcmp(s, "lnr") == 0)
 	{	return q->lnr;
@@ -458,7 +457,7 @@ dt(Lextok *t, int i)
 #endif
 
 static int
-dot_match(const Prim *q, const int op, Lextok *lft, Lextok *rgt)
+dot_match(const Prim *q, const int op, Lextok *lft, Lextok *rgt, int ix)
 {	char *a = (char *) 0;
 	char *b = (char *) 0;
 	Prim *r = (Prim *) 0;
@@ -481,27 +480,27 @@ dot_match(const Prim *q, const int op, Lextok *lft, Lextok *rgt)
 	{	if (rgt->typ == ':')		// rhs as well
 		{	e = 0;
 		} else if (rgt->typ == '.')
-		{	r = bound_prim(lft->rgt->s); // origin
+		{	r = bound_prim(lft->rgt->s, ix); // origin
 			e = re;			// cmp bound fields below
 		}
 		if (lft->rgt && (a = strchr(lft->rgt->s, '.')))
 		{	// lhs bound var contains a field like :x.len
 			*a = '\0';
-			r = bound_prim(lft->rgt->s);
+			r = bound_prim(lft->rgt->s, ix);
 			if (r) { e = field_type(a+1); }
 		}
 
 		else if (lft->rgt && lft->rgt->typ == NAME)
-		{	r = bound_prim(lft->rgt->s);	// get the ref
+		{	r = bound_prim(lft->rgt->s, ix);	// get the ref
 		}
 	} else  if (rgt->typ == ':')	// rhs is bound var
 	{	if (lft->typ == '.')	// rhs refers to token field
-		{	r = bound_prim(rgt->rgt->s);	// origin
+		{	r = bound_prim(rgt->rgt->s, ix);	// origin
 			e = le;				// lhs ref
 		}
 
 		else if (rgt->rgt && rgt->rgt->typ == NAME)
-		{	r = bound_prim(rgt->rgt->s);	// get the ref
+		{	r = bound_prim(rgt->rgt->s, ix);	// get the ref
 	}	}
 
 
@@ -510,7 +509,7 @@ dot_match(const Prim *q, const int op, Lextok *lft, Lextok *rgt)
 	&& (a = strchr(rgt->rgt->s, '.')))
 	{	// rhs bound var contains a field like :x.len
 		*a = '\0';
-		r = bound_prim(rgt->rgt->s);
+		r = bound_prim(rgt->rgt->s, ix);
 		if (r) { e = field_type(a+1); }
 	}
 
@@ -526,14 +525,14 @@ dot_match(const Prim *q, const int op, Lextok *lft, Lextok *rgt)
 	// two dot fields, bound vars, or one is a regex
 	switch (lft->typ) {
 	case '.':	a = dot_derive(q, le); break;
-	case ':':	a = bound_text(lft->rgt->s); break;
+	case ':':	a = bound_text(lft->rgt->s, ix); break;
 	case REGEX:	a = rgt->s; // ignored: there should be just one regex
 	default:	a = lft->s; break;
 	}
 
 	switch (rgt->typ) {
 	case '.':	b = dot_derive(q, re); break;
-	case ':':	b = bound_text(rgt->rgt->s); break;
+	case ':':	b = bound_text(rgt->rgt->s, ix); break;
 	case REGEX:	return regex_match(0, a);
 	default:	b = rgt->s; break;	// 4.0: was: a = rgt->s
 	}
@@ -566,36 +565,33 @@ yylex(void)
 
 // externally visible function:
 
-#define binop(op)	(evaluate(q, n->lft) op evaluate(q, n->rgt))
+#define binop(op)	(evaluate(q, n->lft, te_call, ix) op evaluate(q, n->rgt, te_call, ix))
 
 #define is_bound(n)	(n->rgt->typ == ':' || n->lft->typ == ':')
 
 static int
-do_bound(const Prim *q, const Lextok *n, const int op)
+do_bound(const Prim *q, const Lextok *n, const int op, const int te_call, int ix)
 {
 	// there is at least one side is a bound variable
 	// because is_bound() is true
 	// provided bindings were defined
 
-	if (e_bindings)
+	if (te_call)
 	{	switch (op) {
 		case LT:
 		case LE:
 		case GT:
-		case GE: return dot_match(q, op, n->lft, n->rgt);
-		case EQ: 
-			return (dot_match(q, EQ, n->lft, n->rgt) == 0);
-		case NE: return (dot_match(q, NE, n->lft, n->rgt) != 0);
-		default:
-			// cannot happen
-			break;
+		case GE: return dot_match(q, op, n->lft, n->rgt, ix);
+		case EQ: return (dot_match(q, EQ, n->lft, n->rgt, ix) == 0);
+		case NE: return (dot_match(q, NE, n->lft, n->rgt, ix) != 0);
+		default: break; // cannot happen
 	}	}
 
 	return 0; // no bound vars defined
 }
 
 static int
-bound_reference(char *s)
+bound_reference(char *s, int ix)
 {	Prim *r;
 	char *p;
 	int e = -1;
@@ -603,7 +599,7 @@ bound_reference(char *s)
 	p = strchr(s, '.'); // eg :x.curly
 	if (p)
 	{	*p = '\0';
-		r = bound_prim(s);
+		r = bound_prim(s, ix);
 		p++;
 		if (r)
 		{	e = field_type(p);
@@ -632,105 +628,110 @@ bound_reference(char *s)
 }
 
 int	// also called in cobra_te.c
-evaluate(const Prim *q, const Lextok *n)
+evaluate(const Prim *q, const Lextok *n, int te_call, int ix)
 {	int rval = 0;
 
 	if (n)
 	{	switch (n->typ) {
 		case '+':  rval = binop(+); break;
-		case '!':  rval = !evaluate(q, n->rgt); break;
+		case '!':  rval = !evaluate(q, n->rgt, te_call, ix); break;
 		case '-':  if (n->lft)
 			   {	rval = binop(-);
 			   } else
-			   {	rval = -evaluate(q, n->rgt);
+			   {	rval = -evaluate(q, n->rgt, te_call, ix);
 			   }
 			   break;
 		case '*':  rval = binop(*); break;
 		case '/':
-			   rval = evaluate(q, n->rgt);
+			   rval = evaluate(q, n->rgt, te_call, ix);
 			   if (rval == 0)
 			   {	// division by zero
 				fprintf(stderr, "error: divsion by zero\n");
 			   } else
-			   {	rval = (evaluate(q, n->lft) / rval);
+			   {	rval = (evaluate(q, n->lft, te_call, ix) / rval);
 			   }
 			   break;
 		case '%':
-			   rval = evaluate(q, n->rgt);
+			   rval = evaluate(q, n->rgt, te_call, ix);
 			   if (rval == 0)
 			   {	// division by zero
 				fprintf(stderr, "error: modulo of zero\n");
 			   } else
-			   {	rval = (evaluate(q, n->lft) % rval);
+			   {	rval = (evaluate(q, n->lft, te_call, ix) % rval);
 			   }
 			   break;
 		case  OR:  rval = binop(||); break;
 		case AND:  rval = binop(&&); break;
 		case  EQ:
 			   if (is_bound(n))
-			   {	rval = do_bound(q, n, EQ);
+			   {	rval = do_bound(q, n, EQ, te_call, ix);
 				break;
 			   }
 			   if (n->rgt->typ == NAME
 			   ||  n->rgt->typ == REGEX
 			   ||  n->lft->typ == NAME
 			   ||  n->lft->typ == REGEX)
-			   {	rval = (dot_match(q, EQ, n->lft, n->rgt) == 0);
+			   {	rval = (dot_match(q, EQ, n->lft, n->rgt, ix) == 0);
 			   } else
 			   {	rval = binop(==);
 			   }
 			   break;
 		case  NE:
 			   if (is_bound(n))
-			   {	rval = do_bound(q, n, NE);
+			   {	rval = do_bound(q, n, NE, te_call, ix);
 				break;
 			   }
 			   if (n->rgt->typ == NAME
 			   ||  n->rgt->typ == REGEX
 			   ||  n->lft->typ == NAME
 			   ||  n->lft->typ == REGEX)
-			   {	rval = (dot_match(q, NE, n->lft, n->rgt) != 0);
+			   {	rval = (dot_match(q, NE, n->lft, n->rgt, ix) != 0);
 			   } else
 			   {	rval = binop(!=);
 			   }
 			   break;
 		case  GT:
 			   if (is_bound(n))
-			   {	rval = (dot_match(q, n->typ, n->lft, n->rgt) == 0);
+			   {	rval = (dot_match(q, n->typ, n->lft, n->rgt, ix) == 0);
 			   } else
 			   {	rval = binop(>);
 			   }
 			   break;
 		case  LT:
 			   if (is_bound(n))
-			   {	rval = (dot_match(q, n->typ, n->lft, n->rgt) == 0);
+			   {	rval = (dot_match(q, n->typ, n->lft, n->rgt, ix) == 0);
 			   } else
 			   {	rval = binop(<);
 			   }
 			   break;
 		case  GE:
 			   if (is_bound(n))
-			   {	rval = (dot_match(q, n->typ, n->lft, n->rgt) == 0);
+			   {	rval = (dot_match(q, n->typ, n->lft, n->rgt, ix) == 0);
 			   } else
 			   {	rval = binop(>=);
 			   }
 			   break;
 		case  LE:
 			   if (is_bound(n))
-			   {	rval = (dot_match(q, n->typ, n->lft, n->rgt) == 0);
+			   {	rval = (dot_match(q, n->typ, n->lft, n->rgt, ix) == 0);
 			   } else
 			   {	rval = binop(<=);
 			   }
 			   break;
 
-		case '.':  rval = lookup(q, n->s); break;
+		case '.':  if (!n->s && n->rgt && n->rgt->s)
+			   {	rval = lookup(q, n->rgt->s);
+			   } else
+			   {	rval = lookup(q, n->s);
+			   }
+			   break;
 		case NR:   rval = n->val; break;
 		case SIZE: rval = nr_marks(n->rgt->val); break;
 		case ':':
 			   if (n->rgt
 			   &&  n->rgt->s
 			   &&  strchr(n->rgt->s, '.') != NULL)
-			   {	rval = bound_reference(n->rgt->s);
+			   {	rval = bound_reference(n->rgt->s, ix);
 				// n->rgt can be a bound variable reference, eg :x.curly
 			   	// which should return an integer value and not a string
 			   } else
@@ -751,17 +752,18 @@ prep_eval(void)
 	parse_error = 0;
 	iscan = 0;
 	if (yyparse())
-	{	rval = p_tree;
+	{	rval = e_tree;
 	}
 	iscan = 0;
 	return rval;
 }
 
 int
-do_eval(const Prim *q)
+do_eval(const Prim *q, const int ix)
 {
 	if (parse_error)
 	{	return 0;
 	}
-	return evaluate(q, p_tree);
+
+	return evaluate(q, e_tree, 0, ix);
 }

@@ -37,11 +37,11 @@ NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
 USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
 OF SUCH DAMAGE.
 
-====================Version 2, July 2017======================
+====================Versions 2-5 2017-2026 ======================
 
-The current version (c) 2017, Gerard Holzmann, Nimble Research,
-Monrovia, CA, 91016, USA, is an extension and thorough revision
+The current version (c) 2017-2026, Gerard Holzmann, Nimble Research,
+Oxnard CA 93035 USA, is an extension and thorough revision
 of the original developed the same author while at Caltech/JPL.
 The extended version is distributed under the same terms as
-defined above. The same holds for all subsequent versions and
-releases of Cobra (currently Version 5, 2025).
+defined above. The same holds for all versions and releases
+of Cobra and tools based on it after 2016 (currently Version 5, 2026).

@@ -1,16 +1,14 @@
 /*
  * This file is part of the public release of Cobra. It is subject to the
  * terms in the License file that is included in this source directory.
- * Tool documentation is available at http://codescrub.com/cobra
+ * Tool documentation is available at https://codescrub.com/cobra
  */
 
 #include "cobra.h"
 
 #define s_hash	hasher
-extern uint hasher(const char *);
 
 FHtab **flist;
-extern int no_caller_info;
 
 static int path = 1;	// testing
 static FList *find_match(FList *);
@@ -129,12 +127,12 @@ fct_defs_range(void *arg)
 	from = tokrange[*i]->from;
 	upto = tokrange[*i]->upto;
 
-
 	for (r = from; r && r->seq <= upto->seq; r = r->nxt)
 	{
 More:		if (Ncore == 1
 		&&  !no_match && !no_display
 		&&  Nfiles > 10000
+		&&  r->fnm
 		&&  strcmp(r->fnm, ofnm) != 0)
 		{	ofnm = r->fnm;
 			Cnt++;
@@ -142,19 +140,19 @@ More:		if (Ncore == 1
 			{	printf("%d of %d files (%.2f%%)\n",
 					Cnt, Nfiles, ((100.0*(float)Cnt)/(float)Nfiles));
 		}	}
-  
-		if (strcmp(r->typ, "cpp") == 0 && !parse_macros)
-		{	while (r && r->nxt && r != r->nxt
-			&&    strcmp(r->txt, "EOL") != 0
-			&&    strcmp(r->txt, "EOF") != 0)
-			{	r = r->nxt;
-			}
-			continue;	// skip over preprocessing stuff
-		}
 
-		if (strcmp(r->typ, "ident") != 0)
-		{	continue;	// cannot be a fct name
-		}
+		if (r->typ)
+		{	if (strcmp(r->typ, "cpp") == 0 && !parse_macros)
+			{	while (r && r->nxt && r != r->nxt
+				&&    strcmp(r->txt, "EOL") != 0
+				&&    strcmp(r->txt, "EOF") != 0)
+				{	r = r->nxt;
+				}
+				continue;	// skip over preprocessing stuff
+			}
+			if (strcmp(r->typ, "ident") != 0)
+			{	continue;	// cannot be a fct name
+		}	}
 
 		if (cplusplus)
 		{	if (r->round > 0)
@@ -162,26 +160,31 @@ More:		if (Ncore == 1
 			}
 			if (r->prv)
 			{	t = r->prv;
-				if (strcmp(t->txt, ",") == 0
-				||  strcmp(t->txt, ".") == 0)
-				{	continue;
-				}
-				while (t && t->seq > 0 && strcmp(t->txt, "*") == 0)
-				{	t = t->prv;
-				}
-				if (t
+				if (t->txt)
+				{	if (strcmp(t->txt, ",") == 0
+					||  strcmp(t->txt, ".") == 0)
+					{	continue;
+					}
+					while (t && t->seq > 0 && strcmp(t->txt, "*") == 0)
+					{	t = t->prv;
+				}	}
+				if (t->typ
 				&&  strcmp(t->typ, "type") != 0
 				&&  t->prv
 				&&  strcmp(t->prv->txt, ">") == 0)
 				{	continue;		// C++ confusion
 				}
 			}
-			if (strcmp(r->txt, "throw") == 0)
+			if (r->txt
+			&& strcmp(r->txt, "throw") == 0)
 			{	continue;
 			}
-		} else if (r->curly > 0)
+		}
+#if 0
+		else if (r->curly > 0)
 		{	// continue;	// allow, to get caller info
 		}
+#endif
 		ptr = r;		// points at fct name candidate
 		r = r->nxt;		// look-ahead
 		if (!r
@@ -191,26 +194,27 @@ More:		if (Ncore == 1
 			continue;	// not a function
 		}
 		q = r->jmp;		// end of possible param list
-
+#if 0
 		if (q
 		&&  q->nxt
 		&& (strcmp(q->nxt->txt, ",") == 0
 		||  strcmp(q->nxt->txt, ";") == 0))
 		{	// continue;	// not a fct def -- allow to get caller info
 		}
-
+#endif
 		// if there are no typenames in the param list
 		// but there are identifiers, could be pre-ansi code
 		preansi = 0;
 		for (t = r->nxt; t != q; t = t->nxt)
-		{	if (strcmp(t->typ, "type") == 0)
-			{	preansi |= 1|2;
-				break;
-			}
-			if (strcmp(t->typ, "ident") == 0)
-			{	// at least one identifier
-				preansi |= 1;
-		}	}
+		{	if (t->typ)
+			{	if (strcmp(t->typ, "type") == 0)
+				{	preansi |= 1|2;
+					break;
+				}
+				if (strcmp(t->typ, "ident") == 0)
+				{	// at least one identifier
+					preansi |= 1;
+		}	}	}
 		if (!(preansi & 2) && (preansi & 1))
 		{	preansi = 1;
 		} else
@@ -218,7 +222,7 @@ More:		if (Ncore == 1
 		}
 // 		printf("%2d -- %3d: %s -- preansi: %d\n", r->curly, ptr->lnr, ptr->txt, preansi);
 		if (cplusplus)
-		{	while (q && q->nxt && strcmp(q->nxt->typ, "qualifier") == 0)
+		{	while (q && q->nxt && q->nxt->typ && strcmp(q->nxt->typ, "qualifier") == 0)
 			{	q = q->nxt;
 			}
 			if (q
@@ -250,7 +254,7 @@ More:		if (Ncore == 1
 
 		z = q->nxt;
 		if (cplusplus)
-		{	while (z && z != z->nxt && strcmp(z->typ, "specifier") == 0)
+		{	while (z && z != z->nxt && z->typ && strcmp(z->typ, "specifier") == 0)
 			{	z = z->nxt;	// eg noexcept [( ... )]
 				if (strcmp(z->txt, "(") == 0
 				&&  z->jmp != NULL)
@@ -261,6 +265,8 @@ More:		if (Ncore == 1
 		// skip over pre-ansi param decls
 		if (preansi
 		&&  z
+		&&  z->typ
+		&&  z->txt
 		&&  (strcmp(z->typ, "type") == 0
 		||   strcmp(z->txt, "struct") == 0
 		||   strcmp(z->txt, "register") == 0))
@@ -541,6 +547,7 @@ fct_which(const Prim *p)
 		&& strcmp(f->p->fnm, p->fnm) == 0)
 		{	return f->nm;
 	}	}
+
 	return "global";
 }
 

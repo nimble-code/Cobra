@@ -1,10 +1,14 @@
 /*
  * This file is part of the public release of Cobra. It is subject to the
  * terms in the License file that is included in this source directory.
- * Tool documentation is available at http://codescrub.com/cobra
+ * Tool documentation is available at https://codescrub.com/cobra
  */
 
 #include "cobra_pre.h"
+typedef unsigned int	uint;
+#include "cobra_te.h"
+
+#define Emalloc(a, b)	(void *) ((Ncore==1)?emalloc(a,b):hmalloc(a,ix,b)) // also in: cobra.h
 
 int	 json_format;
 int	 json_plus;
@@ -18,12 +22,9 @@ char	*scrub_caption = "";
 char	*cobra_texpr;		// -e xxx
 Match	*matches;
 Match	*old_matches;
-Match	*free_match;
 Named	*namedset;
-Bound	*free_bound;
 
-extern Prim	*prim;
-extern FILE	*track_fd;
+static Bound	*free_bound;
 
 static void
 cleaned_up(FILE *fd, const char *tp)
@@ -80,46 +81,26 @@ check_bvar(Prim *c)
 }
 
 void
-clr_matches(int which)
-{	Match *m, *nm;
-	Bound *b, *nb;
-
-	m = (which == NEW_M) ? matches : old_matches;
-
-	for (; m; m = nm)
-	{	nm = m->nxt;
-		m->from = (Prim *) 0;
-		m->upto = (Prim *) 0;
-		m->nxt = free_match;
-		free_match = m;
-		for (b = m->bind; b; b = nb)
-		{	nb = b->nxt;
-			if (b == nb)	// internal error
-			{	fprintf(stderr, "internal error: clr_matches\n");
-				nb = 0;
-			}
-			b->bdef = (Prim *) 0;
-			b->ref  = (Prim *) 0;
-			b->aref = (Prim *) 0;
-			b->nxt  = free_bound;
-			free_bound = b;
-	}	}
-
-	if (which == NEW_M)
-	{	matches     = (Match *) 0;
-	} else
-	{	old_matches = (Match *) 0;
-	}
+put_bound(Bound *n)
+{
+	n->bdef = (Prim *) 0;
+	n->ref  = (Prim *) 0;
+	n->aref = (Prim *) 0;
+	n->nxt = free_bound;
+	free_bound = n;
 }
 
 void
-clear_matches(void)
+clear_bounds(Prim *b)
 {
-	clr_matches(NEW_M);
+	if (b)
+	{	clear_bounds(b->bound);
+		b->bound = (Prim *) 0;
+	}
 }
 
 Named *
-findset(const char *s, int complain, int who)
+findset(const char *s, int complain)
 {	Named *x;
 	char *p;
 	int n = 0;
@@ -160,95 +141,25 @@ setexists(const char *s)
 	return 0;
 }
 
-void
-add_match(Prim *f, Prim *t, Store *bd)
-{	Match *m;
-	Store *b;
-	Bound *n;
-	FILE *fd = (track_fd) ? track_fd : stdout;
+Bound *
+get_bound(void)
+{	Bound *n;
 
-	if (free_match)
-	{	m = free_match;
-		free_match = m->nxt;
-		m->bind = (Bound *) 0;
+	if (free_bound)
+	{	n = free_bound;
+		free_bound = n->nxt;
 	} else
-	{	m = (Match *) emalloc(sizeof(Match), 105);
+	{	n = (Bound *) emalloc(sizeof(Bound), 106);
 	}
-	m->from = f;
-	m->upto = t;
-	for (b = bd; b; b = b->nxt)
-	{	if (free_bound)
-		{	n = free_bound;
-			free_bound = n->nxt;
-		} else
-		{	n = (Bound *) emalloc(sizeof(Bound), 106);
-		}
-		n->bdef = b->bdef;
-		n->ref  = b->ref;
-		n->aref = b->aref;
-		n->nxt  = m->bind;
-		m->bind = n;
-	}
-	m->nxt = matches;
-	matches = m;
-	p_matched++;
 
-	if (stream == 1)	// when streaming, print matches when found
-	{	Prim *c, *r;
-		if (json_format)
-		{	fprintf(fd, "%s {\n", (nr_json>0)?",":"[");
-			if (f && t)
-			{	if (strcmp(f->fnm, t->fnm) == 0)
-				{	sprintf(json_msg, "lines %d..%d",
-						f->lnr, t->lnr);
-				} else
-				{	sprintf(json_msg, "lines %s:%d..%s:%d",
-						f->fnm, f->lnr, t->fnm, t->lnr);
-				}
-			} else
-			{	sprintf(json_msg, "lines %d:%d",
-					f?f->lnr:0, t?t->lnr:0);
-			}
-			memset(bvars, 0, sizeof(bvars));
-			for (b = bd; b; b = b->nxt)
-			{	if (b->ref
-				&&  strlen(b->ref->txt) + strlen(bvars) + 3 < sizeof(bvars))
-				{	if (bvars[0] != '\0')
-					{	strcat(bvars, ", ");	// add_match
-					}
-					strcat(bvars, b->ref->txt);
-			}	}
-			json_match("Stream", glob_te, json_msg, f, t, 1); // add_match, streaming
-			fprintf(fd, "}");
-			nr_json++;
-		} else
-		{	fprintf(fd, "stdin:%d: ", f->lnr);
-			for (c = r = f; c; c = c->nxt)
-			{	fprintf(fd, "%s ", c->txt);
-				if (c->lnr != r->lnr)
-				{	fprintf(fd, "\nstdin:%d: ", c->lnr);
-					r = c;
-				}
-				if (c == t)
-				{	break;
-			}	}
-			fprintf(fd, "\n");
-		}
-		if (verbose && bd && bd->ref)
-		{	fprintf(fd, "bound variables matched : ");
-			while (bd && bd->ref)
-			{	fprintf(fd, "%s ", bd->ref->txt);
-				bd = bd->nxt;
-			}
-			fprintf(fd, "\n");
-	}	}
+	return n;
 }
 
 void
 new_named_set(const char *setname)
 {	Named *q;
 
-	q = findset(setname, 0, 6);
+	q = findset(setname, 0);
 	if (q)
 	{	if (verbose)
 		{ fprintf(stderr, "warning: set name %s already exists\n", q->nm);
@@ -261,47 +172,9 @@ new_named_set(const char *setname)
 	q = (Named *) emalloc(sizeof(Named), 100);
 	q->nm = (char *) emalloc(strlen(setname)+1, 100);	// new_named_set
 	strcpy(q->nm, setname);
-	q->m = matches;
+	q->m = matches;			// new_named_set
 	q->nxt = namedset;
 	namedset = q;
-}
-
-void
-add_pattern(const char *s, const char *msg, Prim *from, Prim *upto, int cid)
-{	Named *x;
-	Match *om;
-
-	do_lock(cid);		// add_pattern
-
-	om = matches;		// save old value
-
-	matches = NULL;
-	x = findset(s, 0, 7);
-	if (!x)
-	{	new_named_set((const char *) s);	// add_pattern
-		x = namedset;
-	} else	// set exists and is non-empty
-	{	if (x->m		// no repeated adds of same token range
-		&&  x->m->from == from
-		&&  x->m->upto == upto)	// same target token
-		{	matches = om;	// restore
-			do_unlock(cid);
-			return;
-	}	}
-	add_match(from, upto, NULL);	// new pattern now only one in matches
-	matches->nxt = x->m;		// if we're adding to the set
-	if (msg)
-	{	matches->msg = (char *) emalloc(strlen(msg)+1, 107);
-		strcpy(matches->msg, msg);
-	} else
-	{	matches->msg = 0;
-	}
-	x->m = matches;			// there's only one
-	x->cloned = NULL;
-	matches = om;			// restore
-	p_matched++;
-
-	do_unlock(cid);
 }
 
 void
@@ -309,14 +182,14 @@ del_pattern(const char *s, Prim *from, Prim *upto, int cid)
 {	Named *x;
 	Match *m, *om;
 
-	do_lock(cid);	// del_pattern
+	do_lock(cid, 4);	// del_pattern
 
-	x = findset(s, 0, 8);
+	x = findset(s, 0);
 	if (!x)
 	{	if (verbose)
 		{	fprintf(stderr, "warning: del_pattern: no such set '%s'\n", s);
 		}
-		do_unlock(cid);
+		do_unlock(cid, 4);
 		return;
 	}
 	om = NULL;
@@ -334,7 +207,7 @@ del_pattern(const char *s, Prim *from, Prim *upto, int cid)
 	if (!m && verbose)
 	{	fprintf(stderr, "warning: del_pattern: pattern not found in set %s\n", s);
 	}
-	do_unlock(cid);
+	do_unlock(cid, 4);
 }
 
 static void
@@ -367,7 +240,9 @@ json_add(const char *tp, const char *msg, const char *fnm, const int lnr, int po
 	Prim *p, *q;
 	int cnt = 0;
 	static char lastname[516];
+#if 0
 	int opos = pos;
+#endif
 
 	f = findfile(fnm);
 
@@ -388,10 +263,7 @@ json_add(const char *tp, const char *msg, const char *fnm, const int lnr, int po
 			if (!p)
 			{	break;
 			}
-			if (0)
-			{	printf("Counted %d tokens on line %s:%d, which points to '%s'\n",
-					opos, p->fnm, p->lnr, p->txt);
-			}
+
 			p->mark++;
 			cnt++;
 			q = p;
@@ -685,7 +557,7 @@ do_markups(const char *setname)
 	int w = 0;
 	int p = 0;
 
-	for (m = matches; m; seq++, m = m->nxt)
+	for (m = matches; m; seq++, m = m->nxt)		// do_markups, read-only
 	{	p++;	// nr of patterns
 		if (m->bind)
 		{	if (verbose && w++ == 0)
@@ -724,7 +596,7 @@ do_markups(const char *setname)
 		}
 	} else if (!json_format && !no_match && !no_display)
 	{	if (strlen(setname) == 0)
-		{	printf("%d patterns\n", p);
+		{	printf("%d pattern%s matched\n", p, p!=1?"s":"");
 		}
 		if (w > 0)
 		{	printf("%d bound variable%s\n",
@@ -732,58 +604,6 @@ do_markups(const char *setname)
 	}	}
 
 	return p;
-}
-
-int
-matches2marks(int doclear)
-{	Match	*m;
-	Prim	*p;
-	int	loc_cnt;
-
-	loc_cnt = 0;
-	for (m = matches; m; m = m->nxt)
-	{	p = m->from;
-		if (p)
-		{	p->bound = m->upto;
-			if (!p->mark)
-			{	loc_cnt++;
-			}
-			p->mark |= 2;	// start of pattern
-			for (; p; p = p->nxt)
-			{	if (!p->mark)
-				{	loc_cnt++;
-				}
-				p->mark |= 1;
-				if (p == m->upto)
-				{	p->mark |= 8;
-					break;
-	}	}	}	}
-	if (doclear)
-	{	clear_matches();
-	}
-	if (verbose
-	|| (!json_format && !no_match && !no_display && !gui))
-	{	printf("%d token%s marked\n", loc_cnt, (loc_cnt==1)?"":"s");
-	}
-
-	return loc_cnt;
-}
-
-int
-json_convert(const char *s)	// convert pattern matches to marks
-{	Named *ns;
-	Match *m;
-	int n = 0;
-
-	ns = findset(s, 1, 1);
-	if (ns && ns->m)
-	{	m = matches;
-		matches = ns->m;
-		(void) do_markups(s);
-		n = matches2marks(0);
-		matches = m;
-	}
-	return n;
 }
 
 void
@@ -880,6 +700,10 @@ show_line(FILE *fdo, const char *fnm, int n, int from, int upto, int tag)
 	int ln = 0;
 	static int wcnt = 1;
 
+	if (tgrep && (tcount || lcount))
+	{	return;
+	}
+
 	if (scrub && strlen(scrub_caption) > 0)
 	{	fprintf(fdo, "cobra%05d <Med> :%s:%d: %s\n",
 			wcnt++, fnm, tag, scrub_caption);
@@ -909,7 +733,7 @@ show_line(FILE *fdo, const char *fnm, int n, int from, int upto, int tag)
 				fprintf(fdo, "%c", (ln == tag && upto > from)?'>':' ');
 				goto L;
 			}
-			if (n > 0 && !cobra_texpr)
+			if (n > 0 && !cobra_texpr && !unnumbered)
 			{	fprintf(fdo, "%3d: ", n);
 			}
 			if (gui)
@@ -919,7 +743,10 @@ show_line(FILE *fdo, const char *fnm, int n, int from, int upto, int tag)
 			{	if (!unnumbered)
 				{	fprintf(fdo, "%c%5d  ",
 						(ln == tag && upto > from)?'>':' ', ln);
-				}				
+				}
+			//	if (tgrep && !unnumbered)
+			//	{	fprintf(fdo, ":");
+			//	}
 			} else	// tag < 0 -> json output
 			{	char *q, *p = buf;
 				while (*p == ' ' || *p == '\t')

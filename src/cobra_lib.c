@@ -1,7 +1,7 @@
 /*
  * This file is part of the public release of Cobra. It is subject to the
  * terms in the License file that is included in this source directory.
- * Tool documentation is available at http://codescrub.com/cobra
+ * Tool documentation is available at https://codescrub.com/cobra
  */
 
 #include "cobra.h"
@@ -25,26 +25,6 @@ int		top_only;
 int		top_up;
 int		no_caller_info;	// mode of fcts
 
-extern TokRange	**tokrange;
-
-extern char	*C_TMP;
-extern int	echo;
-extern int	no_echo;
-extern int	runtimes;
-extern int	read_stdin;
-extern int	showprog;
-extern int	solo;
-extern char	*pattern(char *);
-extern char	*unquoted(char *);
-extern char	*progname;
-extern void	clear_file_list(void);
-extern void	clear_seen(void);
-extern void	comments_or_source(int);
-extern void	handle_html(void);
-extern int	is_comments_or_source(void);
-extern int	has_stop(void);
-extern int	setexists(const char *);
-
 static FILE	*prog_fd;
 static const char *C_MAIN  = "main";
 static char	CobraProg[32];
@@ -59,18 +39,20 @@ static char	 specialcase[MAXYYTEXT];
 static FHtab **flst[2];
 static History	*h_last;
 
+#define MAX_RE	16
+
 static int	cnt;
 static int	did_prep;	// support eval expressions in all commands, eg mark
 static int	inscript;
 static int	NrArgs;
 static int	p_stop;
 static int	raw;
-static int	re_set[2];
+static int	re_set[MAX_RE];
 static int	source;
 static int	nowindow = 1;
 static int	clearbounds;
 
-static regex_t	rex[2];
+static regex_t	rex[MAX_RE];
 
 static Script	*scripts;
 static Script	*s_tail;
@@ -82,8 +64,10 @@ static void back(char *, char *);
 static void contains(char *, char *);
 static void clear(char *, char *);
 static void ctokens(int);
+static void display(char *, char *);
 static void eval(char *, char *);
 static void extend(char *, char *);
+static void fcts(char *, char *);
 static void findtype(char *, char *);
 static void help(char *, char *);
 static void history(char *, char *);
@@ -101,8 +85,7 @@ static void undo(char *, char *);
 static void with_eval(char *);
 
 static Commands table[] = {
-  { "mark",	mark,     "[q] p [p2] mark tokens matching p (optionally followed by p2)", 1 },
-  { "match",	mark,     "[q] p [p2] mark tokens matching p (optionally followed by p2)", 1 },
+  { "mark",	mark,     "[q] p [p2..] mark tokens matching p (optionally followed by p2 etc)", 1 },
   { "next",	next,	  "[p]      move marks forward one step, or to a token matching p",	1 },
   { "back",	back,	  "[p]      move marks back one step, or to a token matching p", 1 },
   { "view",     show_scripts, "         list names of known scripts", 2 },
@@ -139,12 +122,64 @@ static Qual qual[] = {
   {     0, 0             }
 };
 
+static void
+fcts(char *used1, char *unused2)
+{	FList *f;
+	FHtab *g;
+	Prim *z;
+	int n;
+	static int o_caller_info = 0;
+
+	assert(no_cpp == 0 || no_cpp == 1);
+	flist = flst[no_cpp];
+
+	if (used1
+	&&  strcmp(used1, "0") == 0)
+	{	no_caller_info = 1;
+	}
+
+	if (!flist					// not yet created, or
+	|| (o_caller_info == 1 && no_caller_info == 0))	// need more info
+	{	o_caller_info = no_caller_info;
+		fct_defs();
+		if (!flist)
+		{	return;
+		}
+		flst[no_cpp] = flist;
+	}
+
+	// the lists were merged at this point
+	g = flist[0];
+	for (n = 0; n < NAHASH; n++)
+	for (f = g->fht[n]; f; f = f->nxt)
+	{	cnt++;
+		if (verbose > 1)
+		{	printf("%3d %s:%d-%d: %s\n",
+				cnt,
+				f->p->fnm,
+				f->p->lnr,
+				(f->q && f->q->jmp)?f->q->jmp->lnr:f->p->lnr,
+				f->detail);
+		}
+		z = f->p;	// fct name
+		if (z->jmp)	// c++ fcts?
+		{	z = z->jmp;
+			if (z->prv)
+			{	z->prv->mark++;
+			} else
+			{	z->mark++;
+			}
+		} else
+		{	z->mark++;
+	}	}
+}
+
 static int
 regstart(const int p, char *is)
 {	char *s = is;
 	int n;
 
-	assert(is && p >= 0 && p < 2);
+	assert(is && p >= 0 && p < MAX_RE);
 	if (re_set[p] != 0)
 	{	regfree(&rex[p]);
 		re_set[p] = 0;
@@ -171,7 +206,7 @@ regstart(const int p, char *is)
 static int
 regmark(const Prim *ref, const Prim *q, const char *s, const int p)
 {
-	assert(p >= 0 && p < 2);
+	assert(p >= 0 && p < MAX_RE);
 	if (*s == '$' && *(s+1) == '$')
 	{	if (ref->bound && ref->bound->seq < ref->seq)
 		{	return (regexec(&rex[p], ref->bound->txt, 0,0,0) == 0);
@@ -186,7 +221,7 @@ static void
 regstop(void)
 {	int p;
 
-	for (p = 0; p < 2; p++)
+	for (p = 0; p < MAX_RE; p++)
 	{	if (re_set[p])
 		{	regfree(&rex[p]);
 			re_set[p] = 0;
@@ -230,13 +265,17 @@ r_apply(const Prim *ref, const Prim *p, char *s, const int w)
 	if (*s == '(')	// eval expression
 	{	// assert(did_prep != 0);
 		if (did_prep == 1)
-		{	return do_eval(p);
+		{	return do_eval(p, 0);
 	}	}
 
-	assert(w >= 0 && w < 2);
+	assert(w >= 0 && w < MAX_RE); // max regular expressions per mark
 
-	return ((*s == '/' && re_set[w] && regmark(ref, p, s, w))
-	||      (*s != '/' && apply(ref, p, s, w)));
+	if (w > 1 && *s == '/' && re_set[w] == 0)
+	{	regstart(w, s+1);
+	}
+
+	return ((*s != '/' && apply(ref, p, s, w))
+	||	(*s == '/' && re_set[w] && regmark(ref, p, s, w)));
 }
 
 void
@@ -290,11 +329,17 @@ reproduce(const int seq, const char *s)
 					  (q->lnr == cur->lnr && n > 1)?"> ":"  ");
 					memset(tag, ' ', strlen(src));
 					tag[strlen(src)] = '\0';
+				} else if (unnumbered)
+				{	strcpy(src, "");
+					strcpy(tag, "");
 				} else
 				{	snprintf(src, sizeof(src), "%3d: %.2s%3d  ", seq,
 					  (q->lnr == cur->lnr && n > 1)?"> ":"  ",
 					  cobra_lnr());
 					snprintf(tag, sizeof(tag), "%3d: ", seq);
+					if (!tgrep)
+					{	fprintf(fd, "\n");
+					}
 					for (i = 5; i < strlen(src); i++)
 					{	tag[i] = ' ';
 					}
@@ -329,8 +374,8 @@ reproduce(const int seq, const char *s)
 }
 
 static int
-same_level(const Prim *a, const Prim *b, const char *s)
-{	// called as same_level(cur, q, s)
+same_level(const Prim *a, const Prim *b)
+{	// called as same_level(cur, q)
 
 	// {     n
 	//   x	n+1
@@ -364,11 +409,10 @@ same_level(const Prim *a, const Prim *b, const char *s)
 }
 
 static int
-one_up(const Prim *a, const Prim *b, const char *s)
-{	// called as one_up(cur, q, s)
+one_up(const Prim *a, const Prim *b)
+{	// called as one_up(cur, q)
 	// 	cur is starting pt of search
 	// 	q is the current location checked
-	//	s is the match searched for
 
 	if (strcmp(a->txt, "{") == 0)
 	{	return (a->curly == b->curly + 1);
@@ -514,7 +558,7 @@ backup(int n)
 		}
 	} else
 	{	global_n = n;
-		run_threads(backup_range, 1);
+		run_threads(backup_range);
 	}
 }
 
@@ -572,7 +616,7 @@ save_range(void *arg)
 	return NULL;
 }
 
-int
+static int
 save(const char *s, const char *t)
 {	const char *tmp;
 	int n;
@@ -602,7 +646,7 @@ save(const char *s, const char *t)
 	}
 	global_t = (char *) t;
 	global_n = n;
-	run_threads(save_range, 14);
+	run_threads(save_range);
 //	backup(n);
 	return cnt;
 }
@@ -641,8 +685,8 @@ clear(char *f, char *unused)
 	{	clearbounds = 1;
 		clear_seen();
 	}
-	run_threads(clear_range, 2);
-	clear_matches();
+	run_threads(clear_range);
+	clr_matches(NEW_M);
 	cnt = clearbounds = 0;
 }
 
@@ -700,7 +744,7 @@ restore_range(void *arg)
 	return NULL;
 }
 
-int
+static int
 restore(const char *s, const char *t)
 {	const char *tmp;
 	int n;
@@ -730,7 +774,7 @@ restore(const char *s, const char *t)
 	}
 	global_t = (char *) t;
 	global_n = n;
-	run_threads(restore_range, 3);
+	run_threads(restore_range);
 	return cnt;
 }
 
@@ -823,7 +867,7 @@ findtype_range(void *arg)
 }
 
 void
-run_threads(void *(*f)(void*), int which)
+run_threads(void *(*f)(void*))
 {	int i;
 
 
@@ -867,7 +911,7 @@ run_bup_threads(void *(*f)(void*))
 		if (verbose>1)
 		{	printf("prog\n");
 	}	}
-	run_threads(f, 4);
+	run_threads(f);
 	regstop();
 
 	if (verbose>1)
@@ -881,58 +925,6 @@ findtype(char *s, char *t)
 	global_s = s;
 	global_t = t;
 	run_bup_threads(findtype_range);
-}
-
-void
-fcts(char *used1, char *unused2)
-{	FList *f;
-	FHtab *g;
-	Prim *z;
-	int n;
-	static int o_caller_info = 0;
-
-	assert(no_cpp == 0 || no_cpp == 1);
-	flist = flst[no_cpp];
-
-	if (used1
-	&&  strcmp(used1, "0") == 0)
-	{	no_caller_info = 1;
-	}
-
-	if (!flist					// not yet created, or
-	|| (o_caller_info == 1 && no_caller_info == 0))	// need more info
-	{	o_caller_info = no_caller_info;
-		fct_defs();
-		if (!flist)
-		{	return;
-		}
-		flst[no_cpp] = flist;
-	}
-
-	// the lists were merged at this point
-	g = flist[0];
-	for (n = 0; n < NAHASH; n++)
-	for (f = g->fht[n]; f; f = f->nxt)
-	{	cnt++;
-		if (verbose > 1)
-		{	printf("%3d %s:%d-%d: %s\n",
-				cnt,
-				f->p->fnm,
-				f->p->lnr,
-				(f->q && f->q->jmp)?f->q->jmp->lnr:f->p->lnr,
-				f->detail);
-		}
-		z = f->p;	// fct name
-		if (z->jmp)	// c++ fcts?
-		{	z = z->jmp;
-			if (z->prv)
-			{	z->prv->mark++;
-			} else
-			{	z->mark++;
-			}
-		} else
-		{	z->mark++;
-	}	}
 }
 
 static void
@@ -1507,7 +1499,7 @@ load_map(char *s)
 		remap[h&255] = m;
 	}
 	fclose(fd);
-	run_threads(map_range, 5);
+	run_threads(map_range);
 }
 
 static int
@@ -1537,7 +1529,7 @@ check_for_setname(char *s)
 			t++;
 		} while (isalnum((uchar) *t) || *t == '_');
 		if (*t == ':')
-		{	if (*(t+1) == ' ')
+		{	if (*(t+1) == ' ' || *(t+1) == '\t')
 			{	*t++ = '\0';
 				setname(s);
 				return t;
@@ -1571,7 +1563,6 @@ check_qualifiers(char *s)
 		{	return s;
 	}	}
 
-
 	s = check_for_setname(s);
 
 	//  no, and, &, but not: ir, top, up
@@ -1583,7 +1574,10 @@ check_qualifiers(char *s)
 			s = check_qualifiers(s+n);
 	}	}
 
-	if (s && (inside_range || top_only || top_up))
+	if (s
+	&& (inside_range
+//	||  top_only
+	||  top_up))
 	{	fprintf(stderr, "error: no support for ir or top in this context\n");
 		return NULL;
 	}
@@ -1654,6 +1648,60 @@ set_ncore(int n)
 	ini_lock();
 	ini_heap();
 	ini_timers();
+}
+
+static void
+ps_help(void)
+{
+	printf("ps caption n message	# add (or replace) a caption to an existing pattern set 'n'\n");
+	printf("ps convert n		# convert a pattern set 'n' into basic token markings\n");
+	printf("ps create n		# convert basic token markings into a pattern set named 'n'\n");
+	printf("ps delete n		# delete pattern set 'n'\n");
+	printf("ps list [n]		# list a specific or all pattern sets, and their membership\n");
+	printf("ps rename n newname	# renames an existing pattern set n to newname\n");
+	printf("ps json	n		# show matches from set n in json format\n");
+
+	printf("ps n1 = n2 & n3         # define n1 as the intersection of n2 and n3\n");
+	printf("ps n1 = n2 + n3         # define n1 as the union of n2 and n3\n");
+	printf("ps n1 = n2 - n3         # define n1 as the difference of n2 and n3\n");
+	printf("ps n1 = n2 * n3         # matches in n2 that contain at least one match in n3\n");
+	printf("ps n1 = n2 m n3         # matches where the start of n3 meets the end of n2\n");
+	printf("ps n1 = n2 < n3         # matches in n2 that precede those in n3\n");
+	printf("ps n1 = n2 > n3         # matches in n2 that follow those in n3\n");
+
+	printf("ps n1 = n2 with (expr)	# define n1 as the subset of n2 with only matches that comply with the token expression\n");
+	printf("ps n1 = n2 with \"constraint\"	# define n1 as the subset of n2 with only matches that contain the string 'constraint'\n");
+	printf("ps help			# print this message\n");
+}
+
+static void
+patterns_caption(char *s)
+{	Named *x;
+	char *t = s;
+
+	// setname message ...
+	// printf("caption: '%s'\n", s);
+	while (*t != '\0' && !isspace((int) *t))
+	{	t++;
+	}
+	if (!isspace((int) *t))
+	{	fprintf(stderr, "error: bad format\n");
+		return;
+	}
+	*t = '\0';
+	x = findset(s, 0);
+	if (!x)
+	{	if ((!json_format && !no_display && !no_match) && verbose)
+		{	fprintf(stderr, "warning: no such set '%s'\n", s);
+		}
+		return;
+	}
+	t++;	// now points at message
+	if (!x->msg
+	|| strlen(x->msg) < strlen(t))
+	{	x->msg = (char *) emalloc(strlen(t)+1, 100);
+	}
+	strcpy(x->msg, t);
 }
 
 static int
@@ -1754,8 +1802,7 @@ pre_scan(char *bc)	// non-generic commands
 				if (strncmp(qtr, "text", 4) != 0)
 				{	printf("mode: unrecognized setting\n");
 				} else
-				{	extern void set_textmode(void);
-					set_textmode();
+				{	set_textmode();
 			}	}
 			if ((qtr = strstr(bc, "limit=")) != NULL)
 			{	qtr += 6;
@@ -1862,7 +1909,7 @@ pre_scan(char *bc)	// non-generic commands
 			a = check_qualifiers(bc+2);
 same:			if (a)
 			{	regstop();
-				cobra_te(pattern(a), and_mode, inverse);
+				cobra_te(pattern(a), and_mode, inverse, top_only);
 			}
 			return 1;
 		}
@@ -1973,7 +2020,7 @@ same:			if (a)
 		} else if (strncmp(bc, "re ", 3) == 0)
 		{	// printf("token expression: '%s'\n", bc+3);
 			a = check_qualifiers(bc+3);
-			cobra_te(unquoted(a), and_mode, inverse);
+			cobra_te(unquoted(a), and_mode, inverse, top_only);
 			return 1;
 		} else
 		{	break;
@@ -2080,8 +2127,7 @@ same:			if (a)
 			return 1;
 		}
 		if (strncmp(bc, "declarations", strlen("declarations")) == 0)
-		{	extern void declarations(void);
-			declarations();
+		{	declarations();
 			return 1;
 		}
 		if (strncmp(bc, "default", strlen("default")) == 0)
@@ -2198,8 +2244,7 @@ same:			if (a)
 			and_mode = 1;
 			with_eval(bc);
 			if (cnt == -1)
-			{	extern void reset_int(const int); // cobra_prog.y
-				reset_int(0);
+			{	reset_int(0);
 			}
 			if (cnt < 0)
 			{	if (!no_match)
@@ -2279,7 +2324,7 @@ same:			if (a)
 			{	if (strlen(bc) > strlen("json "))
 				{	char *z = bc + strlen("json ") + json_plus;
 					// intercept 'json NamedSet'
-					if (!strchr(z, ' ') && findset(z, 0, 5))
+					if (!strchr(z, ' ') && findset(z, 0))
 					{	patterns_json(z);
 						return 1;
 					}
@@ -2509,7 +2554,6 @@ list(char *s, char *t)
 	int lstlnr = 0;
 	int hit = 0, n = 0, tlnr = 0;
 	int lastn = -1, plus = 0, lcnt = 0;
-//	int from=0, upto=0;
 	char *c, *lastfnm = "";
 	FILE *fd = (track_fd) ? track_fd : stdout;
 
@@ -2522,7 +2566,6 @@ list(char *s, char *t)
 		//	}
 		} else
 		{	n = (*s)?atoi(s):0;
-//			from = upto = n;
 	}	}
 
 	if (*t)
@@ -2561,15 +2604,24 @@ list(char *s, char *t)
 		if (!scrub
 		&&  (!lstfnm
 		||   strcmp(lstfnm, cobra_bfnm()) != 0))
-		{	fprintf(fd, "%s:%d", cobra_bfnm(), lastn);
-			if (cur->bound)
-			{	char *z = strrchr(cur->bound->fnm, '/');
+		{	if (!unnumbered
+			&&  !raw)
+			{  if (Nfiles > 1)
+			   { fprintf(fd, "%s:", cobra_bfnm());
+			   }
+			   fprintf(fd, "%d", lastn);
+			   if (cur->bound)
+			   {	char *z = strrchr(cur->bound->fnm, '/');
 				z = (z)?z+1:cur->bound->fnm;
-				fprintf(fd, "<->%s:%d", z, cur->bound->lnr);
-			} else
-			{	fprintf(fd, ":");
+				if (!(tgrep
+				&&  lastn == cur->bound->lnr
+				&&  strcmp(cobra_bfnm(), z) == 0))
+				{	fprintf(fd, "<->%s:%d\n", z, cur->bound->lnr);
+				}
+			   } else
+			   {	fprintf(fd, ":\n");
+			   }
 			}
-			fprintf(fd, "\n");
 			lstfnm = cobra_bfnm();
 			hit = 0;
 		}
@@ -2587,7 +2639,6 @@ list(char *s, char *t)
 		} else
 		{	hit++;
 		}
-
 		lstlnr = cobra_lnr();
 
 		if (raw)
@@ -2605,7 +2656,6 @@ list(char *s, char *t)
 			} else
 			{	show_line(fd, cobra_fnm(), lcnt, lastn-tlnr, lastn+tlnr, lastn);
 			}
-
 			if (n != 0
 			&& !nowindow
 			&& !cobra_texpr)
@@ -2615,7 +2665,7 @@ list(char *s, char *t)
 		{	if (scrub)
 			{	fprintf(fd, "%s:%d: ", cobra_fnm(), cobra_lnr());
 			} else
-			{	if (!cobra_texpr)
+			{	if (!cobra_texpr && !unnumbered)
 				{	fprintf(fd, "%3d: ", lcnt);
 				}
 				if (gui)
@@ -2623,16 +2673,18 @@ list(char *s, char *t)
 			}	}
 			if (count < 500000)
 			{	c = fct_which(cur);
-				if (!scrub && c && !cobra_texpr)
+				if (!scrub && c && !cobra_texpr && !unnumbered)
 				{	if (strcmp(c, "global") == 0)
 					{	printf("  ");
 					}
-					fprintf(fd, "%12s%s:\t", c, strcmp(c, "global")?"()":"");
-			}	}
+					if (!tgrep)
+					{	fprintf(fd, "%12s%s:\t",
+							c, strcmp(c, "global")?"()":"");
+			}	}	}
 			if (scrub)
 			{	fprintf(fd, "'%s'\n", cobra_txt());
 			} else
-			{	if (!cobra_texpr)
+			{	if (!cobra_texpr && !unnumbered)
 				{	fprintf(fd, " %5d", cobra_lnr());
 				}
 				fprintf(fd, " \t%s", cobra_txt());
@@ -2650,7 +2702,7 @@ list(char *s, char *t)
 	p_stop = 0;
 }
 
-void
+static void
 display(char *s, char *t)
 {
 	source = 1;
@@ -2699,7 +2751,7 @@ undo(char *s, char *t)
 	if (*s || *t)
 	{	fprintf(stderr, "warning: undo takes no arguments\n");
 	}
-	run_threads(undo_range, 6);
+	run_threads(undo_range);
 	undo_matches();
 }
 
@@ -2709,9 +2761,7 @@ preamble(char *s, int n)
 
 	if (*s == '/')
 	{	(void) regstart(n, s+1);
-	}
-
-	if (strcmp(s, "@cmnt") == 0)
+	} else if (strcmp(s, "@cmnt") == 0)
 	{	if (no_cpp == 0)
 		{	if (!(warned&1))
 			{	warned |= 1;
@@ -2790,8 +2840,8 @@ contains_range(void *arg)
 			// if (q->lnr < r->lnr)
 			// {	break;	// likely file boundary crossed
 			// }
-			if ((top_up && one_up(r, q, s))
-			|| (!top_up && (!top_only || same_level(r, q, s))))
+			if ((top_up && one_up(r, q))
+			|| (!top_up && (!top_only || same_level(r, q))))
 			{	if (r_apply(r, q, s, 0)
 				&& (!*t || r_apply(r, q->nxt, t, 1)))
 				{	found = 1;
@@ -2914,8 +2964,8 @@ stretch_range(void *arg)
 			{	q = (Prim *) 0;
 				break;
 			}
-			if ((top_up && one_up(r, q, s))
-			|| (!top_up && (!top_only || same_level(r, q, s))))
+			if ((top_up && one_up(r, q))
+			|| (!top_up && (!top_only || same_level(r, q))))
 			{	if (r_apply(r, q, s, 0)
 				&&  (!*t || r_apply(r, q->nxt, t, 1)))
 				{	local_cnt++;
@@ -2952,6 +3002,24 @@ stretch(char *s, char *t)
 	run_bup_threads(stretch_range);
 }
 
+#ifndef NO_CHAIN
+static int
+t_chain(const Prim *ref, const Prim *p, char *s, const int w)
+{	char *t, mb[1024]; // matches size in try_read
+	int rv;
+
+	strcpy(mb, s); // leave orig untouched
+	t = nextarg(mb);
+	rv = r_apply(ref, p, mb, w);
+
+	if (rv != 0 && *t != '\0')
+	{	rv = t_chain(ref, p->nxt, t, w+1);
+	}
+
+	return rv;
+}
+#endif
+
 static void *
 mark_range(void *arg)
 {	int *i = (int *) arg;
@@ -2982,7 +3050,11 @@ mark_range(void *arg)
 					{	continue;
 					}
 					if (!r_apply(r, q, s, 0)
+#ifndef NO_CHAIN
+					||  (*t && !t_chain(r, q->nxt, t, 1)))
+#else
 					||  (*t && !r_apply(r, q->nxt, t, 1)))
+#endif
 					{	q->mark = 0;
 					} else
 					{	local_cnt++;
@@ -3003,7 +3075,12 @@ mark_range(void *arg)
 				r->mark = 0;
 				for (q = r->nxt; q && q->seq < stop->seq; q = q->nxt)
 				{	if (r_apply(r, q, s, 0))
-					{	if (*t && !r_apply(r, q->nxt, t, 1))
+					{
+#ifndef NO_CHAIN
+						if (*t && !t_chain(r, q->nxt, t, 1))
+#else
+						if (*t && !r_apply(r, q->nxt, t, 1))
+#endif
 						{	continue;
 						}
 						local_cnt++;
@@ -3016,7 +3093,11 @@ mark_range(void *arg)
 				{	continue;
 				}
 				if (!r_apply(r, r, s, 0)
+#ifndef NO_CHAIN
+				||  (*t && !t_chain(r, r->nxt, t, 1)))
+#else
 				||  (*t && !r_apply(r, r->nxt, t, 1)))
+#endif
 				{	r->mark = 0;
 				} else
 				{	local_cnt++;
@@ -3027,7 +3108,12 @@ mark_range(void *arg)
 			{	if (r_apply(r, r, s, 0)
 				&&  (( inverse &&  r->mark)
 				||   (!inverse && !r->mark)))
-				{	if (!(*t && !r_apply(r, r->nxt, t, 1)))
+				{
+#ifndef NO_CHAIN
+					if (!(*t && !t_chain(r, r->nxt, t, 1)))
+#else
+					if (!(*t && !r_apply(r, r->nxt, t, 1)))
+#endif
 					{	if (inverse)
 						{	r->mark = 0;
 						} else
@@ -3065,6 +3151,7 @@ mark(char *s, char *t)
 	{	fprintf(stderr, "invalid query - mark '%s' - '%s'\n", s, t);
 		return;
 	}
+	regstop();
 	global_s = preamble(s, 0);
 	global_t = preamble(t, 1);
 
@@ -3337,7 +3424,6 @@ prog_range(void *arg)
 	}
 
 #ifdef DEBUG_MEM
-	extern void report_memory_use(void);
 	report_memory_use();
 #endif
 //	stop_timer(Ncore + *i, 1, "Program");
@@ -3349,10 +3435,8 @@ prog_range(void *arg)
 		fflush(stdout);
 	}
 
-	extern void wrap_stats(void);
 	wrap_stats();
 #if 1
-	extern void list_stats(void);
 	list_stats();
 #endif
 	return NULL;
@@ -3407,7 +3491,7 @@ eval_range(void *arg)
 			{	continue;
 			}
 			r->mark = 0;
-			if ((x = do_eval(r)) != 0)	// thread-safe
+			if ((x = do_eval(r, 0)) != 0)	// thread-safe
 			{	r->mark = 1;
 				local_cnt++;
 				if (prefix)
@@ -3421,7 +3505,7 @@ eval_range(void *arg)
 			{	if (!r->mark)
 				{	continue;
 				}
-				x = do_eval(r);
+				x = do_eval(r, 0);
 				printf("%s:%d\t%s %d\n",
 					r->fnm, r->lnr,
 					prefix?prefix:"", x);
@@ -3431,7 +3515,7 @@ eval_range(void *arg)
 			if (r->mark)
 			{	continue;		// already set
 			}
-			if ((x = do_eval(r)) != 0)	// thread-safe
+			if ((x = do_eval(r, 0)) != 0)	// thread-safe
 			{	r->mark = 1;
 				local_cnt++;
 				if (prefix)
@@ -3460,7 +3544,7 @@ eval(char *s, char *unused)
 	b_cmd = yytext = s;
 	if (prep_eval())		// calls regstart if needed
 	{	if (!strchr(s, '.'))	// no refs to tokens
-		{	cnt = -(do_eval(0) + 1); // once
+		{	cnt = -(do_eval(0, 0) + 1); // once
 			// always < 0
 		} else if (strstr(s, "size"))
 		{	fprintf(stderr, "error: dot equation contains size()\n");
@@ -3613,6 +3697,7 @@ help(char *s, char *unused)	// 1
 
 	printf("\nToken Types\n");
 	printf("  names starting with @ are considered typenames, with the following meaning:\n");
+	printf("    @cpp (preprocessor directive)\n");
 	printf("    @modifier  (long, short, signed, unsigned)\n");
 	printf("    @qualifier (const, volatile)\n");
 	printf("    @storage   (static, extern, register, auto)\n");
@@ -3701,6 +3786,7 @@ check_run(void)
 	return try_read(".cobra_run");
 }
 
+#if 0
 void
 fix_eol(void)
 {	// rescan with -eol
@@ -3710,6 +3796,7 @@ fix_eol(void)
 	ctokens(1);
 //	fct_defs();
 }
+#endif
 
 void
 set_cnt(const int n)
@@ -3727,7 +3814,7 @@ show_error(FILE *fd, int p_lnr)
 	rewind(prog_fd);
 	while (fgets(buf, sizeof(buf), prog_fd))
 	{	lns++;
-		fprintf(stderr, "%c%2d %s",
+		fprintf(fd, "%c%2d %s",
 			(lns==p_lnr)?'>':' ',
 			lns, buf);
 	}
@@ -3746,7 +3833,7 @@ set_regex(char *s)
 int
 regex_match(const int n, const char *s)
 {
-	assert(n >= 0 && n < 2);
+	assert(n >= 0 && n < MAX_RE);
 	if (!re_set[n])
 	{	return 0;
 	}
@@ -3758,7 +3845,7 @@ nr_marks(const int n)
 {
 	if (n >= 0 && n <=3)
 	{	global_n = n;
-		run_threads(nr_marks_range, 7);
+		run_threads(nr_marks_range);
 		return cnt;
 	}
 	printf("expr: invalid query - size 1..3\n");
@@ -3769,11 +3856,15 @@ nr_marks(const int n)
 
 static struct termios n_tio;
 
-void
+static void
 re_enable(void)
 {
 	n_tio.c_lflag |= (ICANON | ECHO);
+	n_tio.c_iflag &= ~IGNCR;
 	tcsetattr(STDIN_FILENO, TCSANOW, &n_tio);
+	if (system("stty sane") < 0)
+	{	fprintf(stderr, "cobra: could not reset stty\n");
+	}
 }
 
 void
@@ -3781,6 +3872,7 @@ noreturn(void)
 {
 	fprintf(stderr, "cobra: fatal error\n");
 	re_enable();
+	// done();
 	exit(1);
 }
 
@@ -3808,7 +3900,7 @@ cobra_main(void)
 	yytext = (char *) emalloc(MAXYYTEXT*sizeof(char), 67);
 	
 	if (cobra_texpr)
-	{	cobra_te(cobra_texpr, 0, 0);
+	{	cobra_te(cobra_texpr, 0, 0, 0);
 		done();
 		return;
 	}

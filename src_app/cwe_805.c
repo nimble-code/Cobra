@@ -22,7 +22,7 @@ cwe805_init(void)
 {	static int lastN = 0;
 
 	if (lastN < Ncore)
-	{	thr = (ThreadLocal805 *) emalloc(Ncore * sizeof(ThreadLocal805));
+	{	thr = (ThreadLocal805 *) emalloc(Ncore * sizeof(ThreadLocal805), 30);
 		lastN = Ncore;
 	} else
 	{	memset(thr, 0, Ncore * sizeof(ThreadLocal805));

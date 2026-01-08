@@ -27,7 +27,7 @@ cwe119_init(void)
 {	static int lastN = 0;
 
 	if (lastN < Ncore)
-	{	thr = (ThreadLocal119 *) emalloc(Ncore * sizeof(ThreadLocal119));
+	{	thr = (ThreadLocal119 *) emalloc(Ncore * sizeof(ThreadLocal119), 20);
 		lastN = Ncore;
 	} else
 	{	memset(thr, 0, Ncore * sizeof(ThreadLocal119));
@@ -346,16 +346,16 @@ cwe119_3_range(Prim *from, Prim *upto, int cid)
 					&& (zx = is_stored(thr[cid].params, mycur, 0))
 					&& !is_stored(thr[cid].tested, mycur, 3))
 					{	mycur->mark = 1193;
-						do_lock(cid);
+						do_lock(cid, 11);
 						while (zx && zx->nv)
-						{	Prim *ntok = (Prim *) hmalloc(sizeof(Prim), cid);
+						{	Prim *ntok = (Prim *) hmalloc(sizeof(Prim), cid, 7);
 							ntok->lnr = zx->nv->lnr;
 							ntok->jmp = zx->nv;
 							ntok->nxt = mycur->bound;
 							mycur->bound = ntok;
 							zx = zx->nxt;
 						}
-						do_unlock(cid);
+						do_unlock(cid, 11);
 					}
 					mycur_nxt();
 				}

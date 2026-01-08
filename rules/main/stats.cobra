@@ -27,6 +27,6 @@ d
 . stats/nr_cases.cobra
 
 !echo "=== dubious keywords, if any ==="
-. stats/keywords2.cobra
+. stats/keywords.cobra
 
 terse off

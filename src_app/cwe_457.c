@@ -25,7 +25,7 @@ cwe457_init(void)
 {	static int lastN = 0;
 
 	if (lastN < Ncore)
-	{	thr = (ThreadLocal457 *) emalloc(Ncore * sizeof(ThreadLocal457));
+	{	thr = (ThreadLocal457 *) emalloc(Ncore * sizeof(ThreadLocal457), 29);
 		lastN = Ncore;
 	} else
 	{	memset(thr, 0, Ncore * sizeof(ThreadLocal457));

@@ -197,7 +197,7 @@ reformat(const int mode)
 }
 
 static void *
-emalloc(size_t size)	// size in bytes
+emalloc(size_t size, const int who)	// size in bytes
 {	void *n;
 	int p;
 
@@ -207,8 +207,8 @@ emalloc(size_t size)	// size in bytes
 	n = malloc(size * sizeof(char));
 
 	if (!n)
-	{	fprintf(stderr, "out of memory (%lu bytes - wanted %lu more)\n",
-			total_used, (unsigned long) size);
+	{	fprintf(stderr, "%d: out of memory (%lu bytes - wanted %lu more)\n",
+			who, total_used, (unsigned long) size);
 		exit(1);
 	}
 	memset(n, 0, size);
@@ -228,8 +228,8 @@ new_named_set(const char *s)
 			break;
 	}	}
 
-	q = (Reports *) emalloc(sizeof(Reports));
-	q->nm = (char *) emalloc(strlen(s)+1);	// new_named_set
+	q = (Reports *) emalloc(sizeof(Reports), 1);
+	q->nm = (char *) emalloc(strlen(s)+1, 2);	// new_named_set
 	strcpy(q->nm, s);
 	q->nxt = reports;
 	reports = q;
@@ -249,13 +249,13 @@ add_report(const char *Type, const char *msg, const char *fnm, const int lnr)
 	{	x = new_named_set((const char *) Type);
 	}
 
-	r = (Report *) emalloc(sizeof(Report));
-	r->fnm  = (char *) emalloc(strlen(fnm)+1);
+	r = (Report *) emalloc(sizeof(Report), 3);
+	r->fnm  = (char *) emalloc(strlen(fnm)+1, 4);
 	strcpy(r->fnm, fnm);
 	r->lnr  = lnr;
 
 	if (msg)
-	{	r->msg = (char *) emalloc(strlen(msg)+1);
+	{	r->msg = (char *) emalloc(strlen(msg)+1, 5);
 		strcpy(r->msg, msg);
 	}
 

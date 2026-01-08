@@ -7,6 +7,7 @@ r
 %{
 	if (.curly > 0 && #switch)	# all cpu in parallel
 	{	q = .;
+		cnt++;
 		. = .nxt;
 		if (.txt != "(" )
 		{       . = q;
@@ -35,6 +36,10 @@ r
 	}
 %}
 %{
+	if (cnt == 0)
+	{	print "none\n";
+		Stop;
+	}
 	en = first_t;	# globally visible token to record cpu-done
 	e = en.nxt;	# globally visible token to record the max
 	f = e.nxt;	# globally visible token to record the min
@@ -78,12 +83,16 @@ r
 	}
 
 	g = g.nxt;
-	print "largest  nr of cases per switch: " e.mark "\teg: " g.fnm ":" g.lnr "\n";
+	if (e.mark > 0)
+	{	print "largest  nr of cases per switch: " e.mark "\teg: " g.fnm ":" g.lnr "\n";
+	}
 	if (f.mark == 10000)
 	{	Stop;
 	}
 	h = h.nxt;
-	print "smallest nr of cases per switch: " f.mark "\teg: " h.fnm ":" h.lnr "\n";
+	if (f.mark > 0)
+	{	print "smallest nr of cases per switch: " f.mark "\teg: " h.fnm ":" h.lnr "\n";
+	}
 	Stop;
 %}
 end

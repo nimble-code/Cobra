@@ -1,11 +1,11 @@
 /*
  * This file is part of the public release of Cobra. It is subject to the
  * terms in the License file that is included in this source directory.
- * Tool documentation is available at http://codescrub.com/cobra
+ * Tool documentation is available at https://codescrub.com/cobra
  */
 
 #include "cobra.h"
-#include <regex.h>
+#include "cobra_te.h"
 
 // Thompson's algorithm for converting
 // regular expressions into NDFA
@@ -14,25 +14,28 @@
 #define CONCAT		512	// higher than operator values
 #define OPERAND		513	// higher than others
 #define MAX_CONSTRAINT	256
+#define is_blank(x)	((x) == ' ' || (x) == '\t')	// avoiding isblank(), also defined in cobra_fe.h
 
 #define te_regmatch(t, q)	regexec((t), (q), 0,0,0)	// t always nonzero
 
-typedef struct List	List;
 typedef struct Nd_Stack	Nd_Stack;
 typedef struct Node	Node;
 typedef struct Op_Stack	Op_Stack;
-typedef struct Range	Range;
-typedef struct State	State;
-typedef struct Trans	Trans;
 typedef struct Rlst	Rlst;
-typedef struct PrimStack PrimStack;
-typedef struct Snapshot	Snapshot;
+typedef struct Fnm	Fnm;
+
+ThreadLocal_te *thrl;	// shared only with add_match() in cobra_json.c
 
 struct Node {		// NNODE
 	int	  type;	// operator or token code 
 	char	 *tok;	// token name
 	Node	 *nxt;	// linked list
 	Nd_Stack *succ;	// successor state
+};
+
+struct Fnm {
+	char *s;
+	int   n;
 };
 
 #define IMPLICIT	1
@@ -48,18 +51,6 @@ struct Node {		// NNODE
 // the history of matches can differ between those states
 // example: { .* { .* } .* }
 
-struct PrimStack {
-	Prim		*t;
-	uint		type;	// IMPLICIT or EXPLICIT
-	uint		i_state; // for implicit matches, the state
-	PrimStack	*nxt;
-};
-
-struct Snapshot {
-	int		 n;	// nr explicit { seen
-	PrimStack	*p;	// ptr to the details
-};	// one for each of the nr_states
-
 struct Op_Stack {
 	int	  op;
 	Op_Stack *lst;
@@ -69,6 +60,7 @@ struct Op_Stack {
 
 struct Nd_Stack {	// CNODE
 	int	  seq;
+	int	  cloned;
 	int	  visited;
 	Node	 *n;	// NNODE
 	int	  cond;	// constraint
@@ -84,82 +76,26 @@ struct Nd_Stack {	// CNODE
  Nd_Stack *tracked;
 #endif
 
-struct Range {
-	char	*pat;
-	Range	*or;	// linked list
-};
-
-struct Trans {
-	int	 match;	 // require match or no match
-	int	 dest;	 // next state
-	int	 cond;	 // constraint
-	char	*pat;	 // !pat: if !match: epsilon else '.'
-	char	*saveas; // variable binding
-	char	*recall; // bound variable reference
-	Range	*or;	 // pattern range [ a b c ]
-	regex_t	*t;	 // if regular expression
-	Trans	*nxt;	 // linked list
-};
-
-struct State {
-	int	 seq;
-	int	 accept;
-	Store	*bindings;
-	Trans	*trans;
-	State	*nxt;	// for freelist only
-};
-
 struct Rlst {
 	char	*s;
 	regex_t	*trex;
 	Rlst	*nxt;
 };
 
-struct List {
-	State	*s;
-	List	*nxt;
-};
-
 Lextok	*constraints[MAX_CONSTRAINT];
-Store	*e_bindings;	// shared with cobra_eval.y
 
-extern Match	*matches;	// cobra_json.c
-extern Match	*old_matches;	// cobra_json.c
-
-
-extern char	*b_cmd;
-extern char	*yytext;
-extern int	 echo;
-extern int	 eol, eof;
-extern int	 across_file_match;	// global flag
-extern int	 evaluate(const Prim *, const Lextok *);
-extern int	 has_suppress_tags;
-
-extern void	fix_eol(void);
-extern int	matches_suppress(const Prim *, const char *);
-
-static List	*curstates[3]; // 2 is initial
-static List	*freelist;
+static Fnm	*Fcount;
 static Nd_Stack	*nd_stack;
 static Nd_Stack *expand_q;
 static Node	*tokens;
 static Node	*rev_pol;
 static Node	*rev_end;
 static Op_Stack	*op_stack;
-static Prim	*q_now;
-static Snapshot	**snapshot;
-static Snapshot **snap_pop;
 static State	*states;
-static Store	*free_stored;
-static State	*free_state;
 static Rlst	*re_list;
 static char	SetName[256];	 // for a new named set of pattern matches
 static char	*pattern_filter; // filename filter on dp output, pattern_full and pattern_matched
 
-static PrimStack *prim_stack;
-static PrimStack *prim_free;
-
-static int	current;
 static int	nr_states;
 static int	nrtok = 1;
 static int	opened;		// opened json object
@@ -168,24 +104,29 @@ static int	Seq   = 1;
 static int	ncalls;
 static int	nerrors;
 static int	has_positions;
-static int	fullmatch;
+static int	Topmode;
+static int	fi;
 
 static Nd_Stack *clone_nd_stack(Nd_Stack *);
-static int	 check_constraints(Nd_Stack *);
-static void	 free_list(int);
-static void	 mk_active(Store *, Store *, int, int, int);
-static void	 mk_states(int);
-static void	 mk_trans(int n, int match, char *pat, int dest, int cond);
-static void	 show_state(FILE *, Nd_Stack *);
-
-extern void	dump_tree(Lextok *, int);
+static int	check_constraints(Nd_Stack *);
+static void	free_list(int, const int ix);
+static void	mk_active(Store *, Store *, int, int, int, int);
+static void	mk_states(int);
+static void	mk_trans(int n, int match, char *pat, int dest, int cond);
+static void	show_state(FILE *, Nd_Stack *);
+static void	clone_set(Named *, Lextok *);
+static void	pe_search(Prim *, Prim *, int);
 
 static void
 reinit_te(void)
 {	int i;
+	int ix;
 
-	for (i = 0; i < 3; i++)
-	{	free_list(i);
+	for (ix = 0; ix < Ncore; ix++)
+	{	for (i = 0; i < 3; i++)
+		{	free_list(i, ix);
+		}
+		thrl[ix].current = 0;
 	}
 
 	nd_stack = (Nd_Stack *) 0;
@@ -194,39 +135,42 @@ reinit_te(void)
 	rev_pol  = (Node *) 0;
 	rev_end  = (Node *) 0;
 	op_stack = (Op_Stack *) 0;
-	q_now    = (Prim *) 0;
+	for (i = 0; i < Ncore; i++)
+	{	thrl[i].q_now = (Prim *) 0;
+	}
 	states   = (State *) 0;
 
-	current   = 0;
 	nr_states = 0;
 	nrtok     = 1;
 	Seq       = 1;
 
 	clr_matches(OLD_M);
 
-	old_matches = matches;
-	matches = (Match *) 0;
+	old_matches = matches;	// reinit_te
+	matches = (Match *) 0;	// reinit_te
 
-	cur = prim;
+	for (i = 0; i < Ncore; i++)
+	{	thrl[i].tcur = prim;
+	}
 }
 
 static void
-list_states(char *tag, int n)
+list_states(char *tag, int n, int ix)
 {	List *c;
 	Trans *t;
 
 	printf("%s", tag);
-	for (c = curstates[n]; c; c = c->nxt)
+	for (c = thrl[ix].curstates[n]; c; c = c->nxt)
 	{	if (c->s)
 		{	for (t = c->s->trans; t; t = t->nxt)
-			{	printf("%d->%d%s%s ", c->s->seq, t->dest, c->s->bindings?"*":" ",
+			{	printf("%d->%d%s%s ", c->s->seq, t->dest, c->s->bindings[ix]?"*":" ",
 					c->s->accept?"+":" ");
 				printf("[m=%d, p=%s] ", t->match, t->pat);
 				if (t->nxt)
 				{	printf("\n%s", tag);
 			}	}
-			if (c->s->bindings)
-			{	Store *bnd = c->s->bindings;
+			if (c->s->bindings[ix])
+			{	Store *bnd = c->s->bindings[ix];
 				while (bnd)
 				{	printf("<%s::%s> ", bnd->name, bnd->text);
 					bnd = bnd->nxt;
@@ -253,13 +197,21 @@ te_error(const char *s)
 // regular expression matching on token text
 
 static regex_t *
-te_regstart(const char *s)
-{	Rlst *r;
+te_regstart(const char *s, const int unusedcaller, const int ix)
+{	static Rlst *r;
 	int n;
+	int mylock = 0;
 
+	if (!have_lock(ix))
+	{	do_lock(ix, 8);
+		mylock = 1;
+	}
 	for (r = re_list; r; r = r->nxt)
 	{	if (strcmp(r->s, s) == 0)
-		{	return r->trex;
+		{	if (mylock)
+			{	do_unlock(ix, 8);
+			}
+			return r->trex;
 	}	}
 
 	r = (Rlst *) emalloc(sizeof(Rlst), 90);
@@ -269,25 +221,34 @@ te_regstart(const char *s)
 
 	n = regcomp(r->trex, s, REG_NOSUB|REG_EXTENDED);
 	if (n != 0)	// compile
-	{	static char ebuf[64];
+	{	static char ebuf[128];
 		regerror(n, r->trex, ebuf, sizeof(ebuf));
-		fprintf(stderr, "saw: '%s'\n", s);
+		fprintf(stderr, "error: regcomp on input '%s' returned: %d\n", s, n);
+		if (mylock)
+		{	do_unlock(ix, 8);
+		}
 		te_error(ebuf);
 		return 0;
 	}
+
 	r->nxt = re_list;
 	re_list = r;
 
+	if (mylock)
+	{	do_unlock(ix, 8);
+	}
 	return r->trex;
 }
 
 static void
 te_regstop(void)
 {
+	do_lock(0, 9);
 	while (re_list)
 	{	regfree(re_list->trex);
 		re_list = re_list->nxt;
 	}
+	do_unlock(0, 9);
 }
 
 // end regular expression matching on token text
@@ -595,19 +556,22 @@ new_operand(char *s)
 		} else
 		while (*b != '\0'
 		&&     *b != ' '
-		&&     *b != '\t'
-		&&     !is_metasymbol(*b))
-		{
-			if (*b == '\\')
-			{	b++;
+		&&     *b != '\t')
+		{	if (!is_metasymbol(*b))
+			{	if (*b == '\\')
+				{	b++;
+				}
+				b++;
+			} else 
+			{	break;
 			}
-			b++;
 	}	}
 
 	tmp = *b;
 	*b = '\0';
 	emit_operand(add_token(s), s);
 	*b = tmp;
+
 	return --b;
 }
 
@@ -773,6 +737,7 @@ strip_backslash(Node *n)
 	// we should now remove it, because we've
 	// already passed interpretation of meta-symbols
 
+	if (*p != '/')	// but not for regular expressions
 	while (p)
 	{	q = ++p;
 		if ((p = strstr(q, "\\+")) != NULL	// eg ++
@@ -995,6 +960,7 @@ again:	if (t->n)	// NNODE
 		{	// printf("mk_trans %d -> %d (special %d)\n", src, dst, special);
 			dst = special;
 		}
+
 		if (strcmp(s, ".") == 0)
 		{	mk_trans(src, 1, 0, dst, t->cond);
 		} else
@@ -1030,32 +996,31 @@ prep_state(Nd_Stack *t)
 	{	return;
 	}
 	t->visited |= 4;
-
 	prep_transitions(t, t->seq, 0);
 }
 
 static void
-prep_initial(Nd_Stack *t, int into)
+prep_initial(Nd_Stack *t, int into, int ix)
 {	int idone = 0;
 
 	assert(!t->n);
 
 	if (t->lft->n)
-	{	mk_active(0, 0, t->seq, t->seq, into);			// initial
+	{	mk_active(0, 0, t->seq, t->seq, into, ix);			// initial
 		idone++;
 	} else
-	{	prep_initial(t->lft, into);
+	{	prep_initial(t->lft, into, ix);
 	}
 	if (t->rgt)
 	{	if (t->rgt->n)
 		{	if (!idone)
-			{	mk_active(0, 0, t->seq, t->seq, into);	// initial
+			{	mk_active(0, 0, t->seq, t->seq, into, ix);	// initial
 			}
 		} else
-		{	prep_initial(t->rgt, into);
+		{	prep_initial(t->rgt, into, ix);
 		}
 	} else	// accept
-	{	mk_active(0, 0, Seq+1, Seq+1, into);			// initial
+	{	mk_active(0, 0, Seq+1, Seq+1, into, ix);			// initial
 	}
 }
 
@@ -1085,6 +1050,11 @@ clone_nd_stack(Nd_Stack *t)
 	if (verbose)
 	{	printf("---clone stack (creating seq %d)\n", Seq);
 	}
+	if (t->cloned)
+	{	return t;
+	}
+	t->cloned++;
+
 	n = (Nd_Stack *) emalloc(sizeof(Nd_Stack), 97);
 	n->seq = Seq++;
 	n->n   = clone_node(t->n);
@@ -1163,13 +1133,15 @@ static void
 mk_fsa(void)
 {	Nd_Stack *p;
 	int cnt = 0;
+	int ix;
 
 	mk_states(Seq+1);
 	dump_tracked(100);
 	to_expand(nd_stack);
+
+
 	while (expand_q)
 	{	p = expand_q;
-
 		if (p->pend
 		&&  p->seq == p->pend->seq
 		&&  p->pend->visited == 4)
@@ -1189,34 +1161,40 @@ mk_fsa(void)
 	}
 
 	if (nd_stack->n)
-	{	mk_active(0, 0, 1, 1, 0);		// initial
+	{	for (ix = 0; ix < Ncore; ix++)
+		{	mk_active(0, 0, 1, 1, 0, ix);	// initial
+		}
 	} else
-	{	prep_initial(nd_stack, 0);
-	}
+	{	for (ix = 0; ix < Ncore; ix++)
+		{	prep_initial(nd_stack, 0, ix);
+	}	}
 }
 
 static void
 mk_states(int nr)					// called from main.c
-{	int i;
+{	int i, ix;
 
 	nr_states = nr;
 	states = (State *) emalloc(sizeof(State)*(nr+1), 98);
 	states[nr].accept = 1;
 	for (i = 0; i <= nr; i++)
 	{	states[i].seq = i;
+		states[i].bindings = (Store **) emalloc(Ncore * sizeof(Store *), 98);
 	}
 #if 1
-	snapshot = (Snapshot **) emalloc(sizeof(Snapshot *)*(nr+1), 98);
-	snap_pop = (Snapshot **) emalloc(sizeof(Snapshot *)*(nr+1), 98);
-	for (i = 0; i < nr+1; i++)
-	{	snapshot[i] = (Snapshot *) emalloc(sizeof(Snapshot), 98);
-		snap_pop[i] = (Snapshot *) emalloc(sizeof(Snapshot), 98);
+	for (ix = 0; ix < Ncore; ix++)
+	{	thrl[ix].snapshot = (Snapshot **) emalloc(sizeof(Snapshot *)*(nr+1), 98);
+		thrl[ix].snap_pop = (Snapshot **) emalloc(sizeof(Snapshot *)*(nr+1), 98);
+		for (i = 0; i < nr+1; i++)
+		{	thrl[ix].snapshot[i] = (Snapshot *) emalloc(sizeof(Snapshot), 98);
+			thrl[ix].snap_pop[i] = (Snapshot *) emalloc(sizeof(Snapshot), 98);
+		}
 	}
 #endif
 }
 
 static void
-copy_snapshot(int from, int into)
+copy_snapshot(int from, int into, int ix)
 {
 	if (from == into)
 	{	return;
@@ -1224,10 +1202,10 @@ copy_snapshot(int from, int into)
 	assert(from >= 0 && from <= Seq+1);
 	assert(into >= 0 && into <= Seq+1);
 #if 0
-	snapshot[into] = snapshot[from];				// move, or copy?
-	snapshot[from] = (Snapshot *) emalloc(sizeof(Snapshot), 68);	// recycle?
+	thrl[ix].snapshot[into] = thrl[ix].snapshot[from];				// move, or copy?
+	thrl[ix].snapshot[from] = (Snapshot *) emalloc(sizeof(Snapshot), 68);	// recycle?
 #else
-	memcpy(snapshot[into], snapshot[from], sizeof(Snapshot));
+	memcpy(thrl[ix].snapshot[into], thrl[ix].snapshot[from], sizeof(Snapshot));
 #endif
 }
 
@@ -1239,6 +1217,19 @@ new_range(char *s, Range *r)
 	n->pat = (char *) emalloc(strlen(s)+1, 99);
 	strcpy(n->pat, s);
 	n->or = r;
+
+	{	char *q = s;
+		while (*q != '\0')
+		{	if (*q == ':'
+			&&  isalpha((uchar) *(q-1))
+			&&  (isalpha((uchar) *(q+1))
+			  || *(q+1) == '@'))
+			{	fprintf(stderr, "error: cannot use bound var defs inside a [ ... ] range\n");
+				nerrors++;
+			}
+			q++;
+		}
+	}
 
 	return n;
 }
@@ -1306,10 +1297,14 @@ mk_trans(int src, int match, char *pat, int dest, int cond)	// called from main.
 	if (pat
 	&& *pat == '/'
 	&&  strlen(pat) > 1)
-	{	t->t = te_regstart(pat+1);
+	{	// te_regstop();
+		t->t = te_regstart(pat+1, 1, 0);
 		if (!t->t)
 		{	return;
 		}
+	}
+	if (pat != 0 && strcmp(pat, "|\\|") == 0)	// 5.3 sep 2025
+	{	strcpy(pat, "||");
 	}
 
 	t->cond = cond;
@@ -1334,17 +1329,17 @@ mk_trans(int src, int match, char *pat, int dest, int cond)	// called from main.
 }
 
 static Store *
-get_store(Store *n)
+get_store(Store *n, int ix)
 {	Store *b;
 
-	if (free_stored)
-	{	b = free_stored;
-		free_stored = free_stored->nxt;
+	if (thrl[ix].free_stored)
+	{	b = thrl[ix].free_stored;
+		thrl[ix].free_stored = thrl[ix].free_stored->nxt;
 		b->bdef = (Prim *) 0;
 		b->ref  = (Prim *) 0;
 		b->aref = (Prim *) 0;
 	} else
-	{	b = (Store *) emalloc(sizeof(Store), 102);
+	{	b = (Store *) Emalloc(sizeof(Store), 102);
 	}
 
 	if (n)
@@ -1360,10 +1355,12 @@ get_store(Store *n)
 // Execution
 
 Prim *
-bound_prim(const char *s)
-{	Store*b;
+bound_prim(const char *s, int ix)
+{	Store *b;
 
-	for (b = e_bindings; b; b = b->nxt)
+	assert(ix >= 0 && ix < Ncore);
+	if (thrl)	// precaution
+	for (b = thrl[ix].e_bindings; b; b = b->nxt)
 	{	if (strcmp(s, b->name) == 0)
 		{	return b->bdef;
 	}	}
@@ -1371,10 +1368,11 @@ bound_prim(const char *s)
 }
 
 char *
-bound_text(const char *s)
-{	Store*b;
+bound_text(const char *s, int ix)
+{	Store *b;
 
-	for (b = e_bindings; b; b = b->nxt)
+	assert(thrl);
+	for (b = thrl[ix].e_bindings; b; b = b->nxt)
 	{	if (strcmp(s, b->name) == 0)
 		{	return b->text;
 	}	}
@@ -1382,46 +1380,46 @@ bound_text(const char *s)
 }
 
 static void
-leave_state(int src, int into)
+leave_state(int src, int into, int ix)
 {	List *c, *lc = NULL;
 	Store *b, *nxt_b;
 
 	assert(states != NULL);
 	assert(into >= 0 && into < 3);
 
-	for (c = curstates[into]; c; lc = c, c = c->nxt)
+	for (c = thrl[ix].curstates[into]; c; lc = c, c = c->nxt)
 	{	assert(c->s);
 		if (c->s->seq != src)
 		{	continue;
 		}
 
-		for (b = c->s->bindings; b; b = nxt_b)
+		for (b = c->s->bindings[ix]; b; b = nxt_b)
 		{	nxt_b = b->nxt;
-			b->nxt = free_stored;
-			free_stored = b;
+			b->nxt = thrl[ix].free_stored;
+			thrl[ix].free_stored = b;
 		}
-		c->s->bindings = 0;
+		c->s->bindings[ix] = 0;
 
 		if (c->s != &states[c->s->seq])
-		{	c->s->nxt = free_state;
-			free_state = c->s;
+		{	c->s->nxt = thrl[ix].free_state;
+			thrl[ix].free_state = c->s;
 		}
 		c->s = 0;
 
 		if (lc)
 		{	lc->nxt = c->nxt;
 		} else
-		{	curstates[into] = c->nxt;
+		{	thrl[ix].curstates[into] = c->nxt;
 		}
 
-		c->nxt = freelist;
-		freelist = c;
+		c->nxt = thrl[ix].freelist;
+		thrl[ix].freelist = c;
 		break;
 	}	
 }
 
 static void
-mk_active(Store *bnd, Store *new, int orig, int src, int into)
+mk_active(Store *bnd, Store *new, int orig, int src, int into, int ix)
 {	List *c;
 	Store *b, *n;
 
@@ -1436,9 +1434,9 @@ mk_active(Store *bnd, Store *new, int orig, int src, int into)
 	assert(states != NULL);
 	assert(into >= 0 && into < 3);
 #if 1
-	copy_snapshot(orig, src);
+	copy_snapshot(orig, src, ix);
 #endif
-	for (c = curstates[into]; c; c = c->nxt)
+	for (c = thrl[ix].curstates[into]; c; c = c->nxt)
 	{	assert(c->s);
 
 		if (c->s->seq == src)
@@ -1448,168 +1446,177 @@ mk_active(Store *bnd, Store *new, int orig, int src, int into)
 			// first check, if a new binding is to be added, if
 			// that binding is already there
 			if (new)
-			{	for (n = c->s->bindings; n; n = n->nxt)
+			{	for (n = c->s->bindings[ix]; n; n = n->nxt)
 				{	if (strcmp(new->name, n->name) == 0
 					&&  strcmp(new->text, n->text) == 0)
 					{	break;	// yes it is
 				}	}
 				if (!n)	// not there, add it now
-				{	Store *x = get_store(new);
-					x->nxt = c->s->bindings;
-					c->s->bindings = x;
+				{	Store *x = get_store(new, ix);
+					x->nxt = c->s->bindings[ix];
+					c->s->bindings[ix] = x;
 			}	}
 
 			// check if all existing bindings are matched
 			for (b = bnd; b; b = b->nxt)	// known bindings
-			{	for (n = c->s->bindings; n; n = n->nxt)
+			{	for (n = c->s->bindings[ix]; n; n = n->nxt)
 				{	if (strcmp(b->name, n->name) == 0
 					&&  strcmp(b->text, n->text) == 0)
 					{	break;	// found match
 				}	}
 				if (!n)	// checked all bindings and found NO match for b
-				{	Store *x = get_store(b);
-					x->nxt = c->s->bindings;
-					c->s->bindings = x;	// add it
+				{	Store *x = get_store(b, ix);
+					x->nxt = c->s->bindings[ix];
+					c->s->bindings[ix] = x;	// add it
 			}	}
 			return;
 	}	}
 
 	// add state
 
-	if (freelist)
-	{	c = freelist;
-		freelist = freelist->nxt;
+	if (thrl[ix].freelist)
+	{	c = thrl[ix].freelist;
+		thrl[ix].freelist = thrl[ix].freelist->nxt;
 		c->nxt = (List *) 0;
 	} else
-	{	c = (List *) emalloc(sizeof(List), 103);
+	{	c = (List *) Emalloc(sizeof(List), 103);
 	}
 
 	if (!bnd && !new)
 	{	c->s = &states[src];	// no need to allocate a new struct
 	} else
-	{	if (free_state)
-		{	c->s = free_state;
-			free_state = free_state->nxt;
+	{	State *ns;
+		if (thrl[ix].free_state)
+		{	c->s = thrl[ix].free_state;
+			thrl[ix].free_state = thrl[ix].free_state->nxt;
 			c->s->nxt = 0;
 		} else
-		{	c->s = (State *) emalloc(sizeof(State), 104);
+		{	c->s = (State *) Emalloc(sizeof(State), 104);
+			c->s->bindings = (Store **) Emalloc(Ncore * sizeof(Store *), 104);
 		}
-		memcpy(c->s, &states[src], sizeof(State));
+
+	//	memcpy(c->s, &states[src], sizeof(State));
+		ns = &states[src];
+		c->s->seq    = ns->seq;
+		c->s->accept = ns->accept;
+		c->s->trans  = ns->trans;
+		c->s->nxt    = ns->nxt;
+		c->s->bindings[ix] = ns->bindings[ix];
 
 		if (new)
-		{	n = get_store(new);
-			n->nxt = c->s->bindings;
-			c->s->bindings = n;
+		{	n = get_store(new, ix);
+			n->nxt = c->s->bindings[ix];
+			c->s->bindings[ix] = n;
 		}
 		for (b = bnd; b; b = b->nxt)
-		{	n = get_store(b);
-			n->nxt = c->s->bindings;
-			c->s->bindings = n;
+		{	n = get_store(b, ix);
+			n->nxt = c->s->bindings[ix];
+			c->s->bindings[ix] = n;
 	}	}
 
-	c->nxt = curstates[into];
-	curstates[into] = c;
+	c->nxt = thrl[ix].curstates[into];
+	thrl[ix].curstates[into] = c;
 	if (verbose)
-	{	list_states("			", into);
+	{	list_states("			", into, ix);
 	}
 }
 
 static void
-copy_list(int src, int dst)
+copy_list(int src, int ix, int dst)
 {	List *c;
 
 	assert(src >= 0 && src < 3);
-	for (c = curstates[src]; c; c = c->nxt)
-	{	mk_active(c->s->bindings, 0, c->s->seq, c->s->seq, dst);
+	for (c = thrl[ix].curstates[src]; c; c = c->nxt)
+	{	mk_active(c->s->bindings[ix], 0, c->s->seq, c->s->seq, dst, ix);
 	}
 }
 
 static void
-free_list(int n)
+free_list(int n, int ix)
 {	List  *c, *nxt_s;
 	Store *b, *nxt_b;
 
 	assert(n >= 0 && n < 3);
-	for (c = curstates[n]; c; c = nxt_s)
+	for (c = thrl[ix].curstates[n]; c; c = nxt_s)
 	{	nxt_s = c->nxt;
-		c->nxt = freelist;
-		freelist = c;
-		for (b = c->s->bindings; b; b = nxt_b)
+		c->nxt = thrl[ix].freelist;
+		thrl[ix].freelist = c;
+		for (b = c->s->bindings[ix]; b; b = nxt_b)
 		{	nxt_b = b->nxt;
-			b->nxt = free_stored;
-			free_stored = b;
+			b->nxt = thrl[ix].free_stored;
+			thrl[ix].free_stored = b;
 		}
-		c->s->bindings = 0;
-		if (c->s != &states[c->s->seq])
-		{	c->s->nxt = free_state;
-			free_state = c->s;
+		c->s->bindings[ix] = 0;
+		if (states && c->s != &states[c->s->seq])
+		{	c->s->nxt = thrl[ix].free_state;
+			thrl[ix].free_state = c->s;
 		}
 		c->s   = 0;
 	}
-	curstates[n] = 0;
+	thrl[ix].curstates[n] = 0;
 }
 
 static int
-is_accepting(Store *b, int s)
+is_accepting(Store *b, int s, int ix)
 {
 	if (states[s].accept)
-	{	add_match(cur, q_now, b);
+	{	add_match(thrl[ix].tcur, thrl[ix].q_now, b, 1, ix);	// copied from t_matches to matches at end of te_search
 
 		if (verbose)
-		{	printf("%s:%d..", cur->fnm, cur->lnr);
-			if (strcmp(cur->fnm, q_now->fnm) != 0)
-			{	printf("%s:", q_now->fnm);
+		{	printf("%s:%d..", thrl[ix].tcur->fnm, thrl[ix].tcur->lnr);
+			if (strcmp(thrl[ix].tcur->fnm, thrl[ix].q_now->fnm) != 0)
+			{	printf("%s:", thrl[ix].q_now->fnm);
 			}
 			printf("%d: matches (state %d) bindings: %p\n",
-				q_now->lnr, s, (void *) b);
+				thrl[ix].q_now->lnr, s, (void *) b);
 		}
 
-		free_list(1 - current);		// remove next states
-		copy_list(2, 1 - current);	// replace with initial states
+		free_list(1 - thrl[ix].current, ix);	// remove next states
+		copy_list(2, ix, 1 - thrl[ix].current);	// replace with initial states
 
-//		cur = q_now;	// move ahead, avoid overlap
+//		thrl[ix].tcur = thrl[ix].q_now;	// move ahead, avoid overlap
 
-		fullmatch = 1;
+		thrl[ix].fullmatch = 1;
 		return 1;
 	}
 	return 0;
 }
 
 static Store *
-saveas(State *s, char *name, char *text)	// name binding
+saveas(State *s, char *name, char *text, int ix)	// name binding
 {	Store *b;
 
-	for (b = s->bindings; b; b = b->nxt)
+	for (b = s->bindings[ix]; b; b = b->nxt)
 	{	if (strcmp(b->name, name) == 0
 		&&  strcmp(b->text, text) == 0)
 		{	return (Store *) 0;	// already there
 	}	}
 
-	b = get_store(0);
+	b = get_store(0, ix);
 	b->name = name;
 	b->text = text;
-	b->bdef = q_now;
+	b->bdef = thrl[ix].q_now;
 	b->nxt  = (Store *) 0;
 
 	return b;
 }
 
 static int
-recall(State *s, Trans *t, char *text)
+recall(State *s, Trans *t, char *text, int ix)
 {	Store *b, *c;
 	char *name = t->recall;
 
 	if (t->match)	// match any
-	{	for (b = s->bindings; b; b = b->nxt)
+	{	for (b = s->bindings[ix]; b; b = b->nxt)
 		{	if (strcmp(b->name, name) == 0
 			&&  strcmp(b->text, text) == 0)
-			{	b->ref = q_now;
-				q_now->bound = b->aref; // new 5.2, remember all bound var matches
-				b->aref = q_now;	// new 5.2
+			{	b->ref = thrl[ix].q_now;
+				thrl[ix].q_now->bound = b->aref; // new 5.2, remember all bound var matches
+				b->aref = thrl[ix].q_now;	// new 5.2
 				if (verbose)
 				{	printf(">> matching var %s : %s\n", name, text);
 					printf(">> other bindings:\t");
-					for (c = s->bindings; c; c = c->nxt)
+					for (c = s->bindings[ix]; c; c = c->nxt)
 					{	if (c != b)
 						{	printf("%s :: %s ", c->name, c->text);
 					}	}
@@ -1617,7 +1624,7 @@ recall(State *s, Trans *t, char *text)
 				}
 #if 0
 				b->nxt = 0;
-				s->bindings = b;
+				s->bindings[ix] = b;
 #endif
 				return 1;
 		}	}
@@ -1626,7 +1633,7 @@ recall(State *s, Trans *t, char *text)
 	{	int matched = 0;
 		int not_matched = 0;
 
-		for (b = s->bindings; b; b = b->nxt)
+		for (b = s->bindings[ix]; b; b = b->nxt)
 		{	if (strcmp(b->name, name) == 0
 			&&  strcmp(b->text, text) == 0)
 			{	matched++;
@@ -1637,13 +1644,13 @@ recall(State *s, Trans *t, char *text)
 		if (matched > 0
 		&&  not_matched > 0)	// remove matched variables
 		{	c = NULL;
-			for (b = s->bindings; b; b = b->nxt)
+			for (b = s->bindings[ix]; b; b = b->nxt)
 			{	if (strcmp(b->name, name) == 0
 				&&  strcmp(b->text, text) == 0)
 				{	if (c)
 					{	c->nxt = b->nxt;
 					} else
-					{	s->bindings = b->nxt;
+					{	s->bindings[ix] = b->nxt;
 					}
 					if (--matched <= 0)
 					{	break;
@@ -1657,113 +1664,113 @@ recall(State *s, Trans *t, char *text)
 }
 
 static void
-move2free(PrimStack *n)
+move2free(PrimStack *n, int ix)
 {
 	if (n)
 	{	PrimStack *m = n;
 		while (m->nxt)
 		{	m = m->nxt;
 		}
-		m->nxt = prim_free;
-		prim_free = n;
+		m->nxt = thrl[ix].prim_free;
+		thrl[ix].prim_free = n;
 	}
 }
 
 static void
-clr_stacks(void)
+clr_stacks(int ix)
 {
-	move2free(prim_stack);
-	prim_stack = (PrimStack *) 0;
+	move2free(thrl[ix].prim_stack, ix);
+	thrl[ix].prim_stack = (PrimStack *) 0;
 #if 1
 	List *c;
 	int d;
-	for (c = curstates[current]; c; c = c->nxt)
+	for (c = thrl[ix].curstates[thrl[ix].current]; c; c = c->nxt)
 	{	d = c->s->seq;
 		assert(d >= 0 && d <= Seq);
-		assert(snapshot[d] != NULL);
-//		move2free(snapshot[d]->p);
-		snapshot[d]->p = (PrimStack *) 0;
-		snapshot[d]->n = 0;
+		assert(thrl[ix].snapshot[d] != NULL);
+//		move2free(thrl[ix].snapshot[d]->p, ix);
+		thrl[ix].snapshot[d]->p = (PrimStack *) 0;
+		thrl[ix].snapshot[d]->n = 0;
 	}
 #endif
 }
 
-PrimStack *
-get_prim(void)
+static PrimStack *
+get_prim(int ix)
 {	PrimStack *n;
 
-	if (prim_free)
-	{	n = prim_free;
+	if (thrl[ix].prim_free)
+	{	n = thrl[ix].prim_free;
 		n->type = n->i_state = 0;
-		prim_free = prim_free->nxt;
+		thrl[ix].prim_free = thrl[ix].prim_free->nxt;
 	} else
-	{	n = (PrimStack *) emalloc(sizeof(PrimStack), 109);
+	{	n = (PrimStack *) Emalloc(sizeof(PrimStack), 109);
 	}
-	n->t   = q_now;
+	n->t   = thrl[ix].q_now;
 	return n;
 }
 
 static void
-mark_prim(int d, int m)
+mark_prim(int d, int m, int ix)
 {
-	prim_stack->type |= m;
+	thrl[ix].prim_stack->type |= m;
 #if 1
 	assert(d >= 0 && d <= Seq);
-	assert(snapshot[d]->p != NULL);
-	snapshot[d]->p->type |= m;
+	assert(thrl[ix].snapshot[d]->p != NULL);
+	thrl[ix].snapshot[d]->p->type |= m;
 #endif
 }
 
 static int
-check_match(int d, int m, int old)
+check_match(int d, int m, int old, int ix)
 {
 	assert(d >= 0 && d <= Seq);
 
-	if (snap_pop[d]->p == NULL)
+	if (thrl[ix].snap_pop[d]->p == NULL)
 	{	if (verbose)
 		{	fprintf(stderr, "assert fails: snap_pop[d]->p == NULL\n");
 		}
 		return old;
 	}
 
-	assert(snap_pop[d]->p != NULL);
+	assert(thrl[ix].snap_pop[d]->p != NULL);
 
-	if (((snap_pop[d]->p->type & m) == m) != (old == 0))
+	if (((thrl[ix].snap_pop[d]->p->type & m) == (uint) m) != (old == 0))
 	{	if (verbose)
 		{	printf("\n%s:%d: MATCH  new: %s <%d>  old: %s <%d>  -- %d %d --)\n",
-				q_now->fnm, q_now->lnr,
-				(snap_pop[d]->p->type & m)?"match ":"mismatch",
-				snap_pop[d]->p->type,
+				thrl[ix].q_now->fnm, thrl[ix].q_now->lnr,
+				(thrl[ix].snap_pop[d]->p->type & m)?"match ":"mismatch",
+				thrl[ix].snap_pop[d]->p->type,
 				old?"mismatch":"match",
-				prim_free->i_state,
+				thrl[ix].prim_free->i_state,
 				d, (1<<d));
 		}
-		return !(snap_pop[d]->p->type & m);
+		return !(thrl[ix].snap_pop[d]->p->type & m);
 	} // else
 
 	return old;
 }
 
 static void
-push_prim(void)
+push_prim(int ix)
 {	PrimStack *n;
 	List *c;
 	int d;
-	n      = get_prim();
-	n->nxt = prim_stack;
-	prim_stack = n;
+	n      = get_prim(ix);
+	n->nxt = thrl[ix].prim_stack;
+	thrl[ix].prim_stack = n;
 #if 1
 	// a shadow struct for now
-	for (c = curstates[current]; c; c = c->nxt)
+	for (c = thrl[ix].curstates[thrl[ix].current]; c; c = c->nxt)
 	{	if (!c->s)
 		{	fprintf(stderr, "push_prim: error\n");
 		} else
 		{	d = c->s->seq;
 			assert(d >= 0 && d <= Seq);
-			n = get_prim();
-			n->nxt = snapshot[d]->p;
-			snapshot[d]->p = n;
-			snapshot[d]->n += 1;
+			n = get_prim(ix);
+			n->nxt = thrl[ix].snapshot[d]->p;
+			thrl[ix].snapshot[d]->p = n;
+			thrl[ix].snapshot[d]->n += 1;
 			if (verbose)
 			{	printf("Push_prim %s >>> %d\n", n->t->txt, d);
 	}	}	}
@@ -1771,67 +1778,67 @@ push_prim(void)
 }
 
 static void
-pop_prim(void)
-{	PrimStack *n = prim_stack;
+pop_prim(int ix)
+{	PrimStack *n = thrl[ix].prim_stack;
 	List *c;
 
 	if (!n)
 	{	return;
 	}
-	prim_stack = n->nxt;
-	n->nxt = prim_free;
-	prim_free = n;
+	thrl[ix].prim_stack = n->nxt;
+	n->nxt = thrl[ix].prim_free;
+	thrl[ix].prim_free = n;
 #if 1
 	int d;
 	// a shadow struct for now
-	for (c = curstates[current]; c; c = c->nxt)
+	for (c = thrl[ix].curstates[thrl[ix].current]; c; c = c->nxt)
 	{	if (!c->s)
-		{	fprintf(stderr, "pop_prim: error\n");
+		{	fprintf(stderr, "pop_prim:%d: error\n", ix);
 		} else
 		{	d = c->s->seq;
 			assert(d >= 0 && d <= Seq);
-			n = snapshot[d]->p;
+			n = thrl[ix].snapshot[d]->p;
 			if (n)
-			{	snapshot[d]->p = n->nxt;
+			{	thrl[ix].snapshot[d]->p = n->nxt;
  #if 1
-				snap_pop[d]->p = n; // remember last pop
+				thrl[ix].snap_pop[d]->p = n; // remember last pop
  #else
-				n->nxt = prim_free;
-				prim_free = n;
+				n->nxt = thrl[ix].prim_free;
+				thrl[ix].prim_free = n;
  #endif
-				snapshot[d]->n -= 1;
+				thrl[ix].snapshot[d]->n -= 1;
 				if (verbose)
 				{	printf("Pop_prim %s <<< %d\n", n->t->txt, d);
 				}
 			} else if (0)	// happens after accept and restart
-			{	printf("Bad Pop, state %d\n", d);
+			{	printf("bad Pop:%d: state %d\n", ix, d);
 	}	}	}
 #endif
 }
 
 static int
-check_level(void)
+check_level(int ix)
 {	int rv = 0;
 
-	switch (q_now->txt[0]) {	// we know it's 1 character
+	switch (thrl[ix].q_now->txt[0]) {	// we know it's 1 character
 	case '}':
 	case ')':
 	case ']':
-		if (!prim_stack
-		||  !prim_stack->t)
+		if (!thrl[ix].prim_stack
+		||  !thrl[ix].prim_stack->t)
 		{	break;		// report error?
 		}
-		if (prim_stack->t->jmp == q_now)
+		if (thrl[ix].prim_stack->t->jmp == thrl[ix].q_now)
 		{	rv = 2;
 		} else
 		{	rv = 1;
 		}
-		pop_prim();
+		pop_prim(ix);
 		break;
 	case '{':
 	case '(':
 	case '[':
-		push_prim();
+		push_prim(ix);
 		break;
 	default:
 		break;
@@ -1840,49 +1847,30 @@ check_level(void)
 	return rv;
 }
 
-static void
-clear_bounds(Prim *b)
-{
-	if (b)
-	{	clear_bounds(b->bound);
-		b->bound = (Prim *) 0;
-	}
-}
+void
+clr_matches(int which)
+{	Match *m, *nm;
 
-static void
-free_bind(Bound *b, int who, Match *m)
-{
-	b->bdef = (Prim *) 0;
-	b->ref  = (Prim *) 0;
-	clear_bounds(b->aref);
-	b->aref = (Prim *) 0;
-	b->nxt  = free_bound;
-	free_bound = b;
+	m = (which == NEW_M) ? matches : old_matches;	// clr_matches
+
+	for (; m; m = nm)
+	{	nm = m->nxt;
+		put_match(m);
+	}
+
+	if (which == NEW_M)
+	{	matches     = (Match *) 0;		// clr_matches
+	} else
+	{	old_matches = (Match *) 0;
+	}
 }
 
 static Match *
-free_m(Match *m, int who)
-{	Bound *b, *nb;
-	Match *nm;
+free_m(Match *m)
+{	Match *nm;
 
 	nm = m->nxt;
-
-	m->msg  = (char *) 0;
-	m->from = (Prim *) 0;
-	m->upto = (Prim *) 0;
-	m->nxt  = free_match;
-	free_match = m;
-
-	for (b = m->bind; b; b = nb)
-	{	nb = b->nxt;
-		if (nb == b)	// internal error
-		{	b->nxt = nb = 0;
-			fprintf(stderr, "internal error: free_m\n");
-		}
-		free_bind(b, who, m);
-	}
-	m->bind = (Bound *) 0;
-
+	put_match(m);
 	return nm;
 }
 
@@ -1906,158 +1894,12 @@ again:
 			}
 			// else, drop the match
 			if (!prv)
-			{	matches = free_m(m, 1);
+			{	matches = free_m(m);
 			} else
-			{	prv->nxt = free_m(m, 2);
+			{	prv->nxt = free_m(m);
 			}
 			goto again;
 	}	}
-}
-
-// externally visible
-
-void
-undo_matches(void)
-{	Match *tmp;
-
-	tmp = matches;
-	matches = old_matches;
-	old_matches = tmp;
-}
-
-void
-ps_help(void)
-{
-	printf("ps caption n message	# add (or replace) a caption to an existing pattern set 'n'\n");
-	printf("ps convert n		# convert a pattern set 'n' into basic token markings\n");
-	printf("ps create n		# convert basic token markings into a pattern set named 'n'\n");
-	printf("ps delete n		# delete pattern set 'n'\n");
-	printf("ps list [n]		# list a specific or all pattern sets, and their membership\n");
-	printf("ps rename n newname	# renames an existing pattern set n to newname\n");
-	printf("ps json	n		# show matches from set n in json format\n");
-
-	printf("ps n1 = n2 & n3         # define n1 as the intersection of n2 and n3\n");
-	printf("ps n1 = n2 + n3         # define n1 as the union of n2 and n3\n");
-	printf("ps n1 = n2 - n3         # define n1 as the difference of n2 and n3\n");
-	printf("ps n1 = n2 * n3         # matches in n2 that contain at least one match in n3\n");
-	printf("ps n1 = n2 m n3         # matches where the start of n3 meets the end of n2\n");
-	printf("ps n1 = n2 < n3         # matches in n2 that precede those in n3\n");
-	printf("ps n1 = n2 > n3         # matches in n2 that follow those in n3\n");
-
-	printf("ps n1 = n2 with (expr)	# define n1 as the subset of n2 with only matches that comply with the token expression\n");
-	printf("ps n1 = n2 with \"constraint\"	# define n1 as the subset of n2 with only matches that contain the string 'constraint'\n");
-	printf("ps help			# print this message\n");
-}
-
-void
-patterns_caption(char *s)
-{	Named *x;
-	char *t = s;
-
-	// setname message ...
-	// printf("caption: '%s'\n", s);
-	while (*t != '\0' && !isspace((int) *t))
-	{	t++;
-	}
-	if (!isspace((int) *t))
-	{	fprintf(stderr, "error: bad format\n");
-		return;
-	}
-	*t = '\0';
-	x = findset(s, 0, 12);
-	if (!x)
-	{	if ((!json_format && !no_display && !no_match) && verbose)
-		{	fprintf(stderr, "warning: no such set '%s'\n", s);
-		}
-		return;
-	}
-	t++;	// now points at message
-	if (!x->msg
-	|| strlen(x->msg) < strlen(t))
-	{	x->msg = (char *) emalloc(strlen(t)+1, 100);
-	}
-	strcpy(x->msg, t);
-}
-
-void
-patterns_create(void)		// convert marks to pattern matchess in SetName
-{	Match *om = matches;
-	Match *p;
-	Prim *w;
-	int p_cnt = 0;
-	int m_cnt = 0;
-
-	matches = (Match *) 0;	// build list
-	for (w = prim; w; w = w?w->nxt:w)
-	{	if (w->mark == 0)
-		{	continue;
-		}
-		m_cnt++;
-		// start of a range
-		p = (Match *) emalloc(sizeof(Match), 100);
-		p->from = w;
-		while (w && w->mark)
-		{	w = w->nxt;
-			m_cnt++;
-		}
-		p->upto = (w && w->prv)?w->prv:plst;
-		p->nxt = matches;
-		matches = p;
-		p_cnt++;
-	}
-	if (p_cnt > 0)
-	{	new_named_set(SetName);		// convert marks to set
-	}
-	matches = om;	// restore
-
-	if (gui)
-	{	printf("%d matches stored in %s (patterns_create)\n", p_cnt, SetName);
-	} else
-	{	if (verbose
-		||  (!json_format
-		 &&  !no_match
-		 &&  !no_display))
-		{	printf("%d marks -> %d patterns stored in %s\n", m_cnt, p_cnt, SetName);
-	}	}
-}
-
-void
-patterns_json(char *s)
-{	Named *q;
-	Match *m;
-	char *t;
-	int first_entry = 1;
-
-	q = findset(s, 0, 11);
-	if (!q)
-	{	if (!json_format && !no_display && !no_match)
-		{	fprintf(stderr, "pattern set '%s' not found\n", s);
-		}
-		return;
-	}
-	for (m = q->m; m; m = m->nxt)
-	{	if (has_suppress_tags
-		&&  matches_suppress(m->from, m->msg))
-		{	if (verbose)
-			{	fprintf(stderr, "%s:%d: warning suppressed by tag match\n",
-					m->from->fnm, m->from->lnr);
-			}
-			continue;
-		}
-		if (m->msg)
-		{	strncpy(json_msg, m->msg, sizeof(json_msg)-1);
-		} else if (strcmp(m->from->fnm, m->upto->fnm) == 0)
-		{	sprintf(json_msg, "lines %d..%d",
-				m->from->lnr, m->upto->lnr);
-		} else
-		{	sprintf(json_msg, "%s:%d..%s:%d",
-				m->from->fnm, m->from->lnr,
-				m->upto->fnm, m->upto->lnr);
-		}
-		t = q->msg?q->msg:q->nm;
-		json_match(s, t, json_msg, m->from, m->upto, first_entry);
-		first_entry = 0;
-	}
 }
 
 static void
@@ -2099,44 +1941,6 @@ patterns_reversed(Named *q, int cnt)
 	return cnt+1;
 }
 
-void
-patterns_list(char *s)
-{
-	if (strlen(s) > 0)
-	{	patterns_show(findset(s, 1, 13), -1);
-	} else
-	{	(void) patterns_reversed(namedset, 1);
-	}
-}
-
-void
-patterns_rename(char *s)
-{	Named *q;
-	char *p = s;
-
-	if (!s)
-	{	fprintf(stderr, "usage: ps rename A B\n");
-		return;
-	}
-	while (*p != ' ' && *p != '\0')
-	{	p++;
-	}
-	if (*p == ' ')
-	{	*p = '\0';
-		p++;
-	} else
-	{	fprintf(stderr, "usage: ps rename A B\n");
-		return;
-	}
-	q = findset(s, 1, 14);
-	if (q)
-	{	if (strlen(p) > strlen(s))
-		{	q->nm = (char *) emalloc(strlen(p)+1, 145);
-		}
-		strcpy(q->nm, p);
-	}
-}
-
 static void
 reverse_delete(Named *q)
 {	Match *r;
@@ -2145,47 +1949,53 @@ reverse_delete(Named *q)
 	{	reverse_delete(q->nxt);
 		r = q->m;
 		while (r)
-		{	r = free_m(r, 3);	// recycle
+		{	r = free_m(r);	// recycle
 	}	}
 }
 
-void
-patterns_delete(void)
-{	Named *q, *pq = NULL;
-	Match *r;
-
-	if (strcmp(SetName, "*") == 0
-	||  strcmp(SetName, "all") == 0)
-	{	reverse_delete(namedset);
-		namedset = 0;
-		return;
-	}
-
-	for (q = namedset; q; pq = q, q = q->nxt)	// delete
-	{	if (strcmp(q->nm, SetName) == 0
-		&&  strlen(SetName) == strlen(q->nm))
-		{	if (pq)
-			{	pq->nxt = q->nxt;
-			} else
-			{	namedset = q->nxt;
-			}
-			q->nxt = NULL;		// recycle Named items q as well?
-			r = q->m;
-			while (r)
-			{	r = free_m(r, 4);	// recycle Match elements
-			}			// and bindings
-			if (!json_format && !no_match && !no_display)
-			{	printf("pattern set '%s' deleted\n", SetName);
-			}
-			return;
-	}	}
-	if (!json_format && !no_match && !no_display)
-	{	fprintf(stderr, "pattern set '%s' not found\n", SetName);
-	}
+static void
+set_report(FILE *fd, int n, const char *s)
+{
+	fprintf(fd, "%d pattern%s stored in set %s\n", n, n==1?"":"s", s);
 }
 
 static int
-preserve_matches(int n)
+matches2marks(int doclear)
+{	Match	*m;
+	Prim	*p;
+	int	loc_cnt;
+
+	loc_cnt = 0;
+	for (m = matches; m; m = m->nxt)	// matches2marks -- read-only
+	{	p = m->from;
+		if (p)
+		{	p->bound = m->upto;
+			if (!p->mark)
+			{	loc_cnt++;
+			}
+			p->mark |= 2;	// start of pattern
+			for (; p; p = p->nxt)
+			{	if (!p->mark)
+				{	loc_cnt++;
+				}
+				p->mark |= 1;
+				if (p == m->upto)
+				{	p->mark |= 8;
+					break;
+	}	}	}	}
+	if (doclear)
+	{	clr_matches(NEW_M);
+	}
+//	if (verbose
+//	|| (!json_format && no_match && !no_display && !gui))
+//	{	printf("%d token%s marked\n", loc_cnt, (loc_cnt==1)?"":"s");
+//	}
+
+	return loc_cnt;
+}
+
+static int
+preserve_matches(void)
 {	int p;
 
 	if (!matches)
@@ -2201,7 +2011,7 @@ preserve_matches(int n)
 		{	// printf("%d matches stored in %s (preserve_matches)\n", p, SetName);
 			// do_markups already reported the matches
 		} else if (!json_format && !no_match && !no_display)
-		{	printf("%d patterns stored in set %s\n", p, SetName);
+		{	set_report(stdout, p, SetName);
 		}
 		return p;	// dont convert patterns to marks
 	}
@@ -2224,21 +2034,22 @@ tp_desc(char *t)
 }
 
 static void
-show_curstate(int rx)
+show_curstate(int rx, int ix)
 {	List *c;
 	PrimStack *p;
 	Store *b;
 
 	// verbose mode
-	printf("%d/%d %d :: %s :: %s :: ", cur->lnr, q_now->lnr, rx, cur->txt, q_now->txt);
-	for (c = curstates[current]; c; c = c->nxt)
+	printf("%d/%d %d :: %s :: %s :: ", thrl[ix].tcur->lnr,
+		thrl[ix].q_now->lnr, rx, thrl[ix].tcur->txt, thrl[ix].q_now->txt);
+	for (c = thrl[ix].curstates[thrl[ix].current]; c; c = c->nxt)
 	{	State *s = c->s;
 		printf("S%d%s | ", s->seq, s->accept?"*":"");
-		for (b = s->bindings; b; b = b->nxt)
+		for (b = s->bindings[ix]; b; b = b->nxt)
 		{	printf("<%s::%s> ", b->name, b->text);
 		}
 	}
-	for (p = prim_stack; p; p = p->nxt)
+	for (p = thrl[ix].prim_stack; p; p = p->nxt)
 	{	printf("%s... ", p->t?p->t->txt:"?...");
 	}
 	printf("\n");
@@ -2262,6 +2073,7 @@ pattern_matched(Named *curset, int which, int N, int M)
 		||  !m->upto)
 		{	continue;
 		}
+
 		if (pattern_filter != NULL
 		&&  strcmp(pattern_filter, m->from->fnm) != 0)
 		{	continue;
@@ -2274,12 +2086,12 @@ pattern_matched(Named *curset, int which, int N, int M)
 			}
 			continue;
 		}
-
 		if (m->from->seq > m->upto->seq)
 		{	Prim *tmp = m->from;
 			m->from = m->upto;
 			m->upto = tmp;	// from should precede upto
 		}
+
 		if (strcmp(m->from->fnm, m->upto->fnm) == 0)
 		{	r = m->upto->lnr - m->from->lnr;	// in same file...
 		} else
@@ -2293,6 +2105,7 @@ pattern_matched(Named *curset, int which, int N, int M)
 					r++;			// count lines
 			}	}
 		}
+
 		if (N >= 0)
 		{	if (M < 0)	// json which N
 			{	if (r < which || r > N)
@@ -2365,24 +2178,38 @@ pattern_matched(Named *curset, int which, int N, int M)
 			json_match(curset->nm, t, json_msg, m->from, m->upto, first_entry);
 			first_entry = 0;
 		} else
-		{	if (p == 1 && curset->msg)
+		{
+			if (p == 1 && curset->msg)
 			{	fprintf(fd, "%s=== %s ===\n",
 					gui?"\n":"",
 					curset->msg);
 			}
-			if (p > 1)
+
+			if (p > 1 && !unnumbered && !tgrep)
 			{	fprintf(fd, "\n");
 			}
-			fprintf(fd, "%d: %s:%d..%s%d", n,
-				m->from?m->from->fnm : "?",
-				m->from?m->from->lnr:0,
-				notsamefile?"*":"", // not same file
-				m->upto?m->upto->lnr:0);
-			// fprintf(fd, " <<%d-%d>> ", m->from?m->from->seq:-23, m->upto?m->upto->seq:-32);
-			if (r > 0)
-			{	fprintf(fd, " (%d lines)\n", r);
+			if (!unnumbered)
+			{	fprintf(fd, "%d: ", n);
+				if (Nfiles > 1)
+				{	fprintf(fd, "%s:", m->from?m->from->fnm : "?");
+				}
+				fprintf(fd, "%d", m->from?m->from->lnr:0);
+				if ((m->from
+				&&  m->upto
+				&&  m->from->lnr != m->upto->lnr)
+				||  notsamefile)
+				{	fprintf(fd, "..%s%d",
+						notsamefile?"*":"", // not same file
+						m->upto?m->upto->lnr:0);
+				}
+				// fprintf(fd, " <<%d-%d>> ", m->from?m->from->seq:-23, m->upto?m->upto->seq:-32);
+				if (r > 0)
+				{	fprintf(fd, " (%d lines)\n", r);
+				}
+			} else
+			{	// fprintf(fd, "%d: ", n);
 			}
-	
+
 			if (m->bind)
 			{	Bound *q;
 				int heading = 0;
@@ -2407,6 +2234,7 @@ pattern_matched(Named *curset, int which, int N, int M)
 						}
 						fprintf(fd, "]");
 					} }
+					fprintf(fd, "\n");
 				}
 				for (q = m->bind->nxt; q; q = q->nxt)
 				{	if (q->nxt == q)	// internal error
@@ -2425,19 +2253,24 @@ pattern_matched(Named *curset, int which, int N, int M)
 						q->bdef->txt, q->bdef->lnr);
 					fprintf(fd, ", :%s (ln %d)",
 						q->ref->txt, q->ref->lnr);
-			}	}
-			fprintf(fd, "\n");
+					fprintf(fd, "\n");
+				}
+			}
+
+			if (!tgrep && (unnumbered || r == 0))
+			{	fprintf(fd, "\n");
+			}
 
 			a = m->from->lnr;
 			b = m->upto->lnr;
 			if (no_display && r > 5)	// terse mode
 			{	if (gui)
 				{	show_line(fd, m->from->fnm, 0, a, a+2, 0);
-					fprintf(fd, " ...\n");
+					fprintf(fd, "...\n");
 					show_line(fd, m->upto->fnm, 0, b-2, b, 0);
 				} else
 				{	show_line(fd, m->from->fnm, 0, a, a+1, 0);
-					fprintf(fd, " ...\n");
+					fprintf(fd, "...\n");
 					if (notsamefile)
 					{	char *bnm = strrchr(m->upto->fnm, '/');
 						fprintf(fd, "%s", bnm?bnm:m->upto->fnm);
@@ -2445,13 +2278,10 @@ pattern_matched(Named *curset, int which, int N, int M)
 					show_line(fd, m->upto->fnm, 0, b-1, b, 0);
 				}
 			} else
-			{	if (r == 0 && gui)
-				{	int omark;
-
-					cur = m->from;
-					omark = cur->mark;
-					cur->mark = 1;
-
+			{
+				if (r == 0 && gui)
+				{	int omark = m->from->mark;
+					m->from->mark = 1;
 					switch (display_mode) {
 					case 1: // tok
 						list("0", "");
@@ -2464,10 +2294,17 @@ pattern_matched(Named *curset, int which, int N, int M)
 						show_line(fd, m->from->fnm, 0, a-5, a+5, a);
 						break;
 					}
-					m->from->mark = omark; // cur can change
+					m->from->mark = omark; // tcur can change
 				} else
 				{	if (strcmp(m->from->fnm, m->upto->fnm) == 0)
-					{	show_line(fd, m->from->fnm, 0, a, b, ttag);
+					{	int req = 0;
+						if (tgrep && !unnumbered && a == b)
+						{	unnumbered = req = 1;
+						}
+						show_line(fd, m->from->fnm, 0, a, b, ttag);
+						if (req)
+						{	unnumbered = req = 0;
+						}
 					} else
 					{	show_line(fd, m->from->fnm, 0, a-1, a+5, a);
 						fprintf(fd, " ...");
@@ -2477,20 +2314,25 @@ pattern_matched(Named *curset, int which, int N, int M)
 						}
 						fprintf(fd, "\n");
 						show_line(fd, m->upto->fnm, 0, b-5, b+1, a);
-		}	}	}	}
+				}	}
+		}	}
+
 		// if (track_fd) { fprintf(track_fd, "which %d n %d\n", which, n); }
 		if (which != 0
 		&&  n == which)
 		{	break;
 		}
 	}
+
 	if (opened && p > 0)
 	{	fprintf(fd, "]\n");
 		closed = 1;
 	}
-	if (!gui && !no_display)
+
+	if (!gui && !no_display && !tgrep)
 	{	fprintf(fd, "\n%d pattern%s\n", p, p!=1?"s":"");
 	}
+
 	fflush(fd);
 }
 
@@ -2502,32 +2344,33 @@ pattern_full(int which, int N, int M)
 	int hits = 0;
 	int total = 0;
 	FILE *fd = track_fd?track_fd:stdout;
+	Prim *ttcur;
 
-	for (cur = prim; cur; cur = cur?cur->nxt:0)
-	{	if (!(cur->mark & 2))	// find start of match
+	for (ttcur = prim; ttcur; ttcur = ttcur?ttcur->nxt:0)
+	{	if (!(ttcur->mark & 2))	// find start of match
 		{	continue;
 		}
 
-		if (!cur->bound)
+		if (!ttcur->bound)
 		{	fprintf(fd, "%s:%d: bound not set, skipping\n",
-				cur->fnm, cur->lnr);
+				ttcur->fnm, ttcur->lnr);
 			continue;
 		}
 
 		if (pattern_filter != NULL
-		&&  strcmp(pattern_filter, cur->fnm) != 0)
+		&&  strcmp(pattern_filter, ttcur->fnm) != 0)
 		{	continue;
 		}
 
 		total++;
 		if (N >= 0)
-		{	k = cur->lnr;
-			for (p = cur, r = 1; p; p = p->nxt)
+		{	k = ttcur->lnr;
+			for (p = ttcur, r = 1; p; p = p->nxt)
 			{	if (p->lnr != k)
 				{	k = p->lnr;
 					r++;
 				}
-				if (p == cur->bound)
+				if (p == ttcur->bound)
 				{	break;
 			}	}
 			if (M < 0)	// json which N
@@ -2548,13 +2391,13 @@ pattern_full(int which, int N, int M)
 		}
 		hits++;
 
-		lst = cur->lnr;
+		lst = ttcur->lnr;
 
-		fprintf(fd, "%s:%d..", cur->fnm, lst);
-		if (strcmp(cur->fnm, cur->bound->fnm) != 0)
-		{	fprintf(fd, "%s:", cur->bound->fnm);
+		fprintf(fd, "%s:%d..", ttcur->fnm, lst);
+		if (strcmp(ttcur->fnm, ttcur->bound->fnm) != 0)
+		{	fprintf(fd, "%s:", ttcur->bound->fnm);
 		}
-		fprintf(fd, "%d", cur->bound->lnr);
+		fprintf(fd, "%d", ttcur->bound->lnr);
 
 		if (r > 0)
 		{	fprintf(fd, " (%d lines)\n", r);
@@ -2562,20 +2405,20 @@ pattern_full(int which, int N, int M)
 		{	fprintf(fd, "\n");
 		}
 
-		for (p = cur; p; p = p->nxt)
+		for (p = ttcur; p; p = p->nxt)
 		{	if (p->mark & 4)
 			{	fprintf(fd, "bound var '%s', line %d\n", p->txt, p->lnr);
 				bv = p->lnr; // keep last one
 			}
-			if (p == cur->bound)
+			if (p == ttcur->bound)
 			{	break;
 		}	}
-		if (no_display && cur->bound->lnr+4 > lst)	// terse mode
-		{	show_line(fd, cur->fnm, 0, lst, lst+1, bv);
-			fprintf(fd, " ...\n");
-			show_line(fd, cur->fnm, 0, cur->bound->lnr-1, cur->bound->lnr, bv);
+		if (no_display && ttcur->bound->lnr+4 > lst)	// terse mode
+		{	show_line(fd, ttcur->fnm, 0, lst, lst+1, bv);
+			fprintf(fd, "...\n");
+			show_line(fd, ttcur->fnm, 0, ttcur->bound->lnr-1, ttcur->bound->lnr, bv);
 		} else
-		{	show_line(fd, cur->fnm, 0, lst, cur->bound->lnr, bv);
+		{	show_line(fd, ttcur->fnm, 0, lst, ttcur->bound->lnr, bv);
 		}
 		
 		if (which != 0
@@ -2587,20 +2430,6 @@ pattern_full(int which, int N, int M)
 	||  M < 0)
 	{	fprintf(fd, "%d of %d patterns printed\n", hits, total);
 	}
-}
-
-void
-dp_help(void)
-{
-	printf("dp *			# display all results from all current pattern sets\n");
-	printf("dp setname		# display all results of one specific pattern set\n");
-	printf("dp [setname *] n		# display only the n-th match\n");
-	printf("dp [setname *] N M	# display only matches from N to M lines long\n");
-	printf("dp [setname *] n N M	# display only the n-th match within the given length range\n");
-	printf("dp filter file.c	# restrict output of dp commands to matches in file.c\n");
-	printf("dp filter off		# remove filter from dp output\n");
-	printf("dp help			# print this message\n");
-	printf("when used in 'terse' mode dp prints only the first and last 2 lines of each multi-line match\n");
 }
 
 static void
@@ -2626,84 +2455,6 @@ dp_all(int a, int b, int c)
 	}	}
 
 	matches = pm; // restore
-}
-
-void
-patterns_display(const char *te)	// dp [name help *] [n [N [M]]]
-{	int j = 0;
-	int nr, a, b, c;
-	Named *ns;
-	Match *pm = matches;
-	char nm[512];
-
-	while (te[j] == ' ' || te[j] == '\t')
-	{	j++;
-	}
-
-	if (strncmp(te, "help", strlen("help")) == 0
-	||  strcmp(te, "?") == 0)
-	{	dp_help();
-		return;
-	}
-	if (strncmp(te, "filter", strlen("filter")) == 0)
-	{	FILE *tfd;
-		int k = j + strlen("filter");
-		nr = sscanf(&te[k], "%s", nm);
-		if (nr != 1)
-		{	fprintf(stderr, "usage: dp filter filename.c\n");
-			return;
-		}
-		if (strcmp(nm, "off") == 0)
-		{	pattern_filter = NULL;
-			return;
-		}
-		if ((tfd = fopen(nm, "r")) == NULL)
-		{	fprintf(stderr, "error: no such file '%s'\n", nm);
-			return;
-		}
-		fclose(tfd);
-		pattern_filter = (char *) emalloc(strlen(nm)+1, 143);
-		strcpy(pattern_filter, nm);
-		return;
-	}
-	if (isalpha((uchar) te[j]) || te[j] == '*' || te[j] == '_')	// named set
-	{	a = b = c = 0;
-		nr = sscanf(&te[j], "%s %d %d %d", nm, &a, &b, &c);
-		switch (nr) {
-		case 1: a =  0;
-		case 2: b = -1;
-		case 3: c = -1;
-		case 4:
-			if (te[j] == '*')	 // dp * -- all sets
-			{	dp_all(a, b, c); // all named sets
-				break;
-			}
-			ns = findset(nm, 1, 2);
-			if (ns && ns->m)
-			{	matches = ns->m;
-				pattern_matched(ns, a, b, c); // checks named sets
-				matches = pm; // restore
-			}
-			break;
-		default:
-			dp_usage(&te[j], nr);
-			break;
-		}
-	} else if (isdigit((int) te[j]))
-	{	nr = sscanf(&te[j], "%d %d %d", &a, &b, &c);
-		switch (nr) {
-		case  1: b = -1;	// fall thru
-		case  2: c = -1;	// fall thru
-		case  3: pattern_full(a, b, c);	// checks token markings, not pattern sets
-			 break;
-		default: dp_usage(&te[j], nr);
-			 break;
-		}
-	} else if (te[j] == '\0')
-	{	pattern_full(0, -1, -1);	// checks token markings, not pattern sets
-	} else
-	{	dp_usage(&te[j], 0);
-	}
 }
 
 static void
@@ -2751,7 +2502,7 @@ static void
 store_constraint(int n, Lextok *p)
 {
 	// when in state n (or at position n), make sure the constraint holds:
-	// evaluate(cur, p); // to evaluate expression for current token
+	// evaluate(cur, p, te, ix); // to evaluate expression for current token
 
 	if (n < 0 || n >= MAX_CONSTRAINT)	// the state nr
 	{	fprintf(stderr, "error: constraint %d out of range (max %d)\n",
@@ -2841,7 +2592,8 @@ get_constraints(char *t)
 		} else
 		{	s++;
 			nr = atoi(s);
-			while (isdigit((int) *s) || isblank((int) *s))
+			while (isdigit((int) *s)
+			||     is_blank((int) *s))
 			{	s++;
 			}
 			if (*s == '\\')
@@ -2888,24 +2640,13 @@ get_constraints(char *t)
 	return r;	
 }
 
-void
-setname(char *s)
-{
-	strncpy(SetName, s, sizeof(SetName)-1);
-}
-
 static Bound *
 clone_bound(Bound *b)
 {	Bound *r, *n;
 	Bound *cloned = (Bound *) 0;
 
 	for (r = b; r; r = r->nxt)
-	{	if (free_bound)
-		{	n = free_bound;
-			free_bound = n->nxt;
-		} else
-		{	n = (Bound *) emalloc(sizeof(Bound), 156);
-		}
+	{	n = get_bound();
 		n->bdef = r->bdef;
 		n->ref  = r->ref;
 		n->aref = r->aref;
@@ -2944,7 +2685,7 @@ L:	for (m = q; m; m = m->nxt)
 	if (gui)
 	{	printf("%d matches stored in %s\n", cnt, SetName);
 	} else if (!json_format && !no_match && !no_display)
-	{	printf("%d patterns stored in set %s\n", cnt, SetName);
+	{	set_report(stdout, cnt, SetName);
 	}
 }
 
@@ -3008,7 +2749,7 @@ set_difference(Match *a, Match *b, int how)	// how==1: a-b, how==0: a&b
 	if (gui)
 	{	printf("%d matches stored in %s\n", cnt, SetName);
 	} else if (!json_format && !no_match && !no_display)
-	{	fprintf(stderr, "%d patterns stored in set %s\n", cnt, SetName);
+	{	set_report(stderr, cnt, SetName);
 	}
 }
 
@@ -3019,7 +2760,7 @@ copy_set(const char *s)
 	Match *om = matches;
 	int cnt = 0;
 
-	x = findset(s, 0, 9);
+	x = findset(s, 0);
 	assert(x);
 
 	matches = (Match *) 0;
@@ -3041,7 +2782,7 @@ copy_set(const char *s)
 	if (gui)
 	{	printf("%d patterns stored in %s\n", cnt, SetName);
 	} else if (!json_format && !no_match && !no_display)
-	{	fprintf(stderr, "%d patterns stored in set %s\n", cnt, SetName);
+	{	set_report(stderr, cnt, SetName);
 	}
 }
 
@@ -3125,7 +2866,7 @@ set_during(Match *a, Match *b)		// a contains (all of) b
 	if (gui)
 	{	printf("%d patterns stored in %s\n", cnt, SetName);
 	} else if (!json_format && !no_match && !no_display)
-	{	fprintf(stderr, "%d patterns stored in set %s\n", cnt, SetName);
+	{	set_report(stderr, cnt, SetName);
 	}
 }
 
@@ -3156,7 +2897,7 @@ set_meets(Match *a, Match *b)		// the end of a is immediately followed by the st
 	if (gui)
 	{	printf("%d patterns stored in %s\n", cnt, SetName);
 	} else if (!json_format && !no_match && !no_display)
-	{	fprintf(stderr, "%d patterns stored in set %s\n", cnt, SetName);
+	{	set_report(stderr, cnt, SetName);
 	}
 
 }
@@ -3188,7 +2929,7 @@ set_precedes(Match *a, Match *b)	// (all of) a precedes (all of) b
 	if (gui)
 	{	printf("%d patterns stored in %s\n", cnt, SetName);
 	} else if (!json_format && !no_match && !no_display)
-	{	fprintf(stderr, "%d patterns stored in set %s\n", cnt, SetName);
+	{	set_report(stderr, cnt, SetName);
 	}
 
 
@@ -3221,7 +2962,7 @@ set_overlaps(Match *a, Match *b)	//  a starts before and ends during b
 	if (gui)
 	{	printf("%d patterns stored in %s\n", cnt, SetName);
 	} else if (!json_format && !no_match && !no_display)
-	{	fprintf(stderr, "%d patterns stored in set %s\n", cnt, SetName);
+	{	set_report(stderr, cnt, SetName);
 	}
 
 
@@ -3245,7 +2986,7 @@ strip_quotes(char *s)
 	}
 }
 
-void
+static void
 new_subset(const char *s, Prim *lst)
 {	Prim *nm;
 
@@ -3254,20 +2995,15 @@ new_subset(const char *s, Prim *lst)
 	}
 }
 
-extern void set_string_type(Lextok *, char *);
-extern void slice_set(Named *, Lextok *, int, int);
-static void clone_set(Named *, Lextok *, int);
-
 static void
 set_slice(const char *Target, const char *Source, char *Constraint)
 {	Lextok c, *d;
 	Named *x;
 
-	x = findset(Source, 1, 15);
+	x = findset(Source, 1);
 	if (!x)
 	{	return;
 	}
-
 	while (*Constraint == ' ' || *Constraint == '\t')
 	{	Constraint++;
 	}
@@ -3277,9 +3013,962 @@ set_slice(const char *Target, const char *Source, char *Constraint)
 	{	set_string_type(&c, Constraint);
 		d = &c;
 	}
-	clone_set(x, d, 0);
-	slice_set(x, d, 0, 1);	// called from commandline
+	clone_set(x, d);
+	slice_set(x, d, 1);	// called from commandline
 	new_subset(Target, x->cloned);
+}
+
+static void
+clone_set(Named *x, Lextok *constraint)
+{	Prim *q = NULL;
+	Match *y;
+	Prim  *r;
+	Bound *b;
+	int n;
+
+	if (x->cloned
+	&&  constraint == NULL
+	&&  x->constraint == 0)
+	{	return;
+	}
+
+	for (y = x->m; y; y = y->nxt)
+	{	r = (Prim *) emalloc(sizeof(Prim), 144);
+		r->txt = "Pattern";
+		r->typ   = x->nm;	// name of the set
+		r->fnm = y->from?y->from->fnm:"fnm";
+		r->lnr = y->from?y->from->lnr:0;
+		r->seq = Seq++;
+		r->jmp   = y->from;	// w synonym 'p_start'
+		r->bound = y->upto;	// w synonym 'p_end'
+
+		// V4.4 link to max two bound variables
+		if (y->bind)
+		{	n = 0;
+			for (b = y->bind; b && n < 4; b = b->nxt)
+			{	if (b->bdef && b->ref)
+				{	r->mbnd[n++] = b->bdef;	// where binding was set
+					r->mbnd[n++] = b->ref;	// where match was found
+				}
+				if (b == b->nxt)	// internal error
+				{	b->nxt = 0;
+					fprintf(stderr, "internal error: clone_set\n");
+		}	}	}
+
+		r->nxt = q;
+		if (q)
+		{	q->prv = r;
+		}
+		q = r;
+	}
+	x->cloned = q;
+	x->constraint = (constraint != NULL);
+}
+
+static Prim *
+clone_all(Lextok *constraint, int ix)		// create a single list of matches from all sets
+{	Named *x;
+	Prim *t, *h = NULL;
+
+	for (x = namedset; x; x = x->nxt)
+	{	clone_set(x, constraint);
+		if (x->cloned)	// concat lists
+		{	if (h)
+			{	t = x->cloned;
+				while (t->nxt)
+				{	t = t->nxt;
+				}
+				t->nxt = h;
+			}
+			h = x->cloned;
+			x->cloned = NULL;
+	}	}
+	if (!h)
+	{	h = (Prim *) hmalloc(sizeof(Prim), ix, 143);
+		h->seq = 0; // meaning empty list
+		// returning null would indicate a syntax error
+	}
+	
+	return h;
+}
+
+#if 0
+static Prim *
+ps_fix(Prim *m, int pickup, int whatchanged)
+{	static Prim *x = (Prim *) 0;
+	static int ncnt = 0;
+	Prim *y = m;
+
+	if (!m)
+	{	return (Prim *) 0;
+	}
+
+	if (!pickup || !x)
+	{	x = prim;
+		ncnt = 0;
+	}
+
+	// the new sequence in x has EOF tokens added
+	// so the sequence number looked for is higher
+	while (x && x->seq != m->seq + ncnt)
+	{	switch (whatchanged) {
+		case 2:	if (strcmp(x->txt, "EOF") == 0
+			&&  strcmp(x->typ, "cpp") == 0)
+			{	ncnt++;
+			}
+			break;
+		case 3:	if (strcmp(x->txt, "EOF") == 0
+			&&  strcmp(x->typ, "cpp") == 0)
+			{	ncnt++;
+				break;
+			}
+			// else fall thru
+		case 1:	if (strcmp(x->txt, "EOL") == 0
+			&&  strcmp(x->typ, "cpp") == 0)
+			{	ncnt++;
+			}
+			break;
+		default:
+			; // cannot happen
+		}
+		y = x;
+		x = x->nxt;
+	}
+	if (!x)
+	{	if (verbose)
+		{	fprintf(stderr, "warning: pickup %d at eof\n", m->seq);
+			// the new token is the last one in the input
+		}
+		return y;
+	}
+	return x;
+}
+
+static void
+ps_update(int whatchanged)
+{	Named *x;
+	Match *m;
+	Bound *b;
+
+	// update the from, upto, and bind fields in matches
+
+	for (x = namedset; x; x = x->nxt)	// update matches
+	for (m = x->m; m; m = m->nxt)
+	{	m->from = ps_fix(m->from, 0, whatchanged);
+		m->upto = ps_fix(m->upto, 1, whatchanged);
+		for (b = m->bind; b; b = b->nxt)
+		{	b->bdef = ps_fix(b->bdef, 0, whatchanged);
+			b->ref  = ps_fix(b->ref, 1, whatchanged);
+			b->aref = ps_fix(b->aref, 1, whatchanged); // untested, code not used
+			if (b == b->nxt)	// internal error
+			{	b->nxt = 0;
+				fprintf(stderr, "internal error: ps_update\n");
+	}	}	}
+}
+#endif
+
+#ifndef PE_SEQ
+static void
+pe_search_range(Prim *from, Prim *upto, int ix)
+{
+	pe_search(from, upto, ix);
+}
+
+static void *
+pe_search_run(void *arg)
+{	int *i = (int *) arg;
+	Prim *from, *upto;
+
+	from = tokrange[*i]->from;
+	upto = tokrange[*i]->upto;
+
+	pe_search_range(from, upto, *i);
+
+	return NULL;
+}
+#endif
+
+static void
+pe_search(Prim *from, Prim *upto, int ix)
+{	List	*c;
+	Trans	*t;
+	State	*s;
+	Trans	dummy;
+	char	*m;
+	char	*p;
+	int	anychange = 0;
+	int	mustbreak = 0;
+	int	rx;
+	int	tmx;
+
+	memset(&dummy, 0, sizeof(Trans));
+
+	for (thrl[ix].tcur = from;
+		thrl[ix].tcur && thrl[ix].tcur->seq <= upto->seq;
+		thrl[ix].tcur = thrl[ix].tcur->nxt)
+	{
+#ifndef NO_TOP
+		if (Topmode && thrl[ix].tcur->mark == 0)
+		{	continue;
+		}
+#endif
+		free_list(thrl[ix].current, ix);
+		free_list(1 - thrl[ix].current, ix);
+		copy_list(2, ix, thrl[ix].current);	// initial state
+		clr_stacks(ix);
+
+		if (stream == 1
+		&&  thrl[ix].tcur->seq + 100 > plst->seq)
+		{	Prim *place = thrl[ix].tcur;
+			if (add_stream(thrl[ix].tcur))	// can free up to cur
+			{	thrl[ix].tcur = place;
+			} else	// exhausted input stream
+			{	stream = 2;
+		}	}
+
+		for (thrl[ix].q_now = thrl[ix].tcur; thrl[ix].q_now; thrl[ix].q_now = thrl[ix].q_now->nxt)
+		{
+			if (!across_file_match	// unless we allow this
+			&&  thrl[ix].q_now->fnm != thrl[ix].tcur->fnm)	// no match across files
+			{	if (verbose)
+				{	printf("stop match attempt at file boundary\n");
+				}
+				break;
+			}
+			anychange = 0;
+			if (*(thrl[ix].q_now->txt+1) == '\0')
+			{	rx = check_level(ix);	// try to match }, ), ] to {, (, [
+			} else
+			{	rx = 0;
+			}
+			if (verbose)
+			{	show_curstate(rx, ix);
+			}
+
+			for (c = thrl[ix].curstates[thrl[ix].current]; c; c = c->nxt)
+			{	s = c->s;
+				if (!has_positions
+				&&  s->seq < MAX_CONSTRAINT
+				&&  constraints[s->seq])
+				{	// setup bindings env for cobra_eval.y
+					// in case the constraint contains bound vars
+					thrl[ix].e_bindings = s->bindings[ix];
+					if (!evaluate(thrl[ix].q_now, constraints[s->seq], 1, ix))
+					{	if (verbose)
+						{	printf("S%d: constraint does not hold\n", s->seq);
+						}
+						continue;
+				}	}
+				for (t = s->trans; t; t = t->nxt)
+				{	if (verbose)
+					{	printf("\tcheck %d->%d	%s, pat: '%s',  %s,  %s\t:: nxt S%d",
+							s->seq, t->dest,
+							t->match?"match":"-nomatch-",
+							t->pat?t->pat:" -nopat- ",
+							t->recall?"recall":"-norecall-",
+							t->or?"or":"no_or",
+							(c->nxt && c->nxt->s)?c->nxt->s->seq:-1);
+
+						if (t->cond)
+						{	printf(" <constraint %d>\n", t->cond);
+						} else
+						{	printf("\n");
+					}	}
+
+					if (has_positions
+					&&  t->cond)
+					{	thrl[ix].e_bindings = s->bindings[ix];
+						if (!evaluate(thrl[ix].q_now, constraints[t->cond], 1, ix))
+						{	if (verbose)
+							{	printf("\tconstraint %d fails (S%d -> S%d) <%s>\n",
+									t->cond, s->seq, t->dest, thrl[ix].q_now->txt);
+							}
+							continue;
+						} else if (verbose)
+						{	printf("\t%s:%d: '%s' constraint %d holds (%d) (S%d -> S%d)\n",
+								thrl[ix].q_now->fnm, thrl[ix].q_now->lnr, thrl[ix].q_now->txt,
+								t->cond,
+								(thrl[ix].q_now->jmp?thrl[ix].q_now->jmp->lnr:0) - thrl[ix].q_now->lnr,
+								s->seq, t->dest);
+					}	}
+
+					if (!t->pat)	// epsilon move, eg .*
+					{	if (!t->match) // can this happen?
+						{	if (thrl[ix].q_now->prv)
+							{ thrl[ix].q_now = thrl[ix].q_now->prv;
+							} else
+							{ fprintf(stderr, "%s:%d: re error for . (s%d->s%d) <%p>\n",
+								thrl[ix].tcur->fnm, thrl[ix].tcur->lnr,
+								s->seq, t->dest,
+								(void *) t->nxt);
+							  break;
+							}
+						} else
+						{	// intercept special case where
+							// the source is } ) or ], and the pattern is . (dot)
+							// no match if the brace closed an interval (rx != 0)
+							if (thrl[ix].q_now->txt[0] == '{'
+							||  thrl[ix].q_now->txt[0] == '('
+							||  thrl[ix].q_now->txt[0] == '[')
+							{	if (verbose)
+								{	printf("\timplicit . match of %s\n",
+										thrl[ix].q_now->txt);
+								}
+								assert(thrl[ix].prim_stack);
+								mark_prim(c->s->seq, IMPLICIT, ix);
+								if ((ulong) Seq < 8*sizeof(uint))
+								{	thrl[ix].prim_stack->i_state |= (1 << s->seq);
+								} else
+								{	thrl[ix].prim_stack->i_state = s->seq;
+								}
+							} else if (rx)
+							{	int mismatch;
+								// implicit match
+								if (verbose)
+								{	printf("\timplicit . match of '%s' :: ",
+										thrl[ix].q_now->txt);
+								}
+								assert(thrl[ix].prim_free);
+								if ((ulong) Seq < 8*sizeof(uint))
+								{	mismatch = !(thrl[ix].prim_free->i_state & (1 << s->seq));
+								} else
+								{	mismatch = (thrl[ix].prim_free->i_state != (uint) s->seq);
+								}
+#if 1
+								mismatch = check_match(s->seq, IMPLICIT, mismatch, ix);
+#endif
+								if (!(thrl[ix].prim_free->type & IMPLICIT)
+								||  mismatch)
+								{	// not a match
+									if (verbose)
+									{	printf("rejected [%d %d %d]\n",
+											thrl[ix].prim_free->type,
+											thrl[ix].prim_free->i_state,
+											s->seq);
+									}
+									continue;
+								} else
+								{	if (verbose)
+									{	printf("accepted (%d)\n",
+											thrl[ix].prim_free->type);
+						}	}	}	}
+						mk_active(s->bindings[ix], 0, s->seq, t->dest, 1-thrl[ix].current, ix);
+						anychange = 1;
+						if (is_accepting(s->bindings[ix], t->dest, ix))
+						{
+#if 0
+							if (thrl[ix].q_now->nxt
+							&&  strcmp(thrl[ix].q_now->nxt->txt, cur->txt) == 0)
+							{	// V4.4: prevent bad long match
+								// cur = thrl[ix].q_now->nxt;
+							} else
+							{	// V4.4b: correction
+								cur = cur->nxt;
+							}
+#endif
+							goto L;
+						}
+						continue;
+					} // !t->pat
+
+					if (t->recall)	// bound variable ref
+					{
+						if (recall(c->s, t, thrl[ix].q_now->txt, ix))
+						{	if (!t->match
+							&&  (thrl[ix].q_now->txt[0] == '{'
+							  || thrl[ix].q_now->txt[0] == '('
+							  || thrl[ix].q_now->txt[0] == '['))
+							{	if (verbose)
+								{	printf("\timplicit ^ match of %s\n",
+										thrl[ix].q_now->txt);
+								}
+								assert(thrl[ix].prim_stack);
+								mark_prim(c->s->seq, IMPLICIT, ix);
+								if ((ulong) Seq < 8*sizeof(uint))
+								{	thrl[ix].prim_stack->i_state |= (1 << s->seq);
+								} else
+								{	thrl[ix].prim_stack->i_state = s->seq;
+								}
+							}
+							if (!t->match && rx)
+							{	int mismatch;
+								// implicit match, thrl[ix].prim_stack just popped
+								if (verbose)
+								{	printf("\timplicit ^ MATCH of '%s' :: ",
+										thrl[ix].q_now->txt);
+								}
+								assert(thrl[ix].prim_free);
+								if ((ulong) Seq < 8*sizeof(uint))
+								{	mismatch = !(thrl[ix].prim_free->i_state & (1 << s->seq));
+								} else
+								{	mismatch = (thrl[ix].prim_free->i_state != (ulong) s->seq);
+								}
+#if 1
+								mismatch = check_match(s->seq, IMPLICIT, mismatch, ix);
+#endif
+								if (!(thrl[ix].prim_free->type & IMPLICIT)
+								||   mismatch)
+								{	// not a match
+									if (verbose)
+									{	printf("rejected.\n");
+									}
+									continue;
+								}
+								if (verbose)
+								{	printf("accepted (%d)\n",
+										thrl[ix].prim_free->type);
+								}
+							}
+							mk_active(s->bindings[ix], 0, s->seq, t->dest, 1-thrl[ix].current, ix);
+							anychange = 1;
+							if (is_accepting(s->bindings[ix], t->dest, ix))
+							{
+#if 0
+								if (thrl[ix].q_now->nxt
+								&&  strcmp(thrl[ix].q_now->nxt->txt, cur->txt) == 0)
+								{	// V4.4: prevent bad long match
+									// cur = thrl[ix].q_now->nxt;
+								} else
+								{	// V4.4b: correction
+									cur = cur->nxt;
+								}
+#endif
+								goto L;
+						}	}
+						continue;
+					}
+
+					if (t->or)		// a range
+					{	Range *r;
+						if (t->match)	// normal or-series
+						{	for (r = t->or; r; r = r->or)
+							{	if (*(r->pat) == '@')
+								{	m = tp_desc(thrl[ix].q_now->typ);
+									p = r->pat+1;
+								} else
+								{	m = thrl[ix].q_now->txt;
+									p = r->pat;
+									if (strcmp(p, ".") == 0)
+									{	goto is_match;
+									}
+								}
+
+								// embedded regex inside range
+								if (*p == '/'
+								&&  strlen(p) > 1)
+								{	regex_t *z = te_regstart(p+1, 2, ix);
+									tmx = z?te_regmatch(z, m):0;
+								//	tmx = t->t?te_regmatch(t->t,m):0;
+
+								} else if (*p == '\\')
+								{	tmx = strcmp(m, p+1);
+								} else
+								{	if (*(r->pat) == '@'
+									&&  strcmp(p, "const") == 0)
+									{	tmx = strncmp(m, "const", 5);
+									} else
+									{	tmx = strcmp(m, p);
+								}	}
+
+								if (tmx == 0)
+								{	if (verbose)
+									{	printf("regex matches -> accept\n");
+									}
+									goto is_match;
+								}
+
+								if (*p == ':' && *(p+1) != '\0')
+								{	dummy.recall = (p+1);
+									if (verbose)
+									{	printf("\tbound var ref '%s' vs '%s'\n",
+											p, m);
+									}
+									if (recall(c->s, &dummy, m, ix))
+									{	if (verbose)
+										{	printf(" matched\n");
+										}
+										goto is_match;
+									} else if (verbose)
+									{	printf(" not matched\n");
+									}
+								} else if (strcmp(m, p) == 0)
+								{	goto is_match;
+							}	}
+							continue;	// no match
+						} else			// negated
+						{	for (r = t->or; r; r = r->or)
+							{	if (*(r->pat) == '@')
+								{	m = tp_desc(thrl[ix].q_now->typ);
+									p = r->pat+1;
+									if (strcmp(m, p) == 0
+									||  (strcmp(p, "const") == 0
+									&&   strncmp(m, "const", 5) == 0))
+									{	break;
+									}
+								} else
+								{	m = thrl[ix].q_now->txt;
+									p = r->pat;
+
+									// embedded regex inside range
+									if (*p == '/'
+									&&  strlen(p) > 1)
+									{	regex_t *z = te_regstart(p+1, 3, ix);
+										tmx = z?te_regmatch(z, m):0;
+									//	tmx = t->t?te_regmatch(t->t,m):0;
+									} else if (*p == '\\')
+									{	tmx = strcmp(m, p+1);
+									} else
+									{	tmx = strcmp(m, p);
+									}
+									if (tmx == 0)
+									{	if (verbose)
+										{	printf("regex matches -> reject\n");
+										}
+										break; // no match
+									}
+
+									if (*p == ':' && *(p+1) != '\0')
+									{	dummy.recall = (p+1);
+										if (verbose)
+										{	printf("\tbound var ^'%s' vs '%s'\t",
+												p, m);
+										}
+										if (recall(c->s, &dummy, m, ix))
+										{	if (verbose)
+											{	printf(" matching\n");
+											}
+											continue;
+										} else if (verbose)
+										{	printf(" not matching\n");
+										}
+										break;
+									} else if (strcmp(m, p) == 0)
+									{	break;
+							}	}	}
+							if (r)
+							{	continue;
+							}
+							goto is_match;
+					}	}
+					if (*(t->pat) == '@')
+					{	m = tp_desc(thrl[ix].q_now->typ);
+						p = t->pat+1;
+					} else
+					{	m = thrl[ix].q_now->txt;
+						p = t->pat;
+						// e.g., {@0
+						if (p[1] == '@' && isdigit((int) p[2]))
+						{	int nr = atoi(&p[2]);
+							switch (p[0]) {
+							case '{':
+								if (thrl[ix].q_now->curly == nr)
+								{	p = "{";
+								} // else leave as nonmatch
+								break;
+							case '(':
+								if (thrl[ix].q_now->round == nr)
+								{	p = "(";
+								} // else leave as nonmatch
+								break;
+							case '[':
+								if (thrl[ix].q_now->bracket == nr)
+								{	p = "[";
+								} // else leave as nonmatch
+								break;
+							default:
+								break;
+							}
+						}
+					}
+					// match==0 && m != p	m: tokentext, p: pattern
+					// match==1 && m == p
+
+					if (*p == '/'
+					&&  strlen(p) > 1) // regexpr, could be: t->t != NULL
+					{
+						tmx = te_regmatch(t->t, m);
+					} else if (*p == '\\')
+					{	tmx = strcmp(m, p+1);
+					} else
+					{	if (*(t->pat) == '@'
+						&&  strcmp(p, "const") == 0)
+						{	tmx = strncmp(m, "const", 5);
+						} else
+						{	tmx = strcmp(m, p);
+					}	}
+					if (t->match != (tmx != 0))
+					{	if (*(m+1) == '\0')
+						{	// if it was a } ) or ] then rx could be non-zero
+							if (t->match)
+							{	if (*m == '{' || *m == '(' || *m == '[')
+								{	// explicit match of { ( [
+									if (verbose)
+									{	printf("\texplicit match of %s\n", m);
+									}
+									assert(thrl[ix].prim_stack);
+									mark_prim(c->s->seq, EXPLICIT, ix);
+								}
+								if (rx)
+								{	// explicit match of } ) ]
+									if (verbose)
+									{	printf("\texplicit match of '%s' :: ", m);
+									}
+									// thrl[ix].prim_stack popped
+									assert(thrl[ix].prim_free);
+									if (!(thrl[ix].prim_free->type & EXPLICIT))
+									{	// not a match
+										if (verbose)
+										{	printf("rejected..\n");
+										}
+										continue;
+									}
+									if (verbose)
+									{	printf("accepted\n");
+									}
+									if (rx == 2)
+									{	mustbreak = 1;
+										leave_state(c->s->seq, 1-thrl[ix].current, ix);
+						}	}	}	}
+		is_match:
+						if (t->saveas)
+						{	Store *b;
+							b = saveas(s, t->saveas, thrl[ix].q_now->txt, ix);
+							if (verbose)
+							{	printf("==%s:%d: New Binding: %s -> %s (%p)\n",
+									thrl[ix].q_now->fnm, thrl[ix].q_now->lnr,
+									t->saveas, thrl[ix].q_now->txt, (void *) b);
+							}
+							mk_active(s->bindings[ix], b, s->seq, t->dest, 1-thrl[ix].current, ix);
+						} else
+						{	mk_active(s->bindings[ix], 0, s->seq, t->dest, 1-thrl[ix].current, ix);
+						}
+						anychange = 1;
+						if (is_accepting(s->bindings[ix], t->dest, ix))
+						{	if (verbose)
+							{	printf("\t\tgoto L (%d -> %d) anychange: %d\n",
+									s->seq, t->dest, anychange);
+							}
+#if 0
+							if (thrl[ix].q_now->nxt
+							&&  strcmp(thrl[ix].q_now->nxt->txt, cur->txt) == 0)
+							{	// V4.4: prevent bad long match
+								// cur = thrl[ix].q_now->nxt;
+							}
+							else
+							{	// V4.4b: correction
+								cur = cur->nxt;
+							}
+#endif
+							// we found a match at the current token
+							// so even though there may be others, we
+							// move on; is_accepting() already cleared
+							// the states; we must still break from the loop
+							// as forced by thrl[ix].fullmatch
+							goto L;
+						}
+					}	// if matching, may set anychange
+					if (mustbreak)	// forced exit from this state
+					{	mustbreak = 0;
+						break;
+					}
+				}		// for each possible transition
+			}			// for each current state
+
+		L:	mustbreak = 0;
+			free_list(thrl[ix].current, ix);
+			// if thrl[ix].fullmatch is nonzero, so is anychange
+			if (anychange)
+			{	thrl[ix].current = 1 - thrl[ix].current;	// move forward
+				if (thrl[ix].fullmatch)
+				{	thrl[ix].fullmatch = 0;
+					break;
+				}
+			} else
+			{	break;			// no match of pattern, Next
+			}
+		}	// for-loop look-ahead match attempt on token q_now
+	}	// for-loop starting match attempt cur
+}
+
+// externally visible functions:
+
+int
+json_convert(const char *s)	// convert pattern matches in set s to marks
+{	Named *ns;
+	Match *m;
+	int n = 0;
+
+	ns = findset(s, 1);
+	if (ns && ns->m)
+	{	m = matches;		// json_convert -- save old value
+		matches = ns->m;	// json_convert
+		(void) do_markups(s);
+		n = matches2marks(0);
+		matches = m;		// json_convert -- restore old value
+	}
+	return n;
+}
+
+void
+undo_matches(void)
+{	Match *tmp;
+
+	tmp = matches;		// undo_matches
+	matches = old_matches;	// undo_matches
+	old_matches = tmp;	// undo_matches
+}
+
+void
+patterns_create(void)		// convert marks to pattern matchess in SetName
+{	Match *om = matches;
+	Match *p;
+	Prim *w;
+	int p_cnt = 0;
+	int m_cnt = 0;
+
+	matches = (Match *) 0;	// build list
+	for (w = prim; w; w = w?w->nxt:w)
+	{	if (w->mark == 0)
+		{	continue;
+		}
+		m_cnt++;
+		// start of a range
+		p = (Match *) emalloc(sizeof(Match), 100);
+		p->from = w;
+		while (w && w->mark)
+		{	w = w->nxt;
+			m_cnt++;
+		}
+		p->upto = (w && w->prv)?w->prv:plst;
+		p->nxt = matches;
+		matches = p;
+		p_cnt++;
+	}
+	if (p_cnt > 0)
+	{	new_named_set(SetName);		// convert marks to set
+	}
+	matches = om;	// restore
+
+	if (gui)
+	{	printf("%d matches stored in %s (patterns_create)\n", p_cnt, SetName);
+	} else
+	{	if (verbose
+		||  (!json_format
+		 &&  !no_match
+		 &&  !no_display))
+		{	printf("%d marks -> %d patterns stored in %s\n", m_cnt, p_cnt, SetName);
+	}	}
+}
+
+void
+patterns_json(char *s)
+{	Named *q;
+	Match *m;
+	char *t;
+	int first_entry = 1;
+
+	q = findset(s, 0);
+	if (!q)
+	{	if (!json_format && !no_display && !no_match)
+		{	fprintf(stderr, "pattern set '%s' not found\n", s);
+		}
+		return;
+	}
+	for (m = q->m; m; m = m->nxt)
+	{	if (has_suppress_tags
+		&&  matches_suppress(m->from, m->msg))
+		{	if (verbose)
+			{	fprintf(stderr, "%s:%d: warning suppressed by tag match\n",
+					m->from->fnm, m->from->lnr);
+			}
+			continue;
+		}
+		if (m->msg)
+		{	strncpy(json_msg, m->msg, sizeof(json_msg)-1);
+		} else if (strcmp(m->from->fnm, m->upto->fnm) == 0)
+		{	sprintf(json_msg, "lines %d..%d",
+				m->from->lnr, m->upto->lnr);
+		} else
+		{	sprintf(json_msg, "%s:%d..%s:%d",
+				m->from->fnm, m->from->lnr,
+				m->upto->fnm, m->upto->lnr);
+		}
+		t = q->msg?q->msg:q->nm;
+		json_match(s, t, json_msg, m->from, m->upto, first_entry);
+		first_entry = 0;
+	}
+}
+
+void
+patterns_list(char *s)
+{
+	if (strlen(s) > 0)
+	{	patterns_show(findset(s, 1), -1);
+	} else
+	{	(void) patterns_reversed(namedset, 1);
+	}
+}
+
+void
+patterns_rename(char *s)
+{	Named *q;
+	char *p = s;
+
+	if (!s)
+	{	fprintf(stderr, "usage: ps rename A B\n");
+		return;
+	}
+	while (*p != ' ' && *p != '\0')
+	{	p++;
+	}
+	if (*p == ' ')
+	{	*p = '\0';
+		p++;
+	} else
+	{	fprintf(stderr, "usage: ps rename A B\n");
+		return;
+	}
+	q = findset(s, 1);
+	if (q)
+	{	if (strlen(p) > strlen(s))
+		{	q->nm = (char *) emalloc(strlen(p)+1, 145);
+		}
+		strcpy(q->nm, p);
+	}
+}
+
+void
+patterns_delete(void)
+{	Named *q, *pq = NULL;
+	Match *r;
+
+	if (strcmp(SetName, "*") == 0
+	||  strcmp(SetName, "all") == 0)
+	{	reverse_delete(namedset);
+		namedset = 0;
+		return;
+	}
+
+	for (q = namedset; q; pq = q, q = q->nxt)	// delete
+	{	if (strcmp(q->nm, SetName) == 0
+		&&  strlen(SetName) == strlen(q->nm))
+		{	if (pq)
+			{	pq->nxt = q->nxt;
+			} else
+			{	namedset = q->nxt;
+			}
+			q->nxt = NULL;		// recycle Named items q as well?
+			r = q->m;
+			while (r)
+			{	r = free_m(r);	// recycle Match elements
+			}			// and bindings
+			if (!json_format && !no_match && !no_display)
+			{	printf("pattern set '%s' deleted\n", SetName);
+			}
+			return;
+	}	}
+	if (!json_format && !no_match && !no_display)
+	{	fprintf(stderr, "pattern set '%s' not found\n", SetName);
+	}
+}
+
+
+void
+dp_help(void)
+{
+	printf("dp *			# display all results from all current pattern sets\n");
+	printf("dp setname		# display all results of one specific pattern set\n");
+	printf("dp [setname *] n		# display only the n-th match\n");
+	printf("dp [setname *] N M	# display only matches from N to M lines long\n");
+	printf("dp [setname *] n N M	# display only the n-th match within the given length range\n");
+	printf("dp filter file.c	# restrict output of dp commands to matches in file.c\n");
+	printf("dp filter off		# remove filter from dp output\n");
+	printf("dp help			# print this message\n");
+	printf("when used in 'terse' mode dp prints only the first and last 2 lines of each multi-line match\n");
+}
+
+void
+patterns_display(const char *te)	// dp [name help *] [n [N [M]]]
+{	int j = 0;
+	int nr, a, b, c;
+	Named *ns;
+	Match *pm = matches;
+	char nm[512];
+
+	while (te[j] == ' ' || te[j] == '\t')
+	{	j++;
+	}
+
+	if (strncmp(te, "help", strlen("help")) == 0
+	||  strcmp(te, "?") == 0)
+	{	dp_help();
+		return;
+	}
+	if (strncmp(te, "filter", strlen("filter")) == 0)
+	{	FILE *tfd;
+		int k = j + strlen("filter");
+		nr = sscanf(&te[k], "%s", nm);
+		if (nr != 1)
+		{	fprintf(stderr, "usage: dp filter filename.c\n");
+			return;
+		}
+		if (strcmp(nm, "off") == 0)
+		{	pattern_filter = NULL;
+			return;
+		}
+		if ((tfd = fopen(nm, "r")) == NULL)
+		{	fprintf(stderr, "error: no such file '%s'\n", nm);
+			return;
+		}
+		fclose(tfd);
+		pattern_filter = (char *) emalloc(strlen(nm)+1, 143);
+		strcpy(pattern_filter, nm);
+		return;
+	}
+	if (isalpha((uchar) te[j]) || te[j] == '*' || te[j] == '_')	// named set
+	{	a = b = c = 0;
+		nr = sscanf(&te[j], "%s %d %d %d", nm, &a, &b, &c);
+		switch (nr) {
+		case 1: a =  0; // fall thru
+		case 2: b = -1; // fall thru
+		case 3: c = -1; // fall thru
+		case 4:
+			if (te[j] == '*')	 // dp * -- all sets
+			{	dp_all(a, b, c); // all named sets
+				break;
+			}
+			ns = findset(nm, 1);
+			if (ns && ns->m)
+			{	matches = ns->m;
+				pattern_matched(ns, a, b, c); // checks named sets
+				matches = pm; // restore
+			}
+			break;
+		default:
+			dp_usage(&te[j], nr);
+			break;
+		}
+	} else if (isdigit((int) te[j]))
+	{	nr = sscanf(&te[j], "%d %d %d", &a, &b, &c);
+		switch (nr) {
+		case  1: b = -1;	// fall thru
+		case  2: c = -1;	// fall thru
+		case  3: pattern_full(a, b, c);	// checks token markings, not pattern sets
+			 break;
+		default: dp_usage(&te[j], nr);
+			 break;
+		}
+	} else if (te[j] == '\0')
+	{	pattern_full(0, -1, -1);	// checks token markings, not pattern sets
+	} else
+	{	dp_usage(&te[j], 0);
+	}
+}
+
+void
+setname(char *s)
+{
+	strncpy(SetName, s, sizeof(SetName)-1);
 }
 
 void
@@ -3333,8 +4022,8 @@ set_operation(char *s)
 	{	printf("error: undefined set operation '%s'\n", s);
 		return;
 	}
-	ns1 = findset(name1, 0, 3);
-	ns2 = findset(name2, 0, 4);
+	ns1 = findset(name1, 0);
+	ns2 = findset(name2, 0);
 	m1 = ns1?ns1->m:0;
 	m2 = ns2?ns2->m:0;
 
@@ -3419,85 +4108,11 @@ set_operation(char *s)
 	return;
 }
 
-static void
-clone_set(Named *x, Lextok *constraint, int ix)
-{	Prim *q = NULL;
-	Match *y;
-	Prim  *r;
-	Bound *b;
-	int n;
-
-	if (x->cloned
-	&&  constraint == NULL
-	&&  x->constraint == 0)
-	{	return;
-	}
-
-	for (y = x->m; y; y = y->nxt)
-	{	r = (Prim *) hmalloc(sizeof(Prim), ix, 144);
-		r->txt = "Pattern";
-		r->typ   = x->nm;	// name of the set
-		r->fnm = y->from?y->from->fnm:"fnm";
-		r->lnr = y->from?y->from->lnr:0;
-		r->seq = Seq++;
-		r->jmp   = y->from;	// w synonym 'p_start'
-		r->bound = y->upto;	// w synonym 'p_end'
-
-		// V4.4 link to max two bound variables
-		if (y->bind)
-		{	n = 0;
-			for (b = y->bind; b && n < 4; b = b->nxt)
-			{	if (b->bdef && b->ref)
-				{	r->mbnd[n++] = b->bdef;	// where binding was set
-					r->mbnd[n++] = b->ref;	// where match was found
-				}
-				if (b == b->nxt)	// internal error
-				{	b->nxt = 0;
-					fprintf(stderr, "internal error: clone_set\n");
-		}	}	}
-
-		r->nxt = q;
-		if (q)
-		{	q->prv = r;
-		}
-		q = r;
-	}
-	x->cloned = q;
-	x->constraint = (constraint != NULL);
-}
-
-static Prim *
-clone_all(Lextok *constraint, int ix)		// create a single list of matches from all sets
-{	Named *x;
-	Prim *t, *h = NULL;
-
-	for (x = namedset; x; x = x->nxt)
-	{	clone_set(x, constraint, ix);
-		if (x->cloned)	// concat lists
-		{	if (h)
-			{	t = x->cloned;
-				while (t->nxt)
-				{	t = t->nxt;
-				}
-				t->nxt = h;
-			}
-			h = x->cloned;
-			x->cloned = NULL;
-	}	}
-	if (!h)
-	{	h = (Prim *) hmalloc(sizeof(Prim), ix, 143);
-		h->seq = 0; // meaning empty list
-		// returning null would indicate a syntax error
-	}
-	
-	return h;
-}
-
 int
 is_pset(const char *s)
 {	Named *x;
 
-	x = findset(s, 0, 15);
+	x = findset(s, 0);
 	return (x != NULL);
 }
 
@@ -3516,7 +4131,7 @@ cp_pset(char *s, Lextok *constraint, int ix)
 	{	return clone_all(constraint, ix);
 	}
 
-	x = findset(s, 0, 10);
+	x = findset(s, 0);
 	if (!x || !x->m)
 	{	if (verbose)
 		{	fprintf(stderr, "warning: cp_pset: no such (or empty) set '%s'\n", s);
@@ -3524,8 +4139,8 @@ cp_pset(char *s, Lextok *constraint, int ix)
 		return 0;
 	}
 
-	clone_set(x, constraint, ix);
-	slice_set(x, constraint, ix, 0); // called from inline prog
+	clone_set(x, constraint);
+	slice_set(x, constraint, 0); // called from inline prog
 
 	return x->cloned;
 }
@@ -3542,101 +4157,27 @@ pe_help(void)
 	printf(" but it can also contain bound variable references\n");
 }
 
-#if 0
-static Prim *
-ps_fix(Prim *m, int pickup, int whatchanged)
-{	static Prim *x = (Prim *) 0;
-	static int ncnt = 0;
-	Prim *y = m;
-
-	if (!m)
-	{	return (Prim *) 0;
-	}
-
-	if (!pickup || !x)
-	{	x = prim;
-		ncnt = 0;
-	}
-
-	// the new sequence in x has EOF tokens added
-	// so the sequence number looked for is higher
-	while (x && x->seq != m->seq + ncnt)
-	{	switch (whatchanged) {
-		case 2:	if (strcmp(x->txt, "EOF") == 0
-			&&  strcmp(x->typ, "cpp") == 0)
-			{	ncnt++;
-			}
-			break;
-		case 3:	if (strcmp(x->txt, "EOF") == 0
-			&&  strcmp(x->typ, "cpp") == 0)
-			{	ncnt++;
-				break;
-			}
-			// else fall thru
-		case 1:	if (strcmp(x->txt, "EOL") == 0
-			&&  strcmp(x->typ, "cpp") == 0)
-			{	ncnt++;
-			}
-			break;
-		default:
-			; // cannot happen
-		}
-		y = x;
-		x = x->nxt;
-	}
-	if (!x)
-	{	if (verbose)
-		{	fprintf(stderr, "warning: pickup %d at eof\n", m->seq);
-			// the new token is the last one in the input
-		}
-		return y;
-	}
-	return x;
-}
-
 static void
-ps_update(int whatchanged)
-{	Named *x;
-	Match *m;
-	Bound *b;
-
-	// update the from, upto, and bind fields in matches
-
-	for (x = namedset; x; x = x->nxt)	// update matches
-	for (m = x->m; m; m = m->nxt)
-	{	m->from = ps_fix(m->from, 0, whatchanged);
-		m->upto = ps_fix(m->upto, 1, whatchanged);
-		for (b = m->bind; b; b = b->nxt)
-		{	b->bdef = ps_fix(b->bdef, 0, whatchanged);
-			b->ref  = ps_fix(b->ref, 1, whatchanged);
-			b->aref = ps_fix(b->aref, 1, whatchanged); // untested, code not used
-			if (b == b->nxt)	// internal error
-			{	b->nxt = 0;
-				fprintf(stderr, "internal error: ps_update\n");
-	}	}	}
+map_to_lowercase(void)
+{	Prim *r;
+	char *s;
+	for (r = prim; r && r != plst; r = r->nxt)
+	{	for (s = r->txt; *s != '\0'; s++)
+		{	*s = tolower((int) *s);
+	}	}
 }
-#endif
 
 void
-cobra_te(char *te, int and, int inv)	// fct is too long...
-{	List	*c;
-	Trans	*t;
-	State	*s;
-	char	*m;
-	char	*p;
-	int	anychange;
-	int	rx;
-	int	tmx;
-	int	mustbreak = 0;
+cobra_te(char *te, int and, int inv, int topmode)	// fct is too long...
+{	char	*p;
+	int	ix;
 	int	n_cnt;
-	Trans	dummy;
+	static int lastN;
 
 	if (inv)
 	{	printf("the qualifier 'no' is not supported for pattern searches\n");
 		return;
 	}
-
-	memset(&dummy, 0, sizeof(Trans));
 
 	if (!te)
 	{	return;
@@ -3654,6 +4195,13 @@ cobra_te(char *te, int and, int inv)	// fct is too long...
 	{	return;
 	}
 
+	if (lastN < Ncore || !thrl)
+	{	thrl = (ThreadLocal_te *) emalloc(Ncore * sizeof(ThreadLocal_te), 69);
+		lastN = Ncore;
+	} else
+	{	memset(thrl, 0, Ncore * sizeof(ThreadLocal_te));
+	}
+
 	te = get_constraints(te);
 
 	if (!te)
@@ -3662,10 +4210,37 @@ cobra_te(char *te, int and, int inv)	// fct is too long...
 
 	start_timer(0);
 	glob_te = te;
-
-	p = te;
 	for (p = te; *p != '\0'; p++)
-	{	if (*p != ':'
+	{	if (*p == '^')
+		{	char *q;
+			if (*(p+1) == '.')
+			{	fprintf(stderr, "error: cannot negate '.'\n");
+				return;
+			}
+			if (*(p+1) == '(')
+			{	fprintf(stderr, "error: cannot negated a ( ... ) grouping\n");
+				return;
+			}
+			q = p+1;
+			while (isalpha((uchar) *q))
+			{	q++;
+			}
+			if (q != p+1 && *q == ':')
+			{	fprintf(stderr, "error: cannot negate a bound var definition\n");
+				return;
+		}	}
+		if (*p == ':'
+		&&  isalpha((uchar) *(p-1)))
+		{	if (*(p+1) == '^')
+			{	fprintf(stderr, "error: cannot bind a negation\n");
+				return;
+			}
+			if (*(p+1) == '[')
+			{	fprintf(stderr, "error: cannot bind to a [ ... ] range\n");
+				return;
+		}	}
+
+		if (*p != ':'
 		||   p <= te+1)
 		{	continue;
 		}
@@ -3683,7 +4258,8 @@ cobra_te(char *te, int and, int inv)	// fct is too long...
 		{	fprintf(stderr, "warning: is a space missing before , in '%c:%c,'?\n",
 				*(p-1), *(p+1));
 	}	}
-	anychange = 0;
+
+//	anychange = 0;
 
 	if (!eol && strstr(te, "EOL"))
 	{	char *q1 = strstr(te, "define");
@@ -3707,9 +4283,11 @@ cobra_te(char *te, int and, int inv)	// fct is too long...
 	if (!eof && strstr(te, "EOF"))
 	{	fprintf(stderr, "error: use of EOF requires -eof cmdln arg\n");
 		return;
-	//	fix_eol();		// changes location of tokens
-	//	ps_update(anychange);	// updates matches in pattern sets
-	//				// not completely reliable
+#if 0
+		fix_eol();		// changes location of tokens
+		ps_update(anychange);	// updates matches in pattern sets
+					// unreliable
+#endif
 	}
 
 	if (ncalls++ > 0)
@@ -3760,7 +4338,13 @@ cobra_te(char *te, int and, int inv)	// fct is too long...
 	}
 	mk_fsa();
 
-	copy_list(current, 2);	// remember initial states, 2 was empty so far
+	if (nerrors > 0)
+	{	return;
+	}
+
+	for (ix = 0; ix < Ncore; ix++)
+	{	copy_list(thrl[ix].current, ix, 2);	// remember initial states, 2 was empty so far
+	}
 
 	// if reading from stdin (stream) this gives us an
 	// initial token stream fragment of stream_lim lines
@@ -3779,510 +4363,91 @@ cobra_te(char *te, int and, int inv)	// fct is too long...
 
 	prune_if_zero();	// remove code in #if 0 blocks
 
-	for (cur = prim; cur; cur = cur->nxt)
-	{	free_list(current);
-		free_list(1 - current);
-		copy_list(2, current);	// initial state
-		clr_stacks();
+	Topmode = topmode;
 
-		if (stream == 1
-		&&  cur->seq + 100 > plst->seq)
-		{	Prim *place = cur;
-			if (add_stream(cur))	// can free up to cur
-			{	cur = place;
-			} else	// exhausted input stream
-			{	stream = 2;
-		}	}
-
-		for (q_now = cur; q_now; q_now = q_now->nxt)
-		{
-			if (!across_file_match	// unless we allow this
-			&&  q_now->fnm != cur->fnm)	// no match across files
-			{	if (verbose)
-				{	printf("stop match attempt at file boundary\n");
-				}
-				break;
-			}
-			anychange = 0;
-			if (*(q_now->txt+1) == '\0')
-			{	rx = check_level();	// try to match }, ), ] to {, (, [
-			} else
-			{	rx = 0;
-			}
-			if (verbose)
-			{	show_curstate(rx);
-			}
-
-			for (c = curstates[current]; c; c = c->nxt)
-			{	s = c->s;
-				if (!has_positions
-				&&  s->seq < MAX_CONSTRAINT
-				&&  constraints[s->seq])
-				{	// setup bindings env for cobra_eval.y
-					// in case the constraint contains bound vars
-					e_bindings = s->bindings;
-					if (!evaluate(q_now, constraints[s->seq]))
-					{	if (verbose)
-						{	printf("S%d: constraint does not hold\n", s->seq);
-						}
-						continue;
-				}	}
-
-				for (t = s->trans; t; t = t->nxt)
-				{	if (verbose)
-					{	printf("\tcheck %d->%d	%s, pat: '%s',  %s,  %s\t:: nxt S%d",
-							s->seq, t->dest,
-							t->match?"match":"-nomatch-",
-							t->pat?t->pat:" -nopat- ",
-							t->recall?"recall":"-norecall-",
-							t->or?"or":"no_or",
-							(c->nxt && c->nxt->s)?c->nxt->s->seq:-1);
-
-						if (t->cond)
-						{	printf(" <constraint %d>\n", t->cond);
-						} else
-						{	printf("\n");
-					}	}
-
-					if (has_positions
-					&&  t->cond)
-					{	e_bindings = s->bindings;
-						if (!evaluate(q_now, constraints[t->cond]))
-						{	if (verbose)
-							{	printf("\tconstraint %d fails (S%d -> S%d) <%s>\n",
-									t->cond, s->seq, t->dest, q_now->txt);
-							}
-							continue;
-						} else if (verbose)
-						{	printf("\t%s:%d: '%s' constraint %d holds (%d) (S%d -> S%d)\n",
-								q_now->fnm, q_now->lnr, q_now->txt,
-								t->cond,
-								(q_now->jmp?q_now->jmp->lnr:0) - q_now->lnr,
-								s->seq, t->dest);
-					}	}
-
-					if (!t->pat)	// epsilon move, eg .*
-					{	if (!t->match) // can this happen?
-						{	if (q_now->prv)
-							{ q_now = q_now->prv;
-							} else
-							{ fprintf(stderr, "%s:%d: re error for . (s%d->s%d) <%p>\n",
-								cur->fnm, cur->lnr,
-								s->seq, t->dest,
-								(void *) t->nxt);
-							  break;
-							}
-						} else
-						{	// intercept special case where
-							// the source is } ) or ], and the pattern is . (dot)
-							// no match if the brace closed an interval (rx != 0)
-							if (q_now->txt[0] == '{'
-							||  q_now->txt[0] == '('
-							||  q_now->txt[0] == '[')
-							{	if (verbose)
-								{	printf("\timplicit . match of %s\n",
-										q_now->txt);
-								}
-								assert(prim_stack);
-								mark_prim(c->s->seq, IMPLICIT);
-								if (Seq < 8*sizeof(uint))
-								{	prim_stack->i_state |= (1 << s->seq);
-								} else
-								{	prim_stack->i_state = s->seq;
-								}
-							} else if (rx)
-							{	int mismatch;
-								// implicit match
-								if (verbose)
-								{	printf("\timplicit . match of '%s' :: ",
-										q_now->txt);
-								}
-								assert(prim_free);
-								if (Seq < 8*sizeof(uint))
-								{	mismatch = !(prim_free->i_state & (1 << s->seq));
-								} else
-								{	mismatch = (prim_free->i_state != s->seq);
-								}
-#if 1
-								mismatch = check_match(s->seq, IMPLICIT, mismatch);
+	if (case_insensitive == 1)
+	{	case_insensitive++;
+		map_to_lowercase();
+	}
+	p_matched = 0;	// reset
+#ifndef PE_SEQ
+	if (Ncore > 1)
+	{	run_threads(pe_search_run);
+	} else
+	{	pe_search(prim, plst, 0);
+	}
+#else
+	pe_search(prim, plst, 0);
 #endif
-								if (!(prim_free->type & IMPLICIT)
-								||  mismatch)
-								{	// not a match
-									if (verbose)
-									{	printf("rejected [%d %d %d]\n",
-											prim_free->type,
-											prim_free->i_state,
-											s->seq);
-									}
-									continue;
-								} else
-								{	if (verbose)
-									{	printf("accepted (%d)\n",
-											prim_free->type);
-						}	}	}	}
-						mk_active(s->bindings, 0, s->seq, t->dest, 1-current);
-						anychange = 1;
-						if (is_accepting(s->bindings, t->dest))
-						{
-#if 0
-							if (q_now->nxt && strcmp(q_now->nxt->txt, cur->txt) == 0)
-							{	// V4.4: prevent bad long match
-								// cur = q_now->nxt;
-							} else
-							{	// V4.4b: correction
-								cur = cur->nxt;
-							}
-#endif
-							goto L;
-						}
-						continue;
-					} // !t->pat
-
-					if (t->recall)	// bound variable ref
-					{
-						if (recall(c->s, t, q_now->txt))
-						{	if (!t->match
-							&&  (q_now->txt[0] == '{'
-							  || q_now->txt[0] == '('
-							  || q_now->txt[0] == '['))
-							{	if (verbose)
-								{	printf("\timplicit ^ match of %s\n",
-										q_now->txt);
-								}
-								assert(prim_stack);
-								mark_prim(c->s->seq, IMPLICIT);
-								if (Seq < 8*sizeof(uint))
-								{	prim_stack->i_state |= (1 << s->seq);
-								} else
-								{	prim_stack->i_state = s->seq;
-								}
-							}
-							if (!t->match && rx)
-							{	int mismatch;
-								// implicit match, prim_stack just popped
-								if (verbose)
-								{	printf("\timplicit ^ MATCH of '%s' :: ",
-										q_now->txt);
-								}
-								assert(prim_free);
-								if (Seq < 8*sizeof(uint))
-								{	mismatch = !(prim_free->i_state & (1 << s->seq));
-								} else
-								{	mismatch = (prim_free->i_state != s->seq);
-								}
-#if 1
-								mismatch = check_match(s->seq, IMPLICIT, mismatch);
-#endif
-								if (!(prim_free->type & IMPLICIT)
-								||   mismatch)
-								{	// not a match
-									if (verbose)
-									{	printf("rejected.\n");
-									}
-									continue;
-								}
-								if (verbose)
-								{	printf("accepted (%d)\n",
-										prim_free->type);
-								}
-							}
-							mk_active(s->bindings, 0, s->seq, t->dest, 1-current);
-							anychange = 1;
-							if (is_accepting(s->bindings, t->dest))
-							{
-#if 0
-								if (q_now->nxt && strcmp(q_now->nxt->txt, cur->txt) == 0)
-								{	// V4.4: prevent bad long match
-									// cur = q_now->nxt;
-								} else
-								{	// V4.4b: correction
-									cur = cur->nxt;
-								}
-#endif
-								goto L;
-						}	}
-						continue;
-					}
-
-					if (t->or)		// a range
-					{	Range *r;
-						if (t->match)	// normal or-series
-						{	for (r = t->or; r; r = r->or)
-							{	if (*(r->pat) == '@')
-								{	m = tp_desc(q_now->typ);
-									p = r->pat+1;
-								} else
-								{	m = q_now->txt;
-									p = r->pat;
-									if (strcmp(p, ".") == 0)
-									{	goto is_match;
-									}
-								}
-
-								// embedded regex inside range
-								if (*p == '/'
-								&&  strlen(p) > 1)
-								{	regex_t *z = te_regstart(p+1);
-									tmx = z?te_regmatch(z, m):0;
-								} else if (*p == '\\')
-								{	tmx = strcmp(m, p+1);
-								} else
-								{	if (*(r->pat) == '@'
-									&&  strcmp(p, "const") == 0)
-									{	tmx = strncmp(m, "const", 5);
-									} else
-									{	tmx = strcmp(m, p);
-								}	}
-
-								if (tmx == 0)
-								{	if (verbose)
-									{	printf("regex matches -> accept\n");
-									}
-									goto is_match;
-								}
-
-								if (*p == ':' && *(p+1) != '\0')
-								{	dummy.recall = (p+1);
-									if (verbose)
-									{	printf("\tbound var ref '%s' vs '%s'\n",
-											p, m);
-									}
-									if (recall(c->s, &dummy, m))
-									{	if (verbose)
-										{	printf(" matched\n");
-										}
-										goto is_match;
-									} else if (verbose)
-									{	printf(" not matched\n");
-									}
-								} else if (strcmp(m, p) == 0)
-								{	goto is_match;
-							}	}
-							continue;	// no match
-						} else			// negated
-						{	for (r = t->or; r; r = r->or)
-							{	if (*(r->pat) == '@')
-								{	m = tp_desc(q_now->typ);
-									p = r->pat+1;
-									if (strcmp(m, p) == 0
-									||  (strcmp(p, "const") == 0
-									&&   strncmp(m, "const", 5) == 0))
-									{	break;
-									}
-								} else
-								{	m = q_now->txt;
-									p = r->pat;
-
-									// embedded regex inside range
-									if (*p == '/'
-									&&  strlen(p) > 1)
-									{	regex_t *z = te_regstart(p+1);
-										tmx = z?te_regmatch(z, m):0;
-									} else if (*p == '\\')
-									{	tmx = strcmp(m, p+1);
-									} else
-									{	tmx = strcmp(m, p);
-									}
-									if (tmx == 0)
-									{	if (verbose)
-										{	printf("regex matches -> reject\n");
-										}
-										break; // no match
-									}
-
-									if (*p == ':' && *(p+1) != '\0')
-									{	dummy.recall = (p+1);
-										if (verbose)
-										{	printf("\tbound var ^'%s' vs '%s'\t",
-												p, m);
-										}
-										if (recall(c->s, &dummy, m))
-										{	if (verbose)
-											{	printf(" matching\n");
-											}
-											continue;
-										} else if (verbose)
-										{	printf(" not matching\n");
-										}
-										break;
-									} else if (strcmp(m, p) == 0)
-									{	break;
-							}	}	}
-							if (r)
-							{	continue;
-							}
-							goto is_match;
-					}	}
-					if (*(t->pat) == '@')
-					{	m = tp_desc(q_now->typ);
-						p = t->pat+1;
-					} else
-					{	m = q_now->txt;
-						p = t->pat;
-						// e.g., {@0
-						if (p[1] == '@' && isdigit((int) p[2]))
-						{	int nr = atoi(&p[2]);
-							switch (p[0]) {
-							case '{':
-								if (q_now->curly == nr)
-								{	p = "{";
-								} // else leave as nonmatch
-								break;
-							case '(':
-								if (q_now->round == nr)
-								{	p = "(";
-								} // else leave as nonmatch
-								break;
-							case '[':
-								if (q_now->bracket == nr)
-								{	p = "[";
-								} // else leave as nonmatch
-								break;
-							default:
-								break;
-							}
-						}
-					}
-					// match==0 && m != p	m: tokentext, p: pattern
-					// match==1 && m == p
-
-					if (*p == '/'
-					&&  strlen(p) > 1) // regexpr, could be: t->t != NULL
-					{	tmx = te_regmatch(t->t, m);
-					} else if (*p == '\\')
-					{	tmx = strcmp(m, p+1);
-					} else
-					{	if (*(t->pat) == '@'
-						&&  strcmp(p, "const") == 0)
-						{	tmx = strncmp(m, "const", 5);
-						} else
-						{	tmx = strcmp(m, p);
-					}	}
-					if (t->match != (tmx != 0))
-					{	if (*(m+1) == '\0')
-						{	// if it was a } ) or ] then rx could be non-zero
-							if (t->match)
-							{	if (*m == '{' || *m == '(' || *m == '[')
-								{	// explicit match of { ( [
-									if (verbose)
-									{	printf("\texplicit match of %s\n", m);
-									}
-									assert(prim_stack);
-									mark_prim(c->s->seq, EXPLICIT);
-								}
-								if (rx)
-								{	// explicit match of } ) ]
-									if (verbose)
-									{	printf("\texplicit match of '%s' :: ", m);
-									}
-									// prim_stack popped
-									assert(prim_free);
-									if (!(prim_free->type & EXPLICIT))
-									{	// not a match
-										if (verbose)
-										{	printf("rejected..\n");
-										}
-										continue;
-									}
-									if (verbose)
-									{	printf("accepted\n");
-									}
-									if (rx == 2)
-									{	mustbreak = 1;
-										leave_state(c->s->seq, 1-current);
-						}	}	}	}
-		is_match:
-						if (t->saveas)
-						{	Store *b;
-							b = saveas(s, t->saveas, q_now->txt);
-							if (verbose)
-							{	printf("==%s:%d: New Binding: %s -> %s (%p)\n",
-									q_now->fnm, q_now->lnr,
-									t->saveas, q_now->txt, (void *) b);
-							}
-							mk_active(s->bindings, b, s->seq, t->dest, 1-current);
-						} else
-						{	mk_active(s->bindings, 0, s->seq, t->dest, 1-current);
-						}
-						anychange = 1;
-						if (is_accepting(s->bindings, t->dest))
-						{	if (verbose)
-							{	printf("\t\tgoto L (%d -> %d) anychange: %d\n",
-									s->seq, t->dest, anychange);
-							}
-#if 0
-							if (q_now->nxt && strcmp(q_now->nxt->txt, cur->txt) == 0)
-							{	// V4.4: prevent bad long match
-								// cur = q_now->nxt;
-							}
-							else
-							{	// V4.4b: correction
-								cur = cur->nxt;
-							}
-#endif
-							// we found a match at the current token
-							// so even though there may be others, we
-							// move on; is_accepting() already cleared
-							// the states; we must still break from the loop
-							// as forced by fullmatch
-							goto L;
-						}
-					}	// if matching, may set anychange
-					if (mustbreak)	// forced exit from this state
-					{	mustbreak = 0;
-						break;
-					}
-				}		// for each possible transition
-			}			// for each current state
-
-		L:	mustbreak = 0;
-			free_list(current);
-			// if fullmatch is nonzero, so is anychange
-			if (anychange)
-			{	current = 1 - current;	// move forward
-				if (fullmatch)
-				{	fullmatch = 0;
-					break;
-				}
-			} else
-			{	break;			// no match of pattern, Next
-			}
-		}	// for-loop look-ahead match attempt on token q_now
-	}	// for-loop starting match attempt cur
-
 	te_regstop();
 
-	if (!cobra_texpr)	// interactive
-	{	Match *x;
+	/// move all patterns found into matches (reversing the order)
+	if (tgrep && (tcount || lcount) && !Fcount)
+	{	if (!Fcount)
+		{	Fcount = (Fnm *) emalloc(Nfiles * sizeof(Fnm), 100);
+		} else
+		{	memset(Fcount, 0, Nfiles * sizeof(Fnm));
+		}
+	}
+	for (ix = 0; ix < Ncore; ix++)
+	{	Match *m, *om;
+		for (m = thrl[ix].t_matches; m; m = om)
+		{	om = m->nxt;
+			m->nxt = matches;
+			matches = m;
+			if (tgrep && (tcount || lcount))
+			{  for (fi = 0; fi < Nfiles; fi++)
+			   {	if (Fcount[fi].s)
+				{	if (strcmp(Fcount[fi].s, m->from->fnm) == 0)
+					{	Fcount[fi].n++;
+						break;
+					}
+					continue;
+				}
+				Fcount[fi].s = m->from->fnm;
+				Fcount[fi].n = 1;
+				break;
+	}	}	}  }
 
-		if (and)
+	if (!cobra_texpr)	// pe command, interactive or command-line
+	{	if (and)
 		{	modify_match();
 		}
-		for (rx = 0, x = matches; x; x = x->nxt)
-		{	rx++;
-		}
-		n_cnt = preserve_matches(0);
+		n_cnt = preserve_matches();
 		set_cnt(n_cnt);
 		if (n_cnt)
 		{	if (json_format)
 			{	if (!no_display && !no_match)
 				{	json(te);	// te reporting, interactive
 				}
-				clear_matches();
-			} else if (!no_display && !no_match)
-			{	printf("%d pattern%s matched\n",
+				clr_matches(NEW_M);
+			}
+			// already reported as: n patterns stored in set ...
+			else if (!no_display && no_match && !tgrep)	// no_match == quiet on
+			{	printf("%d token%s marked (%d pattern%s)\n",
+					n_cnt, n_cnt==1?"":"s",
 					p_matched, p_matched==1?"":"s");
-		}	}
-		rx = 0;
+			}
+			if (tgrep && tcount)
+			{	for (fi = 0; fi < Nfiles; fi++)
+				{	if (Fcount[fi].s)
+					{	printf("%s:%d\n",
+							Fcount[fi].s, Fcount[fi].n);
+				}	}
+//				printf("%d\n", p_matched);
+			} else if (tgrep && lcount)
+			{	for (fi = 0; fi < Nfiles; fi++)
+				{	if (Fcount[fi].s)
+					{	printf("%s\n", Fcount[fi].s);
+		}	}	}	}
 	} else if (stream <= 0)	// not streaming
-	{	if (preserve_matches(0) > 0)
+	{	if (preserve_matches() > 0)	// not commandline
 		{	if (json_format)
 			{	json(te);	// te reporting, not streaming
 			} else
 			{	pattern_full(0, -1, -1); // shows bound vars too
 			}	// check token markings, not pattern sets
-		} else
+		} else		// commandline -pe
 		{	if (json_format)
 			{	if (nr_json > 0)
 				{	printf("]\n");
@@ -4301,5 +4466,6 @@ cobra_te(char *te, int and, int inv)	// fct is too long...
 		{	printf("%d pattern%s matched\n",
 				p_matched, p_matched==1?"":"s");
 	}	}
+	// p_matched = 0; // reset
 	stop_timer(0, 0, "te");
 }

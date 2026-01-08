@@ -1,7 +1,7 @@
 /*
  * This file is part of the public release of Cobra. It is subject to the
  * terms in the License file that is included in this source directory.
- * Tool documentation is available at http://codescrub.com/cobra
+ * Tool documentation is available at https://codescrub.com/cobra
  */
 
 #ifndef COBRA_PRE
@@ -23,6 +23,8 @@
 #define Px		pre[cid]
 
 #include "cobra_fe.h"
+
+typedef long unsigned int	ulong;
 
 typedef struct Pre	Pre;
 typedef struct Pass	Pass;
@@ -82,6 +84,14 @@ enum {
 
 extern Pre	*pre;
 
+extern int	eol;
+extern int	html;
+extern int	read_stdin;
+extern int	stream;
+
+extern Files	*seenbefore(const char *, int);
+
+extern void	do_typedefs(int);
 extern void	line(int);
 extern void	par_scan(void);
 extern void	process_line(char *, int);
@@ -92,6 +102,5 @@ extern char	*get_file(int);
 extern char	*strip_directives(char *, int);
 extern char	*get_preproc(int);
 extern void	 set_preproc(char *, int);
-extern Files	*seenbefore(const char *, int);
 
 #endif

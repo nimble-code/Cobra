@@ -1,7 +1,7 @@
 /*
  * This file is part of the public release of Cobra. It is subject to the
  * terms in the License file that is included in this source directory.
- * Tool documentation is available at http://codescrub.com/cobra
+ * Tool documentation is available at https://codescrub.com/cobra
  */
 
 #include <stdio.h>
@@ -63,12 +63,11 @@ static void	zap_sem(void);
 
 extern ulong	MaxMemory;
 
-extern int Ncore;
-extern int no_display;
-extern int runtimes;
-extern int verbose;
-extern int tfree, tnew;
-extern char *progname;
+extern int	Ncore;
+extern int	runtimes;
+extern int	verbose;
+extern int	tfree;
+extern int	tnew;
 
 extern void lock_print(int);
 extern void unlock_print(int);
@@ -76,10 +75,10 @@ extern void lock_other(int);
 extern void unlock_other(int);
 
 #if defined(__APPLE__) || defined(__linux__) || defined(NO_SBRK)
-	#include <stdlib.h>
-	#define sbrk	malloc
+ #include <stdlib.h>
+ #define sbrk	malloc
 #else
-	extern void *sbrk(int);
+ extern void *sbrk(int);
 #endif
 
 void
@@ -93,7 +92,7 @@ memusage(void)	// used in cobra_lib.c
 }
 
 void
-efree(void *ptr)
+efree(void *unused_ptr)
 {
 //	printf("nope\n");
 }
@@ -103,6 +102,11 @@ e_malloc(size_t size)	// bytes
 {	static size_t *have_mem = (void *) 0;
 	static size_t  have_cnt = 0;	// bytes
 	void *n;
+
+	if (size <= 0)
+	{	fprintf(stderr, "emalloc: zero size requested\n");
+		return 0;
+	}
 
 	if (have_cnt < size)
 	{	if (Chunk < size)
@@ -205,7 +209,7 @@ hmalloc(size_t size, const int ix, const int caller)	// size in bytes
 	assert(heap != NULL);
 	assert(ix >= 0 && ix < Ncore);
 
-	if (!heap[ix] || heapsz[ix] <= size)	// words
+	if (!heap[ix] || (ulong) heapsz[ix] <= size)	// words
 	{
 		lock_other(ix);
 		if (HeapSz < size * sizeof(size_t))
@@ -266,10 +270,19 @@ ini_lock(void)
 		sem_created = 1;
 	}
 }
+int
+have_lock(const int ix)
+{
+	return (lock_held == ix);
+}
 
 void
-do_lock(const int ix)
+do_lock(const int ix, const int caller)
 {
+	if (lock_held == ix)
+	{	fprintf(stderr, "error: double lock by %d, caller %d\n", ix, caller);
+	}
+	assert(lock_held != ix);
 	if (Ncore <= 1)
 	{	return;
 	}
@@ -280,14 +293,14 @@ do_lock(const int ix)
 }
 
 void
-do_unlock(const int ix)
+do_unlock(const int ix, const int caller)
 {
 	if (Ncore <= 1)
 	{	return;
 	}
 	if (lock_held != ix)
-	{	fprintf(stderr, "error: lock violation: held by %d, unlock by %d\n",
-			lock_held, ix);
+	{	fprintf(stderr, "error: lock violation: held by %d, unlock by %d, caller %d\n",
+			lock_held, ix, caller);
 	}
 	lock_held = -1;
 	if (sem_post(psem) != 0)
@@ -296,7 +309,7 @@ do_unlock(const int ix)
 }
 
 void
-lock_print(int who)	// internal use
+lock_print(int unused_who)	// internal use
 {
 	if (Ncore <= 1)
 	{	return;
@@ -307,7 +320,7 @@ lock_print(int who)	// internal use
 }
 
 void
-unlock_print(int who)
+unlock_print(int unused_who)
 {
 	if (Ncore <= 1)
 	{	return;
@@ -318,7 +331,7 @@ unlock_print(int who)
 }
 
 void
-lock_other(int who)	// internal use
+lock_other(int unused_who)	// internal use
 {
 	if (Ncore <= 1)
 	{	return;
@@ -329,7 +342,7 @@ lock_other(int who)	// internal use
 }
 
 void
-unlock_other(int who)
+unlock_other(int unused_who)
 {
 	if (Ncore <= 1)
 	{	return;
@@ -375,11 +388,11 @@ start_timer(int ix)
 }
 
 void
-stop_timer(int cid, int always, const char *s)
+stop_timer(int cid, int unused_always, const char *unused_s)
 {
 	if (runtimes)
 	{	assert(cid >= 0 && cid < 2*(Ncore+1));
-		do_lock(cid);	// stop_timer
+		do_lock(cid, 1);	// stop_timer
 		gettimeofday(&(stop_time[cid]), NULL);
 		delta_time[cid] =  (double) (stop_time[cid].tv_sec  - start_time[cid].tv_sec);		// seconds
 		delta_time[cid] += ((double) (stop_time[cid].tv_usec - start_time[cid].tv_usec))/1000000.0; // microseconds
@@ -388,7 +401,7 @@ stop_timer(int cid, int always, const char *s)
 			}
 			printf("(%.3g sec)\n", delta_time[cid]);
 		}
-		do_unlock(cid);
+		do_unlock(cid, 1);
 	}
 }
 

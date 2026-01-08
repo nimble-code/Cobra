@@ -5,6 +5,8 @@
 extern TokRange	**tokrange;
 extern pthread_t  *t_id;
 
+extern void set_thread(void); // cobra_stub.c
+
 static int seen_mark_fcts;
 
 void
@@ -189,11 +191,13 @@ set_multi(void)
 	Prim *b = plst;
 	Prim *x;
 
-	tokrange = (TokRange **) emalloc(Ncore * sizeof(TokRange *));
-	t_id     = (pthread_t *) emalloc(Ncore * sizeof(pthread_t));
+	tokrange = (TokRange **) emalloc(Ncore * sizeof(TokRange *), 6);
+	t_id     = (pthread_t *) emalloc(Ncore * sizeof(pthread_t), 7);
+
+	set_thread();
 
 	if (Ncore == 1)
-	{	tokrange[0] = (TokRange *) emalloc(sizeof(TokRange));
+	{	tokrange[0] = (TokRange *) emalloc(sizeof(TokRange), 8);
 		tokrange[0]->seq  = 0;
 		tokrange[0]->from = a;
 		tokrange[0]->upto = b;
@@ -202,7 +206,7 @@ set_multi(void)
 
 	for (i = 0, x = a; i < Ncore; i++)
 	{	if (!tokrange[i])
-		{	tokrange[i] = (TokRange *) emalloc(sizeof(TokRange));
+		{	tokrange[i] = (TokRange *) emalloc(sizeof(TokRange), 9);
 		}
 		tokrange[i]->seq = i;
 		tokrange[i]->from = x;
@@ -234,14 +238,14 @@ store_simple(TrackVar **lst, Prim *v, int cid)
 	if (p)
 	{	p->cnt++;
 		if (!no_display)
-		{	q = (Lnrs *) hmalloc(sizeof(Lnrs), cid);
+		{	q = (Lnrs *) hmalloc(sizeof(Lnrs), cid, 1);
 			q->nv  = v;	// location
 			q->nxt = p->lst;
 			p->lst = q;
 		}
 	} else
-	{	p = (TrackVar *) hmalloc(sizeof(TrackVar), cid);
-		p->lst = (Lnrs *) hmalloc(sizeof(Lnrs), cid);
+	{	p = (TrackVar *) hmalloc(sizeof(TrackVar), cid, 2);
+		p->lst = (Lnrs *) hmalloc(sizeof(Lnrs), cid, 3);
 		p->t = p->lst->nv = v;	// location
 		p->cnt = 1;
 		p->nxt = 0;
@@ -260,7 +264,7 @@ store_var(TrackVar **lst, Prim *v, int tag, int cid)
 
 	assert(lst && v);
 
-	do_lock(cid);
+	do_lock(cid, 10);
 	for (p = *lst; p; prv = p, p = p->nxt)
 	{	if (!p->t || !p->t->txt)
 		{	continue;	// likely multicore bug
@@ -274,12 +278,12 @@ store_var(TrackVar **lst, Prim *v, int tag, int cid)
 			{	p->cnt++;
 			}
 			if (v->lnr != p->t->lnr)
-			{	q = (Lnrs *) hmalloc(sizeof(Lnrs), cid);
+			{	q = (Lnrs *) hmalloc(sizeof(Lnrs), cid, 4);
 				q->nxt = p->lst;
 				q->nv  = v;
 				p->lst = q;
 			}
-			do_unlock(cid);
+			do_unlock(cid, 10);
 
 			return q;
 		}
@@ -287,9 +291,9 @@ store_var(TrackVar **lst, Prim *v, int tag, int cid)
 		{	break;
 	}	}
 
-	n = (TrackVar *) hmalloc(sizeof(TrackVar), cid);
+	n = (TrackVar *) hmalloc(sizeof(TrackVar), cid, 5);
 	n->t = v;
-	n->lst = (Lnrs *) hmalloc(sizeof(Lnrs), cid);
+	n->lst = (Lnrs *) hmalloc(sizeof(Lnrs), cid, 6);
 	n->lst->nv = v;
 
 	if (tag)
@@ -304,7 +308,7 @@ store_var(TrackVar **lst, Prim *v, int tag, int cid)
 	{	n->nxt = *lst;
 		*lst = n;
 	}
-	do_unlock(cid);
+	do_unlock(cid, 10);
 
 	return n->lst;
 }

@@ -39,7 +39,7 @@ handle(enum X t)
 			rel = rel->nxt;
 			memset(s, 0, sizeof(Cpp));
 		} else
-		{	s = emalloc(sizeof(Cpp));
+		{	s = emalloc(sizeof(Cpp), 15);
 		}
 		s->typ = t;
 		s->tok = cur;

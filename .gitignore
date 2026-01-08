@@ -1,9 +1,12 @@
 *.o
 *.exe
 gui/userdefined.icobra
+rules/version5/dining_philosophers.cobra
 src/cobra_prog.c
 src/cobra_prog.h
 src/cobra_eval.c
 bin_linux/
 bin_cygwin/
 bin_mac/
+bin_cygwin.zip
+bin_linux.zip

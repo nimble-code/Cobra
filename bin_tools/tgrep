@@ -1,0 +1,165 @@
+#!/bin/bash
+
+shopt -s extglob
+
+pe=""
+dp=0
+display="dp X"
+terse=""
+ncore=8
+unnumbered=1
+tcount=""
+j=0
+recursive=""
+prelude=""
+options=""
+
+# cobra -c "requires 5.3" /dev/null
+
+while [ $# -gt 0 ]
+do
+	case "$1" in
+	-A|-Ada)
+		options="$options -Ada"
+		;;
+	-C\+\+)
+		options="$options -C++"
+		;;
+	-H|-html)
+		options="$options -html"
+		;;
+	-J|-Java)
+		options="$options -Java"
+		;;
+	-P|-Python)
+		options="$options -Python"
+		;;
+	-T|-text)
+		options="$options -text"
+		;;
+	-c)	tcount="-tcount"
+		;;
+	-d)	j=`expr $j + 1`
+		terse="-terse"
+		dp=1
+		;;
+	-e)
+		shift
+		if [ $# -eq 0 ]
+		then	echo "error: -e requires an argument" >&2
+			exit 1
+		fi
+		if [ -z "$pe" ]
+		then	pe=$1
+		else	pe="\( $pe \) \| \( $1 \)"
+		fi
+		;;
+	-i)
+		options="$options -i"
+		;;
+	-j)
+		j=`expr $j + 1`
+		display="ps convert X; json+"
+		;;
+	-t)
+		display="ps convert X; p"
+		;;
+	-l)
+		tcount="-lcount";
+		;;
+	-N+([0-9]))
+		str=$1
+		ncore="${str:2}"
+		;;
+	-N)
+		shift
+		ncore=$1
+		;;
+	-n)
+		unnumbered=0
+		;;
+	-q)
+		options="$options -quiet"
+		;;
+	-recursive|-r)
+		shift
+		recursive="-recursive '$1'"
+		;;
+	-v)
+		echo "tgrep -v is not supported"
+		exit 1
+		;;
+	-x)
+		prelude="comments; "
+		;;
+	--)
+		shift
+		break
+		;;
+	-help)
+		shift
+		break
+		;;
+	-*)
+		echo "tgrep: invalid option $1"
+		exit 1
+		;;
+	*)
+		break
+		;;
+	esac
+	shift
+done
+
+if [ $j -eq 2 ]
+then
+	dp=0
+fi
+
+if [ -z "$recursive" ]
+then
+	recursive="$*"
+fi
+
+if [ -z "$pe" ]
+then
+	if [ $# -eq 0 ]
+	then
+		echo "usage: tgrep options file[s]"
+		echo "	-c only print the number of pattern matches"
+		echo "	-d display long patterns in abbreviated form"
+		echo "	-e \"pattern\" the pattern\(s\) to be matched"
+		echo "	-i case insensitive: all text fields are lowercase"
+		echo "	-j print output in jason format"
+		echo "	-l list only the names of files with matches"
+		echo "	-Nn or -N n use n cores to read the input files \(1<=default<=8\)"
+		echo "	-n add filename:linenumber: prefix"
+		echo "	-r '*.c' recursively find .c input files"
+		echo "	-t show \(only\) the tokens matched"
+		echo "  -x search comments eg -x -e /foo"
+		echo "langages (default is C):"
+		echo "	-Ada, -C++, -Java, -Python, -html, -text"
+		exit 1
+	fi
+	pe=$1
+	shift
+fi
+
+if [ $# -le 7 ]
+then
+	if [ $# -gt 0 ]		# not streaming input
+	then	options="$options -N$#"
+	fi
+else
+	options="$options -N$ncore"
+fi
+
+if [ $unnumbered -eq 1 ]
+then
+	options="$options -u"
+fi
+
+# echo cobra -tgrep $tcount $options $terse -c \" "$prelude pe X: $pe; $display" \" $recursive
+cobra -tgrep $tcount $options $terse -c "$prelude pe X: $pe; $display" $recursive
+
+exit $?

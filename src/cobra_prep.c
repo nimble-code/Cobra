@@ -1,7 +1,7 @@
 /*
  * This file is part of the public release of Cobra. It is subject to the
  * terms in the License file that is included in this source directory.
- * Tool documentation is available at http://codescrub.com/cobra
+ * Tool documentation is available at https://codescrub.com/cobra
  */
 
 #include <sys/types.h>
@@ -28,6 +28,7 @@
 int ada;
 int across_file_match;
 int all_headers;
+int case_insensitive;
 int cplusplus;
 int Ctok;
 int echo;
@@ -59,6 +60,9 @@ int stream_override;
 int runtimes;
 int scrub;
 int showprog;
+int lcount;
+int tcount;
+int tgrep;
 int verbose;
 int view;
 
@@ -90,16 +94,6 @@ static char	 tmpf[32];
 static int	 with_qual = 1;
 static int	 with_type = 1;
 static int	 N_max = 128;
-
-extern Prim	*prim, *plst;
-extern int	 json_plus;
-
-extern void	 set_ranges(Prim *, Prim *, int);
-extern void	 recycle_token(Prim *, Prim *);
-extern void	 add_eof(int);
-
-extern void	 update_last_token(const char *, Prim *);
-extern void	 update_first_token(const char *, Prim *);
 
 static int
 process(int cid)
@@ -569,7 +563,7 @@ python_show(const char *s)
 }
 #endif
 
-void
+static void
 handle_python(void)
 {	Prim *ptr, *b;
 	int tnr;
@@ -863,19 +857,29 @@ strip_comments_and_renumber(int reset_ranges)	// split streams
 
 	// renumber -- and reset first_token and last_token
 	scnt = 0;
-	lfnm = NULL;
-	for (ptr = prim; ptr; ptr = ptr->nxt)
-	{	ptr->seq = scnt++;
-		if (!lfnm || strcmp(lfnm, ptr->fnm) != 0)
-		{	if (lfnm && ptr->prv)
-			{	update_last_token(lfnm, ptr->prv);
-			}
-			lfnm = ptr->fnm;
-			update_first_token(lfnm, ptr);
+
+	if (prim)
+	{	lfnm = prim->fnm;
+		Files *g = findfile(lfnm);
+
+		if (g)
+		{	g->first_token = prim;
 		}
-		if (ptr->nxt && ptr->nxt->prv != ptr)
-		{	ptr->nxt->prv = ptr;
-	}	}
+		for (ptr = prim; ptr; ptr = ptr->nxt)
+		{	ptr->seq = scnt++;
+			if (strcmp(lfnm, ptr->fnm) != 0)
+			{	if (g && ptr->prv)
+				{	g->last_token = ptr->prv;
+				}
+				lfnm = ptr->fnm;
+				g = findfile(lfnm);
+				if (g)
+				{	g->first_token = ptr;
+			}	}
+			if (ptr->nxt && ptr->nxt->prv != ptr)
+			{	ptr->nxt->prv = ptr;
+	}	}	}
+
 	ccnt = 0;
 	for (ct = cmnt_head; ct; ct = ct->nxt)
 	{	ct->seq = ccnt++;
@@ -1056,7 +1060,7 @@ add_file(char *f, int cid, int slno)
 				}
 			} else if (stream_lim >= 10000)
 			{	stream_margin = stream_lim/1000;
-				if (!warned)
+				if (!warned && verbose)
 				{	warned = 1;
 					printf("cobra: adjusted stream_margin to %d\n", stream_margin);
 		}	}	}
@@ -1135,8 +1139,8 @@ set_ranges(Prim *a, Prim *b, int who)
 
 	if (!a || !b)
 	{	if (verbose)
-		{	fprintf(stderr, "set_ranges: %p -> %p\n",
-				(void *) a, (void *) b);
+		{	fprintf(stderr, "%d: set_ranges: %p -> %p\n",
+				who, (void *) a, (void *) b);
 		}
 		return;
 	}
@@ -1457,6 +1461,13 @@ set_par(const char *varname, const char *value)	// single-core
 static int
 usage(char *s)
 {
+#if 0
+	tgrep support (not listed):
+	-lcount
+	-tcount
+	-i
+	-u
+#endif
 	fprintf(stderr, "%s %s\n", progname, tool_version);
 	fprintf(stderr, "unrecognized option -'%s'\n", s);
 	fprintf(stderr, "usage: %s [-option]* [file]*\n", progname);
@@ -1484,6 +1495,7 @@ usage(char *s)
 	fprintf(stderr, "\t-F file             -- read file names to process from file instead of command line (see also -recursive)\n");
 	fprintf(stderr, "\t-global             -- allow pattern matches (pe) to cross file boundaries\n");
 	fprintf(stderr, "\t-html               -- recognize html tags\n");
+	fprintf(stderr, "\t-i                  -- reserved for tgrep\n");
 	fprintf(stderr, "\t-Idir, -Dstr, -Ustr -- preprocessing directives\n");
 	fprintf(stderr, "\t-Java               -- recognize Java keywords\n");
 	fprintf(stderr, "\t-json               -- generate json output for -pattern/-pe matches (only)\n");
@@ -1522,7 +1534,9 @@ usage(char *s)
 	fprintf(stderr, "\t-stream_override    -- override warning about a non-streamable script\n");
 	fprintf(stderr, "\t-terse              -- disable output from d, l, and p commands, implies -quiet\n");
 	fprintf(stderr, "\t-text               -- no token types, just text-strings and symbols\n");
+	fprintf(stderr, "\t-tgrep              -- reserved for tgrep\n");
 	fprintf(stderr, "\t-tok                -- only tokenize the input\n");
+	fprintf(stderr, "\t-u                  -- reserved for tgrep\n");
 	fprintf(stderr, "\t-version            -- print version number and exit\n");
 	fprintf(stderr, "\t-v                  -- more verbose\n");
 	fprintf(stderr, "\t-view -f file       -- show dot-graph of DFA(s) of inline program(s)\n");
@@ -1553,9 +1567,9 @@ static char *
 get_work(int cid)
 {	char *s;
 
-	do_lock(cid);	// get_work (cobra_prep)
+	do_lock(cid, 5);	// get_work (cobra_prep)
 	s = get_file(cid);
-	do_unlock(cid);
+	do_unlock(cid, 5);
 	return s;
 }
 
@@ -1846,7 +1860,7 @@ ddebug(int n, char *v[])
 	space * -> space \*
 #endif
 
-char *
+static char *
 check_negations(char *p)
 {	char *m, *n;
 
@@ -1946,9 +1960,9 @@ pattern(char *p)
 			*n++ = *p++;
 			len -= 2;
 			break;
+		case '|':
 		case '(':
 		case ')':
-		case '|':
 		case '+':
 		case '?':
 			if (!inrange)
@@ -2054,7 +2068,7 @@ autosetcores(void)
 }
 #endif
 
-int
+static int
 set_base(void)
 {	FILE *fd;
 	char *h;
@@ -2114,7 +2128,7 @@ set_base(void)
 	return (strlen(C_BASE) > 1);
 }
 
-int
+static int
 do_configure(const char *s)
 {	FILE *fd;
 	char *h;
@@ -2289,6 +2303,9 @@ RegEx:			  no_match = 1;		// -e -expr -re or -regex
 		case 'I': add_preproc(argv[1]);
 			  break;
 
+		case 'i': case_insensitive = 1;
+			  break;
+
 		case 'J':
 		case 'j':
 			  if (strcmp(argv[1], "-java") == 0
@@ -2307,6 +2324,10 @@ RegEx:			  no_match = 1;		// -e -expr -re or -regex
 			  return usage(argv[1]);
 
 		case 'l':	// lib or list
+			  if (strcmp(argv[1], "-lcount") == 0)
+			  {	lcount = 1;
+				break;
+			  }
 			  if (set_base())
 			  {	list_checkers();
 			  } else
@@ -2372,7 +2393,7 @@ RegEx:			  no_match = 1;		// -e -expr -re or -regex
 			  }
 			  if (strncmp(argv[1], "-pat", 4) == 0
 			  ||  strncmp(argv[1], "-pe", 3) == 0)	// pattern expression
-			  {	no_match = 1;
+			  {	// no_match = 1;
 				check_argc(2, "-p");
 			 	cobra_texpr = pattern(argv[2]);
 				if (!cobra_texpr)	// there was an error
@@ -2462,9 +2483,21 @@ RegEx:			  no_match = 1;		// -e -expr -re or -regex
 				handle_typedefs = 0;
 				break;
 			  }
+			  if (strcmp(argv[1], "-tgrep") == 0)
+			  {	tgrep = 1;
+				break;
+			  }
+			  if (strcmp(argv[1], "-tcount") == 0)
+			  {	tcount = 1;
+				break;
+			  }
 			  return usage(argv[1]);
 
 		case 'U': add_preproc(argv[1]);
+			  break;
+
+		case 'u':
+			  unnumbered = 1;
 			  break;
 
 		case 'v': if (strcmp(argv[1], "-version") == 0)
@@ -2597,8 +2630,7 @@ cwe_mode:	no_match = 1;	// for consistency with -f
 	ini_lock();
 
 	if (solo)
-	{	extern Prim *cur, *prim, *plst;
-		int w = 1;
+	{	int w = 1;
 
 		// use Ncore dummy tokens
 		cur = prim = plst = (Prim *) hmalloc(sizeof(Prim), 0, 0);
@@ -2693,7 +2725,9 @@ cwe_mode:	no_match = 1;	// for consistency with -f
 
 	if (read_stdin && !view)
 	{	if (no_cpp)
-		{	fprintf(stderr, "%s: reading stdin\n", progname);
+		{	if (!tgrep)
+			{	fprintf(stderr, "%s: reading stdin\n", progname);
+			}
 			(void) add_file("", 0, 1);	// keep single-core
 			if (stream == 1 && Ctok)
 			{	Prim *rp;
@@ -2738,6 +2772,11 @@ skip_files:
 	}
 #else
 	cobra_main();
+	if (tgrep && !p_matched)
+	{	return 1;
+		// match return value of grep
+		// when there are no matches
+	}
 #endif
 	return 0;
 }

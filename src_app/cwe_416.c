@@ -21,7 +21,7 @@ cwe416_init(void)
 {	static int lastN = 0;
 
 	if (lastN < Ncore)
-	{	thr = (ThreadLocal416 *) emalloc(Ncore * sizeof(ThreadLocal416));
+	{	thr = (ThreadLocal416 *) emalloc(Ncore * sizeof(ThreadLocal416), 28);
 		lastN = Ncore;
 	} else
 	{	memset(thr, 0, Ncore * sizeof(ThreadLocal416));
@@ -75,7 +75,7 @@ N:
 			if (strcmp(b4->txt, "for") != 0)
 			{	from->mark = 416;
 				if (!no_display)
-				{	from->bound = (Prim *) hmalloc(sizeof(Prim), cid);
+				{	from->bound = (Prim *) hmalloc(sizeof(Prim), cid, 11);
 					from->bound->txt = nm;
 				}
 				thr[cid].canstop = 2;

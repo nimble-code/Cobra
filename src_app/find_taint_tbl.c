@@ -34,8 +34,8 @@ TaintedReturn(const char *s, const int cid)
 		{	return;
 	}	}
 
-	t = (Tainted *) hmalloc(sizeof(Tainted), cid);
-	t->fnm = (char *) hmalloc(strlen(s)+1, cid);
+	t = (Tainted *) hmalloc(sizeof(Tainted), cid, 13);
+	t->fnm = (char *) hmalloc(strlen(s)+1, cid, 14);
 	strcpy(t->fnm, s);
 	if (prv == NULL)	// new first entry
 	{	t->nxt = thr[cid].tainted_return[h];
@@ -46,9 +46,9 @@ TaintedReturn(const char *s, const int cid)
 	}
 
 	if (verbose)
-	{	do_lock(cid);
+	{	do_lock(cid, 19);
 		fprintf(stderr, "\tTaintedReturn %s\n", s);
-		do_unlock(cid);
+		do_unlock(cid, 19);
 	}
 }
 
@@ -57,7 +57,7 @@ taint_init(void)
 {	static int lastN = 0;
 
 	if (lastN < Ncore)
-	{	thr = (ThreadLocal_taint *) emalloc(Ncore * sizeof(ThreadLocal_taint));
+	{	thr = (ThreadLocal_taint *) emalloc(Ncore * sizeof(ThreadLocal_taint), 19);
 		lastN = Ncore;
 	} else
 	{	memset(thr, 0, Ncore * sizeof(ThreadLocal_taint));
@@ -91,8 +91,8 @@ param_is_tainted(Prim *p, const int pos, Prim *nm, const int cid)
 		{	return; // already there
 	}	}
 
-	t = (Tainted *) hmalloc(sizeof(Tainted), cid);
-	t->fnm = (char *) hmalloc(strlen(s)+1, cid);
+	t = (Tainted *) hmalloc(sizeof(Tainted), cid, 15);
+	t->fnm = (char *) hmalloc(strlen(s)+1, cid, 16);
 	strcpy(t->fnm, s);
 	t->src = p;	// where the alert originated
 	t->param = nm;
@@ -107,10 +107,10 @@ param_is_tainted(Prim *p, const int pos, Prim *nm, const int cid)
 	}
 
 	if (verbose)
-	{	do_lock(cid);
+	{	do_lock(cid, 20);
 		fprintf(stderr, "%s:%d:\tparam_is_tainted %s( param %d = %s )\n",
 			p->fnm, p->lnr, s, pos, nm->txt);
-		do_unlock(cid);
+		do_unlock(cid, 20);
 	}
 }
 
@@ -130,10 +130,10 @@ is_param_tainted(Prim *mycur, const int setlimit, const int cid)
 	}
 
 	if (verbose > 1)
-	{	do_lock(cid);
+	{	do_lock(cid, 21);
 		fprintf(stderr, "%d: %s:%d: check fct body of %s() for possibly bad params\n",
 			cid, mycur->fnm, mycur->lnr, mycur->txt);
-		do_unlock(cid);
+		do_unlock(cid, 21);
 	}
 
 	h = t_hash(mycur->txt)&(TPSZ-1);
@@ -176,10 +176,10 @@ is_param_tainted(Prim *mycur, const int setlimit, const int cid)
 
 	if (0
 	&&  bestmatch > 0)
-	{	do_lock(cid);
+	{	do_lock(cid, 22);
 		fprintf(stderr, "%d: %d	BM %s -> <%s> -> %s\n",
 			cid, bestmatch, mycur->fnm, mycur->txt, best_t->src->fnm);
-		do_unlock(cid);
+		do_unlock(cid, 22);
 	}
 
 	if (bestmatch > 0
@@ -187,10 +187,10 @@ is_param_tainted(Prim *mycur, const int setlimit, const int cid)
 	{	t = best_t;
 		t->handled = 1;
 		if (verbose)
-		{	do_lock(cid);
+		{	do_lock(cid, 23);
 			fprintf(stderr, "%d: %s:%d:\tchecking fct %s()==%s() for use of tainted param nr %d -- %s\n",
 				cid, mycur->fnm, mycur->lnr, mycur->txt, t->fnm, t->pos, ocur->txt);
-			do_unlock(cid);
+			do_unlock(cid, 23);
 		}
 		pos = 1;
 		level = 1 + mycur->round;	// to see if we've reached the end of the formal params
@@ -206,10 +206,10 @@ more:
 			&&  strcmp(mycur->typ, "ident") == 0)	// the (formal) param name, before the comma
 			{			// check the fct body for uses of this param
 				if (verbose > 1)
-				{	do_lock(cid);
+				{	do_lock(cid, 24);
 					fprintf(stderr, "%d: cnt %d :: param check: %s (param pos %d = %s)\n",
 						cid, pos, t->fnm, t->pos, mycur->txt);
-					do_unlock(cid);
+					do_unlock(cid, 24);
 				}
 				r = mycur->nxt;
 				while (strcmp(r->txt, "{") != 0)
@@ -233,10 +233,10 @@ more:
 						}
 						cnt++;
 						if (verbose > 1)
-						{	do_lock(cid);
+						{	do_lock(cid, 25);
 							fprintf(stderr, "%d: %s:%d: use of marked param %s -> +%d\n",
 								cid, r->fnm, r->lnr, mycur->txt, PropViaFct);
-							do_unlock(cid);
+							do_unlock(cid, 25);
 					}	}
 					r = r->nxt;
 			}	}
@@ -249,10 +249,10 @@ more:
 	}	}	}
 
 	if (verbose && cnt > 0)
-	{	do_lock(cid);
+	{	do_lock(cid, 26);
 		fprintf(stderr, "%d: found %d uses of marked params (adding mark %d)\n",
 			cid, cnt, PropViaFct);
-		do_unlock(cid);
+		do_unlock(cid, 26);
 	}
 
 	return cnt;
@@ -284,9 +284,9 @@ search_returns(Prim *mycur, const int cid)
 	}
 
 	if (verbose && cnt > 0)
-	{	do_lock(cid);
+	{	do_lock(cid, 27);
 		fprintf(stderr, "search returns of %s\n", nm);
-		do_unlock(cid);
+		do_unlock(cid, 27);
 	}
 }
 

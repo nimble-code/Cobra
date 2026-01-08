@@ -33,8 +33,8 @@ cwe120_init(void)
 {	static int lastN = 0;
 
 	if (lastN < Ncore)
-	{	thr = (ThreadLocal120 *) emalloc(Ncore * sizeof(ThreadLocal120));
-		results = (Results120 **) emalloc(Ncore * sizeof(Results120 *));
+	{	thr = (ThreadLocal120 *) emalloc(Ncore * sizeof(ThreadLocal120), 21);
+		results = (Results120 **) emalloc(Ncore * sizeof(Results120 *), 22);
 		lastN = Ncore;
 	} else
 	{	memset(thr,     0, Ncore * sizeof(ThreadLocal120));
@@ -181,7 +181,7 @@ cwe120_check_gen(const int which, const char *v, const char *w)
 		{	char *buf;
 			int len = strlen(v)+strlen(w)+strlen("cwe_120_1:  performs no bounds checking, (use )");
 
-			buf = (char *) emalloc( (len+1)*sizeof(char) );
+			buf = (char *) emalloc( (len+1)*sizeof(char) , 23);
 			sprintf(buf, "cwe_120_1: %s performs no bounds checking, (use %s)", v, w);
 
 			for (i = 0; i < Ncore; i++)
@@ -235,7 +235,7 @@ cwe120_3_add(Prim *mycur, Prim *fc, Prim *src, Prim *dst, int ssc, int dsc, int 
 
 	assert(cid >= 0 && cid < Ncore);
 
-	r = (Results120 *) hmalloc(sizeof(Results120), cid);
+	r = (Results120 *) hmalloc(sizeof(Results120), cid, 8);
 	r->mycur = mycur;
 	r->fc = fc;
 	r->src = src;

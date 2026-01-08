@@ -1,13 +1,11 @@
 /*
  * This file is part of the public release of Cobra. It is subject to the
  * terms in the License file that is included in this source directory.
- * Tool documentation is available at http://codescrub.com/cobra
+ * Tool documentation is available at https://codescrub.com/cobra
  */
 
 #ifndef COBRA_FE
 #define COBRA_FE
-
-#define tool_version	"Version 5.2 - 28 August 2025"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -18,7 +16,7 @@
 #include <unistd.h>
 #include <assert.h>
 #include <pthread.h>
-// shared with ../src_app/c_api.h :
+
 #include "cobra_prim.h"
 
 #ifndef PC
@@ -46,7 +44,6 @@ typedef struct ArgList	ArgList;
 typedef struct Files	Files;
 typedef struct Stack	Stack;
 typedef struct Typedef Typedef;
-typedef unsigned char	uchar;
 typedef struct Match	Match;
 typedef struct Named	Named;	// named sets of matches
 typedef struct Bound	Bound;
@@ -118,88 +115,94 @@ enum TokenStream {
 	SRC
 };
 
+extern Named	*namedset;
+extern pthread_t *t_id;
+
+extern Prim	*cur;
+extern Prim	*plst;
+extern Prim	*prim;
+
 extern char	*C_BASE;
+extern char	*cobra_texpr;
 extern char	*glob_te;
 extern char	*scrub_caption;
-extern char	*cobra_texpr;
-extern pthread_t *t_id;
-extern Named	*namedset;
-extern Match	*free_match;
-extern Bound	*free_bound;
+extern char	bvars[1024];
+extern char	json_msg[1024];
 
+extern int	 json_plus;
+extern int	Ctok;
+extern int	Ncore;
+extern int	Nfiles;
 extern int	ada;
 extern int	all_headers;
 extern int	count;
 extern int	cplusplus;
-extern int	Ctok;
 extern int	gui;
 extern int	html;
 extern int	java;
-extern int	Ncore;
-extern int	Nfiles;
+extern int	json_format;
+extern int	json_plus;
 extern int	no_cpp;
 extern int	no_cpp_sticks;
 extern int	no_display;
 extern int	no_headers;
 extern int	no_match;
-extern int	parse_macros;
-extern int	p_matched;
+extern int	nr_json;
 extern int	p_debug;
+extern int	p_matched;
+extern int	parse_macros;
 extern int	preserve;
 extern int	python;
 extern int	scrub;
 extern int	stream;
 extern int	stream_lim;
 extern int	stream_margin;
+extern int	unnumbered;
 extern int	verbose;
 
-extern int	json_format;
-extern int	json_plus;
-extern int	nr_json;
-extern char	json_msg[1024];
-extern char	bvars[1024];
-extern void	json_match(const char *, const char *, const char *, const Prim *, const Prim *, int);
-extern void	new_named_set(const char *);
-extern Named	*findset(const char *, int, int);
 extern Files	*findfile(const char *);
+extern Named	*findset(const char *, int);
 
 extern int	add_file(char *, int, int);
-extern int	check_run(void);
 extern int	c_lex(int);
+extern int	check_run(void);
 extern int	do_markups(const char *);
 extern int	is_pset(const char *);
 extern int	json_convert(const char *);
 extern int	listfiles(int, const char *);
-extern int	matches2marks(int);
 extern int	mkstemp(char *);
 extern int	sanitycheck(int);
 
 extern size_t	*hmalloc(size_t, const int, const int);
 
-extern void	add_match(Prim *f, Prim *t, Store *bd);
+extern void	*emalloc(size_t, const int);
+extern void	add_eof(int);
+extern void	add_match(Prim *, Prim *, Store *, const int, const int);
 extern void	add_pattern(const char *, const char *, Prim *, Prim *, int);
 extern void	basic_prim(const char *s, int cid);
-extern void	clear_matches(void);
 extern void	clr_matches(int);
 extern void	cobra_main(void);
 extern void	del_pattern(const char *, Prim *, Prim *, int);
-extern void	do_lock(int);
-extern void	do_unlock(int);
+extern void	do_lock(const int, const int);
+extern void	do_unlock(const int, const int);
 extern void	efree(void *);
-extern void	*emalloc(size_t, const int);
 extern void	ini_heap(void);
 extern void	ini_lock(void);
 extern void	ini_par(void);
 extern void	ini_pre(int);
 extern void	ini_timers(void);
 extern void	json_import(const char *, int);
+extern void	json_match(const char *, const char *, const char *, const Prim *, const Prim *, int);
 extern void	lock_other(int);
 extern void	lock_print(int);
 extern void	memusage(void);
+extern void	new_named_set(const char *);
 extern void	post_process(int);
 extern void	prep_pre(void);
 extern void	prune_if_zero(void);
+extern void	recycle_token(Prim *, Prim *);
 extern void	remember(const char *, int, int);
+extern void	set_ranges(Prim *, Prim *, int);
 extern void	show_line(FILE *, const char *, int, int, int, int);
 extern void	start_timer(int);
 extern void	stop_timer(int, int, const char *);
@@ -209,6 +212,5 @@ extern void	unlock_other(int);
 extern void	unlock_print(int);
 
 #define free		efree
-#define is_blank(x)	((x) == ' ' || (x) == '\t')	// avoiding isblank()
-
+#define is_blank(x)	((x) == ' ' || (x) == '\t')	// avoid isblank() see also cobra_te.c
 #endif

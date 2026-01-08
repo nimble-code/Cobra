@@ -1,7 +1,7 @@
 /*
  * This file is part of the public release of Cobra. It is subject to the
  * terms in the License file that is included in this source directory.
- * Tool documentation is available at http://codescrub.com/cobra
+ * Tool documentation is available at https://codescrub.com/cobra
  */
 
 #include "cobra.h"
@@ -115,5 +115,5 @@ more:		if (R_TYPE("ident")
 void
 declarations(void)
 {
-	run_threads(declarations_range, 8);
+	run_threads(declarations_range);
 }

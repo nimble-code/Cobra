@@ -1,7 +1,7 @@
 /*
  * This file is part of the public release of Cobra. It is subject to the
  * terms in the License file that is included in this source directory.
- * Tool documentation is available at http://codescrub.com/cobra
+ * Tool documentation is available at https://codescrub.com/cobra
  */
 
 #include "cobra.h"
@@ -190,7 +190,7 @@ store_var(TrackVar **lst, Prim *v, int tag, int cid)
 
 	assert(lst && v);
 
-	do_lock(cid);	// store_var : set gotolinks
+	do_lock(cid, 10);	// store_var : set gotolinks
 	for (p = *lst; p; prv = p, p = p->nxt)
 	{	if (!p->t || !p->t->txt)
 		{	continue;	// likely multicore bug
@@ -209,7 +209,7 @@ store_var(TrackVar **lst, Prim *v, int tag, int cid)
 				q->nv  = v;
 				p->lst = q;
 			}
-			do_unlock(cid);
+			do_unlock(cid, 10);
 
 			return q;
 		}
@@ -234,7 +234,7 @@ store_var(TrackVar **lst, Prim *v, int tag, int cid)
 	{	n->nxt = *lst;
 		*lst = n;
 	}
-	do_unlock(cid);
+	do_unlock(cid, 10);
 
 	return n->lst;
 }
@@ -441,7 +441,7 @@ goto_links_range(Prim *from, Prim *upto, int cid)
 }
 
 static void
-else_links_range(Prim *from, Prim *upto, int cid)
+else_links_range(Prim *from, Prim *upto)
 {	Prim *q, *mycur;
 
 	mycur = from;
@@ -487,7 +487,7 @@ else_links_range(Prim *from, Prim *upto, int cid)
 }
 
 static void
-switch_links_range(Prim *from, Prim *upto, int cid)
+switch_links_range(Prim *from, Prim *upto)
 {	Prim *mycur, *q, *e, *lastcase = NULL;
 	int sawdefault;
 
@@ -573,7 +573,7 @@ else_links_run(void *arg)
 	from = tokrange[*i]->from;
 	upto = tokrange[*i]->upto;
 
-	else_links_range(from, upto, *i);
+	else_links_range(from, upto);
 
 	return NULL;
 }
@@ -599,7 +599,7 @@ switch_links_run(void *arg)
 	from = tokrange[*i]->from;
 	upto = tokrange[*i]->upto;
 
-	switch_links_range(from, upto, *i);
+	switch_links_range(from, upto);
 
 	return NULL;
 }
@@ -612,7 +612,7 @@ goto_links(void)
 	}
 	seen_goto_links = 1;
 
-	run_threads(goto_links_run, 10);
+	run_threads(goto_links_run);
 }
 
 static void
@@ -622,7 +622,7 @@ else_links(void)
 	{	return;
 	}
 	seen_else_links = 1;
-	run_threads(else_links_run, 11);
+	run_threads(else_links_run);
 }
 
 static void
@@ -632,7 +632,7 @@ switch_links(void)
 	{	return;
 	}
 	seen_switch_links = 1;
-	run_threads(switch_links_run, 12);
+	run_threads(switch_links_run);
 }
 
 static void
@@ -651,7 +651,7 @@ break_links(void)
 	{	memset(thr, 0, Ncore * sizeof(ThreadLocal_links));
 	}
 
-	run_threads(break_links_run, 13);
+	run_threads(break_links_run);
 }
 
 // functions for linking variables to most likely place
@@ -675,7 +675,6 @@ static int counts[MISSED+1];
 static V_ref *ref_free;
 static V_ref ***scope;	// V_ref *scope[MAXSCOPE][HT_SZ]
 static V_ref *params;
-extern uint hasher(const char *);
 
 static int
 likely_decl(Prim *x)	// x points to the first token after a typename
@@ -765,7 +764,7 @@ v_recycle(V_ref *p)
 }
 
 static V_ref *
-v_new(Prim *v, Prim *n, int who)
+v_new(Prim *v, Prim *n)
 {	V_ref *p;
 
 	if (ref_free)
@@ -814,14 +813,14 @@ add_scope(Prim *q, Prim *p, int level, int who)	// q is associated with type p
 
 	if (level == 0
 	&&  p->round == 1)
-	{	y = v_new(q, p, who);
+	{	y = v_new(q, p);
 		y->nxt = params;
 		params = y;
 		if (verbose)
 		{	fprintf(fd, "+Param '%s' '%s' (%d)\n", q->txt, p->txt, who);
 		}
 	} else if (p->round == 0)
-	{	y = v_new(q, p, who);
+	{	y = v_new(q, p);
 		h = hasher(q->txt) & (HT_SZ - 1);
 		y->nxt = scope[level][h];
 		scope[level][h] = y;
@@ -990,6 +989,7 @@ not_prototype(Prim *p)	// not in a formal param list of prototype decl
 	#define get16bits(d) ((((uint32_t)(((const uint8_t *)(d))[1])) << 8) \
                               +(uint32_t)(((const uint8_t *)(d))[0]) )
  #endif
+
 uint
 hasher(const char *s)
 {	int len = strlen(s);
@@ -1031,16 +1031,16 @@ hasher(const char *s)
 	return h;	// caller adds &H_MASK
 }
 #else
-uint
-hasher(const char *s)
-{	unsigned int h = 0x88888EEFL;
+ uint
+ hasher(const char *s)
+ {	unsigned int h = 0x88888EEFL;
 	const char t = *s;
  
 	while (*s != '\0')
 	{	h ^= ((h << 4) ^ (h >> 28)) + *s++;
 	}
 	return (uint) (t ^ (h ^ (h>>(H_BITS))));
-}
+ }
 #endif
 
 void

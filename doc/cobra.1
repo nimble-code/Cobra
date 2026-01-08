@@ -45,8 +45,8 @@ commands.
 .SH OPTIONS
 
 .TP
-.B \-Ada
-Recognize Ada keywords.
+.B \-Ada, \-ada
+Recognize Ada keywords. See also \-Java, \-Python, \-C++, \-html, and \-text.
 
 .TP
 .B \-allheaderfiles
@@ -55,8 +55,8 @@ starting with prefix \f3/usr/\f1. Assumes that \f3\-cpp\f1 is used.
 See also \f3\-noheaderfiles\f1.
 
 .TP
-.B \-C++
-Recognize C++ keywords.
+.B \-C++, \-c++
+Recognize C++ keywords. See also \-Java, \-Python, \-Ada, \-html, and \-text.
 
 .TP
 .BI "\-c \f2'query commands'\f1"
@@ -74,10 +74,6 @@ Implies \f3\-quiet\f1.
 See also \f3\-e\f1 and \f3-pe\f1..
 
 .TP
-.B \-comments
-Include comments as tokens (disabled by default), unless \f2-cpp\f1 is used.
-
-.TP
 .B \-configure dir
 Set and remember the location of the cobra rules directory.
 (Stored in a file named \f2.cobra\f1 in the users home directory.)
@@ -93,7 +89,7 @@ C preprocessor to be used, eg. as in \-cpp=clang
 
 .TP
 .B \-d
-Reserved for debugging support.
+Reserved for debugging.
 Different behavior when preceded with \f3\-v\f1.
 Implies \f3\-preserve\f1.
 
@@ -179,13 +175,18 @@ are treated as comments and skipped.
 Allow pattern matches (pe) to cross file boundaries.
 
 .TP
+.B \-gui, -g
+Reserved for icobra.
+
+.TP
 .B \-help
 (or any other unrecognized option like \f3\-?\f1 or \f3\-\-\f1)
 print a summary of command line arguments.
 
 .TP
-.B \-html
+.B \-html, \-HTML
 Recognize html tags and perform basic checks on matching tags.
+See also \-Ada, \-Java, \-C++, \-Python, \-text.
 
 .TP
 .B \-Idir
@@ -193,8 +194,13 @@ Passed as a directive to the C preprocessor, if used.
 See also \f3\-cpp\f1, \f3\-D\f1 and \f3\-U\f1.
 
 .TP
-.B \-Java
-Recognize Java keywords.
+.B \-i
+Reserved for use by tgrep.
+
+.TP
+.B \-Java, \-java
+Recognize Java keywords. 
+See also \-C++, \-Python, \-Ada, \-html, and \-text.
 
 .TP
 .B \-json
@@ -208,6 +214,10 @@ The extra fields give variable name bindings, if any, and the first line
 of the source code pattern that is matched.
 
 .TP
+.B \-lcount
+Reserved for use by tgrep.
+
+.TP
 .B \-lib
 List all prefefined \*C query sets that can be invoked by name
 with the \f3\-f\f1 option, without or without the filename suffix \f2.cobra\f1.
@@ -215,10 +225,10 @@ This option can be abbreviated to \f3\-l\f1.
 
 .TP
 .B \-MaxMem N
-Set the maximum amount of memory to be used to N MB (default value: 24000)
+Set the maximum amount of memory to be used to N MB (default: 24000)
 
 .TP
-.B \-macros
+.B \-macros, \-m
 Parse the text of preprocessing macros,
 classifying each complete macro definition
 as a single lexical token of type \f2cpp\f1.
@@ -270,17 +280,13 @@ $ cobra -macros -c '%{ print .lnr " " .seq " " .typ " " .txt "\\n"; %}' /tmp/mac
 .br
 That is, with the \f2-macros\f1 option the complete macro definition is parsed as a single token
 of type \f2cpp\f1, and there is no separate \f2EOL\f1 token.
-.br
-Can be abbreviated to \f3\-m\f1.
 
 .TP
-.B \-nocpp
+.B \-nocpp, \-n
 Do not invoke the C preprocessor (the default),
 and prevent preprocessing from being enabled interactively,
 with <tt>cpp on</tt> commands (e.g., in scripts).
 See also \f3\-cpp\f1.
-.br
-Can be abbreviated to \f3\-n\f1.
 
 .TP
 .B \-noqualifiers
@@ -308,12 +314,10 @@ Do not tag any predefined C type names (e.g., int, short, char)
 .TP
 .B \-Nn
 Use \f2n\f1 parallel threads to process queries.
-.\" On Linux systems with at least four cores, the default setting
-.\" that is used will be \f3\-N4\f1, unless an explicit \f2Nn\f1 argument is used.
 
 .TP
-.BI "\-pattern \f2'token-pattern'\f1
-(Alternatively \f3-pat\f1 or \f3-pe\f1) Behaves like \f3-expr\f1 but with a
+.BI "\-pe \f2'token-pattern'\f1
+(or \f3\-pat\f1 or \f3\-pattern\f1). Behaves like \f3-expr\f1 but with a
 spimlified format that requires fewer escape symbols.
 In a token pattern the characters '(', '|', ')', '+', and '?' are
 interpreted as regular characters and not as meta-symbols.
@@ -339,10 +343,9 @@ The complete set of escape rules for pattern expressions is as follows:
 .br
 	'^' is '^' iff preceded by '\\', else it indicates negation.
 .br
-Can be abbreviated to \f2-pe\f1.
 
 .TP
-.B \-preserve
+.B \-preserve, \-pre
 Preserve the temporary files created in \f2/tmp\f1.
 Normally these files are removed when the tool quits, but
 it is possible that when the tool dies for other reasons 
@@ -356,16 +359,14 @@ accumulated files named \f2/tmp/cobra_*\f1 and \f2/tmp/_f_*\f1.
 After reading in files, remove code between #if 0 and #endif directives
 
 .TP
-.B \-Python
-or
-.B \-python
+.B \-Python, \-python
 Recognize Python keywords, and (v4.7) handle block statements and ranges
-(recognizing indentation semantics).
+(recognizing indentation semantics). See also \-C++, \-Java, \-Ada, \-html, and \-text.
 
 .TP
 .B \-quiet
 Quiet mode.
-Produces no intermediate output on matches and run-times.
+Supress intermediate output on matches and run-times.
 
 .TP
 .B \-recursive "pattern"
@@ -373,10 +374,10 @@ Recursively collect files with names matching 'pattern,' to process.
 This uses the \f2find\f1 tool to perform the collection, which is
 assumed installed.
 .br
-For an example, see under option \f2-F\f1.
+For an example, see \f2-F\f1.
 
 .TP
-.B \-regex "expr"
+.B \-regex "expr", \-re "expr"
 Same as \f3\-e\f1.
 
 .TP
@@ -385,7 +386,7 @@ Report the runtime of all commands executed, if it exceeds one second.
 
 .TP
 .B \-solo
-Rub a cobra inline program without input files.
+Run a cobra inline program without input files.
 
 .TP
 .B \-scrub
@@ -416,6 +417,10 @@ that is retained in the sliding input window.
 Override warning about non-streamable scripts.
 
 .TP
+.B \-tcount
+Reserved for use by tgrep.
+
+.TP
 .B \-terse
 Suppress the display of detailed matches, showin only number of matches.
 (Most useful in combination with \f3\-f\f1, \f3\-expr\f1, or \f3\-commands\f1.
@@ -425,6 +430,11 @@ Suppress the display of detailed matches, showin only number of matches.
 Suppress the default categorization of tokens for a source programming
 language (the default is C). This increases performance when processing
 other types of input, especially in applications of runtime verification.
+See also \-C++, \-Java, \-Ada, \-Python, and \-html.
+
+.TP
+.B \-tgrep
+Reserved for use by the tgrep front-end tool.
 
 .TP
 .B \-tok
@@ -436,12 +446,20 @@ Pass directive to the C preprocessor.
 See also \f3\-cpp\f1, \f3\-D\f1 and \f3\-I\f1.
 
 .TP
+.B \-u
+Reserved for use by tgrep.
+
+.TP
 .B \-V
 Print current \*C version number and stop. Same as \f3\-version\f1.
 
 .TP
 .B \-v
 Verbose mode. Multiple uses of \f2-v\f1 increase the verbosity.
+
+.TP
+.BI "\-var name=value"
+Set \f2name\f1 to \f2value\f1 in user-defined parameterized scripts.
 
 .TP
 .B \-version
@@ -464,8 +482,10 @@ that is used, with \f2-view\f1 and then run the pattern matching algorithm
 in verbose mode (\f2-v\f1) to see state changes on each new token scanned.
 
 .TP
-.BI "\-var name=value"
-Set \f2name\f1 to \f2value\f1 in user-defined parameterized scripts.
+.B \-z
+Deprecated. 
+Same as \-noheaderfiles.
+
 .PP
 Arguments starting with a double hyphen are passed to
 the standalone backend processor, if one was defined,
@@ -675,7 +695,7 @@ files are not automatically removed when \*C exits.
 Gerard Holzmann, gholzmann@acm.org
 .sp
 .SH SEE ALSO
-\fBcwe\f1, \fBfind_taint\f1, \fBduplicates\f1, \fBjson_convert\f1, \fBx_make\f1.
+\fBcwe\f1, \fBduplicates\f1, \fBfind_taint\f1, \fBjson_convert\f1, \fBtgrep\f1, \fBx_make\f1.
 .sp
 Online manual pages and tutorials with more detail,
 reference materials, and examples:
@@ -691,6 +711,10 @@ http://spinroot.com/cobra/tutorial.html
 Background information on an early version of \*C can be found in:
 .br
 .in +2
+.sp
+G.J. Holzmann, \f2The Cobra static code analyzer\f1.
+.br
+See https://codescrub.com
 .sp
 G.J. Holzmann, \f2Cobra - a light-weight tool for static and dynamic program analysis\f1.
 .sp

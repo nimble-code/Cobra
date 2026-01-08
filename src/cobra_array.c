@@ -1,7 +1,7 @@
 /*
  * This file is part of the public release of Cobra. It is subject to the
  * terms in the License file that is included in this source directory.
- * Tool documentation is available at http://codescrub.com/cobra
+ * Tool documentation is available at https://codescrub.com/cobra
  */
 
 // associative array routines for the cobra scripting language
@@ -35,6 +35,7 @@ struct Arr_var {	// Basename[A_Index] == A_Value
 	uint	maxsize; // when generating statistics
  #endif
 	int 	cdepth;	// fct call depth where defined
+	int	unified; // should a_unify only once
 	Renum	typ;	// type of values stored, e.g. VAL, STR, PTR
 	uint	h_mask;	// mask for indexing ht
 	uint	h_limit; // when to resize ht
@@ -96,7 +97,6 @@ find_array(const char *nm, const int ix, const int mk)	// find or create
  #endif
 	}
 	a = bm;	// best match
-//fprintf(stderr, "%d Find %s: %p (mk=%d)\n", ix, nm, (void *) a, mk);
 
 	if (!a && mk)	// add
 	{	len = strlen(nm);
@@ -109,6 +109,7 @@ find_array(const char *nm, const int ix, const int mk)	// find or create
 				a->len = len;
 			}
 			a->typ = 0;
+			a->unified = 0;
 		} else
 		{	a = (Arr_var *) hmalloc(sizeof(Arr_var), ix, 111);
 			a->name = (char *) hmalloc(len+1, ix, 111);
@@ -423,7 +424,7 @@ find_array_index(const char *nm, const int n, const int ix)
 }
 
 static void
-array_unify_name(const char *nm, const int ix)
+array_unify_name(const char *nm, const int cid)
 {	Arr_var *a, *b;
 	Arr_el  *e, *f;
 	Rtype rv;
@@ -441,7 +442,7 @@ array_unify_name(const char *nm, const int ix)
 			for (j = 0; a && j <= a->h_mask; j++)	// get elements present on ix
 			{	for (e = a->ht[j]; e; e = e->nxt)
 				{	f = get_array_element(a, e->a_index, 1, n);
-					fprintf(stderr, "[%s : %d : %d] ", e->a_index, f->val, j);
+					fprintf(stderr, "[%s : %d : %s : %d] ", e->a_index, f->val, f->s?f->s:"", j);
 				}
 			}
 			fprintf(stderr, "\n");
@@ -449,13 +450,25 @@ array_unify_name(const char *nm, const int ix)
 
 	// make sure cpu 0 has all array indices
 	a = find_array(nm, 0, 1);
+	if (a)
+	{	do_lock(cid, 11);
+		if (a->unified)
+		{	do_unlock(cid, 11);
+			if (verbose)
+			{	fprintf(stderr, "error: duplicate call to a_unify for '%s'\n", nm);
+			}
+			return;
+		}
+		a->unified = 1;
+		do_unlock(cid, 11);
+	}
 	for (n = 1; n < Ncore; n++)
 	{	b = find_array(nm, n, 0);
 		if (b && a->typ != b->typ)
 		{	fprintf(stderr, "warning: a_unify, array %s has a different type on cpu %d and %d\n",
 				nm, 0, n);
 		}
-		for (j = 0; b && j < b->h_mask; j++)
+		for (j = 0; b && j <= b->h_mask; j++)
 		{	for (e = b->ht[j]; e; e = e->nxt)
 			{	(void) get_array_element(a, e->a_index, 1, 0);
 	}	}	}
@@ -468,12 +481,15 @@ array_unify_name(const char *nm, const int ix)
 			{	b = find_array(nm, n, 1);
 				f = get_array_element(b, e->a_index, 1, n);
 				rv.val += f->val;	// sum values
-				if (f->s && !rv.s)
+				if (f->s
+				&&  strlen(f->s) > 0	// not default initial value
+				&& !rv.s)
 				{	rv.s = f->s;
 				}
 				if (f->p && !rv.ptr)
 				{	rv.ptr = f->p;
-			}	}
+				}
+			}
 			for (n = 0; n < Ncore; n++)
 			{	b = find_array(nm, n, 1);
 				set_array_element(b, e->a_index, &rv, n);
@@ -488,7 +504,7 @@ array_unify_name(const char *nm, const int ix)
 			for (j = 0; a && j <= a->h_mask; j++)	// get elements present on ix
 			{	for (e = a->ht[j]; e; e = e->nxt)
 				{	f = get_array_element(a, e->a_index, 1, n);
-					fprintf(stderr, "[%s : %d : %d] ", e->a_index, f->val, j);
+					fprintf(stderr, "[%s : %d : %s : %d] ", e->a_index, f->val, f->s?f->s:"", j);
 				}
 			}
 			fprintf(stderr, "\n");
@@ -575,7 +591,7 @@ is_aname(const char *a, const int ix)	// is 'a' an associative array basename?
 }
 
 int
-incr_aname_el(Prim **ref_p, Lextok *p, Rtype *ts, const int tp, Rtype *rv, const int ix)
+incr_aname_el(Lextok *p, Rtype *ts, const int tp, Rtype *rv, const int ix)
 {	Arr_var *a;
 	Arr_el  *e;
 	char *nm = p->s;	// p->s  = array name
@@ -607,25 +623,20 @@ incr_aname_el(Prim **ref_p, Lextok *p, Rtype *ts, const int tp, Rtype *rv, const
 }
 
 void
-array_unify(Lextok *qin, const int ix)	// make array qin->rgt->s in core q->val contain all indices
-{	Lextok *q = qin->lft;
-	Lextok *b = qin->rgt;
+array_unify(Lextok *qin, const int cid)	// make array qin->rgt->s in core q->val contain all indices
+{	Lextok *b = qin->rgt;
 	Alist   *m;
-	int which = ix;
 
 	if (Ncore <= 1)
 	{	return;
 	}
-	if (q->typ != CPU)
-	{	which = q->val;
-	}
 
 	if (b)
-	{	array_unify_name(b->s, which);
+	{	array_unify_name(b->s, cid);
 	} else
 	{	mk_alist();	// unify all arrays
 		for (m = alist; m; m = m->nxt)
-		{	array_unify_name(m->nm, which);
+		{	array_unify_name(m->nm, cid);
 	}	}
 }
 
@@ -686,7 +697,7 @@ rm_aname_el(Prim **ref_p, Lextok *t, const int ix)	// remove array element
 }
 
 void
-set_aname(Prim **ref_p, const Lextok *p, Rtype *ts, Rtype *rv, const int ix)
+set_aname(const Lextok *p, Rtype *ts, Rtype *rv, const int ix)
 {       Arr_var *a;
 
 	// p->s = array name

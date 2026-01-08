@@ -1,0 +1,255 @@
+.ds T Tgrep
+.\" nroff -man tgrep.1
+.\" place in (depending on your system):
+.\"    /usr/local/man/man1
+.\" or /usr/man/man1
+.\" or /usr/share/man/man1
+.TH TGREP 1
+.SH NAME
+tgrep \- print text that matches patterns of lexical tokens
+.SH SYNOPSIS
+.br
+.B tgrep
+.BI [OPTION...]*
+.BI -e
+.BI PATTERN
+.BI ...
+.BI [FILE...]
+.SH DESCRIPTION
+\*T searches for patterns in a set of one or more files, matching
+on lexical tokens rather than characters (as in grep) or words (as
+in grep -w). Patterns are insensitive to white-space, so matches
+can span multiple lines. If searching source code, comments are removed
+before patterns are matched.
+.sp
+All tokens in the pattern must be separated from each other by white space.
+.sp
+Traditional meta-characters from regular expression theory that match
+common symbols and operators in C-like languages, (such as , ), |, and + )
+are interpreted as regular characters unless precided by a backslash, as in \\+.
+The Kleene star * is interpreted as a regular character if preceded in
+the pattern by white space. If it is used as a suffix of another token
+it is interpreted as a meta-character, as in token*,
+specifying an optional repetition of zero or more times
+of the preceding token.
+.sp
+The patterns can use variable binding and constraints (see examples below).
+.SH OPTIONS
+.TP
+.B \-c
+Suppress normal output and only print a count of the number of times that
+the pattern was matched. Note that there can be multiple matches on a single line
+of input.
+.TP
+.B \-d
+Display long matches in terse format, showing only the first and last two lines of each match.
+.TP
+.B \-e "pattern"
+Define the pattern expression to be matched. Tokens must be separated by spaces.
+A token category can be specified with an @ prefix. The list of token
+types is:
+.sp
+.in +5
+@chr		- quoted character
+.br
+@const	- short for one of:
+.br
+	@const_flt
+.br
+	@const_hex
+.br
+	@const_int
+.br
+	@const_oct
+.br
+@cpp		- preprocessor directive
+.br
+@ident	- identifier
+.br
+@key		- keyword
+.br
+@modifier	- long, short, signed, unsigned
+.br
+@oper	- operator
+.br
+@qualifier - const, volatile
+.br
+@storage	- static, extern, register, auto
+.br
+@str		- string
+.br
+@type	- int, char, float, double, void
+.in -5
+.sp
+The character pair .* can be used to specify
+a don't-care sequence of tokens. Variable binding can be used (definition,
+for instance: x:@ident, with references later in the expression written as :x).
+Location constraints can also be added (see the \f2pe\f1 manual page of the Cobra tool).
+.br
+There can be multiple \-e options.
+.TP
+.B \-i
+Case insensitive search. Text fields in the input are mapped to lower-case.
+The letters in the pattern itself are not changed, so use only
+lower-case in the pattern itself to match text fields.
+.TP
+.B \-j
+Display matches in json format.
+.TP
+.B -l
+List only the names of files that contain matches of the pattern (see also \-c).
+.TP
+.B -Nn
+Use n cores (n>=1) to read the input files.
+By default n is equal to the number of files, with a maximum of 8.
+(also accepted: -N n)
+.TP
+.B -n
+Display filenames and line number ranges for each matched pattern
+(not compatible with -j and -t).
+.TP
+.B \-r 'pattern'
+Recursively find filenames matching regular expression 'pattern' (e.g. '*.[ch]')
+in the current directory, or sub-directories to use for input. Use single quotes
+around the pattern to avoid the shell from expanding the pattern.
+.TP
+.B -t
+Display the matches, highlighting which tokens were matched on each line.
+.TP
+.B -x
+Search comments instead of code.
+.TP
+.B languages:
+.B -Ada
+.B -C++
+.B -html
+.B -Java
+.B -Python
+.B -text
+.br
+which can be abbreviated to:
+.B -A -C++ -H -J -P -T
+.br
+The default input language assumed is ISO standard
+.B C.
+
+.SH NOTES
+\*T is a small shell-script that runs the Cobra tool to perform its function,
+in a style that is comparable to typical uses of the standard \f2grep\f1 tool.
+.sp
+A full description of the notation for defining pattern expressions, including
+the optional use of bound variables and constraints, can be found in the
+online Cobra documentation. See:
+.br
+.in +5
+https://codescrub.com/cobra/commands/pe.html
+.in -5
+.br
+
+.SH EXAMPLES
+.br
+A simple way to list include directives that import locally defined files, in a set
+of source files, can be specified with token category specifications, as follows.
+.in +5
+.sp
+$ tgrep -e '@cpp @str' *.[chyl]
+.sp
+.in -5
+The notation @cpp matches a compiler directive, and the notation @str matches any string.
+If instead we want to list system include files, the pattern becomes a little longer, as
+follows.
+.in +5
+.sp
+$ tgrep -e '@cpp < @ident . h >' *.[chyl]
+.sp
+.in -5
+.sp
+If we want all system include files, but not those matching either stdio.h or stdlib.h, we
+could write:
+.in +5
+.sp
+$ tgrep -e '@cpp < ^[stdio stdlib] . h >' *.[chyl]
+.sp
+.in -5
+.sp
+To illustrate the use of variable binding and don't care sequences using the Kleene star,
+the following pattern matches a sequence of code where the
+return value of fopen in a subsequent fprint statement without checking the return value for errors.
+.in +5
+.sp
+$ tgrep -e 'x:@ident = fopen ( .* ) ^:x* fprintf ( :x' *.c
+.sp
+.in -5
+Note the use of spaces to separate individual tokens and symbols.
+.br
+The first token matches any identifier, with the name bound to variable x,
+using the prefix notation x:.
+.sp
+The next five token specifiers match token texts exactly, with .* used as
+a short-hand for a don't care sequence of zero or more tokens.
+.sp
+After the closing round brace of calls to fopen (the braces are guaranteed
+to match at the right level of nesting) the pattern requires the absence
+of uses of the bound variable (using the negation prefix ^ and the bound
+variable reference shorthand Lx, followed by the suffix * to indicate a
+repetition of zero or more).
+.sp
+The next token must match fprintf followed by an open round brace and then a
+repeat of the bound variable x, again refered to as :x.
+.sp
+The next example shows a pattern that looks for a C function prototype definition
+that is immediately followed by the function definition (a form of redundancy).
+It uses two bound variables, named x and y here.
+.sp
+.in +5
+$ tgrep -d -e 'x:@type y:@ident ( .* ) \\; :x :y ( .* ) {' *.c
+.in -5
+.sp
+Results are displayed in the default abbreviated form.
+We have to use a backslash escape to protect the semi-colon from being
+interpreted as a command separator.
+To also account for return values with pointers, we can extend the pattern
+by including optional matches of zero or more * symbols.
+.sp
+.in +5
+$ tgrep -e 'x:@type ** y:@ident ( .* ) \\; :x ** :y ( .* ) {' *.c
+.in -5
+.sp
+.sp
+The following example shows the use of a positional constraint:
+.sp
+.in +5
+$ tgrep -e ' x:\\; .* :x <1> @1 (:x.lnr == .lnr)' *.c
+.in -5
+.sp
+This pattern matches two semi-colons, with arbitrary text in
+between them, but the positional constraint placed at the repeat
+of the semi-colon (with the first semi-colon bound to variable x)
+requiring that the definition and reference appear on the same
+line. This can be used to find uses of multiple statements appearing
+on the same line of source text, which violates some coding standards.
+The pattern as given will also match the control portion
+of for statements, but can be refined to exclude those matches
+by extending the constraint to remove matches inside
+round brace pairs:
+.sp
+.in +5
+$ tgrep -e ' x:\\; .* :x <1> @1 (:x.lnr==.lnr && .round==0)' *.c
+.in -5
+.sp
+Search comments in Java code that contain regular expression FIXME,
+insenstive to capitalization.
+.sp
+.in +5
+$ tgrep -Java -x -n -e /[Ff][Ii][Xx][Mm][Ee] *.c
+.in -5
+.sp
+
+.SH AUTHOR
+Gerard Holzmann, gholzmann@acm.org
+.sp
+.SH SEE ALSO
+\fBcobra(1), grep(1), awk(1)\f1
+.br
+https://codescrub.com
+.br

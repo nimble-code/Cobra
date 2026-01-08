@@ -1,7 +1,7 @@
 # Cobra - interactive static structural code analyzer
 # Sample background checkers, linked to the Cobra
 # front-end in c.ar, using the api defined in c_api.h
-# (c) 2017-2024 Gerard Holzmann, Nimble Research
+# (c) 2017-2026 Gerard Holzmann, Nimble Research
 # See the license file in ../src
 
 CWE=c_util.o cwe.o \

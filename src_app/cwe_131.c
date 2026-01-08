@@ -23,7 +23,7 @@ cwe131_init(void)
 {	static int lastN = 0;
 
 	if (lastN < Ncore)
-	{	thr = (ThreadLocal131 *) emalloc(Ncore * sizeof(ThreadLocal131));
+	{	thr = (ThreadLocal131 *) emalloc(Ncore * sizeof(ThreadLocal131), 24);
 		lastN = Ncore;
 	} else
 	{	memset(thr, 0, Ncore * sizeof(ThreadLocal131));

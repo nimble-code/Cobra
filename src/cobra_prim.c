@@ -1,7 +1,7 @@
 /*
  * This file is part of the public release of Cobra. It is subject to the
  * terms in the License file that is included in this source directory.
- * Tool documentation is available at http://codescrub.com/cobra
+ * Tool documentation is available at https://codescrub.com/cobra
  */
 
 #include "cobra_pre.h"
@@ -40,10 +40,6 @@ static	JumpTbl	*jmptbl;
 static	Files	*files[NHASH];
 static	Files	*frr = (Files *) 0;
 static	int	 nfh = -1;
-
-extern	int	 read_stdin;
-extern	int	 stream;
-extern	void	 do_typedefs(int);
 
 // utility functions for use in standalone checkers:
 
@@ -212,14 +208,14 @@ check_args(char *s, const char *c_base)	// single-core
 
 	if (a)
 	{	*a = '\0';
-		assert(strlen(c)+strlen(p) < n);
+		assert(strlen(c)+strlen(p) < (ulong) n);
 		strcat(c, p);	// up to $ARGS or $FLAGS
 
 		if (q)
 		{	if (!no_cpp)
 			{	char *x = get_preproc(0); // single-core
 				strcat(c, " -cpp ");
-				assert(strlen(c)+strlen(x) < n);
+				assert(strlen(c)+strlen(x) < (ulong) n);
 				strcat(c, x);
 			}
 			if (no_display)
@@ -233,14 +229,14 @@ check_args(char *s, const char *c_base)	// single-core
 
 		for (m = 0; m < NHASH; m++)
 		for (f = files[m]; f; f = f->nxt)
-		{	assert(strlen(c)+strlen(f->s)+2 <= n);
+		{	assert(strlen(c)+strlen(f->s)+2 <= (ulong) n);
 			strcat(c, " \"");
 			strcat(c, f->s);
 			strcat(c, "\"");
 		}
 		p = a + strlen("$ARGS");
 	}
-	assert(strlen(c)+strlen(p) <= n);
+	assert(strlen(c)+strlen(p) <= (ulong) n);
 	strcat(c, p);	// the rest, if any
 
 	if (!a && q)
@@ -286,39 +282,17 @@ findfile(const char *s)
 {	Files *f;
 	int n;
 
+#if 1
+	n = fhash(s)&(NHASH-1);
+#else
 	for (n = 0; n < NHASH; n++)
+#endif
 	for (f = files[n]; f; f = f->nxt)
 	{	if (strcmp(f->s, s) == 0)
 		{	return f;
 	}	}
 
 	return NULL;
-}
-
-static Files *last_fnm = NULL;
-
-void
-update_first_token(const char *fnm, Prim *p)
-{	Files *f;
-
-	f = findfile(fnm);
-	if (f)
-	{	last_fnm = f;
-		f->first_token = p;
-	}
-}
-
-void
-update_last_token(const char *fnm, Prim *p)
-{	Files *f = last_fnm;
-
-	if (!f
-	||  strcmp(fnm, f->s) != 0)
-	{	f = findfile(fnm);
-	}
-	if (f)
-	{	f->last_token = p;
-	}
 }
 
 static void
@@ -529,7 +503,7 @@ new_prim(const char *s, const char *t, int cid)
 		tfree++;
  #ifndef NO_STRING_RECYCLE
 		if (p->len > 0 && p->len >= ln)
-		{	assert(p->txt && strlen(p->txt) == p->len);
+		{	assert(p->txt && strlen(p->txt) == (ulong) p->len);
 			strcpy(p->txt, s);
 		} else
  #endif

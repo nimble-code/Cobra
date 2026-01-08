@@ -3,8 +3,8 @@
 # (c) 2015-2016 California Institute of Technology NASA/JPL
 # see License file in this directory
 #
-# Versions 2, 3, 4, 5:
-# (c) 2017-2025 Gerard Holzmann, Nimble Research
+# Version 2 and later:
+# (c) 2017-2026 Gerard Holzmann, Nimble Research
 # same licensing
 
 MAN?=/usr/share/man/man1
@@ -12,14 +12,16 @@ APP=../src_app
 
 OS1=cobra_prim.o cobra_prep.o cobra_heap.o \
    cobra_lib.o cobra_fcg.o cobra_lex.o \
-   cobra_sym.o cobra_cfg.o cobra_te.o \
-   cobra_links.o cobra_array.o cobra_list.o cobra_json.o
+   cobra_sym.o cobra_cfg.o cobra_links.o \
+   cobra_array.o cobra_list.o
 
 OS2=cobra_eval.o cobra_prog.o
 
+OS3=cobra_json.o cobra_te.o cobra_match.o
+
 AR=cobra_lex.o cobra_prep.o cobra_prim.o \
    cobra_heap.o ../src_app/c_util.o cobra_links.o cobra_json.o \
-   cobra_stub.o
+   cobra_stub.o cobra_match.o
 
 			# gprof: make F="-g -pg"
 			# coverage: make F="-fprofile-arcs -ftest-coverage"
@@ -38,11 +40,11 @@ CMAC=-I. -Wall ${F} -pedantic -Werror -Wshadow -std=c99 -DYY_NO_INPUT
 
 .PHONY:	linux cygwin mac install clean man
 
-all:	$(OS1) $(OS2)
-	$(CC) $(CFLAGS) -o cobra $(OS1) $(OS2) $(LIB) -lm
+all:	$(OS1) $(OS2) $(OS3)
+	$(CC) $(CFLAGS) -o cobra $(OS1) $(OS2) $(OS3) $(LIB) -lm
 
-mac:	$(OS1) $(OS2)
-	$(CC) $(CMAC) -o cobra $(OS1) $(OS2) $(LIBM)
+mac:	$(OS1) $(OS2) $(OS3)
+	$(CC) $(CMAC) -o cobra $(OS1) $(OS2) $(OS3) $(LIBM)
 
 app:	c.ar $(APP)/c_api.h
 	cd $(APP); make
@@ -56,12 +58,14 @@ c.ar:	$(AR)
 
 install: c.ar man
 	cp -f cobra $(BINDIR)
+	cp -f ../bin_tools/tgrep $(BINDIR)
 	cp -f ../gui/icobra.tcl $(BINDIR)/icobra
 	cp -f ../gui/window.tcl $(BINDIR)
 	cd $(APP); make clean install
 
-${OS1}:	cobra.h cobra_fe.h
-${OS2}:	cobra.h cobra_fe.h cobra_eval.c cobra_prog.c
+${OS1}:	cobra.h cobra_fe.h cobra_prim.h
+${OS2}:	cobra.h cobra_fe.h cobra_prim.h cobra_eval.c cobra_prog.c
+${OS3}: cobra.h cobra_fe.h cobra_prim.h cobra_pre.h cobra_te.h
 ${AR}:	cobra_pre.h cobra_fe.h
 
 cobra_array.o: cobra_array.c cobra_array.h cobra_prog.c

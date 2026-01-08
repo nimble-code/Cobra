@@ -159,7 +159,7 @@ count_ref(Prim *f, Prim *u)
 			break;
 		}
 	}
-	r_new = (CRef *) emalloc(sizeof(CRef));
+	r_new = (CRef *) emalloc(sizeof(CRef), 8);
 	r_new->from = f;
 	r_new->upto = u;
 	r_new->cnt = 1;
@@ -371,7 +371,7 @@ setref(uint64_t val, Prim *r)
 			{	return;
 			}
 #endif
-			z = (RefList *) emalloc(sizeof(RefList));
+			z = (RefList *) emalloc(sizeof(RefList), 9);
 			z->r = r;
 			z->nxt = f->reflist;
 			f->reflist = z;
@@ -381,8 +381,8 @@ setref(uint64_t val, Prim *r)
 			}
 			return;
 	}	}
-	f = (Fragment *) emalloc(sizeof(Fragment));
-	f->reflist = (RefList *) emalloc(sizeof(RefList));
+	f = (Fragment *) emalloc(sizeof(Fragment), 10);
+	f->reflist = (RefList *) emalloc(sizeof(RefList), 11);
 	f->reflist->r = r;
 	f->nr = 0;	// base ref
 	f->remainder = rem;
@@ -509,8 +509,8 @@ dup_init(void)
 {
 	assert(N > 0);
 	handle_args();
-	word = (char **) emalloc(N * sizeof(char *));
-	frag = (Fragment **) emalloc(sizeof(Fragment *) * H_SIZE);
+	word = (char **) emalloc(N * sizeof(char *), 12);
+	frag = (Fragment **) emalloc(sizeof(Fragment *) * H_SIZE, 13);
 
 	if (patches && Detail)
 	{	patch_a = fopen("tmp_A", "w");

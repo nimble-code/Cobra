@@ -69,7 +69,7 @@ record_type(char *s)
 		&&  strcmp(t->s, s) == 0)
 		{	return;
 	}	}
-	t = (Typenm *) emalloc(sizeof(Typenm));
+	t = (Typenm *) emalloc(sizeof(Typenm), 16);
 	t->h = h;
 	t->s = s;
 	t->nxt = typenm;
@@ -134,7 +134,7 @@ new_ident(Fcts *sc, Prim *id, int is_static)
 	}	}
 
 	if (!i)
-	{	i = (Ident *) emalloc(sizeof(Ident));
+	{	i = (Ident *) emalloc(sizeof(Ident), 17);
 		i->p = id;
 		i->scope = sc;
 		i->fnm = id->fnm;
@@ -152,7 +152,7 @@ new_ident(Fcts *sc, Prim *id, int is_static)
 
 void
 new_fct(Prim *p)
-{	Fcts *f = (Fcts *) emalloc(sizeof(Fcts));
+{	Fcts *f = (Fcts *) emalloc(sizeof(Fcts), 18);
 
 	f->p = p;
 	p = p->nxt;		// (

@@ -58,8 +58,8 @@ static ConfigDefs *
 new_config(const char *nm, int curtype, int from, int into)
 {	ConfigDefs *x;
 
-	x = (ConfigDefs *) emalloc(sizeof(ConfigDefs));
-	x->nm = (char *) emalloc(strlen(nm)+1);
+	x = (ConfigDefs *) emalloc(sizeof(ConfigDefs), 14);
+	x->nm = (char *) emalloc(strlen(nm)+1, 15);
 	strcpy(x->nm, nm);
 	x->from = from;
 	x->into = into;
@@ -144,7 +144,7 @@ get_base(void)
 	q = (char *) emalloc(
 		 strlen(C_BASE)
 		-strlen("/rules")
-		+strlen("/configs/taint_cfg.txt")+1);
+		+strlen("/configs/taint_cfg.txt")+1, 16);
 
 	strcpy(q, C_BASE);
 	p = strstr(q, "/rules");
@@ -380,7 +380,7 @@ taint_configs(void)
 			}
 			x = new_config(nm, curtype, from, into);
 			if (i == 2)
-			{	x->fct = (char *) emalloc(strlen(opt_fct)+1);
+			{	x->fct = (char *) emalloc(strlen(opt_fct)+1, 17);
 				strcpy(x->fct, opt_fct);
 			}
 		} else				// format:  fctname [from] into

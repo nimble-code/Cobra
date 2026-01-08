@@ -31,7 +31,7 @@ cwe197_init(void)
 {	static int lastN = 0;
 
 	if (lastN < Ncore)
-	{	thr = (ThreadLocal197 *) emalloc(Ncore * sizeof(ThreadLocal197));
+	{	thr = (ThreadLocal197 *) emalloc(Ncore * sizeof(ThreadLocal197), 27);
 		lastN = Ncore;
 	} else
 	{	memset(thr, 0, Ncore * sizeof(ThreadLocal197));
@@ -49,7 +49,7 @@ store_ptr(TrackPtr **lst, Prim *v, Prim *ptr, int cid)
 		{	break;
 	}	}
 
-	n = (TrackPtr *) hmalloc(sizeof(TrackPtr), cid);
+	n = (TrackPtr *) hmalloc(sizeof(TrackPtr), cid, 10);
 	n->t = v;
 	n->ptr = ptr;
 

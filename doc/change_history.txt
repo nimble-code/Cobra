@@ -606,7 +606,7 @@ new in december 30, 2021
  - now allows two spellings: -Python and -python for different language modes
    including -Java and -java, -Ada and -ada, -C++ and -c++, and -HTML and -html
 
- - bug fix in implementation of inline function gsbub
+ - bug fix in implementation of inline function gsub
 
  - code cleanup, and other small bug fixes, eg for handling escape characters in strings
 
@@ -625,3 +625,74 @@ new in december 30, 2021
  - fixed bug in 'contains' command when used with an & (and) qualifier
 
  - improved ndfa generating for pattern expressions, improved results reporting
+
+5.3 December, 2025
+
+ - added a new front-end tool called tgrep, with manual page in doc/tgrep.1
+   like the standard grep, but matching on token patterns instead of plain
+   text patterns - useful for finding matches in code and text files -
+   added support in the cobra sources to simplify tgrep searches
+
+ - paralellized pattern searched (pe command) when using multi-core mode
+   before, pe command were executed single core only
+   this can be disabled by compiling cobra with directive -DPE_SEQ
+
+ - reduced the startup time when using multiple cores by over 50% for
+   large code archives
+
+ - added new files cobra_te.h and cobra_match.c as part of this change
+
+ - the inline fct 'match' can now take an expression that evaluates to a string
+   as the second argument (before it had to be a string itself)
+
+ - corrected off-by-one linenumbers in comments stream
+
+ - fixed bug in pattern expression processing for expressions containing ||
+
+ - fixed bug in regular expression processing inside pattern expressions
+   correcting the interpretation of meta characters and escapes
+
+ - fixed bug in handling of 'with' constraints on pset calls in inline programs
+
+ - fixed bug in the implementation of the a_unify function for inline programs
+
+ - added the option to use a_unify without arguments, to unify the contents of
+   all associative arrays across all cores, and a_unify(name) to unify the contents
+   of associative array name across all cores. it secures that all array indices
+   and contents are synchronized to all cpus -- the function warns if it is called
+   more than once for any array. a repeated call is treated as a no-op.
+
+ - reorganized headerfiles to make sure that extern definitions are consistent with
+   the actual definitions (types, number of arguments, etc.)
+
+ - now allowing space or tab characters to separate the colon after a setname
+   in a pe command from the pattern expression: pe Name: <here> ....
+   before this change, only a space was recognized
+
+ - unless compiled with -DNO_E_FNM Cobra will now interpret embedded filename
+   changes with the notation @>newfilename terminated by a linefeed.
+   this will reset the filename to the one given, and reset the linenumber to 1
+   this is useful when flattening a long list of files into a single file to
+   speed up the initial startup phase - use the bin_tools/flatten.sh script to
+   create the right single file, eg with
+	flatten.sh *.c > singlefile; cobra [-text] singlefile
+   which preserves the filenames and linenumbers from the original in the singlefile
+
+ - added support for use of a 'top' qualifier on pe commands to restrict the
+   start of the search for the complete pattern to marked tokens.
+   a somewhat contrived example:
+	m if (; n; n; m & @const; b if
+	pe & if ( .* ) \;
+   starts the search for the full pattern only at marked if keywords followed by
+   a condition consisting of a single constant value
+
+- extended the mark (m) command to allow a chain of tokens to be matched -- the
+  token sequence cannot contain wild-cards or bound variables, for instance:
+	m while ( 0 ) \;
+  marks the while token only if it is followed by the next 4 tokens: (, 0, ), and ;
+  (this is the only command that can take multiple arguments; other commands
+  like contains, extend, stretch, etc. are unchanged and take at most two)
+  any of the arguments of a mark command can be defined as a regular expression
+  on the token text (e.g. m /alloc ) \;  matches on 3 tokens, the first with a
+  text containing alloc, the second a round closing brace and the third a semi-colon
+

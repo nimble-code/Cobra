@@ -164,10 +164,10 @@ check_var(Prim *r, Prim *x, int cid)	// mark later uses of r->txt within scope, 
 			}
 			r->bound = w; // point to place where an external source was tagged
 			if (verbose > 1)
-			{	do_lock(cid);
+			{	do_lock(cid, 13);
 				fprintf(stderr, "%d: %s:%d: marked new occurrence of %s (+%d -> %d)\n",
 					cid, r->fnm, r->lnr, r->txt, DerivedFromExternal, r->mark);
-				do_unlock(cid);
+				do_unlock(cid, 13);
 		}	}
 		r = r->nxt;
 	}
@@ -261,19 +261,19 @@ pre_scope_range(Prim *from, Prim *upto, int cid)	// propagate external source ma
 			&&  !(q->mark & DerivedFromExternal))
 			{	q->mark |= DerivedFromExternal;
 				if (verbose > 1)
-				{	do_lock(cid);
+				{	do_lock(cid, 14);
 					fprintf(stderr, "\t%s:%d: prescope propagated %s (+%d)\n",
 						q->fnm, q->lnr, q->txt, DerivedFromExternal);
-					do_unlock(cid);
+					do_unlock(cid, 14);
 				}
 				cnt++;
 		}	}
 	}
 	tokrange[cid]->param = cnt;
 	if (verbose > 1)
-	{	do_lock(cid);
+	{	do_lock(cid, 15);
 		fprintf(stderr, "%d: pre_scope returns %d\n", cid, cnt);
-		do_unlock(cid);
+		do_unlock(cid, 15);
 	}
 }
 
@@ -359,10 +359,10 @@ check_scope_range(Prim *from, Prim *upto, int cid)	// ExternalSource|DerivedFrom
 		// found the likely point of decl, which could be a formal param
 		// q->txt is the name of the variable, matching mycur->txt
 		if (verbose > 1)
-		{	do_lock(cid);
+		{	do_lock(cid, 16);
 			fprintf(stderr, "%d: %s:%d: %s likely declared here (level %d::%d)\n",
 				cid, q->fnm, q->lnr, mycur->txt, q->curly, q->round);
-			do_unlock(cid);
+			do_unlock(cid, 16);
 		}
 		if (q->mset[0] & SeenDecl) // checked before for this var
 		{	mycur = mycur->nxt;
@@ -373,10 +373,10 @@ check_scope_range(Prim *from, Prim *upto, int cid)	// ExternalSource|DerivedFrom
 		if (q->curly == 0)		// must be a formal parameter
 		{	if (q->round != 1)	// nope, means we dont know
 			{	if (verbose>1)
-				{	do_lock(cid);
+				{	do_lock(cid, 17);
 					fprintf(stderr, "%d: %s:%d: '%s' untracked global (declared at %s:%d)\n",
 						cid, mycur->fnm, mycur->lnr, mycur->txt, q->fnm, q->lnr);
-					do_unlock(cid);
+					do_unlock(cid, 17);
 				}
 				mycur = mycur->nxt;
 				continue; 	// likely global, give up
@@ -399,11 +399,11 @@ check_scope_range(Prim *from, Prim *upto, int cid)	// ExternalSource|DerivedFrom
 		// end of this level of scope
 
 		if (0)
-		{	do_lock(cid);
+		{	do_lock(cid, 18);
 			fprintf(stderr, "%d: check_var %s:%d '%s' level %d <<%d %d>>\n",
 				cid, mycur->fnm, mycur->lnr, mycur->txt, q->nxt->curly,
 				mycur->seq, q->nxt->seq);
-			do_unlock(cid);
+			do_unlock(cid, 18);
 		}
 		check_var(mycur, q->nxt, cid);	// mark DerivedFromExternal
 		mycur = mycur->nxt;
@@ -1004,7 +1004,7 @@ multi_line_from_file(FILE *fd, int cid)
 	}
 
 	n += strlen(json_msg) + 5;
-	buf = (char *) hmalloc(n * sizeof(char), cid);
+	buf = (char *) hmalloc(n * sizeof(char), cid, 12);
 	if (!buf)
 	{	return " ";
 	}
@@ -1530,7 +1530,7 @@ phase_three(const int cid)
 void
 show_bindings(const char *s, const Prim *a, const Prim *b, int cid)
 {
-	do_lock(cid);
+	do_lock(cid, 12);
 	if (a)
 	{	fprintf(stderr, "Bind <%s>\t%s:%d: %s (%d)\tto ", s,
 			a->fnm, a->lnr, a->txt, a->mark);
@@ -1551,7 +1551,7 @@ show_bindings(const char *s, const Prim *a, const Prim *b, int cid)
 	{	fprintf(stderr, "\t\t[already bound to %s:%d: %s]\n",
 			a->bound->fnm, a->bound->lnr, a->bound->txt);
 	}
-	do_unlock(cid);
+	do_unlock(cid, 12);
 }
 
 void

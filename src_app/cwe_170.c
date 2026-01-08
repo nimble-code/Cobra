@@ -28,7 +28,7 @@ cwe170_init(void)
 {	static int lastN = 0;
 
 	if (lastN < Ncore)
-	{	thr = (ThreadLocal170 *) emalloc(Ncore * sizeof(ThreadLocal170));
+	{	thr = (ThreadLocal170 *) emalloc(Ncore * sizeof(ThreadLocal170), 26);
 		lastN = Ncore;
 	} else
 	{	memset(thr, 0, Ncore * sizeof(ThreadLocal170));
@@ -47,7 +47,7 @@ store_var_vals(TrackValues **lst, Prim *v, int n1, int n2, int val, int cid)
 		{	break;	// insert at this point
 	}	}
 
-	n = (TrackValues *) hmalloc(sizeof(TrackValues), cid);
+	n = (TrackValues *) hmalloc(sizeof(TrackValues), cid, 9);
 	n->t   = v;	// array basnename v->txt
 	n->n1  = n1;	// nesting level
 	n->n2  = n2;	// block number
