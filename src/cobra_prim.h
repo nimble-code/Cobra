@@ -3,7 +3,7 @@
 
 // definitions shared with ../src_app/c_api.h
 
-#define tool_version	"Version 5.3 - 6 January 2026"
+#define tool_version	"Version 5.4 - 13 April 2026"
 
 typedef struct Prim	Prim;
 typedef struct TokRange	TokRange;

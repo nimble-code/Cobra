@@ -1960,15 +1960,37 @@ pattern(char *p)
 			*n++ = *p++;
 			len -= 2;
 			break;
-		case '|':
+
+		case '{':
+		case '}':
+			// check for missing spaces V5.4
+			if (*(p-1) != ' ')
+			{	*n++ = ' ';
+			}
+			*n++ = *p++;
+			if (*p != ' ')
+			{	*n++ = ' ';
+			}
+			len--;
+			break;
+
 		case '(':
 		case ')':
+		case '|':
+			// check for missing spaces V5.4
+			if (*(p-1) != ' ')
+			{	*n++ = ' ';
+			}
+			// fall thru
 		case '+':
 		case '?':
 			if (!inrange)
 			{	*n++ = '\\';
 			}
 			*n++ = *p++;
+			if (*p != ' ')	// missing space?
+			{	*n++ = ' ';
+			}
 			len--;
 			break;
 		case ']':
@@ -2425,7 +2447,11 @@ RegEx:			  no_match = 1;		// -e -expr -re or -regex
 			  if (strcmp(argv[1], "-recursive") == 0)
 			  {	check_argc(2, "-recursive");
 			  	if (argv[2][0] != '-')
-			  	{	recursive = argv[2]; // populate file_list
+			  	{	if (strchr(argv[2], ';') != NULL)
+					{	fprintf(stderr, "error: invalid argument to -recursive\n");
+					} else
+					{	recursive = argv[2]; // populate file_list
+					}
 					argc--; argv++;
 					break;
 			  }	}

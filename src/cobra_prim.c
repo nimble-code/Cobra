@@ -136,27 +136,29 @@ fhash(const char *v)
 void
 dogrep(const char *s)
 {	Files *f;
-	int n;
+	int n, cmd_size;
 	char cmd[MAXYYTEXT];
 
 	for (n = 0; n < NHASH; n++)
 	for (f = files[n]; f; f = f->nxt)
-	{	if (strlen(s)
-		+   strlen(f->s)
-		+   strlen("grep -n -e -q \"\"")
-		+   1 >= sizeof(cmd))
-		{	printf("search pattern too long\n");
+	{	cmd_size = snprintf(NULL, 0, "grep -q -n -e  \"%s\" %s",
+			s, f->s) + 1;
+		if (cmd_size < sizeof(cmd))
+		{	snprintf(cmd, sizeof(cmd), "grep -q -n -e  \"%s\" %s",
+				s, f->s);
+			if (system(cmd) == 0)	// dogrep
+			{	printf("%s:\n", f->s);
+			}
+			cmd[5] = cmd[6] = ' ';
+			if (system(cmd) < 0)	// dogrep
+			{	printf("cmd '%s' failed\n", cmd);
+			}
+		} else
+		{	printf("cobra: error: search pattern too long for file '%s'\n",
+				f->s);
 			return;
 		}
-		snprintf(cmd, sizeof(cmd), "grep -q -n -e  \"%s\" %s",
-			s, f->s);
-		if (system(cmd) == 0)	// dogrep
-		{	printf("%s:\n", f->s);
-		}
-		cmd[5] = cmd[6] = ' ';
-		if (system(cmd) < 0)	// dogrep
-		{	printf("cmd '%s' failed\n", cmd);
-	}	}
+	}
 }
 
 char *
