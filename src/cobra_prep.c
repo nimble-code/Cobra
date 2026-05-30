@@ -940,6 +940,8 @@ matches_suppress(Prim *r, const char *s)
 	// tag example: @suppress Macros
 	// for pattern set Macros in rules/main/basic.cobra
 
+	if (!s) { return 0; }
+
 	for (q = cmnt_head; q; q = q->nxt)
 	{	if (q->lnr != r->lnr
 		||  strcmp(q->fnm, r->fnm) != 0)
