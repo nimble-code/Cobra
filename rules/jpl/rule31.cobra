@@ -1,4 +1,5 @@
 def jpl_rule31
+	r
 	%{
 		if (.fnm != incode.fnm)
 		{	incode = none;
@@ -8,7 +9,8 @@ def jpl_rule31
 		}
 		if (@cpp && ~"include")
 		{	if (incode.lnr > 0)
-			{	q.mark++;
+			{	incode.mark++;
+				# print .fnm ":" .lnr "\t" incode.fnm ":" incode.lnr " " .txt "\n";
 		}	}
 	%}
 	ps create R31
