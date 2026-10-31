@@ -53,7 +53,7 @@ wm title . "icobra"
 wm geometry . ${WMain}x$HMain+$XMain+$YMain	;# widthxheight+offsetx+offsety
 update
 
-set iversion "iCobra Version 1.2";	# was 2015.10.16
+set iversion "iCobra Version 1.3";	# oct 31, 2026
 set version  "Cobra Version unknown";	# updated below
 set Unix 1;				# updated below
 set COBRA cobra;			# background tool
@@ -5269,6 +5269,7 @@ proc patterns_panel {nrm pn} {
 		incr nrpat
 		set nh [expr {40*$nrpat}]
 
+
 		# puts "create .patterns.main.c.frWidgets.b$nrpat -- $pn"
 
 		ttk::style configure My.TButton \
@@ -5278,7 +5279,6 @@ proc patterns_panel {nrm pn} {
 		ttk::button .patterns.main.c.frWidgets.b$nrpat \
 			-style My.TButton -text "$pn ($nrm patterns)" \
 			-command "pat_show $pn $nrm $nrpat"
-
 		pack .patterns.main.c.frWidgets .patterns.main.c.frWidgets.b$nrpat \
 			-anchor w \
 			-side top -fill x -expand yes
@@ -5296,6 +5296,9 @@ proc patterns_panel {nrm pn} {
 		if {[info exists ptitle($pn)]} {
 		  .patterns.main.c.frWidgets.b$nrpat configure \
 			-text "$pn ($nrm patterns) :: $ptitle($pn)"
+		} else {
+		  .patterns.main.c.frWidgets.b$nrpat configure \
+			-text "$pn ($nrm patterns) :: No Description"
 		}
 	} emsg
 
@@ -5413,7 +5416,7 @@ proc predefined_list {} {
 
 	set nr 0
 	while {[gets $lfd line] > -1} {
-		if {[string first "predefined" $line] < 0} {
+		if {[string first "predefined" $line] < 0 && [string first "duplicates.cobra" $line] < 0} {
 			button .predef.main.lst$nr -height 1 -text "$line" \
 				-highlightthickness 3 \
 				-bg $CBG -fg $CFG -font $HV2 \
@@ -5592,6 +5595,26 @@ proc do_query {which} {
 
 #	puts "here: $which"
 	do_button ". $which; r"
+
+	# gh added October 30, 2026
+	global nrpat ptitle
+
+#	puts "DONE $nrpat"
+
+	for {set i 0} { $i < $nrpat} { incr i} {
+		if { [winfo exists .patterns.main.c.frWidgets.b$i] } {
+		  catch {
+			set ct [.patterns.main.c.frWidgets.b$i cget -text]
+			set tc [string first "No Description" $ct]
+#			puts "==> $ct == $tc"
+			if {$tc > 0} {
+				destroy .patterns.main.c.frWidgets.b$i
+				update
+			}
+		  }
+		}
+	}
+# XXX
 }
 
 #### Startup
