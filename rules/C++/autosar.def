@@ -30,21 +30,27 @@ end
 
 def M0_1_3	#  (RI+) A project shall not contain unused variables.
 	r
-        pe ^[struct union] ^[struct union] { ^[( )]* @type ^[\; ( ) =]*  x:@ident ^:x* }
+        pe X0: ^[struct union] ^[struct union] { ^[( )]* @type ^[\; ( ) =]*  x:@ident ^:x* }
+		ps convert X0
+		ps delete X0
 	Select_Bound_Vars(M0_1_3, 16)	# 16=defined bound vars
 	ps caption M0_1_3 (Required) A project shall not contain unused variables.
 end
 
 def M0_1_4	#  (RI+) A project shall not contain non-volatile POD (plain old data) variables having only one use.
 	r
-	pe ^[struct union] ^[struct union] { .* @type ^\;* x:@ident ^:x* :x ^:x* }
+	pe X0: ^[struct union] ^[struct union] { .* @type ^\;* x:@ident ^:x* :x ^:x* }
+		ps convert X0
+		ps delete X0
 	Select_Bound_Vars(M0_1_4, 4)
 	ps caption M0_1_4 (Required) A project shall not contain non-volatile POD (plain old data) variables having only one use.
 end
 
 def M0_1_5	#  (RI+) A project shall not contain unused type declarations.
 	r
-	pe using x:@ident = ^:x*
+	pe X0: using x:@ident = ^:x*
+		ps convert X0
+		ps delete X0
 	Select_Bound_Vars(M0_1_5, 16)
 	pe typedef ^\;* x:@ident \; ^:x*
 	Select_Bound_Vars(M0_1_5, 16)
@@ -54,7 +60,9 @@ end
 def A0_1_1	#  (RI+) A project shall not contain instances of non-volatile variables being given values that are not subsequently used.
 	r
 	symbols
-	pe ^[struct union] ^[struct union] { .* ^static @type x:@ident .* ^-> :x = ^:x* }	# but only of not global...
+	pe X0: ^[struct union] ^[struct union] { .* ^static @type x:@ident .* ^-> :x = ^:x* }	# but only of not global...
+		ps convert X0
+		ps delete X0
 	Select_Bound_Vars(A0_1_1, 4)
 	ps caption A0_1_1 (Required) A project shall not contain instances of non-volatile variables being given values that are not subsequently used.
 end
@@ -155,7 +163,9 @@ end
 
 def M0_1_11	#  (RI+) There shall be no unused parameters (named or unnamed) in non-virtual functions.
 	r
-	pe @ident ( .* x:@ident .* ) { ^:x* }
+	pe X0: @ident ( .* x:@ident .* ) { ^:x* }
+		ps convert X0
+		ps delete X0
 	Select_Bound_Vars(M0_1_11, 16)
 	ps caption M0_1_11 (Required) There shall be no unused parameters (named or unnamed) in non-virtual functions.
 end
@@ -222,11 +232,21 @@ def A1_1_1	#  (RI+, C2) All code shall conform to ISO/IEC 14882:2014 -Programmin
 	m pointer_to_binary_function
 	m mem_fun
 	m Implicit lambda
-	pe < ccomplex >
-	pe < ciso646 >
-	pe < cstdalign >
-	pe < cstdbool >
-	pe < ctgmath >
+	pe X0: < ccomplex >
+		ps convert X0
+		ps delete X0
+	pe X0: < ciso646 >
+		ps convert X0
+		ps delete X0
+	pe X0: < cstdalign >
+		ps convert X0
+		ps delete X0
+	pe X0: < cstdbool >
+		ps convert X0
+		ps delete X0
+	pe X0: < ctgmath >
+		ps convert X0
+		ps delete X0
 	ps create A1_1_1
 	ps caption A1_1_1 (Required) All code shall conform to ISO/IEC 14882:2014 -Programming Language C++ and shall not use deprecated features.
 end
@@ -284,9 +304,15 @@ def A1_4_1(N, M)	#  (RI-, C2 [gh: JPL bounds?]) Code metrics and their valid bou
 
 	r
 	# ****ptr, ***ptr->, ***ptr[..] **ptr[..]->
-	pe * * * *
-	pe * * * @ident [-> \[]
-	pe * * @ident [ .* ] ->
+	pe X0: * * * *
+		ps convert X0
+		ps delete X0
+	pe X0: * * * @ident [-> \[]
+		ps convert X0
+		ps delete X0
+	pe X0: * * @ident [ .* ] ->
+		ps convert X0
+		ps delete X0
 	## can rewrite as an inline program if a parameter value P is better
 	ps create A1_4_1c
 	ps caption A1_4_1c (Required) Use no more than 3 levels of indirection.
@@ -364,7 +390,9 @@ def A2_8_3	#  (RI+) All declarations of user-defined types, static and non-stati
 	m static
 	>1
 	r
-	pe @type [*]* @ident ( .* ) @specifier* \;
+	pe X0: @type [*]* @ident ( .* ) @specifier* \;
+		ps convert X0
+		ps delete X0
 	m & (.mark == 3)	# first token of pattern
 	%{
 		if (.mark == 0) { Next; }
@@ -469,7 +497,9 @@ end
 def A2_11_1	#  (RI+) An identifier declared in an inner scope shall not hide an identifier declared in an outer scope.
 	# conservative, reports more cases than strictly required
 	r
-	pe @type x:@ident .* { .* @type <1> :x .* } @1 (.fnm == :x.fnm)
+	pe X0: @type x:@ident .* { .* @type <1> :x .* } @1 (.fnm == :x.fnm)
+		ps convert X0
+		ps delete X0
 	Select_Bound_Vars(A2_11_1, 4)
 	ps caption A2_11_1 (Required) An identifier declared in an inner scope shall not hide an identifier declared in an outer scope.
 end
@@ -507,7 +537,9 @@ end
 
 def A2_11_2	#  (RI+) A "using" name shall be a unique identifier within a namespace.
 	r
-	pe namespace @ident { .* using x:@ident = .* using :x .* }
+	pe X0: namespace @ident { .* using x:@ident = .* using :x .* }
+		ps convert X0
+		ps delete X0
 	Select_Bound_Vars(A2_11_2, 4)
 	ps caption A2_11_2 (Required) A using name shall be a unique identifier within a namespace.
 end
@@ -547,7 +579,9 @@ end
 
 def A2_11_4	#  (RI+) The identifier name of a non-member object with static storage duration or static function shall not be reused within a namespace.
 	r
-	pe namespace @ident { .* static .* }	# mark all namespaces with a static declaration inside
+	pe X0: namespace @ident { .* static .* }	# mark all namespaces with a static declaration inside
+		ps convert X0
+		ps delete X0
 	%{
 		unset NameSpace;
 		Stop;
@@ -1024,8 +1058,12 @@ end
 
 def A5_0_1	#  (RI+) The value of an expression shall be the same under any order of evaluation that the standard permits.
 	r
-	pe = ^\;* x:@ident ^\;* @ident [++ --]
-	pe = ^\;* x:@ident [++ --] ^\;* @ident
+	pe X0: = ^\;* x:@ident ^\;* @ident [++ --]
+		ps convert X0
+		ps delete X0
+	pe X0: = ^\;* x:@ident [++ --] ^\;* @ident
+		ps convert X0
+		ps delete X0
 	ps create A5_0_1a
 	. binop.def
 	binop A5_0_1b
@@ -1489,7 +1527,7 @@ def M5_18_1	#  (RI+) The comma operator shall not be used.
 	c & ,
 	m & (.round == 1)
 	<|1
-	pe create M5_18_1a
+	ps create M5_18_1a
 	r
 	m enum; n {; c & ,	# enum initializers
 	>2
@@ -1509,7 +1547,9 @@ end
 
 def M6_2_1	#  (RI+) Assignment operators shall not be used in sub-expressions.
 	r
-	pe [= += -= *= /= %=] ^[\; ) ( :]* [= += -= *= /= %=] ^[\;] \;
+	pe X0: [= += -= *= /= %=] ^[\; ) ( :]* [= += -= *= /= %=] ^[\;] \;
+		ps convert X0
+		ps delete X0
 	%{	# dont match comma expressions in for-loops
 		if (.txt == "for")
 		{	. = .nxt;
@@ -1595,7 +1635,7 @@ end
 
 def M6_4_2	#  (RI+) All if ... else if constructs shall be terminated with an else clause.
 	r
-	pe M6_4_2 else if ( .* ) { .* } ^else
+	pe M6_4_2: else if ( .* ) { .* } ^else
 	ps caption M6_4_2 (Required) All if ... else if constructs shall be terminated with an else clause.
 end
 
@@ -1605,7 +1645,9 @@ end
 
 def M6_4_4	#  (RI+) A switch-label shall only be used when the most closely-enclosing compound statement is the body of a switch statement.
 	r
-	pe case . :	# marked: 3 1 9
+	pe X0: case . :	# marked: 3 1 9
+	ps convert X0
+	ps delete X0
 	%{
 		if (.mark != 3) { .mark = 0; Next; }
 		.mark = 0;		# find start of block
@@ -1659,7 +1701,9 @@ end
 
 def A6_5_1	#  (RI+) A for-loop that loops through all elements of the container and does not use its loop-counter shall not be used.
 	r	# a bit too broad, but safe and fast
-	pe for ( ^\;* x:@ident = .* ) { ^:x* }
+	pe X0: for ( ^\;* x:@ident = .* ) { ^:x* }
+		ps convert X0
+		ps delete X0
 	Select_Bound_Vars(A6_5_1, 16)
 	ps caption A6_5_1 (Required) A for-loop that loops through all elements of the container and does not use its loop-counter shall not be used.
 end
@@ -1715,9 +1759,13 @@ end
 
 def M6_5_3	#  (RI+) The loop-counter shall not be modified within condition or statement.
 	r
-	pe for ( ^\;* x:@ident = ^\;* \; ^\;* :x [++ -- =] .* )
+	pe X0: for ( ^\;* x:@ident = ^\;* \; ^\;* :x [++ -- =] .* )
+		ps convert X0
+		ps delete X0
 	Select_Bound_Vars(M6_5_3, 4)
-	pe for ( ^\;* x:@ident = .* ) { .* :x [++ -- = += -= *= /= %=] .* }
+	pe X0: for ( ^\;* x:@ident = .* ) { .* :x [++ -- = += -= *= /= %=] .* }
+		ps convert X0
+		ps delete X0
 	Select_Bound_Vars(M6_5_3, 4)
 	ps caption M6_5_3 (Required) The loop-counter shall not be modified within condition or statement.
 end
@@ -1730,7 +1778,9 @@ end
 
 def M6_5_5	#  (RI+) A loop-control-variable other than the loop-counter shall not be modified within condition or expression.
 	r
-	pe for ( ^\;* x:@ident = ^\;* \; ^\;* \; ^:x [++ -- -= +=]* )
+	pe X0: for ( ^\;* x:@ident = ^\;* \; ^\;* \; ^:x [++ -- -= +=]* )
+		ps convert X0
+		ps delete X0
 	Select_Bound_Vars(M6_5_5, 16)
 	ps caption M6_5_5 (Required) A loop-control-variable other than the loop-counter shall not be modified within condition or expression.
 end
@@ -1842,7 +1892,9 @@ end
 
 def A7_1_7	#  (RI+) Each identifier shall be declared on a separate line.
 	r
-	pe @type ** x:@ident ^[( ) \; ,]* , ** @ident  <1> @1 (.lnr == :x.lnr)
+	pe X0: @type ** x:@ident ^[( ) \; ,]* , ** @ident  <1> @1 (.lnr == :x.lnr)
+		ps convert X0
+		ps delete X0
 	Select_Bound_Vars(A7_1_7, 20)
 	ps caption A7_1_7 (Required) Each identifier shall be declared on a separate line.
 end
@@ -1873,8 +1925,7 @@ def A7_2_4	#  (RI+) In an enumeration, either (1) none, (2) the first or (3) all
 	r
 	m enum; n {
 	c =; s =; c ,	# initializes some element other than the first
-	pe enum ^{* { .* = .* , ^=* , .* }	# some but not all elements initialized
-	ps create A7_2_4
+	pe A7_2_4: enum ^{* { .* = .* , ^=* , .* }	# some but not all elements initialized
 	ps caption A7_2_4 (Required) In an enumeration, either (1) none, (2) the first or (3) all enumerators shall be initialized.
 end
 
@@ -1955,9 +2006,13 @@ end
 
 def M7_5_1	#  (RI-) A function shall not return a reference or a pointer to an automatic variable (including parameters), defined within the function.
 	r
-	pe @ident ( .* ) { @type x:@ident .* return & :x .* }
+	pe X0: @ident ( .* ) { @type x:@ident .* return & :x .* }
+		ps convert X0
+		ps delete X0
 	Select_Bound_Vars(M7_5_1, 4)
-	pe @ident ( .* @type @ident .* ) { .* return & :x .* }
+	pe X0: @ident ( .* @type @ident .* ) { .* return & :x .* }
+		ps convert X0
+		ps delete X0
 	Select_Bound_Vars(M7_5_1, 4)
 	ps caption M7_5_1 (Required) A function shall not return a reference or a pointer to an automatic variable (including parameters), defined within the function.
 end
@@ -1972,7 +2027,9 @@ end
 
 def A7_5_2	#  (RI+) Functions shall not call themselves, either directly or indirectly.
 	r	# direct calls
-	pe x:@ident ( .* ) { .* :x ( .* ) .* }
+	pe X0: x:@ident ( .* ) { .* :x ( .* ) .* }
+		ps convert X0
+		ps delete X0
 	Select_Bound_Vars(A7_5_2, 4)
 	ps caption A7_5_2 (Required) Functions shall not call themselves, either directly or indirectly.
 end
@@ -2055,7 +2112,9 @@ end
 
 def M8_5_1	#  (RI+) All variables shall have a defined value before they are used.
 	r
-	pe { .* @type x:@ident ^= ^:x* :x ^=
+	pe X0: { .* @type x:@ident ^= ^:x* :x ^=
+		ps convert X0
+		ps delete X0
 	Select_Bound_Vars(M8_5_1, 4)
 	ps caption M8_5_1 (Required) All variables shall have a defined value before they are used.
 end
@@ -2211,14 +2270,18 @@ end
 
 def A12_1_4	#  (RI+) All constructors that are callable with a single argument of fundamental type shall be declared explicit.
 	r	# catch a common case
-	pe class x:@ident { public : ^[private protected explicit]* :x ( ^,* @type ^,* ) .* }
+	pe X0: class x:@ident { public : ^[private protected explicit]* :x ( ^,* @type ^,* ) .* }
+		ps convert X0
+		ps delete X0
 	Select_Bound_Vars(A12_1_4, 4)
 	ps caption A12_1_4 (Required) All constructors that are callable with a single argument of fundamental type shall be declared explicit.
 end
 
 def A12_4_1	#  (RI+) Destructor of a base class shall be public virtual, public override or protected non-virtual.
 	r
-	pe class x:@ident { public :  ^[private virtual override protected]* ~ :x ( .* ) .* }
+	pe X0: class x:@ident { public :  ^[private virtual override protected]* ~ :x ( .* ) .* }
+		ps convert X0
+		ps delete X0
 	Select_Bound_Vars(A12_4_1, 4)
 	ps caption A12_4_1 (Required) Destructor of a base class shall be public virtual, public override or protected non-virtual.
 end
@@ -2262,7 +2325,9 @@ end
 def A12_8_7	#  (AI+) Assignment operators should be declared with the ref-qualifier &.
 	r
 	# constraint is placed on token after @key, so that the binding is in effect
-	pe class @ident { .* x:@key [= *= /= += -= %=] <1> ( .* ) ^&* { .* } } @1 (:x =="operator")
+	pe X0: class @ident { .* x:@key [= *= /= += -= %=] <1> ( .* ) ^&* { .* } } @1 (:x =="operator")
+		ps convert X0
+		ps delete X0
 	Select_Bound_Vars(A12_8_7, 16)
 	ps caption A12_8_7 (Advisory) Assignment operators should be declared with the ref-qualifier &.
 end
@@ -2307,22 +2372,50 @@ end
 
 def A13_6_1	#  (RI+) Digit sequences separators ' shall only be used as follows: (1) for decimal, every 3 digits, (2) for hexadecimal, every 2 digits, (3) for binary, every 4 digits.
 	r
-	pe @const_int @1 (.len > 3 && .txt == /'[0-9][0-9]')
-	pe @const_int @1 (.len > 3 && .txt == /'[0-9][0-9]$)
-	pe @const_int @1 (.len > 2 && .txt == /'[0-9]')
-	pe @const_int @1 (.len > 2 && .txt == /'[0-9]$)
+	pe X0: @const_int @1 (.len > 3 && .txt == /'[0-9][0-9]')
+		ps convert X0
+		ps delete X0
+	pe X0: @const_int @1 (.len > 3 && .txt == /'[0-9][0-9]$)
+		ps convert X0
+		ps delete X0
+	pe X0: @const_int @1 (.len > 2 && .txt == /'[0-9]')
+		ps convert X0
+		ps delete X0
+	pe X0: @const_int @1 (.len > 2 && .txt == /'[0-9]$)
+		ps convert X0
+		ps delete X0
 
 	pe @const_hex @1 (.len > 3 && .txt == /'[A-F0-9][A-F0-9][A-F0-9]')
-	pe @const_hex @1 (.len > 3 && .txt == /'[A-F0-9][A-F0-9][A-F0-9]$)
-	pe @const_hex @1 (.len > 2 && .txt == /'[A-F0-9]')
-	pe @const_hex @1 (.len > 2 && .txt == /'[A-F0-9]$)
+		ps convert X0
+		ps delete X0
+	pe X0: @const_hex @1 (.len > 3 && .txt == /'[A-F0-9][A-F0-9][A-F0-9]$)
+		ps convert X0
+		ps delete X0
+	pe X0: @const_hex @1 (.len > 2 && .txt == /'[A-F0-9]')
+		ps convert X0
+		ps delete X0
+	pe X0: @const_hex @1 (.len > 2 && .txt == /'[A-F0-9]$)
+		ps convert X0
+		ps delete X0
 
-	pe @const_bin @1 (.len > 3 && .txt == /'[01]')
-	pe @const_bin @1 (.len > 3 && .txt == /'[01]$)
-	pe @const_bin @1 (.len > 3 && .txt == /'[01][01]')
-	pe @const_bin @1 (.len > 3 && .txt == /'[01][01]$)
-	pe @const_bin @1 (.len > 3 && .txt == /'[01][01][01]')
-	pe @const_bin @1 (.len > 3 && .txt == /'[01][01][01]$)
+	pe X0: @const_bin @1 (.len > 3 && .txt == /'[01]')
+		ps convert X0
+		ps delete X0
+	pe X0: @const_bin @1 (.len > 3 && .txt == /'[01]$)
+		ps convert X0
+		ps delete X0
+	pe X0: @const_bin @1 (.len > 3 && .txt == /'[01][01]')
+		ps convert X0
+		ps delete X0
+	pe X0: @const_bin @1 (.len > 3 && .txt == /'[01][01]$)
+		ps convert X0
+		ps delete X0
+	pe X0: @const_bin @1 (.len > 3 && .txt == /'[01][01][01]')
+		ps convert X0
+		ps delete X0
+	pe X0: @const_bin @1 (.len > 3 && .txt == /'[01][01][01]$)
+		ps convert X0
+		ps delete X0
 
 	ps create A13_6_1
 	ps caption A13_6_1 (Required) Digit sequences separators ' shall only be used as follows: (1) for decimal, every 3 digits, (2) for hexadecimal, every 2 digits, (3) for binary, every 4 digits.
@@ -2406,9 +2499,13 @@ end
 
 def M15_0_3	#  (RI+) Control shall not be transferred into a try or catch block using a goto or a switch statement.
 	r
-	pe { .* goto x:@ident .* try { .* :x : .* }
+	pe X0: { .* goto x:@ident .* try { .* :x : .* }
+	ps convert X0
+	ps delete X0
 	Select_Bound_Vars(M15_0_3a, 4)
-	pe { .* goto x:@ident .* catch ( .* ) { .* :x .* } .* }
+	pe X0: { .* goto x:@ident .* catch ( .* ) { .* :x .* } .* }
+	ps convert X0
+	ps delete X0
 	Select_Bound_Vars(M15_0_3a, 4)
 	pe M15_0_3b: switch ( .* ) { .* [try catch] .* }
 	ps M15_0_3 = M15_0_3a + M15_0_3b
@@ -2708,7 +2805,9 @@ end
 
 def M16_0_6	#  (RI+) In the definition of a function-like macro, each instance of a parameter shall be enclosed in parentheses, unless it is used as the operand of # or ##.
 	r
-	pe /define @ident ( .* x:@ident .* ) ^[EOL EOF]* ^[( \# \##] :x ^[\# \##]
+	pe X0: /define @ident ( .* x:@ident .* ) ^[EOL EOF]* ^[( \# \##] :x ^[\# \##]
+	ps convert X0
+	ps delete X0
 	Select_Bound_Vars(M16_0_6, 4)
 	ps caption M16_0_6 (Required) In the definition of a function-like macro, each instance of a parameter shall be enclosed in parentheses, unless it is used as the operand of \# or \##.
 end

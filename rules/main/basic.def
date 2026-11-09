@@ -155,11 +155,19 @@ def check_condition	# condition.cobra
 end
 
 def check_empty		# empty.cobra
-	pe for ( .* ) \;
-	pe ^} while ( .* ) \;
-	pe else \;
-	pe if ( .* ) \;
-	ps create Empty
+	pe X0: for ( .* ) \;
+	pe X1: ^} while ( .* ) \;
+	pe X2: else \;
+	pe X3: if ( .* ) \;
+	ps X01 = X0 + X1
+	ps X23 = X2 + X3
+	ps Empty = X01 + X23
+	ps delete X0
+	ps delete X1
+	ps delete X2
+	ps delete X3
+	ps delete X01
+	ps delete X23
 	ps caption Empty Empty if/else/while/for statements
 end
 

@@ -626,7 +626,7 @@ new in december 30, 2021
 
  - improved ndfa generating for pattern expressions, improved results reporting
 
-5.3 December, 2025
+5.3 January 8, 2026
 
  - added a new front-end tool called tgrep, with manual page in doc/tgrep.1
    like the standard grep, but matching on token patterns instead of plain
@@ -696,3 +696,14 @@ new in december 30, 2021
   on the token text (e.g. m /alloc ) \;  matches on 3 tokens, the first with a
   text containing alloc, the second a round closing brace and the third a semi-colon
 
+5.4 April 13, 2026
+
+- automatically insert spaces before and/or after special symbols in a pattern
+  expression, where it's clear from context that they are missing
+  this applies to uses of { } ( ) and |
+
+- added check to arguments to -recursive, to prevent command injection
+  (not a real security issue, since any user of cobra can already execute
+   commands on the system directly, with the same privileges)
+
+- fixed autosar.def and a few other rule sets for correct use of pattern sets (11/26)

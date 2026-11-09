@@ -2,7 +2,9 @@
 
 def SER01_J
 	r
-	pe public class x:@ident implements Serializable { .* private :x ( .* ) { .* } .* }
+	pe X0: public class x:@ident implements Serializable { .* private :x ( .* ) { .* } .* }
+	ps convert X0
+	ps delete X0
 	pe & SER01_Ja: Serializable { .* ^private void [writeObject readObject readObjectNoData] ( .* ) .* }
 	r
 	# possibly, the next two checks should also be restricted to

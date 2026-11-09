@@ -761,7 +761,9 @@ end
 
 def m97_rule73
 	r
-	pe  [@type *] @ident <1> ( .* ) \; @1 (.curly == 0)
+	pe X0: [@type *] @ident <1> ( .* ) \; @1 (.curly == 0)
+	ps convert X0
+	ps delete X0
 	m & (
 	m & (.round == 0)
 	>1
@@ -948,7 +950,9 @@ end
 
 def m97_rule95
 	# find uses of define include ifdef if ifndef else endif defined in any arg-lists
-	pe [define include defined if ifdef ifndef else endif]
+	pe X0: [define include defined if ifdef ifndef else endif]
+	ps convert X0
+	ps delete X0
 	m & (.round > 0 && .curly > 0)
 	ps create M97_R95
 	ps caption M97_R95 (Required) Arguments to a function-like macro shall not contain tokens that look like pre-processing directives

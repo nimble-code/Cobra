@@ -230,7 +230,9 @@
 	Stop;
 %}
 
-pe for ( .* )
+pe X0: for ( .* )
+ps convert X0
+ps delete X0
 mark no for
 %{
 	if (.mark == 0
@@ -283,7 +285,9 @@ mark no for
 # = "for-loops"
 # ps list
 r
-pe while ( .* ) {
+pe X0: while ( .* ) {
+ps convert X0
+ps delete X0
 mark no while
 %{
 	cnt1 = 0;
@@ -312,7 +316,9 @@ mark no while
 # = "while loops"
 # ps list
 r
-pe } while ( .* ) ^{
+pe X0: } while ( .* ) ^{
+ps convert X0
+ps delete X0
 mark no while
 mark no }
 %{
