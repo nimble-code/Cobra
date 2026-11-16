@@ -156,7 +156,7 @@ end
 
 def check_empty		# empty.cobra
 	pe X0: for ( .* ) \;
-	pe X1: ^} while ( .* ) \;
+	pe X1: ^\} while ( .* ) \;
 	pe X2: else \;
 	pe X3: if ( .* ) \;
 	ps X01 = X0 + X1
@@ -168,6 +168,8 @@ def check_empty		# empty.cobra
 	ps delete X3
 	ps delete X01
 	ps delete X23
+	ps convert Empty
+	ps create Empty
 	ps caption Empty Empty if/else/while/for statements
 end
 

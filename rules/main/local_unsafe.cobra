@@ -10,9 +10,13 @@ ps delete ReturnsLocal
 pe R1: { .* @type [*]* x:@ident .* return & :x .* }
 pe R2: { .* @type x:@ident [ .* ] .* return :x .* }
 ps ReturnsLocal = R1 + R2
-ps caption ReturnsLocal Do not return the address of a local variable
 ps delete R1
 ps delete R2
+r
+ps convert ReturnsLocal		# recreate the set for icobra
+ps create ReturnsLocal
+ps caption ReturnsLocal Do not return the address of a local variable
+
 %{	# for direct reporting, matching the other checks below
 	p = pset("ReturnsLocal");
 	while (p.seq != 0)

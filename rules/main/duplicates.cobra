@@ -12,6 +12,8 @@
 
 requires 4.5	# for src_ln() and hash()
 
+quiet on
+
 def dup_init(min_len, basic_mode)
  %{
 	N = min_len;		# length of fragment
@@ -61,7 +63,7 @@ end
 
 def dup_collect(extend_matches)
  # three steps, 1: collect data
-!echo -n "step 1 "; date
+# !echo -n "step 1 "; date
  %{
 	if (. == End)
 	{	Stop;
@@ -97,7 +99,7 @@ def dup_collect(extend_matches)
 	}
  %}
  # 2: find longer matches based on the N-matches an mark endpoints
-!echo -n "step 2 "; date
+# !echo -n "step 2 "; date
  %{
 	# print "Step 2 " size(Fragment) "\n";
 	for (i in Fragment)
@@ -153,7 +155,7 @@ def dup_collect(extend_matches)
 	Stop;
  %}
  # 3: record the matches in a pattern set
-!echo -n "step 3 "; date
+# !echo -n "step 3 "; date
  %{
 	if (.mark >= N)			# non-zero: matches sequence at .bound
 	{	bnd = .bound;
@@ -196,7 +198,7 @@ def dup_collect(extend_matches)
 end
 
 def dup_report(detailed)
-!echo -n "step 4 "; date
+# !echo -n "step 4 "; date
  %{
 	# print "Step 4: Report\n";	# print matches in diff format
 	seqnr = 1;
@@ -242,7 +244,6 @@ def dup_report(detailed)
 		if (yb.txt == "EOF") { yb = yb.prv; }
 		if (xa.txt == "EOF") { xa = xa.nxt; }
 		if (xb.txt == "EOF") { xb = xb.prv; }
-
 		print seqnr " match of " nrtok " tokens ";
 		print ya.fnm ":" ya.lnr "-" yb.lnr " <> " ;
 		if (xa.fnm != ya.fnm)
@@ -291,6 +292,26 @@ end
 r
 ps delete Dup		# omit from a possible earlier run
 duplicates(60, 0, 0, 1)	# default parameters
-# Dup contains pairs of matches
-# ps list
 
+r
+ps convert Dup		# recreate the set for icobra
+ps create Dup
+ps caption Dup Duplicates
+
+# Dup contains pairs of matches
+
+ps list
+
+!rm -f _Duplicates_.txt
+track start _Duplicates_.txt
+	terse on
+	dp Dup
+	terse off
+track stop
+
+# report
+!if [ -s _Duplicates_.txt ] ; then echo "detailed results are in file _Duplicates_.txt (or type: dp Dup))"; fi
+# remove if empty
+!if [ -s _Duplicates_.txt ] ; then true; else rm -f _Duplicates_.txt; fi
+
+quiet off

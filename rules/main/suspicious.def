@@ -1,170 +1,296 @@
 requires 3.9
 
 def C01
-	pe C01: * @ident ( .* ) =					
+	pe C01: * @ident ( .* ) =
+	r
+	ps convert C01
+	ps create C01
 	ps caption C01 deref of fct return value on lhs of =
 end
 def C02
-	pe C02: [-- ++] ^[, \; { } ( ) =]* [-- ++]			
+	pe C02: [-- ++] ^[, \; { } ( ) =]* [-- ++]
+	r
+	ps convert C02
+	ps create C02
 	ps caption C02 multiple side effects in expression
 end
 def C03
 	pe C03: ^[struct union] ^[struct union] { .* @type x:@ident ^:x* }
+	r
+	ps convert C03
+	ps create C03
 	ps caption C03 unused variable declaration in a block
 end
 def C04
 	pe C04: ^[void struct union /define] @ident ( .* ) { .* return \; .* }
+	r
+	ps convert C04
+	ps create C04
 	ps caption C04 non-void functions failing to return a value
 end
 def C05
 	pe C05: ^[void struct union /define] @ident ( .* ) { ^return* }
+	r
+	ps convert C05
+	ps create C05
 	ps caption C05 non-void functions without return statement
 end
 def C06
-	pe C06: { .* /malloc ^free* }				
+	pe C06: { .* /malloc ^free* }
+	r
+	ps convert C06
+	ps create C06
 	ps caption C06 blocks that contain calls to malloc but not free
 end
 def C07
-	pe C07: { .* static .* }					
+	pe C07: { .* static .* }
+	r
+	ps convert C07
+	ps create C07
 	ps caption C07 local declaration of static variable
 end
 def C08
-	pe C08: { .* x:@ident -> .* if ( :x /= NULL ) .* }		
+	pe C08: { .* x:@ident -> .* if ( :x /= NULL ) .* }
+	r
+	ps convert C08
+	ps create C08
 	ps caption C08 reverse null check
 end
 def C09
-	pe C09: else if ( .* ) { .* } ^else				
+	pe C09: else if ( .* ) { .* } ^else
+	r
+	ps convert C09
+	ps create C09
 	ps caption C09 if-then-else-if chain not ending with else
 end
 def C10
-	pe C10: for ( .* \; .* [< <=] .* \; ^[++ += ->]* )		
+	pe C10: for ( .* \; .* [< <=] .* \; ^[++ += ->]* )
+	r
+	ps convert C10
+	ps create C10
 	ps caption C10 non-standard for statement
 end
 def C11
-	pe C11: for ( x:@ident .* ) { .* :x = .* }			
+	pe C11: for ( x:@ident .* ) { .* :x = .* }
+	r
+	ps convert C11
+	ps create C11
 	ps caption C11 modifies control var of for-loop in body
 end
 def C12
-	pe C12: goto x:@ident \; :x :				
+	pe C12: goto x:@ident \; :x :
+	r
+	ps convert C12
+	ps create C12
 	ps caption C12 match gotos immediately followed by the target label
 end
 def C13
-	pe C13: for ( .* ) ^[{ for switch if]			
+	pe C13: for ( .* ) ^[{ for switch if]
+	r
+	ps convert C13
+	ps create C13
 	ps caption C13 loop body is not enclosed in { }
 end
 def C14
-	pe C14: if ( .* ) ^[{ for switch if]			
+	pe C14: if ( .* ) ^[{ for switch if]
+	r
+	ps convert C14
+	ps create C14
 	ps caption C14 body of if-statement is not enclosed in { }
 end
 def C15
-	pe C15: switch ( .* ) { ^default* }				
+	pe C15: switch ( .* ) { ^default* }
+	r
+	ps convert C15
+	ps create C15
 	ps caption C15 switch statement without a default
 end
 def C16
-	pe C16: typedef ^\;*  *  ^\;* ^/ptr \;			
+	pe C16: typedef ^\;*  *  ^\;* ^/ptr \;
+	r
+	ps convert C16
+	ps create C16
 	ps caption C16 typedefs for pointers must have a ptr suffix
 end
 def C17
-	pe C17: typedef ^\;* /_ \;					
+	pe C17: typedef ^\;* /_ \;
+	r
+	ps convert C17
+	ps create C17
 	ps caption C17 there should be no _ in a typedef name
 end
 def C18
-	pe C18: x:@ident += @ident ( ^[, ) ->]* :x  .* )		
+	pe C18: x:@ident += @ident ( ^[, ) ->]* :x  .* )
+	r
+	ps convert C18
+	ps create C18
 	ps caption C18 using return value of a fct in its first parameter
 end
 def C19
-	pe C19: x:@ident += snprintf ( ^,* :x .* /%s .* )		
+	pe C19: x:@ident += snprintf ( ^,* :x .* /%s .* )
+	r
+	ps convert C19
+	ps create C19
 	ps caption C19 result of snprintf may not used as offset in call
 end
 def C20
-	pe C20: { .* x:@ident = @ident ( .* ) ^:x* \[ :x \] .* }	
+	pe C20: { .* x:@ident = @ident ( .* ) ^:x* \[ :x \] .* }
+	r
+	ps convert C20
+	ps create C20
 	ps caption C20 cwe_119_2: array indexed with unchecked return val of fct
 end
 def C21
 	pe C21: @type @ident ( .* x:@ident .* ) { ^:x* \( :x ^[> <] \)* ^:x* [ :x ] .* }
+	r
+	ps convert C21
+	ps create C21
 	ps caption C21 cwe_119_3: param not checked before use as array index
 end
 def C22
-	pe C22: [vscanf vfscanf scanf vprintf]   ( /%s .* )		
+	pe C22: [vscanf vfscanf scanf vprintf]   ( /%s .* )
+	r
+	ps convert C22
+	ps create C22
 	ps caption C22 cwe_120_2: omits checking size of input
 end
 def C23
 	pe C23: [sprintf vsprintf vfprintf fscanf sscanf vfscanf vsscanf]  ( .* , /%s .* )
+	r
+	ps convert C23
+	ps create C23
 	ps caption C23 cwe_120_2: omits checking size of input
 end
 def C24
-	pe C24: [snprintf vsnprintf] ( .* , .* , /%s .* )		
+	pe C24: [snprintf vsnprintf] ( .* , .* , /%s .* )
+	r
+	ps convert C24
+	ps create C24
 	ps caption C24 cwe_120_2: omits checking size of input
 end
 def C25
 	pe C25: @type @ident ( .* x:@ident .* ) { ^:x* memcpy ( .* :x .* ) .* }
+	r
+	ps convert C25
+	ps create C25
 	ps caption C25 cwe_134: param value not checked before use in memcpy
 end
 def C26
 	pe C26: @type @ident ( .* ) { .* ^[. ->] free ( x:@ident ) ^[:x return goto else]* :x ^= .* }
+	r
+	ps convert C26
+	ps create C26
 	ps caption C26 cwe_416: possible use after free
 end
 def C27
 	pe C27: { .* ^[static extern] @type x:@ident \; ^:x* = :x ^= .* }
+	r
+	ps convert C27
+	ps create C27
 	ps caption C27 cwe_457: possible use of uninitialized data
 end
 def C28
-	pe C28: @type @ident ( .* ) { .* @type x:@ident \; ^:x* }	
+	pe C28: @type @ident ( .* ) { .* @type x:@ident \; ^:x* }
+	r
+	ps convert C28
+	ps create C28
 	ps caption C28 cwe_457: unused data
 end
 def C29
-	pe C29: ( .* * ) ( .* \+ .* )					
+	pe C29: ( .* * ) ( .* \+ .* )
+	r
+	ps convert C29
+	ps create C29
 	ps caption C29 cwe_468: pointer arithmetic
 end
 def C30
 	pe C30: @type x:@ident ( .* ) { .* return - .* } .* [ :x ( .* ) ]
+	r
+	ps convert C30
+	ps create C30
 	ps caption C30 cwe_805: buffer access with potentially negative value
 end
 def C31
-	pe C31: x:@ident += snprintf ( ^,* :x .* /%s .* )		
+	pe C31: x:@ident += snprintf ( ^,* :x .* /%s .* )
+	r
+	ps convert C31
+	ps create C31
 	ps caption C31 use of result of snprintf as offset
 end
 def C32
 	pe C32: @type @ident ( .* ) { .* return ^\; .* return \; .* }
+	r
+	ps convert C32
+	ps create C32
 	ps caption C32 fct does not always return value
 end
 def C33
 	pe C33: @type @ident ( .* ) { .* return \; .* return ^\; .* }
+	r
+	ps convert C33
+	ps create C33
 	ps caption C33 fct does not always return value
 end
 def C34
 	pe C34: @type x:@ident ( .* ) { .* return ^\; .* } .* [\; } {] :x ( .* )
+	r
+	ps convert C34
+	ps create C34
 	ps caption C34 fails to check return value of fct
 end
 def C35
-	pe C35: [ @ident /= .* ]					
+	pe C35: [ @ident /= .* ]
+	r
+	ps convert C35
+	ps create C35
 	ps caption C35 side effect in array index
 end
 def C36
-	pe C36: ^/^yy [ - .* ]					
+	pe C36: ^/^yy [ - .* ]
+	r
+	ps convert C36
+	ps create C36
 	ps caption C36 explicitly negative array index
 end
 def C37
-	pe C37: @type x:@ident ( .* ) { .* return 0 .* } .* [/ %] :x	
+	pe C37: @type x:@ident ( .* ) { .* return 0 .* } .* [/ %] :x
+	r
+	ps convert C37
+	ps create C37
 	ps caption C37 potential division by zero
 end
 def C38
-	pe C38: ( .* [^ &] ^[( , )]*  [^ |] .* )			
+	pe C38: ( .* [^ &] ^[( , )]*  [^ |] .* )
+	r
+	ps convert C38
+	ps create C38
 	ps caption C38 multiple binary operators, without braces
 end
 def C39
-	pe C39: /define @ident ( .* x:@ident .* ) ^[EOL EOF]* ^( :x	
+	pe C39: /define @ident ( .* x:@ident .* ) ^[EOL EOF]* ^( :x
+	r
+	ps convert C39
+	ps create C39
 	ps caption C39 in macro defs, arguments must be enclosed in braces
 end
 def C40
-	pe C40: [if for else] ( .* ) \;				
+	pe C40: [if for else] ( .* ) \;
+	r
+	ps convert C40
+	ps create C40
 	ps caption C40 empty if/for/else statements
 end
 def C41
-	pe C41: do \;						
+	pe C41: do \;
+	r
+	ps convert C41
+	ps create C41
 	ps caption C41 unexpected null statement
 end
 def C42
-	pe C42: x:@type y:@ident .* z:@type :y <1> @1 (:x != :z)		
+	pe C42: x:@type y:@ident .* z:@type :y <1> @1 (:x != :z)
+	r
+	ps convert C42
+	ps create C42
 	ps caption C42 same var or fct name preceded by different type
 end

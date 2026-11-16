@@ -5253,17 +5253,29 @@ proc patterns_panel {nrm pn} {
 			ttk::frame .patterns.main.c.frWidgets -borderwidth 1 -relief solid -width 340 -height 700
 	}	}
 
-	catch {
-		if {$nrm == $pmap($pn)} {
-			return 0	;# returns value from catch
-		}
-	} emsg
+#### replacement for commented out block:
 
-	if {"$emsg" == "0" && [winfo exists .patterns.main.c.frWidgets] } {
-		for {set tval 0} {$tval <= $nrpat} {incr tval} {
-			if {$tval == $pnm2nr($pn)} {
-				return		;# entry exists
-	}	}	}
+	if {[info exists pmap($pn)] && [info exists pnm2nr($pn)]} {
+		set old .patterns.main.c.frWidgets.b$pnm2nr($pn)
+		if {$nrm == $pmap($pn) && [winfo exists $old]} {
+			return			;# entry exists and is still on screen
+		}
+		catch { destroy $old }		;# stale or changed: rebuild it below
+	}
+
+#### end replacement
+
+####	catch {
+####		if {$nrm == $pmap($pn)} {
+####			return 0	;# returns value from catch
+####		}
+####	} emsg
+####
+####	if {"$emsg" == "0" && [winfo exists .patterns.main.c.frWidgets] } {
+####		for {set tval 0} {$tval <= $nrpat} {incr tval} {
+####			if {$tval == $pnm2nr($pn)} {
+####				return		;# entry exists
+####	}	}	}
 
 	catch {
 		incr nrpat
@@ -5416,7 +5428,7 @@ proc predefined_list {} {
 
 	set nr 0
 	while {[gets $lfd line] > -1} {
-		if {[string first "predefined" $line] < 0 && [string first "duplicates.cobra" $line] < 0} {
+		if {[string first "predefined" $line] < 0} {
 			button .predef.main.lst$nr -height 1 -text "$line" \
 				-highlightthickness 3 \
 				-bg $CBG -fg $CFG -font $HV2 \
@@ -5451,9 +5463,15 @@ proc smart_action {} {
 	# delete older patterns entries with the same name $sn
 	catch {
 		set n $pnm2nr($sn)
-		if {[winfo exists .patterns.main.b$n]} {
-			destroy .patterns.main.b$n
-	}	}
+### replacement for commented out section
+		if {[winfo exists .patterns.main.c.frWidgets.b$n]} {
+			destroy .patterns.main.c.frWidgets.b$n
+		}
+### end of replacement
+###		if {[winfo exists .patterns.main.b$n]} {
+###			destroy .patterns.main.b$n
+###		}
+	}
 
 	array set pn2pe "$sn \"$pn\""
 	
@@ -5591,7 +5609,55 @@ proc smart_panel {} {
 	bind .smart.d.mark <Return> "smart_action"
 }
 
+#### added
+
+# remove one menu entry and forget everything about it
+proc patterns_forget {pn} {
+	global pmap pnm2nr ptitle
+	if {[info exists pnm2nr($pn)]} {
+		catch { destroy .patterns.main.c.frWidgets.b$pnm2nr($pn) }
+	}
+	unset -nocomplain pmap($pn) pnm2nr($pn) ptitle($pn)
+}
+
+proc patterns_resize {} {
+	global Wpatternmatch Xpatternmatch Ypatternmatch
+	if {![winfo exists .patterns]} { return }
+	set n [llength [array names ::pnm2nr]]
+	if {$n < 1} { set n 1 }
+	if {$n < 14} {
+		wm geometry .patterns ${Wpatternmatch}x[expr {40*$n}]+${Xpatternmatch}+$Ypatternmatch
+	}
+	catch { .patterns.main.c configure -scrollregion [.patterns.main.c bbox all] }
+	update
+}
+
 proc do_query {which} {
+	global pnm2nr pn2pe
+
+	# 1. drop the menu entries of earlier checks
+	#    (sets defined by the Pattern Search box are recorded in pn2pe, so keep those)
+	foreach pn [array names pnm2nr] {
+		if {![info exists pn2pe($pn)]} { patterns_forget $pn }
+	}
+	catch { destroy .p_detail }
+
+	# 2. run the check; its output rebuilds the menu via patterns_panel
+	do_button ". $which; r"
+
+	# 3. drop untitled entries, including the last one (the old loop missed it)
+	foreach pn [array names pnm2nr] {
+		set b .patterns.main.c.frWidgets.b$pnm2nr($pn)
+		if {[winfo exists $b] && [string first "No Description" [$b cget -text]] > 0} {
+			patterns_forget $pn
+		}
+	}
+	patterns_resize
+}
+
+#### end addition
+
+proc do_query_old {which} {
 
 #	puts "here: $which"
 	do_button ". $which; r"

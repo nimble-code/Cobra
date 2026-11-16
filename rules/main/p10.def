@@ -14,6 +14,10 @@ def P10_1
 	ps P10_1 = P10_1a + P10_1b
 	ps delete P10_1a
 	ps delete P10_1b
+
+	r
+	ps convert P10_1	# recreate set for icobra
+	ps create P10_1
 	ps caption P10_1 Rule 1: restrict to simple control flow constructs
 end
 def P10_2
@@ -32,14 +36,26 @@ def P10_2
 	ps delete P10_2b
 	ps P10_2 = P10_2ab + P10_2c
 	ps delete P10_2ab
+
+	r
+	ps convert P10_2
+	ps create P10_2
 	ps caption P10_2 Rule 2: give all loops a fixed upper bound
 end
 def P10_3
 	pe P10_3: ^/init ( .* ) { .* [/alloc /free] ( .* ) .* }
+
+	r
+	ps convert P10_3
+	ps create P10_3
 	ps caption P10_3 Rule 3: do not use dynamic memory allocation after initialization
 end
 def P10_4
 	pe P10_4: @ident ( .* ) { .* } @6 (.range > 75)
+
+	r
+	ps convert P10_4
+	ps create P10_4
 	ps caption P10_4 Rule 4: limit functions to no more than 75 lines of text
 end
 def P10_5
@@ -56,6 +72,10 @@ def P10_5
 	%}
 	r
 	pe P10_5: @ident ( .* ) { ^assert* }
+
+	r
+	ps convert P10_5
+	ps create P10_5
 	ps caption P10_5 Rule 5: use minimally two assertions per function on average
 end
 def P10_6
@@ -83,6 +103,10 @@ def P10_6
 	ps P10_6 = P10_6a + P10_6b
 	ps delete P10_6a
 	ps delete P10_6b
+
+	r
+	ps convert P10_6
+	ps create P10_6
 	ps caption P10_6 Limit use of global data
 end
 def P10_7
@@ -95,7 +119,12 @@ def P10_7
 	ps P10_7 = P10_7a + P10_7b
 	ps delete P10_7a
 	ps delete P10_7b
-	ps caption P10_07 Rule 7: check the return value of non-void fcts and check the validity of fct parameters
+
+	r
+	ps convert P10_7
+	ps create P10_7
+
+	ps caption P10_7 Rule 7: check the return value of non-void fcts and check the validity of fct parameters
 end
 def P10_8
 	pe P10_8a: [\#ifdef \#ifndef] ^EOF* [\#ifdef \#ifndef]
@@ -107,6 +136,11 @@ def P10_8
 	ps P10_8 = P10_8a + P10_8b
 	ps delete P10_8a
 	ps delete P10_8b
+
+	r
+	ps convert P10_8
+	ps create P10_8
+
 	ps caption P10_8 Rule 8: limit the use of the preprocessor to file inclusion and simple macros
 end
 def P10_9
@@ -140,5 +174,10 @@ def P10_9
 	ps P10_9 = P10_9abcd + P10_9e
 	ps delete P10_9e
 	ps delete P10_9abcd
+
+	r
+	ps convert P10_9
+	ps create P10_9
+
 	ps caption P10_9 Rule 9: limit the use of pointers, use no more than 2 levels of dereferencing
 end

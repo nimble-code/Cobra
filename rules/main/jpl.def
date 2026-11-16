@@ -487,12 +487,15 @@ def jpl_rule22
 end
 
 def jpl_rule24
-	r
+#	r
 #	m \;
 #	st \;
 #	m & (.round == 0 && .range == 0)
 #	ps create R24
 	pe R24: x:\; .* \; <1> @1(:x.lnr == .lnr && .round == 0 && .range == 0)
+	r
+	ps convert R24	# recreate the set for icobra
+	ps create R24
 	ps caption R24 Do not place more than one statement or declaration per line
 end
 
